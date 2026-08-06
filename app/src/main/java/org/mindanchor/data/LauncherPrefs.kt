@@ -60,6 +60,35 @@ class LauncherPrefs(private val context: Context) {
         }
     }
 
+    // --- Bulk replacement, used only when restoring a backup -------------
+    //
+    // Restoring is the one time wholesale replacement is right: the person
+    // is deliberately saying "make this phone look like that one". Every
+    // other path through this class edits a single entry.
+
+    suspend fun replaceFavorites(components: List<String>) {
+        context.dataStore.edit { prefs ->
+            prefs[favoritesKey] = components
+                .filter { it.isNotBlank() }
+                .takeLast(MAX_FAVORITES)
+                .joinToString(SEPARATOR)
+        }
+    }
+
+    suspend fun replaceHidden(components: Set<String>) {
+        context.dataStore.edit { prefs -> prefs[hiddenKey] = components.filter { it.isNotBlank() }.toSet() }
+    }
+
+    suspend fun replaceRenames(renames: Map<String, String>) {
+        context.dataStore.edit { prefs ->
+            prefs[renamesKey] = renames.entries
+                .filter { it.key.isNotBlank() && it.value.isNotBlank() }
+                // A tab or newline in a label would corrupt the next read,
+                // and a rename comes from a text field the user controls.
+                .joinToString("\n") { "${it.key}\t${it.value.replace('\t', ' ').replace('\n', ' ')}" }
+        }
+    }
+
     suspend fun rename(component: String, label: String?) {
         context.dataStore.edit { prefs ->
             val current = (prefs[renamesKey] ?: "")
