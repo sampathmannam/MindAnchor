@@ -1,25 +1,45 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    The dusk end of the same palette the home screen uses, so the icon on
-    the app grid and the sky behind the clock read as one thing.
+    The dusk end of the sky the home screen draws, plus the ridge that sits
+    under it, so the icon on the app grid and the screen behind the clock
+    read as the same place. The first version was a flat gradient, which
+    was calm but said nothing about the app.
+
+    The ridge is deliberately low and very close in tone to the sky above
+    it. It is there to give the icon a horizon, not to be looked at — at
+    48dp it reads as a slight weighting toward the bottom rather than as a
+    hill, which is the intent. Anything with more contrast would compete
+    with the anchor sitting on top of it.
+
+    Everything here bleeds past the safe zone on purpose: the background
+    layer is what gets masked and parallaxed, so it must have no edges of
+    its own.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- Sky. -->
     <path android:pathData="M0,0h108v108h-108z">
-        <aapt:attr xmlns:aapt="http://schemas.android.com/aapt" name="android:fillColor">
+        <aapt:attr name="android:fillColor">
             <gradient
                 android:startX="54"
                 android:startY="0"
                 android:endX="54"
                 android:endY="108"
                 android:type="linear">
-                <item android:offset="0" android:color="#1E2A38" />
-                <item android:offset="0.55" android:color="#2C3A4A" />
-                <item android:offset="1" android:color="#3E4A55" />
+                <item android:offset="0" android:color="#16202C" />
+                <item android:offset="0.5" android:color="#26333F" />
+                <item android:offset="1" android:color="#3A4653" />
             </gradient>
         </aapt:attr>
     </path>
+
+    <!-- Ridge. One unbroken curve, no peaks, nothing jagged. -->
+    <path
+        android:fillColor="#434F5C"
+        android:pathData="M0,86 C 22,74 42,80 60,86 C 76,91 92,89 108,84 L 108,108 L 0,108 Z" />
 </vector>
