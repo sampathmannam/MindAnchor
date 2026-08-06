@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -14,7 +15,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.delay
+import org.mindanchor.data.AppearancePrefs
+import java.time.LocalDate
 import java.time.LocalTime
 
 /** Text colours guaranteed readable against the sky behind them. */
@@ -36,6 +40,9 @@ data class SkyContent(
 @Composable
 fun CalmBackground(content: @Composable (SkyContent) -> Unit) {
     val darkTheme = isSystemInDarkTheme()
+    val context = LocalContext.current
+    val appearance = remember(context) { AppearancePrefs(context) }
+    val sceneSetting by appearance.scene.collectAsState(initial = null)
     var minuteOfDay by remember {
         mutableIntStateOf(LocalTime.now().let { it.hour * 60 + it.minute })
     }
@@ -44,6 +51,9 @@ fun CalmBackground(content: @Composable (SkyContent) -> Unit) {
             delay(60_000)
             minuteOfDay = LocalTime.now().let { it.hour * 60 + it.minute }
         }
+    }
+    val scene = sceneSetting?.let {
+        NatureScene.resolve(it, LocalDate.now().toEpochDay())
     }
 
     val palette = SkyMath.palette(minuteOfDay, darkTheme)
@@ -89,6 +99,9 @@ fun CalmBackground(content: @Composable (SkyContent) -> Unit) {
                 center = hillCenterB,
                 radius = hillRadiusB,
             )
+
+            // The landscape, in the same atmospheric material as the hills.
+            scene?.let { drawNature(it, hillTint) }
 
             // Adaptive haze last, so the contrast guarantee holds over
             // everything drawn above it.
