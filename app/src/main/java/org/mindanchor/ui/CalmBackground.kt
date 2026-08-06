@@ -9,9 +9,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.platform.LocalContext
 import org.mindanchor.data.AppearancePrefs
 import java.time.LocalDate
@@ -84,30 +84,45 @@ fun CalmBackground(content: @Composable (SkyContent) -> Unit) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             drawRect(brush = Brush.verticalGradient(listOf(top, mid, bottom)))
 
-            // Two soft overlapping "hills": curvature-preference shapes at
-            // whisper opacity, suggesting a horizon without depicting one.
-            val hillCenterA = Offset(size.width * 0.15f, size.height * 1.05f)
-            val hillRadiusA = size.width * 0.85f
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(hillTint.copy(alpha = LAND_NEAR_ALPHA), Color.Transparent),
-                    center = hillCenterA,
-                    radius = hillRadiusA,
-                ),
-                center = hillCenterA,
-                radius = hillRadiusA,
-            )
-            val hillCenterB = Offset(size.width * 0.95f, size.height * 1.12f)
-            val hillRadiusB = size.width
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(hillTint.copy(alpha = LAND_FAR_ALPHA), Color.Transparent),
-                    center = hillCenterB,
-                    radius = hillRadiusB,
-                ),
-                center = hillCenterB,
-                radius = hillRadiusB,
-            )
+            // Two hills, drawn as shapes rather than as glows.
+            //
+            // These were radial gradients centred below the bottom edge, at
+            // 1.05 and 1.12 times the height. Only the outermost rim of each
+            // circle was ever on screen, and a radial gradient is at its
+            // faintest there — so raising the opacity did nothing, because
+            // the opaque part was off the screen entirely. The second set of
+            // real screenshots still showed a flat gradient.
+            //
+            // A horizon needs an edge. These are filled curves with a
+            // definite crest, low enough to sit under everything the home
+            // screen puts on top of them.
+            val crestFar = size.height * 0.74f
+            val far = Path().apply {
+                moveTo(0f, crestFar + size.height * 0.05f)
+                cubicTo(
+                    size.width * 0.30f, crestFar - size.height * 0.03f,
+                    size.width * 0.55f, crestFar + size.height * 0.04f,
+                    size.width, crestFar - size.height * 0.01f,
+                )
+                lineTo(size.width, size.height)
+                lineTo(0f, size.height)
+                close()
+            }
+            drawPath(far, color = hillTint.copy(alpha = LAND_FAR_ALPHA))
+
+            val crestNear = size.height * 0.84f
+            val near = Path().apply {
+                moveTo(0f, crestNear + size.height * 0.04f)
+                cubicTo(
+                    size.width * 0.35f, crestNear - size.height * 0.05f,
+                    size.width * 0.70f, crestNear + size.height * 0.02f,
+                    size.width, crestNear + size.height * 0.01f,
+                )
+                lineTo(size.width, size.height)
+                lineTo(0f, size.height)
+                close()
+            }
+            drawPath(near, color = hillTint.copy(alpha = LAND_NEAR_ALPHA))
 
             // The landscape, in the same atmospheric material as the hills.
             scene?.let { drawNature(it, hillTint) }
@@ -131,7 +146,7 @@ private const val LAND_LIGHTEN = 0.45
  * were invisible; still low enough that the land reads as distance rather
  * than as an object demanding attention.
  */
-private const val LAND_NEAR_ALPHA = 0.75f
-private const val LAND_FAR_ALPHA = 0.55f
+private const val LAND_NEAR_ALPHA = 0.92f
+private const val LAND_FAR_ALPHA = 0.70f
 
 private fun Rgb.toColor(): Color = Color(r, g, b)
