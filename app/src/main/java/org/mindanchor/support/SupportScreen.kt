@@ -30,6 +30,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import org.mindanchor.R
@@ -84,7 +86,9 @@ fun SupportScreen(
             Text(
                 text = stringResource(R.string.support_title),
                 style = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                modifier = Modifier
+                    .padding(top = 8.dp, bottom = 4.dp)
+                    .semantics { heading() },
             )
             Text(
                 text = stringResource(R.string.support_intro),
@@ -104,6 +108,7 @@ fun SupportScreen(
                         text = stringResource(R.string.support_reach_someone),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.semantics { heading() },
                     )
                     contacts.forEach { contact ->
                         TextButton(
@@ -162,7 +167,9 @@ fun SupportScreen(
             Text(
                 text = stringResource(R.string.skills_section),
                 style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
+                modifier = Modifier
+                    .padding(top = 24.dp, bottom = 4.dp)
+                    .semantics { heading() },
             )
             Text(
                 text = stringResource(R.string.skills_intro),
@@ -212,7 +219,9 @@ fun SupportScreen(
                 Text(
                     text = stringResource(R.string.plan_section),
                     style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .semantics { heading() },
                 )
                 TextButton(onClick = { editing = !editing }) {
                     Text(

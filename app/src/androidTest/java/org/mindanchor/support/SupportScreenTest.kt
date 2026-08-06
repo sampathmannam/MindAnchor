@@ -1,10 +1,12 @@
 package org.mindanchor.support
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
@@ -57,6 +59,17 @@ class SupportScreenTest {
         rule.onNodeWithText("Phone").performScrollTo().performTextInput("5551234567")
         rule.waitForIdle()
         rule.onNodeWithText("Add person").performScrollTo().assertIsEnabled()
+    }
+
+    @Test
+    fun theScreenIsNavigableByHeading() {
+        launchSupport()
+        // Support is the longest screen in the app. A TalkBack user who
+        // cannot jump by heading has to hear every crisis number, every
+        // skill and every plan field in order before reaching the part
+        // they came for — which is the opposite of what this screen is
+        // for. Four headings, one per section.
+        rule.onAllNodes(isHeading()).assertCountEquals(4)
     }
 
     @Test
