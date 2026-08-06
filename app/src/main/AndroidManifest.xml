@@ -48,6 +48,10 @@
             android:name=".pulse.PulseActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".support.SupportActivity"
+            android:exported="false" />
+
         <service
             android:name=".notifications.AnchorNotificationListenerService"
             android:exported="true"

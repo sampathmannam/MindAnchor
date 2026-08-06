@@ -398,6 +398,17 @@ fun SettingsScreen(
             onClick = {
                 runCatching {
                     context.startActivity(
+                        Intent(context, org.mindanchor.support.SupportActivity::class.java),
+                    )
+                }
+            },
+        ) {
+            Text(stringResource(R.string.support_open))
+        }
+        TextButton(
+            onClick = {
+                runCatching {
+                    context.startActivity(
                         Intent(Intent.ACTION_DIAL, android.net.Uri.parse("tel:988")),
                     )
                 }
