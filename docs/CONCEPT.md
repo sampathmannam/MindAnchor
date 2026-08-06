@@ -292,7 +292,99 @@ notification service that *behaves* like a calmer OS.
 
 ---
 
-## 6. Key citations
+## 6. State of the art & novel features (from the 2024–2026 SOTA survey)
+
+Full literature and landscape reports live in [`docs/research/`](research/):
+[01 sensing & JITAI](research/01-sensing-and-jitai-sota.md) ·
+[02 attention design](research/02-attention-design-sota.md) ·
+[03 products & OSS landscape](research/03-products-and-oss-landscape.md) ·
+[04 AI frontier](research/04-ai-frontier-sota.md).
+
+### 6.1 Where the field actually is
+
+- **The "mental-health OS" layer is vacant.** No maintained FOSS wellbeing launcher exists
+  (Siempo, the closest prior art, died ~2020 — its GPL code is on GitHub); no serious
+  mental-health AOSP fork exists; Apple/Google ship importance-ranking, not
+  delivery-scheduling, and nothing state-aware.
+- **The strongest causal evidence** is for: sender-tiered notification *batching* (Fitz
+  2019 — while *disabling* notifications failed twice: Dekker 2024 "Beyond the Buzz" null
+  + FoMO increase; "Sound of Silence" 2022 showed muting harms high-FoMO users);
+  app-open friction (one sec, PNAS 2023 + CHI 2024 n=1,039 longitudinal); and gating
+  mobile *internet content while preserving calls/messages* (Castelo, PNAS Nexus 2025:
+  −0.57 SD mental-health symptoms — larger than typical antidepressant meta-analytic
+  effects).
+- **Cross-person mood prediction does not generalize** (Müller 2021: AUC 0.82 → 0.57 on a
+  diverse sample). Per-user, on-device anomaly detection against one's own baseline is
+  the only defensible sensing design (mindLAMP relapse work, npj Schizophrenia 2023).
+- **Habituation is the universal failure mode** — fixed delays, fixed nudges, and goal
+  reminders all decay (HeartSteps, Sense2Stop, Lyngs CHI 2020). Adaptive timing beats
+  fixed and random schedules (DIAMANTE RL trial, JMIR 2024; Oralytics, deployed RL).
+- **Sleep regularity (SRI), not duration, is the strongest phone-derivable target**
+  (UK Biobank ~60k: top-quintile regularity → 20–48% lower all-cause mortality; regularity
+  predicts lower incident depression/anxiety).
+- **AI therapy is validated only under human supervision** (Therabot NEJM AI 2025 RCT) and
+  unsafe unsupervised (Stanford 2025: ~20% unsafe responses; Illinois banned AI-delivered
+  therapy). On-device small LLMs (Gemma 3n, Llama 3.2 1B) are, however, feasible today
+  for private summarization/reflection.
+
+### 6.2 Novel features nobody ships (each research-backed)
+
+1. **Default sender-tiered notification batching at the launcher level.** The
+   best-evidenced intervention in the field, and literally unclaimed product territory —
+   only crude app-side batchers (Mindful, Bundel) exist. Humans pass instantly; machines
+   wait for the next batch window. (Fitz 2019; Mehrotra: sender relationship is the
+   strongest acceptance predictor.)
+2. **Adaptive anti-habituation friction.** Every shipping blocker uses fixed delays that
+   lose potency in weeks. MindAnchor's friction *escalates with recent overuse and
+   time-of-night, varies its content, and rests when you're doing fine* — a bandit
+   algorithm (Oralytics pattern) decides when friction is worth spending. (HeartSteps
+   decay; Scrolling in the Deep CHI 2025: context-blind prompts desensitize.)
+3. **Per-user baseline "anchor score" — on-device anomaly detection, not diagnosis.**
+   Sleep-window regularity from screen-state, typing-rhythm metadata (BiAffect pattern —
+   how you type, never what), movement and sociality vs. *your own* trailing baseline.
+   Deviations trigger a gentle check-in, nothing else. (npj Schizophrenia 2023: anomalies
+   2.12× more frequent pre-relapse; Müller 2021 forbids cross-person models.)
+4. **Sleep Regularity Index as the headline metric.** No consumer product leads with SRI;
+   the evidence says it should be the number on the dashboard, with the launcher
+   enforcing a consistent wind-down/wake window rather than counting hours.
+5. **Goal-elicitation onboarding that configures the OS per-user.** ReDD workshop finding
+   (CHI 2024 Best Paper HM): matching tool to individual struggle beats any single tool;
+   imposed minimalism fails, self-endorsed structure works ("Going Light," CHI 2026).
+   Onboarding = articulate your struggles → the OS assembles your feature set.
+6. **"Castelo mode": internet-content fasting that preserves communication.** One-tap
+   scheduled blocks of mobile-internet content (feeds, browsers) while calls/SMS/maps
+   stay live — replicating the exact mechanism of the strongest 2025 trial, which
+   full-abstinence products get wrong (moderation beats detox; Brailovskaia).
+7. **Embodied & physical friction, open-sourced.** Breathing-paced app-open gates
+   (haptic-guided, starting from your natural rate — Breathm CHI 2024), and NFC-tag
+   unlocking ("your feed lives in the kitchen drawer" — Brick/Unpluq mechanism, currently
+   proprietary-only).
+8. **On-device LLM digest, private by construction.** Gemma 3n/Llama 3.2 1B summarizes
+   each notification batch into three calm sentences and reflects journaling back —
+   no cloud, auditable FOSS. (Scoped as wellness, never therapy: crisis keywords route
+   to 988/Tele-MANAS humans.)
+9. **Self-evaluating OS.** No FOSS wellbeing project instruments itself for evidence.
+   MindAnchor ships local telemetry (ActivityWatch-style), per-user n-of-1 experiments
+   (features A/B themselves against *your* WHO-5/PSS-4 pulse), and opt-in anonymized
+   study export — making "research-backed" a live property, not a launch claim.
+10. **An "attention-capture damaging patterns" firewall.** Use the CHI 2023 ACDP typology
+    (11 patterns: infinite scroll, autoplay, pull-to-refresh, time fog…) as a requirements
+    checklist: per-app scorecards in the launcher, and countermeasures (scroll-session
+    breathers, autoplay kill, scheduled feed access) applied per pattern.
+
+### 6.3 Evidence-driven corrections to v1 of this document
+
+- **Drop stats-only dashboards as a core feature** — self-monitoring alone is the weakest
+  intervention class (TOCHI 2023 meta-analysis). Attention receipts stay, but demoted to
+  supporting cast.
+- **Never ship blanket mute/DND as a wellbeing feature** — it backfires for high-FoMO
+  users. Batching with human-breakthrough only.
+- **Expect small average effects and design for heterogeneity** — app-based interventions
+  average g≈0.28 (Linardon 2024, 176 RCTs); the Delphi consensus (2025) supports
+  sleep/attention/compulsion harms, not "screens cause depression." Market mechanisms,
+  measure per-user, de-escalate when someone's data shows a feature isn't helping.
+
+## 7. Key citations
 
 - Fitz, N., Kushlev, K., et al. (2019). Batching smartphone notifications can improve well-being. *Computers in Human Behavior*.
 - Grüning, D. J., et al. (2023). Directing smartphone use through the self-nudge app one sec. *PNAS*.
