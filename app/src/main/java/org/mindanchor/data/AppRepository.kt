@@ -61,10 +61,17 @@ class AppRepository(context: Context) {
         awaitClose { launcherApps.unregisterCallback(callback) }
     }
 
-    fun launch(component: String) {
+    /**
+     * Launching can fail if the app was uninstalled, disabled or is in a
+     * locked work profile between listing and tapping. A launcher must never
+     * crash for that; report failure and let the caller stay put.
+     */
+    fun launch(component: String): Boolean {
         val componentName = android.content.ComponentName.unflattenFromString(component)
-            ?: return
-        launcherApps.startMainActivity(componentName, Process.myUserHandle(), null, null)
+            ?: return false
+        return runCatching {
+            launcherApps.startMainActivity(componentName, Process.myUserHandle(), null, null)
+        }.isSuccess
     }
 
     private fun LauncherActivityInfo.toInstalledApp() = InstalledApp(

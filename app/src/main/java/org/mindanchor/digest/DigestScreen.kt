@@ -52,10 +52,9 @@ class DigestViewModel(application: Application) : AndroidViewModel(application) 
 
     fun openApp(packageName: String) {
         val app = getApplication<Application>()
-        app.packageManager.getLaunchIntentForPackage(packageName)?.let { intent ->
-            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-            app.startActivity(intent)
-        }
+        val intent = app.packageManager.getLaunchIntentForPackage(packageName) ?: return
+        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { app.startActivity(intent) }
     }
 }
 

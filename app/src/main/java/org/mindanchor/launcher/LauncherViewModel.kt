@@ -53,9 +53,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun searchResults(state: LauncherUiState): List<DisplayApp> =
         AppFiltering.search(state.allApps, query.value)
 
-    fun launch(app: DisplayApp) {
+    fun launch(app: DisplayApp): Boolean {
         query.value = ""
-        repository.launch(app.component)
+        return repository.launch(app.component)
     }
 
     fun toggleFavorite(app: DisplayApp) {
@@ -80,9 +80,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    /** Launch after the friction gate; [minutes] null means no session timer. */
+    /**
+     * Launch after the friction gate; [minutes] null means no session timer.
+     * The timer is armed only if the app actually started — otherwise a
+     * failed launch would leave a phantom session ringing later.
+     */
     fun launchTimed(app: DisplayApp, minutes: Long?) {
-        if (minutes != null) {
+        val launched = launch(app)
+        if (launched && minutes != null) {
             SessionManager.startSession(
                 getApplication(),
                 app.component.substringBefore('/'),
@@ -90,6 +95,5 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 minutes,
             )
         }
-        launch(app)
     }
 }

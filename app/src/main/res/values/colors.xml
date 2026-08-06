@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Painted by the system before Compose draws its first frame. It must
+        be opaque and close to the calm palette, otherwise the wallpaper (or
+        a white flash) shows through during activity transitions.
+    -->
+    <color name="window_background">#F4F1E9</color>
+</resources>

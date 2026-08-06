@@ -1,7 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!--
+        Deliberately opaque and wallpaper-free. MindAnchor draws its own sky,
+        so showing the system wallpaper behind a transparent window bought us
+        nothing and cost a visible wallpaper flash on every launch, activity
+        transition and cold start. The window background is a solid colour
+        from the calm palette, so any frame the system paints before Compose
+        is ready blends into the sky instead of interrupting it.
+    -->
     <style name="Theme.MindAnchor" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowShowWallpaper">true</item>
-        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:windowShowWallpaper">false</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
     </style>
 </resources>

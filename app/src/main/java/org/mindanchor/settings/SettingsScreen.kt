@@ -20,11 +20,19 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -54,6 +62,26 @@ fun SettingsScreen(
 
     val batchingEnabled by viewModel.batchingEnabled.collectAsState()
     val batchedApps by viewModel.batchedApps.collectAsState()
+
+    // Special access is granted in system settings, so nothing in this
+    // composition changes when the user comes back — the screen used to keep
+    // insisting the permission was missing until something else forced a
+    // recomposition. Re-read the grants on every resume instead.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var permissionEpoch by remember { mutableIntStateOf(0) }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) permissionEpoch++
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    val hasNotificationAccess = remember(permissionEpoch) { viewModel.hasNotificationAccess() }
+    val hasDndAccess = remember(permissionEpoch) { viewModel.hasDndAccess() }
+    val hasUsageAccess = remember(permissionEpoch) { viewModel.hasUsageAccess() }
+    LaunchedEffect(hasUsageAccess) {
+        if (hasUsageAccess) viewModel.refreshSleep()
+    }
 
     Column(
         modifier = Modifier
@@ -103,12 +131,14 @@ fun SettingsScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        if (!viewModel.hasNotificationAccess()) {
+        if (!hasNotificationAccess) {
             TextButton(
                 onClick = {
-                    activityLauncher.launch(
-                        Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS),
-                    )
+                    runCatching {
+                        activityLauncher.launch(
+                            Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS),
+                        )
+                    }
                 },
             ) {
                 Text(stringResource(R.string.grant_notification_access))
@@ -214,12 +244,14 @@ fun SettingsScreen(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        if (!viewModel.hasDndAccess()) {
+        if (!hasDndAccess) {
             TextButton(
                 onClick = {
-                    activityLauncher.launch(
-                        Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS),
-                    )
+                    runCatching {
+                        activityLauncher.launch(
+                            Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS),
+                        )
+                    }
                 },
             ) {
                 Text(stringResource(R.string.grant_dnd_access))
@@ -248,7 +280,7 @@ fun SettingsScreen(
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
         )
-        if (!viewModel.hasUsageAccess()) {
+        if (!hasUsageAccess) {
             Text(
                 text = stringResource(R.string.sleep_explainer),
                 style = MaterialTheme.typography.bodySmall,
@@ -256,7 +288,7 @@ fun SettingsScreen(
             )
             TextButton(
                 onClick = {
-                    activityLauncher.launch(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+                    runCatching { activityLauncher.launch(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) }
                     viewModel.refreshSleep()
                 },
             ) {
@@ -341,9 +373,11 @@ fun SettingsScreen(
         )
         TextButton(
             onClick = {
-                context.startActivity(
-                    Intent(context, org.mindanchor.pulse.PulseActivity::class.java),
-                )
+                runCatching {
+                    context.startActivity(
+                        Intent(context, org.mindanchor.pulse.PulseActivity::class.java),
+                    )
+                }
             },
         ) {
             Text(stringResource(R.string.pulse_take))
@@ -362,18 +396,22 @@ fun SettingsScreen(
         )
         TextButton(
             onClick = {
-                context.startActivity(
-                    Intent(Intent.ACTION_DIAL, android.net.Uri.parse("tel:988")),
-                )
+                runCatching {
+                    context.startActivity(
+                        Intent(Intent.ACTION_DIAL, android.net.Uri.parse("tel:988")),
+                    )
+                }
             },
         ) {
             Text(stringResource(R.string.crisis_us))
         }
         TextButton(
             onClick = {
-                context.startActivity(
-                    Intent(Intent.ACTION_DIAL, android.net.Uri.parse("tel:14416")),
-                )
+                runCatching {
+                    context.startActivity(
+                        Intent(Intent.ACTION_DIAL, android.net.Uri.parse("tel:14416")),
+                    )
+                }
             },
         ) {
             Text(stringResource(R.string.crisis_india))
