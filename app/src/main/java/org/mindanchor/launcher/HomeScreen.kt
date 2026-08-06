@@ -13,10 +13,12 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -170,11 +172,23 @@ private fun HomeSurface(
     val now = rememberMinuteTick()
     val clockFormat = rememberClockFormat()
 
-    Box(modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(32.dp)) {
+    Box(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
+        // Centred when it fits, scrollable when it does not.
+        //
+        // The content used to be centred with no way to scroll, so anything
+        // taller than the screen was simply cut off and unreachable. That
+        // needed neither an exotic device nor landscape to happen: a large
+        // font scale, or enough favourites, was sufficient — and a person
+        // who has set a large font scale is exactly the person who cannot
+        // recover by squinting. The bottom padding keeps the last favourite
+        // clear of the drawer and settings buttons layered over this.
         Column(
-            modifier = Modifier.align(Alignment.Center).fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(start = 32.dp, end = 32.dp, top = 32.dp, bottom = 88.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
         ) {
             Text(
                 text = now.format(DateTimeFormatter.ofPattern(clockFormat)),

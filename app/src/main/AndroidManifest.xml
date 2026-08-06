@@ -37,6 +37,13 @@
             MindAnchor is a HOME app. The activity is also exported as a normal
             launcher entry so it can be opened and explored before being set
             as the default home.
+
+            Orientation is deliberately not locked. A launcher that refuses
+            to work the way the phone is being held is a launcher fighting
+            its owner, and that bites hardest for anyone using a mount, a
+            stand, a keyboard or a tablet. This is only safe because every
+            surface now scrolls rather than clipping, so a short screen is
+            no longer a screen with unreachable content.
         -->
         <activity
             android:name=".HomeActivity"
@@ -44,7 +51,6 @@
             android:launchMode="singleTask"
             android:stateNotNeeded="true"
             android:excludeFromRecents="true"
-            android:screenOrientation="portrait"
             android:configChanges="orientation|screenSize|keyboard|keyboardHidden">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
