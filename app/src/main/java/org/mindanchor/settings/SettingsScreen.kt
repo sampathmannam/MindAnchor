@@ -288,6 +288,62 @@ fun SettingsScreen(
             }
         }
 
+        // --- Wellbeing pulse (F7) ---
+        Text(
+            text = stringResource(R.string.pulse_section),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
+        )
+        Text(
+            text = stringResource(R.string.pulse_section_explainer),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        TextButton(
+            onClick = {
+                context.startActivity(
+                    Intent(context, org.mindanchor.pulse.PulseActivity::class.java),
+                )
+            },
+        ) {
+            Text(stringResource(R.string.pulse_take))
+        }
+
+        // --- Support / crisis resources ---
+        Text(
+            text = stringResource(R.string.crisis_section),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
+        )
+        Text(
+            text = stringResource(R.string.crisis_explainer),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        TextButton(
+            onClick = {
+                context.startActivity(
+                    Intent(Intent.ACTION_DIAL, android.net.Uri.parse("tel:988")),
+                )
+            },
+        ) {
+            Text(stringResource(R.string.crisis_us))
+        }
+        TextButton(
+            onClick = {
+                context.startActivity(
+                    Intent(Intent.ACTION_DIAL, android.net.Uri.parse("tel:14416")),
+                )
+            },
+        ) {
+            Text(stringResource(R.string.crisis_india))
+        }
+        Text(
+            text = stringResource(R.string.crisis_more),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
         Text(
             text = stringResource(R.string.about_text),
             style = MaterialTheme.typography.bodySmall,

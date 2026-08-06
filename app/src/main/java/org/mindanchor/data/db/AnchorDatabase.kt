@@ -9,6 +9,8 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -49,12 +51,47 @@ interface HeldNotificationDao {
     suspend fun clearReleased()
 }
 
-@Database(entities = [HeldNotification::class], version = 1, exportSchema = false)
+/** One completed WHO-5 wellbeing pulse (score 0–100). */
+@Entity(tableName = "pulse_results")
+data class PulseResult(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val takenAt: Long,
+    val score: Int,
+)
+
+@Dao
+interface PulseDao {
+
+    @Insert
+    suspend fun insert(result: PulseResult)
+
+    @Query("SELECT * FROM pulse_results ORDER BY takenAt DESC LIMIT 30")
+    fun history(): Flow<List<PulseResult>>
+}
+
+@Database(
+    entities = [HeldNotification::class, PulseResult::class],
+    version = 2,
+    exportSchema = false,
+)
 abstract class AnchorDatabase : RoomDatabase() {
 
     abstract fun heldNotifications(): HeldNotificationDao
 
+    abstract fun pulses(): PulseDao
+
     companion object {
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS pulse_results (" +
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "takenAt INTEGER NOT NULL, " +
+                        "score INTEGER NOT NULL)",
+                )
+            }
+        }
+
         @Volatile
         private var instance: AnchorDatabase? = null
 
@@ -64,7 +101,7 @@ abstract class AnchorDatabase : RoomDatabase() {
                     context.applicationContext,
                     AnchorDatabase::class.java,
                     "mindanchor.db",
-                ).build().also { instance = it }
+                ).addMigrations(MIGRATION_1_2).build().also { instance = it }
             }
     }
 }
