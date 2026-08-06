@@ -1,5 +1,6 @@
 package org.mindanchor.launcher
 
+import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -31,12 +32,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
 import org.mindanchor.R
+import org.mindanchor.digest.DigestActivity
 import org.mindanchor.settings.SettingsScreen
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -80,6 +83,7 @@ fun LauncherRoot(viewModel: LauncherViewModel = viewModel()) {
             )
 
             LauncherSurface.Settings -> SettingsScreen(
+                allApps = state.allApps,
                 hiddenApps = state.allApps.filter { it.isHidden },
                 onUnhide = { viewModel.setHidden(it, false) },
                 onBack = { surface = LauncherSurface.Home },
@@ -174,6 +178,20 @@ private fun HomeSurface(
         ) {
             Text(
                 text = stringResource(R.string.settings),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        val context = LocalContext.current
+        TextButton(
+            onClick = {
+                context.startActivity(Intent(context, DigestActivity::class.java))
+            },
+            modifier = Modifier.align(Alignment.BottomStart),
+        ) {
+            Text(
+                text = stringResource(R.string.digest_screen_title),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

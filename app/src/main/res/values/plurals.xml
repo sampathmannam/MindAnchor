@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="digest_title">
+        <item quantity="one">%d notification waited for you</item>
+        <item quantity="other">%d notifications waited for you</item>
+    </plurals>
+</resources>

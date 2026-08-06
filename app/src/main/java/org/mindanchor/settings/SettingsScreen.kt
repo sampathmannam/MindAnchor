@@ -1,6 +1,8 @@
 package org.mindanchor.settings
 
 import android.app.role.RoleManager
+import android.content.Intent
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
@@ -12,31 +14,43 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import org.mindanchor.R
 import org.mindanchor.launcher.DisplayApp
 
 /**
- * Minimal settings: become the default launcher, manage hidden apps, and a
- * short honest "about". Everything else waits for its milestone.
+ * Minimal settings: default-launcher role, notification batching, hidden
+ * apps, and a short honest "about". Everything else waits for its milestone.
  */
 @Composable
 fun SettingsScreen(
+    allApps: List<DisplayApp>,
     hiddenApps: List<DisplayApp>,
     onUnhide: (DisplayApp) -> Unit,
     onBack: () -> Unit,
+    viewModel: SettingsViewModel = viewModel(),
 ) {
     val context = LocalContext.current
-    val roleLauncher = rememberLauncherForActivityResult(
+    val activityLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { }
+
+    val batchingEnabled by viewModel.batchingEnabled.collectAsState()
+    val batchedApps by viewModel.batchedApps.collectAsState()
 
     Column(
         modifier = Modifier
@@ -61,7 +75,7 @@ fun SettingsScreen(
             TextButton(
                 onClick = {
                     roleManager?.createRequestRoleIntent(RoleManager.ROLE_HOME)
-                        ?.let { roleLauncher.launch(it) }
+                        ?.let { activityLauncher.launch(it) }
                 },
             ) {
                 Text(stringResource(R.string.set_default_launcher))
@@ -74,6 +88,81 @@ fun SettingsScreen(
             )
         }
 
+        // --- Notification batching (F1) ---
+        Text(
+            text = stringResource(R.string.batching_section),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
+        )
+        Text(
+            text = stringResource(R.string.batching_explainer),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        if (!viewModel.hasNotificationAccess()) {
+            TextButton(
+                onClick = {
+                    activityLauncher.launch(
+                        Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS),
+                    )
+                },
+            ) {
+                Text(stringResource(R.string.grant_notification_access))
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.batching_toggle),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(
+                    checked = batchingEnabled,
+                    onCheckedChange = { enabled ->
+                        if (enabled) {
+                            permissionLauncher.launch(
+                                android.Manifest.permission.POST_NOTIFICATIONS,
+                            )
+                        }
+                        viewModel.setBatchingEnabled(enabled)
+                    },
+                )
+            }
+
+            if (batchingEnabled) {
+                TextButton(onClick = viewModel::releaseNow) {
+                    Text(stringResource(R.string.digest_release_now))
+                }
+                Text(
+                    text = stringResource(R.string.batching_choose_apps),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                )
+                allApps.forEach { app ->
+                    val packageName = app.component.substringBefore('/')
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = app.label,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Switch(
+                            checked = packageName in batchedApps,
+                            onCheckedChange = { viewModel.setAppBatched(packageName, it) },
+                        )
+                    }
+                }
+            }
+        }
+
+        // --- Hidden apps ---
         Text(
             text = stringResource(R.string.hidden_apps),
             style = MaterialTheme.typography.titleMedium,

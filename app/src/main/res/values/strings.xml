@@ -19,6 +19,21 @@
     <string name="action_close">Close</string>
     <string name="action_back">← back</string>
 
+    <string name="batching_section">Notification batching</string>
+    <string name="batching_explainer">Chosen apps stop interrupting you; their notifications wait quietly and arrive together at 8:00, 12:30 and 18:00. Conversations, calls and alarms always come through instantly.</string>
+    <string name="grant_notification_access">Grant notification access to enable batching</string>
+    <string name="batching_toggle">Batch notifications</string>
+    <string name="batching_choose_apps">Apps to batch:</string>
+
+    <string name="digest_channel_name">Digest</string>
+    <string name="digest_channel_description">One calm summary per batch of held notifications.</string>
+    <string name="digest_screen_title">digest</string>
+    <string name="digest_waiting_count">%1$d waiting for the next batch</string>
+    <string name="digest_release_now">Release now</string>
+    <string name="digest_clear_released">Clear released</string>
+    <string name="digest_empty">Nothing here. When batching is on, held notifications collect in this journal so nothing is ever lost.</string>
+    <string name="digest_text">From %1$s</string>
+
     <string name="set_default_launcher">Set MindAnchor as your home screen</string>
     <string name="is_default_launcher">MindAnchor is your home screen.</string>
     <string name="hidden_apps">Hidden apps</string>
