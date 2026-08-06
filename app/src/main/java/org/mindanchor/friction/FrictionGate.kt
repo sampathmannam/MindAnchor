@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -32,6 +31,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import org.mindanchor.R
+import org.mindanchor.ui.CalmBackground
+import org.mindanchor.ui.SkyContent
 
 /**
  * The one sec-style gate (Grüning et al., PNAS 2023): a single ~6-second
@@ -47,11 +48,20 @@ fun FrictionGate(
 ) {
     var breathDone by remember { mutableStateOf(false) }
 
-    Surface(modifier = Modifier.fillMaxSize()) {
+    CalmBackground { sky ->
         if (!breathDone) {
-            BreathingPause(onFinished = { breathDone = true }, onNeverMind = onNeverMind)
+            BreathingPause(
+                sky = sky,
+                onFinished = { breathDone = true },
+                onNeverMind = onNeverMind,
+            )
         } else {
-            IntentionPrompt(appLabel = appLabel, onOpen = onOpen, onNeverMind = onNeverMind)
+            IntentionPrompt(
+                sky = sky,
+                appLabel = appLabel,
+                onOpen = onOpen,
+                onNeverMind = onNeverMind,
+            )
         }
     }
 }
@@ -59,7 +69,7 @@ fun FrictionGate(
 private const val BREATH_MILLIS = 6_000
 
 @Composable
-private fun BreathingPause(onFinished: () -> Unit, onNeverMind: () -> Unit) {
+private fun BreathingPause(sky: SkyContent, onFinished: () -> Unit, onNeverMind: () -> Unit) {
     val haptics = LocalHapticFeedback.current
     var phaseIn by remember { mutableStateOf(true) }
 
@@ -98,7 +108,7 @@ private fun BreathingPause(onFinished: () -> Unit, onNeverMind: () -> Unit) {
                     .size(96.dp)
                     .scale(scale)
                     .background(
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+                        color = sky.textPrimary.copy(alpha = 0.25f),
                         shape = CircleShape,
                     ),
             )
@@ -107,20 +117,21 @@ private fun BreathingPause(onFinished: () -> Unit, onNeverMind: () -> Unit) {
                     if (phaseIn) R.string.breath_in else R.string.breath_out,
                 ),
                 style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = sky.textSecondary,
             )
         }
         TextButton(
             onClick = onNeverMind,
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
-            Text(stringResource(R.string.never_mind))
+            Text(stringResource(R.string.never_mind), color = sky.textSecondary)
         }
     }
 }
 
 @Composable
 private fun IntentionPrompt(
+    sky: SkyContent,
     appLabel: String,
     onOpen: (minutes: Long?) -> Unit,
     onNeverMind: () -> Unit,
@@ -134,31 +145,32 @@ private fun IntentionPrompt(
             Text(
                 text = stringResource(R.string.intention_question, appLabel),
                 style = MaterialTheme.typography.headlineSmall,
+                color = sky.textPrimary,
             )
             Text(
                 text = stringResource(R.string.intention_hint),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = sky.textSecondary,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(5L, 10L, 20L).forEach { minutes ->
                     TextButton(onClick = { onOpen(minutes) }) {
-                        Text(stringResource(R.string.open_for_minutes, minutes))
+                        Text(
+                            stringResource(R.string.open_for_minutes, minutes),
+                            color = sky.textPrimary,
+                        )
                     }
                 }
             }
             TextButton(onClick = { onOpen(null) }) {
-                Text(
-                    stringResource(R.string.open_untimed),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Text(stringResource(R.string.open_untimed), color = sky.textSecondary)
             }
         }
         TextButton(
             onClick = onNeverMind,
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
-            Text(stringResource(R.string.never_mind))
+            Text(stringResource(R.string.never_mind), color = sky.textSecondary)
         }
     }
 }

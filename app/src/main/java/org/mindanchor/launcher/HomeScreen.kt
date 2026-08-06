@@ -38,10 +38,14 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import org.mindanchor.R
 import org.mindanchor.digest.DigestActivity
 import org.mindanchor.friction.FrictionGate
 import org.mindanchor.settings.SettingsScreen
+import org.mindanchor.ui.CalmBackground
+import org.mindanchor.ui.SkyContent
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
@@ -91,24 +95,29 @@ fun LauncherRoot(viewModel: LauncherViewModel = viewModel()) {
         return
     }
 
-    Surface(modifier = Modifier.fillMaxSize()) {
-        when (surface) {
-            LauncherSurface.Home -> HomeSurface(
+    when (surface) {
+        LauncherSurface.Home -> CalmBackground { sky ->
+            HomeSurface(
+                sky = sky,
                 favorites = state.favorites,
                 onOpenDrawer = { surface = LauncherSurface.Drawer },
                 onOpenSettings = { surface = LauncherSurface.Settings },
                 onLaunch = ::attemptLaunch,
                 onLongPress = { actionsFor = it },
             )
+        }
 
-            LauncherSurface.Drawer -> DrawerSurface(
+        LauncherSurface.Drawer -> Surface(modifier = Modifier.fillMaxSize()) {
+            DrawerSurface(
                 viewModel = viewModel,
                 state = state,
                 onLaunch = ::attemptLaunch,
                 onLongPress = { actionsFor = it },
             )
+        }
 
-            LauncherSurface.Settings -> SettingsScreen(
+        LauncherSurface.Settings -> Surface(modifier = Modifier.fillMaxSize()) {
+            SettingsScreen(
                 allApps = state.allApps,
                 hiddenApps = state.allApps.filter { it.isHidden },
                 onUnhide = { viewModel.setHidden(it, false) },
@@ -133,6 +142,7 @@ fun LauncherRoot(viewModel: LauncherViewModel = viewModel()) {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun HomeSurface(
+    sky: SkyContent,
     favorites: List<DisplayApp>,
     onOpenDrawer: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -155,8 +165,11 @@ private fun HomeSurface(
         ) {
             Text(
                 text = now.format(DateTimeFormatter.ofPattern("HH:mm")),
-                style = MaterialTheme.typography.displayLarge,
-                color = MaterialTheme.colorScheme.onBackground,
+                style = MaterialTheme.typography.displayLarge.copy(
+                    fontWeight = FontWeight.Light,
+                    letterSpacing = 2.sp,
+                ),
+                color = sky.textPrimary,
             )
             Text(
                 text = greetingFor(
@@ -166,7 +179,7 @@ private fun HomeSurface(
                     stringResource(R.string.greeting_evening),
                 ),
                 style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = sky.textSecondary,
             )
 
             Column(
@@ -177,7 +190,7 @@ private fun HomeSurface(
                     Text(
                         text = app.label,
                         style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.onBackground,
+                        color = sky.textPrimary,
                         modifier = Modifier
                             .combinedClickable(
                                 onClick = { onLaunch(app) },
@@ -196,7 +209,7 @@ private fun HomeSurface(
             Text(
                 text = stringResource(R.string.open_drawer),
                 style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = sky.textSecondary,
             )
         }
 
@@ -207,7 +220,7 @@ private fun HomeSurface(
             Text(
                 text = stringResource(R.string.settings),
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = sky.textSecondary,
             )
         }
 
@@ -221,7 +234,7 @@ private fun HomeSurface(
             Text(
                 text = stringResource(R.string.digest_screen_title),
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = sky.textSecondary,
             )
         }
     }
