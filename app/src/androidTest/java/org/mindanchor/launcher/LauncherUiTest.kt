@@ -2,9 +2,7 @@ package org.mindanchor.launcher
 
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
@@ -63,7 +61,9 @@ class LauncherUiTest {
         launchHome()
         rule.onNodeWithText("settings").performClick()
         rule.waitForIdle()
-        rule.onAllNodes(hasText("Settings")).onFirst().assertExists()
+        // Anchor on a section only settings has, rather than the screen
+        // title — the title string is lowercase "settings" like the button.
+        rule.onNodeWithText("Notification batching").assertExists()
         rule.onNodeWithText("← back").performClick()
         rule.waitForIdle()
         rule.onNodeWithText("search").assertIsDisplayed()

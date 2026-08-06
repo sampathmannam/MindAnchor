@@ -43,18 +43,33 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      # Free the ~14 GB of preinstalled toolchains we never touch. A cramped
+      # runner disk is one of the ways emulator boot silently stalls.
+      - name: Reclaim runner disk
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android/sdk/ndk \
+            /opt/ghc /usr/local/share/boost || true
+          df -h /
+
       - name: Run instrumented tests on an emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ matrix.api-level }}
-          target: google_apis
+          # Plain AOSP images: nothing here needs Play Services, and the
+          # google_apis images carry a heavier first boot that timed out on
+          # API 33. Smaller image, smaller RAM, default device profile —
+          # every one of those is a boot-reliability lever.
+          target: default
           arch: x86_64
-          profile: pixel_6
-          ram-size: 4096M
+          ram-size: 2048M
+          disk-size: 6144M
           disable-animations: true
+          # The default is 10 minutes, which a cold AOSP boot on a shared
+          # runner can genuinely exceed without being broken.
+          emulator-boot-timeout: 1200
           emulator-options: >-
             -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
-            -camera-back none -no-snapshot
+            -camera-back none -camera-front none -no-snapshot
           script: ./gradlew connectedDebugAndroidTest --stacktrace
 
       - name: Upload test reports

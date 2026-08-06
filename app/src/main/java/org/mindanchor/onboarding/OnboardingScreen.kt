@@ -1,5 +1,6 @@
 package org.mindanchor.onboarding
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -127,16 +128,20 @@ private fun GoalRow(
     selected: Set<Goal>,
     onChange: (Set<Goal>) -> Unit,
 ) {
+    // The whole row is the target, not just the checkbox. The emulator
+    // caught this: tapping the words did nothing, so a goal could only be
+    // chosen by hitting a small square — the worst possible target for
+    // someone with tremor, large fingers, or in distress.
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                onChange(if (goal in selected) selected - goal else selected + goal)
+            }
+            .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Checkbox(
-            checked = goal in selected,
-            onCheckedChange = { checked ->
-                onChange(if (checked) selected + goal else selected - goal)
-            },
-        )
+        Checkbox(checked = goal in selected, onCheckedChange = null)
         Text(
             text = stringResource(labelRes),
             style = MaterialTheme.typography.bodyLarge,

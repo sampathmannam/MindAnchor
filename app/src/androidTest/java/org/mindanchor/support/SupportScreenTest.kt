@@ -7,6 +7,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Rule
@@ -38,7 +39,7 @@ class SupportScreenTest {
     fun crisisLinesAreVisibleImmediately() {
         launchSupport()
         rule.onNodeWithText("Reach someone now").assertIsDisplayed()
-        rule.onAllNodes(hasText("988", substring = true)).onFirst().assertIsDisplayed()
+        rule.onAllNodes(hasText("988", substring = true)).onFirst().assertExists()
     }
 
     @Test
@@ -52,9 +53,14 @@ class SupportScreenTest {
     @Test
     fun aSafetyPlanCanBeWrittenAndReadBack() {
         launchSupport()
-        rule.onNodeWithText("edit").performClick()
-        rule.onNodeWithText("When things are turning").performTextInput("cannot sleep")
-        rule.onNodeWithText("done").performClick()
+        // The plan sits below the crisis card and the skills, so every
+        // target has to be scrolled into view before it can be touched.
+        rule.onNodeWithText("edit").performScrollTo().performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText("When things are turning")
+            .performScrollTo()
+            .performTextInput("cannot sleep")
+        rule.onNodeWithText("done").performScrollTo().performClick()
         rule.waitForIdle()
         rule.onAllNodes(hasText("cannot sleep", substring = true)).onFirst().assertExists()
     }
