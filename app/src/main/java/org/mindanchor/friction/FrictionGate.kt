@@ -1,9 +1,8 @@
 package org.mindanchor.friction
 
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.keyframes
-import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -85,30 +84,28 @@ private fun BreathingPause(sky: SkyContent, onFinished: () -> Unit, onNeverMind:
         ) > 0f
     }
 
+    // A single finite breath, not an endless loop. An infinite transition
+    // here kept animating behind the intention prompt long after the breath
+    // was over — burning frames, and leaving the UI permanently non-idle.
+    val scale = remember { Animatable(1f) }
     LaunchedEffect(Unit) {
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-        delay(BREATH_MILLIS / 2L)
+        val half = (BREATH_MILLIS / 2)
+        if (animationsEnabled) {
+            scale.animateTo(1.6f, tween(half, easing = FastOutSlowInEasing))
+        } else {
+            delay(half.toLong())
+        }
         phaseIn = false
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-        delay(BREATH_MILLIS / 2L)
+        if (animationsEnabled) {
+            scale.animateTo(1f, tween(half, easing = FastOutSlowInEasing))
+        } else {
+            delay(half.toLong())
+        }
         onFinished()
     }
 
-    val transition = rememberInfiniteTransition(label = "breath")
-    val animatedScale by transition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            keyframes {
-                durationMillis = BREATH_MILLIS
-                1f at 0
-                1.6f at BREATH_MILLIS / 2
-                1f at BREATH_MILLIS
-            },
-        ),
-        label = "breathScale",
-    )
-    val scale = if (animationsEnabled) animatedScale else 1.3f
 
     Box(modifier = Modifier.fillMaxSize().padding(32.dp)) {
         Column(
@@ -119,7 +116,7 @@ private fun BreathingPause(sky: SkyContent, onFinished: () -> Unit, onNeverMind:
             Box(
                 modifier = Modifier
                     .size(96.dp)
-                    .scale(scale)
+                    .scale(scale.value)
                     .background(
                         color = sky.textPrimary.copy(alpha = 0.25f),
                         shape = CircleShape,
