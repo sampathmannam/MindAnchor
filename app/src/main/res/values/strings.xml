@@ -139,7 +139,7 @@
     <string name="contact_phone">Phone</string>
     <string name="contact_is_professional">A professional or service</string>
     <string name="contact_add">Add person</string>
-    <string name="contact_remove">Remove</string>
+    <string name="contact_needs_number">A number is what makes this callable. Add one to save this person.</string>
     <string name="action_remove">remove</string>
     <string name="action_edit">edit</string>
     <string name="action_done">done</string>

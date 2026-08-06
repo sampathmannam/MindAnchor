@@ -321,6 +321,8 @@ private fun SafetyPlanEditor(
         )
         Switch(checked = professional, onCheckedChange = { professional = it })
     }
+    // Disabled rather than silently refusing: a tap that does nothing
+    // reads as a broken app, and this screen cannot afford to look broken.
     TextButton(
         onClick = {
             onAddContact(name, phone, professional)
@@ -328,8 +330,16 @@ private fun SafetyPlanEditor(
             phone = ""
             professional = false
         },
+        enabled = phone.isNotBlank(),
     ) {
         Text(stringResource(R.string.contact_add))
+    }
+    if (phone.isBlank()) {
+        Text(
+            text = stringResource(R.string.contact_needs_number),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
     Text(
         text = stringResource(R.string.contact_bypass_note),

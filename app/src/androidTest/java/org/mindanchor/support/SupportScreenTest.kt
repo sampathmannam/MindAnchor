@@ -2,6 +2,8 @@ package org.mindanchor.support
 
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onFirst
@@ -40,6 +42,21 @@ class SupportScreenTest {
         launchSupport()
         rule.onNodeWithText("Reach someone now").assertIsDisplayed()
         rule.onAllNodes(hasText("988", substring = true)).onFirst().assertExists()
+    }
+
+    @Test
+    fun aContactCannotBeSavedWithoutANumberToCall() {
+        launchSupport()
+        rule.onNodeWithText("edit").performScrollTo().performClick()
+        rule.waitForIdle()
+        // A name alone is not a way to reach anyone. Saving it would put a
+        // button on the crisis card that does nothing when tapped.
+        rule.onNodeWithText("Name").performScrollTo().performTextInput("Sam")
+        rule.waitForIdle()
+        rule.onNodeWithText("Add person").performScrollTo().assertIsNotEnabled()
+        rule.onNodeWithText("Phone").performScrollTo().performTextInput("5551234567")
+        rule.waitForIdle()
+        rule.onNodeWithText("Add person").performScrollTo().assertIsEnabled()
     }
 
     @Test
