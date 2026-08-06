@@ -54,11 +54,20 @@ fun SupportScreen(
     val plan by viewModel.plan.collectAsState()
     val contacts by viewModel.contacts.collectAsState()
     var editing by remember { mutableStateOf(false) }
+    var dialFailure by remember { mutableStateOf<String?>(null) }
 
+    // A crisis button must never fail silently. Swallowing the exception
+    // leaves someone staring at a screen that did nothing while believing
+    // they placed a call, so a failure has to say so and hand back the
+    // number in plain text.
     fun dial(number: String) {
-        runCatching {
-            context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$number")))
-        }
+        val opened = runCatching {
+            context.startActivity(
+                Intent(Intent.ACTION_DIAL, Uri.parse("tel:$number"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }.isSuccess
+        dialFailure = if (opened) null else number
     }
 
     Surface(modifier = Modifier.fillMaxSize()) {
@@ -130,6 +139,14 @@ fun SupportScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
+                    dialFailure?.let { number ->
+                        Text(
+                            text = stringResource(R.string.dial_failed, number),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
                 }
             }
 

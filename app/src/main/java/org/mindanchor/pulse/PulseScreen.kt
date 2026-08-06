@@ -3,6 +3,7 @@ package org.mindanchor.pulse
 import android.app.Application
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -95,13 +96,24 @@ fun PulseScreen(
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    // Six buttons at Material's 58dp minimum overflow a
+                    // 360dp screen once page padding is taken out, and the
+                    // Row clips rather than wraps — so "5", the most
+                    // positive answer on the scale, was physically
+                    // unreachable on a common phone. Equal weights make the
+                    // scale fit any width and any font scale.
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
                         (0..WhoFive.MAX_ANSWER).forEach { value ->
                             val chosen = answers[index] == value
                             TextButton(
                                 onClick = {
                                     answers = answers.toMutableList().also { it[index] = value }
                                 },
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(vertical = 12.dp),
                             ) {
                                 Text(
                                     text = value.toString(),
