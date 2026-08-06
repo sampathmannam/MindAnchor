@@ -180,6 +180,9 @@ abstract class AnchorDatabase : RoomDatabase() {
             }
         }
 
+        /** Exposed so instrumented tests can walk an old database forward. */
+        fun migrations(): Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
+
         @Volatile
         private var instance: AnchorDatabase? = null
 
@@ -189,7 +192,7 @@ abstract class AnchorDatabase : RoomDatabase() {
                     context.applicationContext,
                     AnchorDatabase::class.java,
                     "mindanchor.db",
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build().also { instance = it }
+                ).addMigrations(*migrations()).build().also { instance = it }
             }
     }
 }

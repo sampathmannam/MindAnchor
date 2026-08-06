@@ -9,6 +9,9 @@ datastore = "1.1.1"
 room = "2.6.1"
 ksp = "2.0.21-1.0.27"
 junit = "4.13.2"
+androidxTestJunit = "1.2.1"
+androidxTestRunner = "1.6.2"
+androidxTestCore = "1.6.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -26,6 +29,12 @@ compose-foundation = { group = "androidx.compose.foundation", name = "foundation
 compose-material3 = { group = "androidx.compose.material3", name = "material3" }
 compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+androidx-test-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxTestJunit" }
+androidx-test-runner = { group = "androidx.test", name = "runner", version.ref = "androidxTestRunner" }
+androidx-test-core = { group = "androidx.test", name = "core-ktx", version.ref = "androidxTestCore" }
+androidx-room-testing = { group = "androidx.room", name = "room-testing", version.ref = "room" }
+compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
+compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
