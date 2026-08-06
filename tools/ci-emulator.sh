@@ -1,53 +1,42 @@
 #!/usr/bin/env bash
 #
-# Runs the instrumented tests on a booted emulator, then photographs the
-# app and prints the pictures into the job log.
+# Runs the instrumented tests on a booted emulator, then prints the app's
+# screenshots into the job log.
 #
-# Why this is a file rather than an inline script:
+# Two things about this were learned the hard way:
 #
-# reactivecircus/android-emulator-runner executes the `script:` input one
-# LINE AT A TIME, each in its own `sh -c`. Variables do not survive between
-# lines. An inline version of this looked completely reasonable and was
-# quietly broken end to end — `TEST_STATUS=$?` was assigned in a shell that
-# then exited, `SHOTS=...` likewise, and the `adb pull "$SHOTS"` line ran
-# with an empty variable, failed, and failed the whole job seconds after
-# BUILD SUCCESSFUL. Every screenshot run had passed its tests and reported
-# failure, and never emitted a single image.
+# 1. reactivecircus/android-emulator-runner executes the `script:` input one
+#    LINE AT A TIME, each in its own `sh -c`. Variables do not survive
+#    between lines. An inline version of this looked fine and was broken end
+#    to end — the exit-status capture and the "never fail the job" guard were
+#    both no-ops, and a job failed seconds after BUILD SUCCESSFUL because an
+#    adb command ran with an empty variable. Hence: one file, one line, one
+#    shell.
 #
-# Being one file invoked as one line, this executes in a single shell where
-# ordinary shell semantics apply.
+# 2. Pulling the PNGs off the device does not work. Android 11+ blocks the
+#    shell user from /sdcard/Android/data/<pkg>, so `adb pull` fails, and
+#    `run-as` answers "unknown package" on these AOSP images. An earlier
+#    version redirected that error text straight into the .png files and
+#    produced five 40-byte "screenshots" that were really an error message.
+#    So the images come out through logcat instead, which is the one channel
+#    that was working all along.
 set -uo pipefail
-
-PACKAGE=org.mindanchor
 
 ./gradlew connectedDebugAndroidTest --stacktrace
 TEST_STATUS=$?
 
-# From here on nothing may change the verdict. The tests decide whether
-# this job passes; the camera never does.
+# Nothing below may change the verdict. The tests decide whether this job
+# passes; the camera never does.
 set +e
 
-mkdir -p shots
-
-# Do not guess where the PNGs landed — external storage is not mounted on
-# every AVD, so the test logs each absolute path it actually wrote.
 adb logcat -d -s MINDANCHOR_SHOT:I > shot-log.txt 2>/dev/null
-grep -oE '/[^ ]+\.png' shot-log.txt | sort -u > paths.txt
-echo "screenshot paths reported by the tests: $(wc -l < paths.txt)"
+echo "screenshot log lines: $(wc -l < shot-log.txt)"
 
-while read -r p; do
-  [ -n "$p" ] || continue
-  base=$(basename "$p")
-  adb pull "$p" "shots/$base" >/dev/null 2>&1 \
-    || adb exec-out run-as "$PACKAGE" cat "$p" > "shots/$base" 2>/dev/null
-done < paths.txt
-
-for f in shots/*.png; do
-  [ -e "$f" ] || continue
-  name=$(basename "$f" .png)
-  echo "SHOT_BEGIN ${name} bytes=$(wc -c < "$f")"
-  base64 -w0 "$f" | fold -w 3000 | sed "s|^|SHOT_DATA ${name} |"
-  echo "SHOT_END ${name}"
-done
+# Re-emit the markers with the logcat preamble stripped, so the decoder on
+# the other end sees clean lines.
+sed -n 's/.*MINDANCHOR_SHOT *: *//p' shot-log.txt \
+  | sed -e 's/^BEGIN /SHOT_BEGIN /' \
+        -e 's/^DATA /SHOT_DATA /' \
+        -e 's/^END /SHOT_END /'
 
 exit $TEST_STATUS
