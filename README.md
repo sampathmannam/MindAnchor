@@ -1,11 +1,49 @@
-<div align="center">
+# MindAnchor
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+**An open-source, research-backed, mental-health-first launcher and notification layer for Android.**
 
-  <h1>Built with AI Studio</h2>
+Modern phones are optimized for engagement. MindAnchor inverts the objective: the app
+succeeds when your attention, sleep and mood improve — not when screen time goes up.
+Every intervention it ships is tied to a published study, and the app measures on your
+own device whether it is actually helping you.
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+## What it does (v1)
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+- **Batches machine notifications** into a few calm daily digests — the humans you
+  choose always come through instantly. (Batching improved mood and attention in a
+  randomized trial; muting everything backfired.)
+- **Text-first minimal launcher** — search to open, a handful of favorites, no grid,
+  no badges, no red dots.
+- **Self-chosen friction** on the apps that pull at you: a breathing-paced pause, an
+  intention prompt, time-boxed sessions.
+- **Sunset mode** — from your wind-down hour: grayscale, feeds gated, everything
+  batched until morning.
+- **Sleep-regularity tracking** from screen on/off patterns — no wearable, no cloud.
+- **Honest measurement** — short wellbeing pulses; if a feature isn't helping *you*,
+  the app says so and offers to turn itself off.
 
-</div>
+## Principles
+
+- **Zero backend.** No accounts, no server, no analytics. Your data stays on your phone.
+- **Evidence or it doesn't ship.** Every intervention cites the study it implements —
+  see [docs/CONCEPT.md](docs/CONCEPT.md) and the SOTA surveys in
+  [docs/research/](docs/research/).
+- **Autonomy, not paternalism.** Everything is a toggle; nothing is imposed.
+- **Wellness, not medicine.** MindAnchor is not a medical device and does not diagnose.
+  If you are in crisis, please reach a human: 988 (US), Tele-MANAS 14416 (India), or
+  your local crisis line.
+
+## Project status
+
+Early development. See [docs/PLAN.md](docs/PLAN.md) for the roadmap (currently: M0
+scaffold). Requires Android 13+.
+
+## Building
+
+```
+./gradlew assembleDebug
+```
+
+## License
+
+[GPL-3.0-only](LICENSE).

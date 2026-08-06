@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MindAnchor</string>
+    <string name="greeting_morning">A quiet morning.</string>
+    <string name="greeting_day">Here, now.</string>
+    <string name="greeting_evening">Winding down.</string>
+</resources>
