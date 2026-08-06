@@ -53,7 +53,8 @@ object SkyMath {
      * rounded inwards for margin; SkyMathTest sweeps every minute of the
      * day in both themes and fails if a palette edit ever breaks them.
      * (Measured worst case with these values, across every text position
-     * at every minute of the day: 4.92 : 1.)
+     * at every minute of the day, in both themes, primary and dimmed
+     * secondary alike: 4.57 : 1.)
      */
     private const val LIGHT_TEXT_MAX_LUMINANCE = 0.125
     private const val DARK_TEXT_MIN_LUMINANCE = 0.395
@@ -61,7 +62,18 @@ object SkyMath {
     private val HAZE_DARK = Rgb(0x0B, 0x10, 0x1A)
     private val HAZE_LIGHT = Rgb(0xF6, 0xF3, 0xEB)
 
-    const val MAX_HAZE_ALPHA = 0.5
+    /**
+     * Ceiling on the veil.
+     *
+     * This was 0.5, and at three minutes around dawn that was not quite
+     * enough for the solver to satisfy either text colour — so it gave up,
+     * fell back to the ceiling anyway, and those three minutes held the
+     * worst contrast on the clock in the whole day. Raising it to 0.55
+     * removes the unsolvable minutes entirely and lifts the worst case from
+     * 4.53:1 to 4.57:1, while the peak veil actually used only moves from
+     * 0.50 to 0.51. Almost no extra veil; no more falling off a cliff.
+     */
+    const val MAX_HAZE_ALPHA = 0.55
 
     // --- Palette anchors --------------------------------------------------
 
@@ -125,7 +137,7 @@ object SkyMath {
         //
         // Nothing was failing WCAG — the clock is large text, which needs
         // only 3:1 — but a stated guarantee should be true. Including the
-        // clock's band lifts the worst case to 4.92:1, at the cost of the
+        // clock's band lifts the worst case to 4.57:1, at the cost of the
         // veil reaching its ceiling at dawn and flattening that sky a
         // little. Legibility wins over prettiness at the one time of day
         // they conflict.
