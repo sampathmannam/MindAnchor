@@ -22,8 +22,9 @@ Six questions, in descending order of how much harm a wrong answer causes.
    a partially-completed plan safe to leave in place?** The app lets
    someone save a plan with any subset of fields filled. A half-written
    plan may be worse than none if it creates false confidence.
-2. **Is the crisis card correct, current, and correctly ordered?** Wrong
-   numbers here are the single most dangerous defect the app can carry.
+2. **Is it acceptable that the app offers no crisis line at all?** This
+   was a deliberate product decision (see R1). It is the question most
+   worth a second opinion.
 3. **Is the WHO-5 presented and scored in a way that does not mislead?**
    In particular: is showing a bare 0–100 score to the person who answered
    it appropriate, and is the low-score response proportionate?
@@ -91,7 +92,7 @@ both refused. `PrivacyTest` asserts both against the installed app.
 
 | # | Risk | Current mitigation | Residual | Needs a clinician |
 |---|---|---|---|---|
-| R1 | Crisis number wrong, stale, or not valid in the user's country | Local line ordered first; full list never filtered; `findahelpline.com` always shown; unit-tested ordering | **Numbers verified only against author knowledge, not against operators** | Yes — verification |
+| R1 | **No crisis line is offered anywhere in the app.** Hardcoded helplines were removed by product decision, on the grounds that they frighten people and add complexity. A person in acute crisis with no contact saved has no route to help from this app | The safety plan and the person's own chosen contacts remain; the app states it is no substitute for talking to someone | **Accepted by the project owner. This is the largest open clinical risk in the app** | Yes — this is the first thing to review |
 | R2 | Partially-completed safety plan gives false confidence | Plan is optional and free-text; reader shows only completed sections | Unmeasured | Yes |
 | R3 | WHO-5 score distresses the person who answered it | Low score triggers support offer, never an alarm or diagnosis | Unmeasured | Yes |
 | R4 | TIPP presented without supervision (cold water, intense exercise) | Contraindications now shown with the skill: cardiac conditions, eating disorders, pregnancy, with the gentle two steps flagged as safe alone | Wording not clinically reviewed; list may be incomplete | Yes — confirm the list |
@@ -100,8 +101,18 @@ both refused. `PrivacyTest` asserts both against the installed app.
 | R7 | App is mistaken for treatment | About text states it is a wellness tool, not a medical device | Unmeasured | Yes |
 | R8 | Safety plan readable by anyone holding the phone | Device lock only; no separate app lock | **Accepted gap** — a lock could also block access during crisis | Yes — genuine tension |
 
-R8 is the one I would push hardest on: a genuine two-sided tension that
-should be decided by someone qualified rather than by the author.
+R1 is now the one to push hardest on. Hardcoded crisis lines were
+removed at the project owner's direction — the reasoning being that
+prominent hotline numbers can frighten people and clutter a screen meant
+to feel calm, which is a real and documented design concern. The cost is
+equally real: Stanley & Brown includes professional and crisis contacts
+as a step of the intervention, so a safety plan in this app is now
+missing that step unless the person fills it in themselves. A reviewer
+should decide whether that trade is acceptable, and if not, what a
+non-frightening version of it would look like.
+
+R8 remains a genuine two-sided tension that should also be decided by
+someone qualified rather than by the author.
 
 R4 was found while writing this register and has been partly closed — TIPP
 now carries contraindications, having previously asked something physical

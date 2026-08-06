@@ -86,10 +86,8 @@ jobs:
           generate_release_notes: true
           files: ${{ steps.sum.outputs.file }}
           body: |
-            **This is a wellness tool, not a medical device.** In crisis,
-            reach a human: 988 (US/Canada), 116 123 (UK/Ireland),
-            14416 (India), 13 11 14 (Australia), 1737 (New Zealand), or
-            findahelpline.com.
+            **This is a wellness tool, not a medical device**, and it is
+            no substitute for talking to someone.
 
             `SHA-256` of `${{ steps.sum.outputs.file }}`:
             `${{ steps.sum.outputs.sha256 }}`
