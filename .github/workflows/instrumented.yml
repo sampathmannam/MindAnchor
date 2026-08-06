@@ -70,44 +70,12 @@ jobs:
           emulator-options: >-
             -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
             -camera-back none -camera-front none -no-snapshot
-          # Screenshots are pulled inside the emulator step because adb is
-          # only alive here. They are base64'd into this log on purpose:
-          # the artifact host is unreachable from the environment this app
-          # is developed in, and the job log is the one channel that
-          # reliably comes back. Failure to capture must never fail the
-          # run — this is a camera, not a gate.
-          script: |
-            set +e
-            ./gradlew connectedDebugAndroidTest --stacktrace
-            TEST_STATUS=$?
-            mkdir -p shots
-            # Do not assume where the PNGs landed. The first version hard
-            # coded the external-storage path, which is not mounted on a
-            # bare AVD, so it pulled nothing and said nothing. The test now
-            # logs each absolute path; read them back out of logcat, and
-            # fall back to run-as for internal storage which adb cannot
-            # reach directly.
-            adb logcat -d -s MINDANCHOR_SHOT:I | tee shot-paths.txt
-            awk '{for(i=1;i<=NF;i++) if ($i ~ /\.png$/) print $i}' shot-paths.txt \
-              | sort -u > paths.txt || true
-            echo "discovered $(wc -l < paths.txt) screenshot path(s)"
-            while read -r p; do
-              [ -n "$p" ] || continue
-              base=$(basename "$p")
-              adb pull "$p" "./shots/$base" >/dev/null 2>&1 \
-                || adb exec-out run-as org.mindanchor cat "$p" > "./shots/$base" 2>/dev/null \
-                || true
-            done < paths.txt
-            for f in ./shots/*.png; do
-              [ -e "$f" ] || continue
-              name=$(basename "$f" .png)
-              bytes=$(wc -c < "$f")
-              echo "SHOT_BEGIN ${name} bytes=${bytes}"
-              base64 -w0 "$f" | fold -w 3000 | sed "s/^/SHOT_DATA ${name} /"
-              echo "SHOT_END ${name}"
-            done
-            # The tests decide whether this job passes, never the camera.
-            exit $TEST_STATUS
+          # One line, on purpose. This action runs the script one line at
+          # a time in separate shells, so variables, loops and a trailing
+          # exit cannot work inline — an earlier version failed the job
+          # seconds after the tests passed because of exactly that. The
+          # script lives in tools/ so it runs in a single shell.
+          script: bash tools/ci-emulator.sh
 
       - name: Upload test reports
         if: always()
