@@ -3,6 +3,7 @@ package org.mindanchor.notifications
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.mindanchor.support.CrisisContactRef
 
 class NotificationClassifierTest {
 
@@ -16,7 +17,8 @@ class NotificationClassifierTest {
         clearable: Boolean = true,
         summary: Boolean = false,
         conversation: Boolean = false,
-    ) = NotificationMeta(pkg, category, ongoing, clearable, summary, conversation)
+        people: List<String> = emptyList(),
+    ) = NotificationMeta(pkg, category, ongoing, clearable, summary, conversation, people)
 
     @Test
     fun `machine notification from batched app is held`() {
@@ -76,6 +78,62 @@ class NotificationClassifierTest {
     fun `our own notifications are never held`() {
         assertFalse(
             NotificationClassifier.shouldHold(meta(pkg = own), true, batched + own, own),
+        )
+    }
+
+    // --- Crisis contacts outrank every other rule ---
+
+    private val ana = CrisisContactRef("Ana", "+91 98765 43210")
+
+    @Test
+    fun `a crisis contact is never held, even from a batched app`() {
+        assertFalse(
+            NotificationClassifier.shouldHold(
+                meta(people = listOf("tel:+919876543210")),
+                batchingEnabled = true,
+                batchedApps = batched,
+                ownPackage = own,
+                crisisContacts = listOf(ana),
+            ),
+        )
+    }
+
+    @Test
+    fun `a crisis contact named without a number still breaks through`() {
+        assertFalse(
+            NotificationClassifier.shouldHold(
+                meta(people = listOf("Ana")),
+                batchingEnabled = true,
+                batchedApps = batched,
+                ownPackage = own,
+                crisisContacts = listOf(ana),
+            ),
+        )
+    }
+
+    @Test
+    fun `other senders from a batched app are still held`() {
+        assertTrue(
+            NotificationClassifier.shouldHold(
+                meta(people = listOf("tel:+911111111111")),
+                batchingEnabled = true,
+                batchedApps = batched,
+                ownPackage = own,
+                crisisContacts = listOf(ana),
+            ),
+        )
+    }
+
+    @Test
+    fun `with no crisis contacts configured behaviour is unchanged`() {
+        assertTrue(
+            NotificationClassifier.shouldHold(
+                meta(people = listOf("Ana")),
+                batchingEnabled = true,
+                batchedApps = batched,
+                ownPackage = own,
+                crisisContacts = emptyList(),
+            ),
         )
     }
 }

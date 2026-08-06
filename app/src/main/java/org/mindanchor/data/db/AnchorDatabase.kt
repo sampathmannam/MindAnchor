@@ -3,8 +3,10 @@ package org.mindanchor.data.db
 import android.content.Context
 import androidx.room.Dao
 import androidx.room.Database
+import androidx.room.Delete
 import androidx.room.Entity
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
@@ -69,9 +71,70 @@ interface PulseDao {
     fun history(): Flow<List<PulseResult>>
 }
 
+/**
+ * A safety plan in the Stanley & Brown sense: the steps a person writes for
+ * themselves, while calm, to be read when they are not. Kept on the device
+ * and nowhere else.
+ */
+@Entity(tableName = "safety_plan")
+data class SafetyPlan(
+    @PrimaryKey val id: Int = SINGLETON_ID,
+    val warningSigns: String = "",
+    val copingSteps: String = "",
+    val distractions: String = "",
+    val reasonsForLiving: String = "",
+    val environmentSafety: String = "",
+    val updatedAt: Long = 0L,
+) {
+    val isEmpty: Boolean
+        get() = listOf(
+            warningSigns, copingSteps, distractions, reasonsForLiving, environmentSafety,
+        ).all { it.isBlank() }
+
+    companion object {
+        const val SINGLETON_ID = 1
+    }
+}
+
+/** Someone this person has chosen to be reachable in a crisis. */
+@Entity(tableName = "crisis_contacts")
+data class CrisisContact(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val phone: String,
+    val isProfessional: Boolean = false,
+)
+
+@Dao
+interface SafetyDao {
+
+    @Query("SELECT * FROM safety_plan WHERE id = ${SafetyPlan.SINGLETON_ID}")
+    fun plan(): Flow<SafetyPlan?>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun savePlan(plan: SafetyPlan)
+
+    @Query("SELECT * FROM crisis_contacts ORDER BY isProfessional, name")
+    fun contacts(): Flow<List<CrisisContact>>
+
+    @Query("SELECT * FROM crisis_contacts")
+    suspend fun contactsNow(): List<CrisisContact>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun addContact(contact: CrisisContact)
+
+    @Delete
+    suspend fun removeContact(contact: CrisisContact)
+}
+
 @Database(
-    entities = [HeldNotification::class, PulseResult::class],
-    version = 2,
+    entities = [
+        HeldNotification::class,
+        PulseResult::class,
+        SafetyPlan::class,
+        CrisisContact::class,
+    ],
+    version = 3,
     exportSchema = false,
 )
 abstract class AnchorDatabase : RoomDatabase() {
@@ -79,6 +142,8 @@ abstract class AnchorDatabase : RoomDatabase() {
     abstract fun heldNotifications(): HeldNotificationDao
 
     abstract fun pulses(): PulseDao
+
+    abstract fun safety(): SafetyDao
 
     companion object {
         private val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -92,6 +157,29 @@ abstract class AnchorDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS safety_plan (" +
+                        "id INTEGER NOT NULL, " +
+                        "warningSigns TEXT NOT NULL, " +
+                        "copingSteps TEXT NOT NULL, " +
+                        "distractions TEXT NOT NULL, " +
+                        "reasonsForLiving TEXT NOT NULL, " +
+                        "environmentSafety TEXT NOT NULL, " +
+                        "updatedAt INTEGER NOT NULL, " +
+                        "PRIMARY KEY(id))",
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS crisis_contacts (" +
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "name TEXT NOT NULL, " +
+                        "phone TEXT NOT NULL, " +
+                        "isProfessional INTEGER NOT NULL)",
+                )
+            }
+        }
+
         @Volatile
         private var instance: AnchorDatabase? = null
 
@@ -101,7 +189,7 @@ abstract class AnchorDatabase : RoomDatabase() {
                     context.applicationContext,
                     AnchorDatabase::class.java,
                     "mindanchor.db",
-                ).addMigrations(MIGRATION_1_2).build().also { instance = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build().also { instance = it }
             }
     }
 }

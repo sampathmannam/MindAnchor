@@ -43,6 +43,7 @@ import org.mindanchor.R
 import org.mindanchor.digest.DigestActivity
 import org.mindanchor.friction.FrictionGate
 import org.mindanchor.settings.SettingsScreen
+import org.mindanchor.support.SupportActivity
 import org.mindanchor.ui.CalmBackground
 import org.mindanchor.ui.SkyContent
 import org.mindanchor.ui.rememberClockFormat
@@ -235,6 +236,23 @@ private fun HomeSurface(
         }
 
         val context = LocalContext.current
+        // Support is one tap from the home screen and never buried: during
+        // acute distress or dissociation, three taps and a scroll is too far.
+        TextButton(
+            onClick = {
+                runCatching {
+                    context.startActivity(Intent(context, SupportActivity::class.java))
+                }
+            },
+            modifier = Modifier.align(Alignment.TopStart),
+        ) {
+            Text(
+                text = stringResource(R.string.support_shortcut),
+                style = MaterialTheme.typography.labelMedium,
+                color = sky.textSecondary,
+            )
+        }
+
         TextButton(
             onClick = {
                 runCatching { context.startActivity(Intent(context, DigestActivity::class.java)) }

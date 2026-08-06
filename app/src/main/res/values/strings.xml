@@ -98,12 +98,54 @@
     <string name="pulse_scale_hint">0 = at no time · 5 = all of the time</string>
     <string name="pulse_save">Save</string>
     <string name="pulse_result">Your score: %1$d/100</string>
-    <string name="pulse_low_note">Scores in this range are common when things are heavy. If it stays low, consider mentioning it to someone you trust or a professional — the support numbers are in settings.</string>
+    <string name="pulse_low_note">Scores in this range are common when things are heavy. Support — your people, your plan, and crisis lines — is one tap from the home screen whenever you want it.</string>
+    <string name="pulse_open_support">Open support</string>
     <string name="pulse_history">History</string>
     <string name="pulse_channel_name">Wellbeing pulse</string>
     <string name="pulse_reminder_title">Two weeks since your last pulse</string>
     <string name="pulse_reminder_text">Two minutes, whenever suits you.</string>
 
+
+    <string name="support_shortcut">support</string>
+    <string name="support_title">Support</string>
+    <string name="support_intro">Everything here works offline and stays on this phone. It reaches real people — it never tries to be one.</string>
+    <string name="support_reach_someone">Reach someone now</string>
+    <string name="support_no_contacts">No one added yet. You can add the people you\'d actually call, below.</string>
+    <string name="support_footer">MindAnchor is a wellness tool, not a treatment, and not a medical device. If you are in danger right now, call your local emergency number.</string>
+
+    <string name="skills_section">For right now</string>
+    <string name="skills_intro">Three skills from dialectical behaviour therapy, the treatment with the strongest evidence for getting through emotional crises. They are for riding out the next few minutes — nothing more is being asked of you.</string>
+    <string name="skill_stop_title">STOP</string>
+    <string name="skill_stop_body">Stop. Take a step back. Observe what is happening, inside and around you. Proceed mindfully — pick the next small action, not the whole day.</string>
+    <string name="skill_tipp_title">TIPP</string>
+    <string name="skill_tipp_body">Cold water on your face or hands. Intense movement for a minute. Paced breathing, out longer than in. Then relax each muscle group in turn. These change body chemistry fast when thinking alone will not.</string>
+    <string name="skill_grounding_title">5-4-3-2-1</string>
+    <string name="skill_grounding_body">Name five things you can see, four you can touch, three you can hear, two you can smell, one you can taste. Slowly, out loud if you can.</string>
+
+    <string name="plan_section">My plan</string>
+    <string name="plan_empty">Nothing written yet. A plan is easiest to write on a calm day, for a day that is not — that is the whole idea.</string>
+    <string name="plan_warning_signs">When things are turning</string>
+    <string name="plan_warning_hint">Thoughts, feelings or situations I notice first</string>
+    <string name="plan_coping">What helps me on my own</string>
+    <string name="plan_coping_hint">Things I can do without anyone else</string>
+    <string name="plan_distractions">Where I can go, who I can be around</string>
+    <string name="plan_distractions_hint">Places and people that take the edge off</string>
+    <string name="plan_reasons">What I want to stay for</string>
+    <string name="plan_reasons_hint">People, plans, anything at all</string>
+    <string name="plan_environment">Making things safer</string>
+    <string name="plan_environment_hint">What I can put away, and who can hold it</string>
+    <string name="plan_contacts">People I can contact</string>
+    <string name="contact_name">Name</string>
+    <string name="contact_phone">Phone</string>
+    <string name="contact_is_professional">A professional or service</string>
+    <string name="contact_add">Add person</string>
+    <string name="contact_remove">Remove</string>
+    <string name="action_remove">remove</string>
+    <string name="action_edit">edit</string>
+    <string name="action_done">done</string>
+    <string name="contact_bypass_note">These people are never batched and never held back by sunset mode — if they reach out, your phone tells you straight away.</string>
+
+    <string name="support_open">Open support and safety plan</string>
     <string name="crisis_section">If things are heavy</string>
     <string name="crisis_explainer">MindAnchor never plays therapist. These reach real humans, any hour:</string>
     <string name="crisis_us">Call 988 — Suicide &amp; Crisis Lifeline (US)</string>

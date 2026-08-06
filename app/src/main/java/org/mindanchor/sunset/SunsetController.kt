@@ -74,13 +74,32 @@ object SunsetController {
     fun applyFilter(context: Context, priorityOnly: Boolean) {
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
         if (!manager.isNotificationPolicyAccessGranted) return
-        manager.setInterruptionFilter(
-            if (priorityOnly) {
-                NotificationManager.INTERRUPTION_FILTER_PRIORITY
-            } else {
-                NotificationManager.INTERRUPTION_FILTER_ALL
-            },
-        )
+        if (priorityOnly) {
+            // Say explicitly who may still get through, rather than
+            // inheriting whatever the phone's existing Do Not Disturb
+            // happens to allow. The small hours are exactly when someone in
+            // distress needs a person to be able to reach them, so starred
+            // contacts, anyone who calls twice, and alarms always ring.
+            runCatching {
+                manager.notificationPolicy = NotificationManager.Policy(
+                    NotificationManager.Policy.PRIORITY_CATEGORY_CALLS or
+                        NotificationManager.Policy.PRIORITY_CATEGORY_REPEAT_CALLERS or
+                        NotificationManager.Policy.PRIORITY_CATEGORY_MESSAGES or
+                        NotificationManager.Policy.PRIORITY_CATEGORY_ALARMS,
+                    NotificationManager.Policy.PRIORITY_SENDERS_STARRED,
+                    NotificationManager.Policy.PRIORITY_SENDERS_STARRED,
+                )
+            }
+        }
+        runCatching {
+            manager.setInterruptionFilter(
+                if (priorityOnly) {
+                    NotificationManager.INTERRUPTION_FILTER_PRIORITY
+                } else {
+                    NotificationManager.INTERRUPTION_FILTER_ALL
+                },
+            )
+        }
     }
 
     internal fun handleAlarm(context: Context, action: String?) {

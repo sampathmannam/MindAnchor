@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
 import org.mindanchor.data.NotificationPrefs
 import org.mindanchor.data.db.AnchorDatabase
 import org.mindanchor.data.db.HeldNotification
+import org.mindanchor.support.CrisisContactRef
 
 /**
  * The batcher's intake. Hold-then-journal design (docs/research/05 §1):
@@ -27,12 +28,26 @@ class AnchorNotificationListenerService : NotificationListenerService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private lateinit var config: kotlinx.coroutines.flow.StateFlow<Pair<Boolean, Set<String>>>
 
+    /**
+     * Chosen people who must never be delayed. Held in memory so the hot
+     * path stays synchronous — a notification arrives before any suspend
+     * function could finish loading them.
+     */
+    @Volatile
+    private var crisisContacts: List<CrisisContactRef> = emptyList()
+
     override fun onCreate() {
         super.onCreate()
         val prefs = NotificationPrefs(applicationContext)
         config = combine(prefs.batchingEnabled, prefs.batchedApps) { enabled, apps ->
             enabled to apps
         }.stateIn(scope, SharingStarted.Eagerly, false to emptySet())
+
+        scope.launch {
+            AnchorDatabase.get(applicationContext).safety().contacts().collect { contacts ->
+                crisisContacts = contacts.map { CrisisContactRef(it.name, it.phone) }
+            }
+        }
     }
 
     override fun onDestroy() {
@@ -52,6 +67,7 @@ class AnchorNotificationListenerService : NotificationListenerService() {
             batchingEnabled = enabled,
             batchedApps = batchedApps,
             ownPackage = packageName,
+            crisisContacts = crisisContacts,
         )
         if (!hold) return
 
@@ -80,6 +96,24 @@ class AnchorNotificationListenerService : NotificationListenerService() {
         }
     }
 
+    /** Every identifier the notification offers for who it is from. */
+    private fun peopleIn(extras: android.os.Bundle): List<String> = runCatching {
+        val people = mutableListOf<String>()
+        @Suppress("DEPRECATION")
+        extras.getStringArray(Notification.EXTRA_PEOPLE)?.let { people += it }
+        @Suppress("DEPRECATION")
+        val persons = extras.getParcelableArrayList<android.app.Person>(
+            Notification.EXTRA_PEOPLE_LIST,
+        )
+        persons?.forEach { person ->
+            person.uri?.let { people += it }
+            person.name?.let { people += it.toString() }
+        }
+        extras.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE)
+            ?.let { people += it.toString() }
+        people.filter { it.isNotBlank() }
+    }.getOrDefault(emptyList())
+
     private fun StatusBarNotification.toMeta(): NotificationMeta {
         val extras = notification.extras
         val template = extras.getString(Notification.EXTRA_TEMPLATE).orEmpty()
@@ -95,6 +129,7 @@ class AnchorNotificationListenerService : NotificationListenerService() {
             isGroupSummary =
                 (notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0,
             isConversation = isConversation,
+            people = peopleIn(extras),
         )
     }
 }
