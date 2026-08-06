@@ -85,14 +85,39 @@ own baseline." *Exit: public v1.0 + first honest data.*
 Timeline assumes ~1 focused developer with AI assistance; treat weeks as sequence, not
 promises.
 
-## 4. Technical architecture *(pending — filled from research/05)*
+## 4. Technical architecture (decisions from [research/05](research/05-android-technical-feasibility.md))
 
-- Module layout, permission manifest, min SDK: TBD.
-- Notification batching mechanics (snooze vs cancel-repost): TBD.
-- App-gating approach (UsageStats polling vs AccessibilityService) + store-policy stance: TBD.
-- Grayscale mechanism: TBD.
-- Scheduling reliability (AlarmManager/WorkManager/Doze): TBD.
-- Reuse decisions (Mindful, Siempo, Olauncher/mLauncher, Bundel, Kvaesitso): TBD.
+**Verdict: no hard blockers.** Every v1 feature is buildable with user-grantable
+permissions; every permission has a designed degraded mode.
+
+- **Stack**: single APK, multi-module Gradle, Kotlin + Jetpack Compose, Room + DataStore.
+  minSdk 33, target 36. Modules: `:core`, `:core-permissions`,
+  `:feature-notifications`, `:feature-launcher`, `:feature-gating`, `:feature-sunset`,
+  `:feature-sleep` (see research/05 §Architecture for details).
+- **F1 batching = cancel + re-post** (Mindful-verified pattern): cancel via
+  NotificationListenerService, persist content, cache original `contentIntent`
+  PendingIntents, re-post MessagingStyle copies + per-app group summaries at release
+  times via `AlarmManager → Receiver → WorkManager`. Never touch: ongoing,
+  non-clearable, group-summary, or OS-marked-sensitive notifications (Android 15 OTP
+  redaction). Humans pass = don't cancel. Known cost: batched copies carry our app's
+  icon and lose direct-reply — acceptable, documented.
+- **F3 friction = launcher-intercept first**: prompts run in-process before
+  `startActivity` (zero extra permissions, immune to OEM killers), with a 750 ms
+  UsageStats-polling + overlay fallback for non-launcher entry points.
+  **AccessibilityService is an optional add-on module, never core** (Play's Jan 2026
+  crackdown; F-Droid doesn't care either way).
+- **F4 sunset = AutomaticZenRule from day one** (API 35+ silently converts global-DND
+  calls anyway): one "Sunset" Zen rule; `ZenPolicy` starred-contacts maps directly to
+  the designated-humans tier; grayscale via `ZenDeviceEffects` on Android 15+, optional
+  ADB-granted `WRITE_SECURE_SETTINGS` daltonizer on 13/14, else dark-theme fallback.
+- **F5 sleep = retroactive UsageStats event ingest** (SCREEN_INTERACTIVE / KEYGUARD
+  events, daily into Room) — no persistent receiver, no Google Sleep API, fully offline.
+- **Licensing/reuse**: build fresh under GPLv3; lift GPL-3.0 code from mLauncher,
+  Kvaesitso, DigiPaws, Open TimeLimit; use Apache-2.0 Bundel freely; treat Mindful
+  (GPL-2.0-only, incompatible) as a design reference — or ask its author to relicense.
+- **Distribution**: F-Droid primary; Play best-effort (declaration forms for
+  QUERY_ALL_PACKAGES, usage stats, FGS specialUse; Health-apps declaration for sleep
+  claims — say "estimates," never "diagnoses").
 
 ## 5. Risks
 
