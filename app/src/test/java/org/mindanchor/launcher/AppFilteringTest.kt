@@ -12,6 +12,7 @@ class AppFilteringTest {
         InstalledApp("com.example.maps/.Main", "Maps"),
         InstalledApp("com.example.feed/.Main", "Feedly"),
         InstalledApp("com.example.cam/.Main", "Camera"),
+        InstalledApp("com.example.cinema/.Main", "Cinema"),
     )
 
     @Test
@@ -22,7 +23,10 @@ class AppFilteringTest {
             hidden = emptySet(),
             renames = mapOf("com.example.feed/.Main" to "Za Feed"),
         )
-        assertEquals(listOf("Camera", "Mail", "Maps", "Za Feed"), display.map { it.label })
+        assertEquals(
+            listOf("Camera", "Cinema", "Mail", "Maps", "Za Feed"),
+            display.map { it.label },
+        )
     }
 
     @Test
@@ -35,7 +39,7 @@ class AppFilteringTest {
         )
         val drawer = AppFiltering.drawer(display)
         assertTrue(drawer.none { it.component == "com.example.feed/.Main" })
-        assertEquals(3, drawer.size)
+        assertEquals(4, drawer.size)
     }
 
     @Test
@@ -50,7 +54,7 @@ class AppFilteringTest {
     fun `search ranks prefix matches before substring matches`() {
         val display = AppFiltering.toDisplayApps(apps, emptyList(), emptySet(), emptyMap())
         val results = AppFiltering.search(display, "ma")
-        assertEquals(listOf("Mail", "Maps", "Camera"), results.map { it.label })
+        assertEquals(listOf("Mail", "Maps", "Cinema"), results.map { it.label })
     }
 
     @Test
@@ -68,6 +72,6 @@ class AppFilteringTest {
     @Test
     fun `blank query returns full drawer`() {
         val display = AppFiltering.toDisplayApps(apps, emptyList(), emptySet(), emptyMap())
-        assertEquals(4, AppFiltering.search(display, " ").size)
+        assertEquals(5, AppFiltering.search(display, " ").size)
     }
 }
