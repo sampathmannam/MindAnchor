@@ -151,6 +151,7 @@
     <string name="crisis_us">Call 988 — Suicide &amp; Crisis Lifeline (US)</string>
     <string name="crisis_india">Call 14416 — Tele-MANAS (India)</string>
     <string name="crisis_more">Elsewhere: findahelpline.com lists lines for most countries.</string>
+    <string name="dial_failed">This phone could not open a dialer. The number is %1$s — call it from your phone app, or ask someone near you to.</string>
 
     <string name="about_text">MindAnchor is an open-source, research-backed launcher. It has no accounts, no server and no analytics — your data never leaves this phone. It is a wellness tool, not a medical device. In crisis, reach a human: 988 (US) or Tele-MANAS 14416 (India).</string>
 

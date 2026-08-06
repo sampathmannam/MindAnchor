@@ -37,12 +37,20 @@ fun AppActionsDialog(
             onDismissRequest = onDismiss,
             title = { Text(stringResource(R.string.action_rename)) },
             text = {
-                OutlinedTextField(
-                    value = newLabel,
-                    onValueChange = { newLabel = it },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                Column {
+                    OutlinedTextField(
+                        value = newLabel,
+                        onValueChange = { newLabel = it },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    // Resetting belongs with the field it resets, not in the
+                    // dismiss slot. Sitting there, it silently wiped a custom
+                    // name for anyone who tapped the left button to back out.
+                    TextButton(onClick = { onRename(null) }) {
+                        Text(stringResource(R.string.action_reset_name))
+                    }
+                }
             },
             confirmButton = {
                 TextButton(onClick = { onRename(newLabel) }) {
@@ -50,8 +58,8 @@ fun AppActionsDialog(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { onRename(null) }) {
-                    Text(stringResource(R.string.action_reset_name))
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.action_close))
                 }
             },
         )
