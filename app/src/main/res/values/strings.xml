@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MindAnchor</string>
+    <string name="greeting_morning">A quiet morning.</string>
+    <string name="greeting_day">Here, now.</string>
+    <string name="greeting_evening">Winding down.</string>
+
+    <string name="open_drawer">search</string>
+    <string name="search_hint">Type to find an app…</string>
+    <string name="settings">settings</string>
+
+    <string name="action_favorite">Add to home</string>
+    <string name="action_unfavorite">Remove from home</string>
+    <string name="action_rename">Rename</string>
+    <string name="action_save">Save</string>
+    <string name="action_reset_name">Reset name</string>
+    <string name="action_hide">Hide</string>
+    <string name="action_unhide">Unhide</string>
+    <string name="action_close">Close</string>
+    <string name="action_add_pause">Add a pause before opening</string>
+    <string name="action_remove_pause">Remove the pause</string>
+
+    <string name="breath_in">Breathe in…</string>
+    <string name="breath_out">…and out</string>
+    <string name="never_mind">never mind</string>
+    <string name="intention_question">What are you here to do in %1$s?</string>
+    <string name="intention_hint">Pick a time box — you\'ll get a gentle nudge when it\'s up.</string>
+    <string name="open_for_minutes">%1$d min</string>
+    <string name="open_untimed">Open without a timer</string>
+
+    <string name="session_channel_name">Session timers</string>
+    <string name="session_over_title">Your time in %1$s is up</string>
+    <string name="session_over_text">Done, or a little longer?</string>
+    <string name="session_extend_action">+5 minutes</string>
+    <string name="action_back">← back</string>
+
+    <string name="batching_section">Notification batching</string>
+    <string name="batching_explainer">Chosen apps stop interrupting you; their notifications wait quietly and arrive together at 8:00, 12:30 and 18:00. Conversations, calls and alarms always come through instantly.</string>
+    <string name="grant_notification_access">Grant notification access to enable batching</string>
+    <string name="batching_toggle">Batch notifications</string>
+    <string name="batching_choose_apps">Apps to batch:</string>
+
+    <string name="digest_channel_name">Digest</string>
+    <string name="digest_channel_description">One calm summary per batch of held notifications.</string>
+    <string name="digest_screen_title">digest</string>
+    <string name="digest_waiting_count">%1$d waiting for the next batch</string>
+    <string name="digest_release_now">Release now</string>
+    <string name="digest_clear_released">Clear released</string>
+    <string name="digest_empty">Nothing here. When batching is on, held notifications collect in this journal so nothing is ever lost.</string>
+    <string name="digest_text">From %1$s</string>
+
+    <string name="sunset_section">Sunset mode</string>
+    <string name="sunset_explainer">From 22:00 to 07:00 the phone goes priority-only: starred contacts and repeat callers still reach you, everything else waits for morning.</string>
+    <string name="grant_dnd_access">Grant Do Not Disturb access to enable sunset</string>
+    <string name="sunset_toggle">Wind down from 22:00 to 07:00</string>
+
+    <string name="sleep_section">Sleep rhythm</string>
+    <string name="sleep_explainer">MindAnchor can estimate your sleep window from when the screen goes quiet at night — on this phone only, no wearable, nothing uploaded. Consistency matters more than hours.</string>
+    <string name="grant_usage_access">Grant usage access to see your rhythm</string>
+    <string name="sleep_no_data">Not enough nights recorded yet. Check back in a few days.</string>
+    <string name="sleep_regularity">Regularity: %1$d/100</string>
+    <string name="sleep_window_row">%1$s — about %2$s h quiet</string>
+    <string name="sleep_regularity_note">This is an estimate of how consistent your nightly phone-quiet window is — regular timing, not total hours, is what the research links to better mood and sleep.</string>
+
+    <string name="set_default_launcher">Set MindAnchor as your home screen</string>
+    <string name="is_default_launcher">MindAnchor is your home screen.</string>
+    <string name="hidden_apps">Hidden apps</string>
+    <string name="no_hidden_apps">Nothing hidden. Long-press any app to hide it from the drawer — it stays reachable by typing its exact name.</string>
+    <string name="onboarding_welcome_title">Welcome to MindAnchor</string>
+    <string name="onboarding_welcome_body">A calmer phone, built from published research. No accounts, no server — everything stays on this device. You choose what turns on; nothing is imposed.</string>
+    <string name="onboarding_continue">continue</string>
+    <string name="onboarding_goals_title">What pulls at you? Pick what fits.</string>
+    <string name="goal_interruptions">Constant interruptions</string>
+    <string name="goal_compulsive">Apps I open without meaning to</string>
+    <string name="goal_sleep">My phone keeps me up at night</string>
+    <string name="goal_measurement">I want to know if any of this helps</string>
+    <string name="onboarding_plan_title">Your plan — switch each on when ready:</string>
+    <string name="plan_interruptions">• Notification batching (settings): chosen apps go quiet and arrive together three times a day. People always come through.</string>
+    <string name="plan_compulsive">• Long-press any app and choose \"Add a pause\" — a breath and an intention before it opens.</string>
+    <string name="plan_sleep">• Sunset mode + sleep rhythm (settings): priority-only nights and a view of how regular your sleep is.</string>
+    <string name="plan_measurement">• The wellbeing pulse (settings): a 2-minute check-in every two weeks, scored honestly.</string>
+    <string name="plan_none">Explore at your own pace — every feature lives in settings and long-press menus, all off by default.</string>
+    <string name="onboarding_begin">begin</string>
+
+    <string name="pulse_section">Wellbeing pulse</string>
+    <string name="pulse_section_explainer">A 2-minute WHO-5 check-in every two weeks. It\'s how you — and MindAnchor — know honestly whether any of this is helping.</string>
+    <string name="pulse_take">Take the pulse</string>
+    <string name="pulse_title">How have the last two weeks felt?</string>
+    <string name="pulse_intro">Five statements, answered 0 (at no time) to 5 (all of the time). This is a self-check, not a diagnosis.</string>
+    <string name="pulse_scale_hint">0 = at no time · 5 = all of the time</string>
+    <string name="pulse_save">Save</string>
+    <string name="pulse_result">Your score: %1$d/100</string>
+    <string name="pulse_low_note">Scores in this range are common when things are heavy. If it stays low, consider mentioning it to someone you trust or a professional — the support numbers are in settings.</string>
+    <string name="pulse_history">History</string>
+    <string name="pulse_channel_name">Wellbeing pulse</string>
+    <string name="pulse_reminder_title">Two weeks since your last pulse</string>
+    <string name="pulse_reminder_text">Two minutes, whenever suits you.</string>
+
+    <string name="crisis_section">If things are heavy</string>
+    <string name="crisis_explainer">MindAnchor never plays therapist. These reach real humans, any hour:</string>
+    <string name="crisis_us">Call 988 — Suicide &amp; Crisis Lifeline (US)</string>
+    <string name="crisis_india">Call 14416 — Tele-MANAS (India)</string>
+    <string name="crisis_more">Elsewhere: findahelpline.com lists lines for most countries.</string>
+
+    <string name="about_text">MindAnchor is an open-source, research-backed launcher. It has no accounts, no server and no analytics — your data never leaves this phone. It is a wellness tool, not a medical device. In crisis, reach a human: 988 (US) or Tele-MANAS 14416 (India).</string>
+
+    <string-array name="who5_items">
+        <item>I have felt cheerful and in good spirits</item>
+        <item>I have felt calm and relaxed</item>
+        <item>I have felt active and vigorous</item>
+        <item>I woke up feeling fresh and rested</item>
+        <item>My daily life has been filled with things that interest me</item>
+    </string-array>
+</resources>

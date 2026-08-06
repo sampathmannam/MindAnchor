@@ -1,0 +1,17 @@
+MindAnchor is an open-source, mental-health-first launcher and notification layer.
+Every feature implements a published research finding:
+
+* Machine notifications are batched into a few calm daily digests, while the people
+  you choose always reach you instantly.
+* A text-first, badge-free home screen replaces the app grid.
+* Apps you flag get a breathing-paced pause and intention prompt before opening,
+  with time-boxed sessions.
+* Sunset mode protects your wind-down hour: grayscale, feeds gated, notifications
+  held until morning.
+* Sleep regularity is estimated from screen on/off patterns — no wearable needed.
+* Short wellbeing check-ins tell you honestly whether the features are helping you.
+
+No accounts. No server. No analytics. Your data never leaves your phone.
+
+MindAnchor is a wellness tool, not a medical device. If you are struggling, please
+reach a human: 988 (US), Tele-MANAS 14416 (India), or your local crisis line.

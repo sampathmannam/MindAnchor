@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="digest_title">
+        <item quantity="one">%d notification waited for you</item>
+        <item quantity="other">%d notifications waited for you</item>
+    </plurals>
+    <plurals name="session_extensions_today">
+        <item quantity="one">Done, or a little longer? This would be your %d extension today.</item>
+        <item quantity="other">Done, or a little longer? You\'ve extended %d times today.</item>
+    </plurals>
+</resources>
