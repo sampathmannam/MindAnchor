@@ -3,6 +3,12 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.6.0)"
+        required: true
+        default: "v0.6.0"
 
 permissions:
   contents: write
@@ -23,12 +29,17 @@ jobs:
       - name: Build APK
         run: ./gradlew assembleDebug --stacktrace
 
+      - name: Determine tag
+        id: tag
+        run: echo "tag=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk mindanchor-${{ github.ref_name }}.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk mindanchor-${{ steps.tag.outputs.tag }}.apk
 
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.tag.outputs.tag }}
           prerelease: true
           generate_release_notes: true
-          files: mindanchor-${{ github.ref_name }}.apk
+          files: mindanchor-${{ steps.tag.outputs.tag }}.apk
