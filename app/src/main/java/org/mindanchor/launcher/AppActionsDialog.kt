@@ -22,9 +22,11 @@ import org.mindanchor.R
 @Composable
 fun AppActionsDialog(
     app: DisplayApp,
+    isFrictioned: Boolean,
     onDismiss: () -> Unit,
     onToggleFavorite: () -> Unit,
     onToggleHidden: () -> Unit,
+    onToggleFriction: () -> Unit,
     onRename: (String?) -> Unit,
 ) {
     var renaming by remember { mutableStateOf(false) }
@@ -77,6 +79,14 @@ fun AppActionsDialog(
                         stringResource(
                             if (app.isHidden) R.string.action_unhide
                             else R.string.action_hide,
+                        ),
+                    )
+                }
+                TextButton(onClick = onToggleFriction, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        stringResource(
+                            if (isFrictioned) R.string.action_remove_pause
+                            else R.string.action_add_pause,
                         ),
                     )
                 }

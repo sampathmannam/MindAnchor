@@ -17,6 +17,21 @@
     <string name="action_hide">Hide</string>
     <string name="action_unhide">Unhide</string>
     <string name="action_close">Close</string>
+    <string name="action_add_pause">Add a pause before opening</string>
+    <string name="action_remove_pause">Remove the pause</string>
+
+    <string name="breath_in">Breathe in…</string>
+    <string name="breath_out">…and out</string>
+    <string name="never_mind">never mind</string>
+    <string name="intention_question">What are you here to do in %1$s?</string>
+    <string name="intention_hint">Pick a time box — you\'ll get a gentle nudge when it\'s up.</string>
+    <string name="open_for_minutes">%1$d min</string>
+    <string name="open_untimed">Open without a timer</string>
+
+    <string name="session_channel_name">Session timers</string>
+    <string name="session_over_title">Your time in %1$s is up</string>
+    <string name="session_over_text">Done, or a little longer?</string>
+    <string name="session_extend_action">+5 minutes</string>
     <string name="action_back">← back</string>
 
     <string name="batching_section">Notification batching</string>

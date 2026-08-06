@@ -40,6 +40,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
 import org.mindanchor.R
 import org.mindanchor.digest.DigestActivity
+import org.mindanchor.friction.FrictionGate
 import org.mindanchor.settings.SettingsScreen
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -56,10 +57,38 @@ fun LauncherRoot(viewModel: LauncherViewModel = viewModel()) {
     val state by viewModel.uiState.collectAsState()
     var surface by remember { mutableStateOf(LauncherSurface.Home) }
     var actionsFor by remember { mutableStateOf<DisplayApp?>(null) }
+    var gateFor by remember { mutableStateOf<DisplayApp?>(null) }
 
-    BackHandler(enabled = surface != LauncherSurface.Home) {
+    BackHandler(enabled = surface != LauncherSurface.Home || gateFor != null) {
+        gateFor = null
         surface = LauncherSurface.Home
         viewModel.onQueryChange("")
+    }
+
+    fun attemptLaunch(app: DisplayApp) {
+        val packageName = app.component.substringBefore('/')
+        if (packageName in state.frictionPackages) {
+            gateFor = app
+        } else {
+            viewModel.launch(app)
+            surface = LauncherSurface.Home
+        }
+    }
+
+    gateFor?.let { app ->
+        FrictionGate(
+            appLabel = app.label,
+            onOpen = { minutes ->
+                viewModel.launchTimed(app, minutes)
+                gateFor = null
+                surface = LauncherSurface.Home
+            },
+            onNeverMind = {
+                gateFor = null
+                surface = LauncherSurface.Home
+            },
+        )
+        return
     }
 
     Surface(modifier = Modifier.fillMaxSize()) {
@@ -68,17 +97,14 @@ fun LauncherRoot(viewModel: LauncherViewModel = viewModel()) {
                 favorites = state.favorites,
                 onOpenDrawer = { surface = LauncherSurface.Drawer },
                 onOpenSettings = { surface = LauncherSurface.Settings },
-                onLaunch = viewModel::launch,
+                onLaunch = ::attemptLaunch,
                 onLongPress = { actionsFor = it },
             )
 
             LauncherSurface.Drawer -> DrawerSurface(
                 viewModel = viewModel,
                 state = state,
-                onLaunch = {
-                    viewModel.launch(it)
-                    surface = LauncherSurface.Home
-                },
+                onLaunch = ::attemptLaunch,
                 onLongPress = { actionsFor = it },
             )
 
@@ -94,9 +120,11 @@ fun LauncherRoot(viewModel: LauncherViewModel = viewModel()) {
     actionsFor?.let { app ->
         AppActionsDialog(
             app = app,
+            isFrictioned = app.component.substringBefore('/') in state.frictionPackages,
             onDismiss = { actionsFor = null },
             onToggleFavorite = { viewModel.toggleFavorite(app); actionsFor = null },
             onToggleHidden = { viewModel.setHidden(app, !app.isHidden); actionsFor = null },
+            onToggleFriction = { viewModel.toggleFriction(app); actionsFor = null },
             onRename = { label -> viewModel.rename(app, label); actionsFor = null },
         )
     }
