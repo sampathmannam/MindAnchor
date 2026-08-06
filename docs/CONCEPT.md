@@ -34,11 +34,28 @@ from peer-reviewed mental-health and human-computer-interaction research.
 | **Tier 2: AOSP fork ("ROM")** | Custom Android build (like GrapheneOS/CalyxOS) with deep hooks into SystemUI, notification ranking, display pipeline | Months–years | Pixel-class devices, enthusiasts |
 | **Tier 3: Dedicated device** | Minimal-phone hardware (e.g. e-ink) running Tier 2 | Long-term | Niche, premium wellness market |
 
-**Recommendation: start Tier 1.** Android exposes almost everything needed
-(NotificationListenerService, UsageStatsManager, Digital Wellbeing-style APIs, launcher
-replacement) without a custom ROM. Prove the intervention designs there, then graduate to
-AOSP where you can change what launchers can't (notification transport, display color
-pipeline, lock-screen).
+**Decision: MindAnchor is Tier 1.** It ships as a simple, open-source Android app suite —
+no custom ROM, no rooting, installable on any normal Android phone. Android exposes
+almost everything needed (launcher role, NotificationListenerService, UsageStatsManager,
+AccessibilityService, DND policy access) without forking the OS. Tiers 2–3 stay on the
+long-term roadmap only.
+
+### 2.1 Open source & simplicity commitments
+
+- **License**: GPLv3 (keeps forks open — fitting for a project whose whole premise is
+  "no hidden engagement incentives"). All research citations and design rationale live in
+  the repo, so "research-backed" is auditable, not marketing.
+- **Distribution**: F-Droid first (FOSS-only store), plus GitHub releases APK; Play Store
+  later if policies allow the accessibility/notification permissions.
+- **Zero backend**: no accounts, no server, no analytics, no network permission in the MVP.
+  All data (usage stats, mood check-ins) stays in a local encrypted database with local
+  export. This makes the privacy promise structural, not contractual.
+- **Simple stack**: single Kotlin app, Jetpack Compose UI, Room for storage, WorkManager
+  for the notification-batch scheduler. No ML, no cloud, no SDKs. A contributor should be
+  able to read the whole codebase in an afternoon.
+- **Simple product**: launch with the 4 MVP features in §5 and nothing else. Every later
+  feature must cite a study in its PR description to be merged — the contribution bar is
+  part of the project's identity.
 
 ---
 
@@ -268,6 +285,10 @@ scrolling relates to lower well-being (Verduyn et al., 2017 review).
 Each maps to a single strong study, is buildable with public Android APIs
 (NotificationListenerService, UsageStatsManager, AccessibilityService, launcher role), and
 is measurable with an in-app PSS-4 / WHO-5 pulse survey for honest before/after data.
+
+All four fit in one simple open-source Kotlin app with zero servers — see §2.1. The
+"operating system" framing is the product vision; the codebase starts as a launcher +
+notification service that *behaves* like a calmer OS.
 
 ---
 
