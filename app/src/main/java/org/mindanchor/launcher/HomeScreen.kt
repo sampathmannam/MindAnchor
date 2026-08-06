@@ -37,7 +37,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import kotlinx.coroutines.delay
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import org.mindanchor.R
@@ -46,7 +45,8 @@ import org.mindanchor.friction.FrictionGate
 import org.mindanchor.settings.SettingsScreen
 import org.mindanchor.ui.CalmBackground
 import org.mindanchor.ui.SkyContent
-import java.time.LocalTime
+import org.mindanchor.ui.rememberClockFormat
+import org.mindanchor.ui.rememberMinuteTick
 import java.time.format.DateTimeFormatter
 
 private enum class LauncherSurface { Home, Drawer, Settings }
@@ -57,11 +57,26 @@ private enum class LauncherSurface { Home, Drawer, Settings }
  * no badges — text only (CONCEPT.md §3.2).
  */
 @Composable
-fun LauncherRoot(viewModel: LauncherViewModel = viewModel()) {
+fun LauncherRoot(
+    viewModel: LauncherViewModel = viewModel(),
+    /** Bumped whenever the home button is pressed; see HomeActivity. */
+    goHomeSignal: Int = 0,
+) {
     val state by viewModel.uiState.collectAsState()
     var surface by remember { mutableStateOf(LauncherSurface.Home) }
     var actionsFor by remember { mutableStateOf<DisplayApp?>(null) }
     var gateFor by remember { mutableStateOf<DisplayApp?>(null) }
+
+    // Pressing home while deep in the drawer or settings must land on the
+    // home surface — otherwise the launcher "sticks" wherever you left it.
+    LaunchedEffect(goHomeSignal) {
+        if (goHomeSignal > 0) {
+            gateFor = null
+            actionsFor = null
+            surface = LauncherSurface.Home
+            viewModel.onQueryChange("")
+        }
+    }
 
     BackHandler(enabled = surface != LauncherSurface.Home || gateFor != null) {
         gateFor = null
@@ -149,13 +164,8 @@ private fun HomeSurface(
     onLaunch: (DisplayApp) -> Unit,
     onLongPress: (DisplayApp) -> Unit,
 ) {
-    var now by remember { mutableStateOf(LocalTime.now()) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            now = LocalTime.now()
-            delay(30_000)
-        }
-    }
+    val now = rememberMinuteTick()
+    val clockFormat = rememberClockFormat()
 
     Box(modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(32.dp)) {
         Column(
@@ -164,7 +174,7 @@ private fun HomeSurface(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                text = now.format(DateTimeFormatter.ofPattern("HH:mm")),
+                text = now.format(DateTimeFormatter.ofPattern(clockFormat)),
                 style = MaterialTheme.typography.displayLarge.copy(
                     fontWeight = FontWeight.Light,
                     letterSpacing = 2.sp,
@@ -227,7 +237,7 @@ private fun HomeSurface(
         val context = LocalContext.current
         TextButton(
             onClick = {
-                context.startActivity(Intent(context, DigestActivity::class.java))
+                runCatching { context.startActivity(Intent(context, DigestActivity::class.java)) }
             },
             modifier = Modifier.align(Alignment.BottomStart),
         ) {

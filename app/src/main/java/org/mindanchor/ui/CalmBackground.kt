@@ -5,21 +5,16 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import kotlinx.coroutines.delay
 import org.mindanchor.data.AppearancePrefs
 import java.time.LocalDate
-import java.time.LocalTime
 
 /** Text colours guaranteed readable against the sky behind them. */
 data class SkyContent(
@@ -43,15 +38,8 @@ fun CalmBackground(content: @Composable (SkyContent) -> Unit) {
     val context = LocalContext.current
     val appearance = remember(context) { AppearancePrefs(context) }
     val sceneSetting by appearance.scene.collectAsState(initial = null)
-    var minuteOfDay by remember {
-        mutableIntStateOf(LocalTime.now().let { it.hour * 60 + it.minute })
-    }
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(60_000)
-            minuteOfDay = LocalTime.now().let { it.hour * 60 + it.minute }
-        }
-    }
+    val now = rememberMinuteTick()
+    val minuteOfDay = now.hour * 60 + now.minute
     val scene = sceneSetting?.let {
         NatureScene.resolve(it, LocalDate.now().toEpochDay())
     }

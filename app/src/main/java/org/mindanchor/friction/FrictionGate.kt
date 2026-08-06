@@ -25,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.res.stringResource
@@ -71,7 +72,18 @@ private const val BREATH_MILLIS = 6_000
 @Composable
 private fun BreathingPause(sky: SkyContent, onFinished: () -> Unit, onNeverMind: () -> Unit) {
     val haptics = LocalHapticFeedback.current
+    val context = LocalContext.current
     var phaseIn by remember { mutableStateOf(true) }
+
+    // Users who have asked the system to remove animations get the same
+    // pause, the same haptics and the same wording — just no pulsing circle.
+    val animationsEnabled = remember {
+        android.provider.Settings.Global.getFloat(
+            context.contentResolver,
+            android.provider.Settings.Global.ANIMATOR_DURATION_SCALE,
+            1f,
+        ) > 0f
+    }
 
     LaunchedEffect(Unit) {
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -83,7 +95,7 @@ private fun BreathingPause(sky: SkyContent, onFinished: () -> Unit, onNeverMind:
     }
 
     val transition = rememberInfiniteTransition(label = "breath")
-    val scale by transition.animateFloat(
+    val animatedScale by transition.animateFloat(
         initialValue = 1f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
@@ -96,6 +108,7 @@ private fun BreathingPause(sky: SkyContent, onFinished: () -> Unit, onNeverMind:
         ),
         label = "breathScale",
     )
+    val scale = if (animationsEnabled) animatedScale else 1.3f
 
     Box(modifier = Modifier.fillMaxSize().padding(32.dp)) {
         Column(

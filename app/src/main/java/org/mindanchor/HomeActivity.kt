@@ -1,5 +1,6 @@
 package org.mindanchor
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -7,10 +8,12 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import org.mindanchor.launcher.LauncherRoot
 import org.mindanchor.onboarding.OnboardingPrefs
 import org.mindanchor.onboarding.OnboardingScreen
+import org.mindanchor.ui.CalmBackground
 import org.mindanchor.ui.MindAnchorTheme
 
 /**
@@ -20,6 +23,14 @@ import org.mindanchor.ui.MindAnchorTheme
  */
 class HomeActivity : ComponentActivity() {
 
+    /**
+     * Incremented on every home-button press. The activity is singleTask, so
+     * pressing home while the launcher is already foreground delivers a new
+     * intent rather than recreating anything — without this the launcher
+     * would stay wherever the user left it (typically settings).
+     */
+    private val goHomeSignal = MutableStateFlow(0)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -27,18 +38,29 @@ class HomeActivity : ComponentActivity() {
         setContent {
             MindAnchorTheme {
                 val done by onboardingPrefs.done.collectAsState(initial = null)
+                val goHome by goHomeSignal.collectAsState()
                 val scope = rememberCoroutineScope()
                 when (done) {
-                    null -> Unit // brief flicker-free wait for DataStore
+                    // Preferences are still loading. Draw the sky rather than
+                    // nothing at all: an empty frame here let the window
+                    // background flash through on every cold start.
+                    null -> CalmBackground { }
+
                     false -> OnboardingScreen(
                         onDone = { goals ->
                             scope.launch { onboardingPrefs.complete(goals) }
                         },
                     )
 
-                    true -> LauncherRoot()
+                    true -> LauncherRoot(goHomeSignal = goHome)
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        goHomeSignal.value += 1
     }
 }
