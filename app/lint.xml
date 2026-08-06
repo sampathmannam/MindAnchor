@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Lint configuration, kept as XML on purpose.
+
+    Android Lint already runs as part of `gradlew build`, so this needs no
+    plugin, no version-catalog entry and no Gradle DSL — which matters
+    because this file was written in an environment with no Android SDK to
+    compile against. Configuration that cannot break a build is the right
+    kind of configuration to add blind.
+
+    Severities are set to "warning" rather than "error" for the same
+    reason. Nothing here can fail a build that has not yet been verified.
+    Once CI is trustworthy again, the checks marked PROMOTE below should be
+    raised to "error" so they actually hold the line.
+-->
+<lint>
+
+    <!--
+        PROMOTE. An unreferenced string is usually a feature that was
+        removed halfway, or one that was never wired up. This project
+        carried exactly that: a "Remove" label for crisis contacts that
+        nothing rendered, found by hand when it should have been found
+        here.
+    -->
+    <issue id="UnusedResources" severity="warning" />
+
+    <!--
+        PROMOTE. Text baked into code cannot be reviewed as copy, and in
+        this app the copy is the product — it is what someone reads while
+        distressed.
+    -->
+    <issue id="HardcodedText" severity="warning" />
+
+    <!--
+        PROMOTE. A format string whose arguments do not match crashes at
+        the moment it is shown. One of these sits in the crisis card,
+        where it names the number to dial by hand when the dialer fails.
+    -->
+    <issue id="StringFormatInvalid" severity="warning" />
+    <issue id="StringFormatCount" severity="warning" />
+
+    <!--
+        This app deliberately ships no launcher-visible content
+        description for decorative drawing: the sky behind the clock
+        carries no information a screen reader needs, and announcing it
+        would be noise. Real controls are all text, and text is its own
+        label.
+    -->
+    <issue id="ContentDescription" severity="warning" />
+
+    <!--
+        Off, deliberately. Dependency-version nagging produces churn
+        rather than correctness, and this project pins versions in a
+        catalog on purpose so that builds stay reproducible for F-Droid.
+    -->
+    <issue id="GradleDependency" severity="ignore" />
+    <issue id="AndroidGradlePluginVersion" severity="ignore" />
+    <issue id="NewerVersionAvailable" severity="ignore" />
+
+    <!--
+        Off. There are no translations by design, so every string is
+        "missing" one and the check has nothing useful to say.
+    -->
+    <issue id="MissingTranslation" severity="ignore" />
+
+</lint>
