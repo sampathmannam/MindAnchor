@@ -47,6 +47,12 @@ v1.5 NFC-tag physical friction · v2.0 keystroke-metadata baseline (own IME fork
 
 ## 3. Milestones
 
+> **Status (2026-08-06): M0–M5 complete and CI-verified** — the v1 feature
+> set below is implemented. M3's polling-overlay fallback for non-launcher
+> entry points is deferred to a follow-up (launcher-intercept covers all
+> launcher-initiated opens). Editable sunset/batch times are post-v1.
+> Next: M6 (real-device beta, F-Droid submission).
+
 **M0 — Scaffold (week 1–2).** Kotlin + Jetpack Compose single-module app; Room DB;
 CI (GitHub Actions: build + lint + unit tests); GPLv3 LICENSE; CONTRIBUTING.md with the
 evidence-gate rule; F-Droid-compatible build (no proprietary deps); fastlane metadata.
