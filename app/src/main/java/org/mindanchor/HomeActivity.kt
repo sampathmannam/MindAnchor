@@ -4,7 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import org.mindanchor.launcher.HomeScreen
+import org.mindanchor.launcher.LauncherRoot
 import org.mindanchor.ui.MindAnchorTheme
 
 /**
@@ -19,7 +19,7 @@ class HomeActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             MindAnchorTheme {
-                HomeScreen()
+                LauncherRoot()
             }
         }
     }

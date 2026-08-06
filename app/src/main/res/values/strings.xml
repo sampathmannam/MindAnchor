@@ -4,4 +4,24 @@
     <string name="greeting_morning">A quiet morning.</string>
     <string name="greeting_day">Here, now.</string>
     <string name="greeting_evening">Winding down.</string>
+
+    <string name="open_drawer">search</string>
+    <string name="search_hint">Type to find an app…</string>
+    <string name="settings">settings</string>
+
+    <string name="action_favorite">Add to home</string>
+    <string name="action_unfavorite">Remove from home</string>
+    <string name="action_rename">Rename</string>
+    <string name="action_save">Save</string>
+    <string name="action_reset_name">Reset name</string>
+    <string name="action_hide">Hide</string>
+    <string name="action_unhide">Unhide</string>
+    <string name="action_close">Close</string>
+    <string name="action_back">← back</string>
+
+    <string name="set_default_launcher">Set MindAnchor as your home screen</string>
+    <string name="is_default_launcher">MindAnchor is your home screen.</string>
+    <string name="hidden_apps">Hidden apps</string>
+    <string name="no_hidden_apps">Nothing hidden. Long-press any app to hide it from the drawer — it stays reachable by typing its exact name.</string>
+    <string name="about_text">MindAnchor is an open-source, research-backed launcher. It has no accounts, no server and no analytics — your data never leaves this phone. It is a wellness tool, not a medical device. In crisis, reach a human: 988 (US) or Tele-MANAS 14416 (India).</string>
 </resources>
