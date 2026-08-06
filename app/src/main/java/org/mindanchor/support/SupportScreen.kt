@@ -169,11 +169,21 @@ fun SupportScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            // The caution belongs with TIPP specifically. Two of its four
+            // steps — cold water and hard movement — swing heart rate
+            // sharply on purpose, which is exactly why they work and
+            // exactly why they are not for everyone. Presenting them with
+            // no caveat was the one place this screen asked something
+            // physical of a person without saying who should not do it.
             listOf(
-                R.string.skill_stop_title to R.string.skill_stop_body,
-                R.string.skill_tipp_title to R.string.skill_tipp_body,
-                R.string.skill_grounding_title to R.string.skill_grounding_body,
-            ).forEach { (title, body) ->
+                Triple(R.string.skill_stop_title, R.string.skill_stop_body, null),
+                Triple(
+                    R.string.skill_tipp_title,
+                    R.string.skill_tipp_body,
+                    R.string.skill_tipp_caution,
+                ),
+                Triple(R.string.skill_grounding_title, R.string.skill_grounding_body, null),
+            ).forEach { (title, body, caution) ->
                 Text(
                     text = stringResource(title),
                     style = MaterialTheme.typography.bodyLarge,
@@ -184,6 +194,14 @@ fun SupportScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                caution?.let {
+                    Text(
+                        text = stringResource(it),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
             }
 
             // --- The plan ---
