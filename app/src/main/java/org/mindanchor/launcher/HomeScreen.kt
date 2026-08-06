@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -35,6 +36,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.text.font.FontWeight
@@ -198,17 +200,29 @@ private fun HomeSurface(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 favorites.forEach { app ->
-                    Text(
-                        text = app.label,
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = sky.textPrimary,
+                    // The target is the full width of the row, not the width
+                    // of the word. A favourite named "X" used to offer a
+                    // sliver to hit; anyone with a tremor, large fingers or
+                    // shaking hands was aiming at almost nothing. 48dp is
+                    // the documented minimum and the floor here.
+                    Box(
                         modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
                             .combinedClickable(
                                 onClick = { onLaunch(app) },
                                 onLongClick = { onLongPress(app) },
-                            )
-                            .padding(vertical = 10.dp),
-                    )
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = app.label,
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = sky.textPrimary,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(vertical = 10.dp),
+                        )
+                    }
                 }
             }
         }
