@@ -23,7 +23,18 @@ class SkyMathTest {
             for (dark in listOf(false, true)) {
                 val palette = SkyMath.palette(minute, dark)
                 val primary = SkyMath.primaryTextFor(palette)
-                listOf("mid" to palette.mid, "bottom" to palette.bottom).forEach { (band, color) ->
+                // The clock band matters and used to be missing here, which
+                // is how the palette kept a true 3.77:1 while this test
+                // reported everything as fine: it swept only the two bands
+                // the solver already worked against, so it could never
+                // catch the solver's own blind spot. blend() is a lerp, so
+                // this reconstructs the stretch the clock actually sits on.
+                val clockBand = SkyMath.blend(palette.top, palette.mid, 0.56)
+                listOf(
+                    "clock" to clockBand,
+                    "mid" to palette.mid,
+                    "bottom" to palette.bottom,
+                ).forEach { (band, color) ->
                     val background = SkyMath.withHaze(color, palette)
                     // Secondary text is the same colour dimmed by alpha, so
                     // it composites against the same background.

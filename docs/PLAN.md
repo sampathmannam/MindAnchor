@@ -80,7 +80,7 @@ sleep-window estimation → SRI computation and trend display.
 
 **M5 — Onboarding + measurement (week 11–14).** ReDD-style goal elicitation → feature
 config; WHO-5/PSS-4 pulse scheduling; per-feature trend view; de-escalation suggestions;
-crisis-resources screen (region-aware static list: 988 US, Tele-MANAS 14416 India, etc.).
+support screen holding the safety plan and the contacts a person adds themselves. Hardcoded crisis helplines were removed by product decision; see R1 in docs/CLINICAL_REVIEW.md.
 *Exit: v1.0 feature-complete.*
 
 **M6 — Beta + evaluation (week 14+).** F-Droid submission; GitHub release APK; 20–50

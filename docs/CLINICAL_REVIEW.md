@@ -7,9 +7,9 @@ them from source code.
 
 MindAnchor is a phone launcher. It is not a medical device, makes no
 diagnostic claim, and provides no therapy. It nonetheless holds a suicide
-safety plan, the phone numbers a person would call at their worst, a
-validated wellbeing questionnaire, and distress-tolerance skills drawn
-from DBT. Those four things put it inside the blast radius of clinical
+safety plan, the phone numbers a person has chosen as the ones they would
+call at their worst, a validated wellbeing questionnaire, and
+distress-tolerance skills drawn from DBT. Those four things put it inside the blast radius of clinical
 harm, which is why this document exists.
 
 ---
@@ -22,8 +22,9 @@ Six questions, in descending order of how much harm a wrong answer causes.
    a partially-completed plan safe to leave in place?** The app lets
    someone save a plan with any subset of fields filled. A half-written
    plan may be worse than none if it creates false confidence.
-2. **Is the crisis card correct, current, and correctly ordered?** Wrong
-   numbers here are the single most dangerous defect the app can carry.
+2. **Is it acceptable that the app offers no crisis line at all?** This
+   was a deliberate product decision (see R1). It is the question most
+   worth a second opinion.
 3. **Is the WHO-5 presented and scored in a way that does not mislead?**
    In particular: is showing a bare 0–100 score to the person who answered
    it appropriate, and is the low-score response proportionate?
@@ -77,8 +78,8 @@ enables nothing; the closing screen points at where each feature is
 switched on. Imposed minimalism fails ("Going Light", CHI 2026);
 self-endorsed structure does not.
 
-**A failed crisis dial is reported, never swallowed.** If no dialer opens,
-the screen says so and shows the number in plain text. Silence would leave
+**A failed call is reported, never swallowed.** If no dialer opens, the
+screen says so and shows the number in plain text. Silence would leave
 someone believing a call was placed.
 
 **No data leaves the device, and this is structural.** There is no
@@ -91,7 +92,7 @@ both refused. `PrivacyTest` asserts both against the installed app.
 
 | # | Risk | Current mitigation | Residual | Needs a clinician |
 |---|---|---|---|---|
-| R1 | Crisis number wrong, stale, or not valid in the user's country | Local line ordered first; full list never filtered; `findahelpline.com` always shown; unit-tested ordering | **Numbers verified only against author knowledge, not against operators** | Yes — verification |
+| R1 | **No crisis line is offered anywhere in the app.** Hardcoded helplines were removed by product decision, on the grounds that they frighten people and add complexity. A person in acute crisis with no contact saved has no route to help from this app | The safety plan and the person's own chosen contacts remain; the app states it is no substitute for talking to someone | **Accepted by the project owner. This is the largest open clinical risk in the app** | Yes — this is the first thing to review |
 | R2 | Partially-completed safety plan gives false confidence | Plan is optional and free-text; reader shows only completed sections | Unmeasured | Yes |
 | R3 | WHO-5 score distresses the person who answered it | Low score triggers support offer, never an alarm or diagnosis | Unmeasured | Yes |
 | R4 | TIPP presented without supervision (cold water, intense exercise) | Contraindications now shown with the skill: cardiac conditions, eating disorders, pregnancy, with the gentle two steps flagged as safe alone | Wording not clinically reviewed; list may be incomplete | Yes — confirm the list |
@@ -100,8 +101,18 @@ both refused. `PrivacyTest` asserts both against the installed app.
 | R7 | App is mistaken for treatment | About text states it is a wellness tool, not a medical device | Unmeasured | Yes |
 | R8 | Safety plan readable by anyone holding the phone | Device lock only; no separate app lock | **Accepted gap** — a lock could also block access during crisis | Yes — genuine tension |
 
-R8 is the one I would push hardest on: a genuine two-sided tension that
-should be decided by someone qualified rather than by the author.
+R1 is now the one to push hardest on. Hardcoded crisis lines were
+removed at the project owner's direction — the reasoning being that
+prominent hotline numbers can frighten people and clutter a screen meant
+to feel calm, which is a real and documented design concern. The cost is
+equally real: Stanley & Brown includes professional and crisis contacts
+as a step of the intervention, so a safety plan in this app is now
+missing that step unless the person fills it in themselves. A reviewer
+should decide whether that trade is acceptable, and if not, what a
+non-frightening version of it would look like.
+
+R8 remains a genuine two-sided tension that should also be decided by
+someone qualified rather than by the author.
 
 R4 was found while writing this register and has been partly closed — TIPP
 now carries contraindications, having previously asked something physical
@@ -113,16 +124,21 @@ checking, and the list of conditions may be incomplete.
 ## 5. What has been verified, and how
 
 - Unit tests cover scoring, notification classification, phone matching,
-  crisis-line ordering, sleep and sunset maths, and contrast.
+  sleep and sunset maths, and contrast.
 - Instrumented tests run on emulators at API 33 and 34 and cover the
   support screen, safety plan round-trip, onboarding, the pulse flow,
-  large font scales, and the privacy guarantees.
-- Contrast ratios were solved numerically; worst case is 4.56:1.
+  large font scales, and the privacy guarantees. 43 tests, green on both.
+- Contrast was re-solved after rendering the palette and measuring every
+  text position at every minute of the day, in both themes. The worst case
+  is 4.57:1. The previous figure in this document, 4.56:1, was wrong: the
+  solver had never checked the band the clock sits on, where the true
+  worst case was 3.77:1.
 
-**What has not been verified:** no clinician has reviewed any of this, no
-person with lived experience has tested it, and the crisis numbers have
-not been checked against the operators. The app has also never been used
-by anyone for a sustained period.
+**What has not been verified:** no clinician has reviewed any of this, and
+no person with lived experience has tested it. Nobody has used the app for
+a sustained period, and until very recently nobody had seen it render at
+all — the screens have been checked by rendering the palette code
+directly rather than by looking at a running phone.
 
 ---
 

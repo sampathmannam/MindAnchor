@@ -98,7 +98,7 @@
     <string name="pulse_scale_hint">0 = at no time · 5 = all of the time</string>
     <string name="pulse_save">Save</string>
     <string name="pulse_result">Your score: %1$d/100</string>
-    <string name="pulse_low_note">Scores in this range are common when things are heavy. Support — your people, your plan, and crisis lines — is one tap from the home screen whenever you want it.</string>
+    <string name="pulse_low_note">Scores in this range are common when things are heavy. Your people and your plan are one tap from the home screen whenever you want them.</string>
     <string name="pulse_open_support">Open support</string>
     <string name="pulse_history">History</string>
     <string name="pulse_channel_name">Wellbeing pulse</string>
@@ -107,6 +107,8 @@
 
 
     <string name="support_shortcut">support</string>
+    <string name="support_section">Your people and your plan</string>
+    <string name="support_section_explainer">Somewhere to write down what helps, and the people you would want to talk to. Yours to fill in, whenever you feel like it.</string>
     <string name="support_title">Support</string>
     <string name="support_intro">Everything here works offline and stays on this phone. It reaches real people — it never tries to be one.</string>
     <string name="support_reach_someone">Reach someone now</string>
@@ -147,19 +149,9 @@
     <string name="contact_bypass_note">These people are never batched and never held back by sunset mode — if they reach out, your phone tells you straight away.</string>
 
     <string name="support_open">Open support and safety plan</string>
-    <string name="crisis_section">If things are heavy</string>
-    <string name="crisis_explainer">MindAnchor never plays therapist. These reach real humans, any hour:</string>
-    <string name="crisis_us">Call 988 — Suicide &amp; Crisis Lifeline (US)</string>
-    <string name="crisis_india">Call 14416 — Tele-MANAS (India)</string>
-    <string name="crisis_ca">Call 988 — Suicide Crisis Helpline (Canada)</string>
-    <string name="crisis_gb">Call 116 123 — Samaritans (UK)</string>
-    <string name="crisis_ie">Call 116 123 — Samaritans (Ireland)</string>
-    <string name="crisis_au">Call 13 11 14 — Lifeline (Australia)</string>
-    <string name="crisis_nz">Call or text 1737 — Need to Talk (New Zealand)</string>
-    <string name="crisis_more">Elsewhere: findahelpline.com lists lines for most countries.</string>
     <string name="dial_failed">This phone could not open a dialer. The number is %1$s — call it from your phone app, or ask someone near you to.</string>
 
-    <string name="about_text">MindAnchor is an open-source, research-backed launcher. It has no accounts, no server and no analytics — your data never leaves this phone. It is a wellness tool, not a medical device. In crisis, reach a human: 988 (US) or Tele-MANAS 14416 (India).</string>
+    <string name="about_text">MindAnchor is an open-source, research-backed launcher. It has no accounts, no server and no analytics — your data never leaves this phone. It is a wellness tool, not a medical device, and it is no substitute for talking to someone.</string>
 
     <string-array name="who5_items">
         <item>I have felt cheerful and in good spirits</item>

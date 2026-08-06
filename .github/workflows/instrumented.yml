@@ -70,30 +70,12 @@ jobs:
           emulator-options: >-
             -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
             -camera-back none -camera-front none -no-snapshot
-          # Screenshots are pulled inside the emulator step because adb is
-          # only alive here. They are base64'd into this log on purpose:
-          # the artifact host is unreachable from the environment this app
-          # is developed in, and the job log is the one channel that
-          # reliably comes back. Failure to capture must never fail the
-          # run — this is a camera, not a gate.
-          script: |
-            set +e
-            ./gradlew connectedDebugAndroidTest --stacktrace
-            TEST_STATUS=$?
-            SHOTS=/sdcard/Android/data/org.mindanchor/files/shots
-            mkdir -p shots
-            adb pull "$SHOTS" ./shots-pulled >/dev/null 2>&1
-            find ./shots-pulled -name '*.png' -exec cp {} ./shots/ \; 2>/dev/null
-            for f in ./shots/*.png; do
-              [ -e "$f" ] || continue
-              name=$(basename "$f" .png)
-              bytes=$(wc -c < "$f")
-              echo "SHOT_BEGIN ${name} bytes=${bytes}"
-              base64 -w0 "$f" | fold -w 3000 | sed "s/^/SHOT_DATA ${name} /"
-              echo "SHOT_END ${name}"
-            done
-            # The tests decide whether this job passes, never the camera.
-            exit $TEST_STATUS
+          # One line, on purpose. This action runs the script one line at
+          # a time in separate shells, so variables, loops and a trailing
+          # exit cannot work inline — an earlier version failed the job
+          # seconds after the tests passed because of exactly that. The
+          # script lives in tools/ so it runs in a single shell.
+          script: bash tools/ci-emulator.sh
 
       - name: Upload test reports
         if: always()

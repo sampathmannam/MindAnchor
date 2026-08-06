@@ -1,13 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    An anchor, drawn rather than photographed so the app carries no binary
-    assets and stays reviewable as text.
+    An anchor, drawn rather than exported, so the project carries no binary
+    assets and the icon stays reviewable as text.
 
-    Adaptive icons are 108x108dp with only the middle 72dp guaranteed
-    visible, so everything here sits well inside that safe circle. The
-    shape is a single continuous stroke: a ring, a shank, a crossbar and
-    two curved flukes. No sharp points, no red, nothing alarming — the
-    same restraint the rest of the app follows.
+    Geometry notes, because an adaptive icon is easy to get subtly wrong
+    and impossible to check by reading:
+
+    The canvas is 108x108dp but only the central 66dp circle is guaranteed
+    visible — every launcher masks the rest and some crop hard. Everything
+    here sits inside a radius of 32 from the centre at (54,54), stroke
+    width included, so nothing lands on the edge of the safe circle. The
+    ring was the tight one: at radius 8.5 its outer edge reached 34, one
+    unit outside, so it is 8 and sits slightly lower.
+
+    Strokes are 7 units, double the first version's 3.5. That worked out
+    at roughly 1.5dp once a launcher draws the icon at 48dp — thin enough
+    to look faint and to break apart under a themed-icon tint. The ring is
+    5 so its hole stays open; at 6.5 the hole closed to about three units
+    and the whole thing read as a solid dot rather than a ring.
+
+    The arms sweep down and then turn up at the ends. An earlier version
+    ran them nearly horizontal, which made the mark read as a cup rather
+    than an anchor — the upturned ends are what make the silhouette
+    legible at small sizes.
+
+    Round caps and no sharp points throughout, in keeping with an app that
+    avoids anything that reads as an alarm.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
@@ -15,38 +33,38 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Ring at the crown. -->
+    <!-- The ring at the crown. -->
     <path
         android:strokeColor="#F4F1E9"
-        android:strokeWidth="3.5"
+        android:strokeWidth="5"
         android:fillColor="@android:color/transparent"
-        android:pathData="M 54 33 m -6 0 a 6 6 0 1 0 12 0 a 6 6 0 1 0 -12 0" />
+        android:pathData="M 54 32.5 m -8 0 a 8 8 0 1 0 16 0 a 8 8 0 1 0 -16 0" />
 
-    <!-- Shank, from below the ring down to the crown of the flukes. -->
+    <!-- The shank, from inside the ring down to the crown. -->
     <path
         android:strokeColor="#F4F1E9"
-        android:strokeWidth="3.5"
+        android:strokeWidth="7"
         android:strokeLineCap="round"
-        android:pathData="M 54 39 L 54 74" />
+        android:pathData="M 54 40.5 L 54 75" />
 
-    <!-- Crossbar. -->
+    <!-- The stock, across. -->
     <path
         android:strokeColor="#F4F1E9"
-        android:strokeWidth="3.5"
+        android:strokeWidth="7"
         android:strokeLineCap="round"
-        android:pathData="M 42 46 L 66 46" />
+        android:pathData="M 38 49 L 70 49" />
 
-    <!-- Flukes: one sweep out and up on each side. -->
+    <!-- The arms: down, out, and up at the tips. -->
     <path
         android:strokeColor="#F4F1E9"
-        android:strokeWidth="3.5"
-        android:strokeLineCap="round"
-        android:fillColor="@android:color/transparent"
-        android:pathData="M 54 74 C 44 74 36 68 34 58" />
-    <path
-        android:strokeColor="#F4F1E9"
-        android:strokeWidth="3.5"
+        android:strokeWidth="7"
         android:strokeLineCap="round"
         android:fillColor="@android:color/transparent"
-        android:pathData="M 54 74 C 64 74 72 68 74 58" />
+        android:pathData="M 54 75 C 43 74 33 69 30 55" />
+    <path
+        android:strokeColor="#F4F1E9"
+        android:strokeWidth="7"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M 54 75 C 65 74 75 69 78 55" />
 </vector>

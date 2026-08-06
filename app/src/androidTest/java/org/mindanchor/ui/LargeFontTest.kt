@@ -58,14 +58,16 @@ class LargeFontTest {
     }
 
     @Test
-    fun theClockCanActuallyBeReachedAtTripleSize() {
+    fun thePinnedControlsStayOnScreenAtTripleSize() {
         setContentAtFontScale(3.0f) { LauncherRoot() }
-        // assertExists() was never enough. A node clipped off the bottom of
-        // an unscrollable screen still exists in the semantics tree, which
-        // is exactly how the home surface shipped for so long with content
-        // no thumb could reach. performScrollTo() fails if nothing can
-        // scroll to it, so this asserts reachability rather than presence.
-        rule.onNodeWithText("support").performScrollTo().assertIsDisplayed()
+        // support, search and settings are pinned to the bottom of the Box
+        // and sit outside the scrolling column on purpose, so the way out
+        // of the home screen never scrolls away from you. That means they
+        // must already be displayed — an earlier version of this test
+        // asked them to scroll into view, which is meaningless for a node
+        // with no scrollable ancestor and failed for exactly that reason.
+        rule.onNodeWithText("support").assertIsDisplayed()
+        rule.onNodeWithText("search").assertIsDisplayed()
     }
 
     @Test

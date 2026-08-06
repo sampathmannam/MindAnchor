@@ -40,10 +40,13 @@ class SupportScreenTest {
     }
 
     @Test
-    fun crisisLinesAreVisibleImmediately() {
+    fun theWayToReachSomeoneIsVisibleImmediately() {
         launchSupport()
+        // The card is now entirely the person's own chosen people. No
+        // hotline numbers appear anywhere in the app by design, so this
+        // asserts the card itself is present and above the fold rather
+        // than asserting any particular number.
         rule.onNodeWithText("Reach someone now").assertIsDisplayed()
-        rule.onAllNodes(hasText("988", substring = true)).onFirst().assertExists()
     }
 
     @Test

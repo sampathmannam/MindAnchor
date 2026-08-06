@@ -177,8 +177,9 @@ adaptive intervention framework (Nahum-Shani et al., 2018):
   forced) at transition moments. Brief app-based interventions show small-to-moderate
   effects on depressive symptoms (Linardon et al., 2019 meta-analysis of mental-health
   apps).
-- **Crisis protocol**: hard-wired, always-available escalation — local crisis line (e.g.
-  988 in the US, iCall/Tele-MANAS 14416 in India) reachable from any screen; safety-plan
+- **Crisis protocol**: ~~hard-wired, always-available escalation to a local crisis line~~
+  **Dropped by product decision** — hardcoded helplines were judged frightening and
+  complicating. What remains is the person's own chosen contacts and a safety-plan
   card (Stanley & Brown safety planning intervention — reduces suicidal behavior, Stanley
   et al., 2018) stored on-device and surfaced automatically if crisis-adjacent searches or
   app states are detected. The OS never plays therapist in a crisis; it connects to humans.
@@ -362,7 +363,7 @@ Full literature and landscape reports live in [`docs/research/`](research/):
 8. **On-device LLM digest, private by construction.** Gemma 3n/Llama 3.2 1B summarizes
    each notification batch into three calm sentences and reflects journaling back —
    no cloud, auditable FOSS. (Scoped as wellness, never therapy: crisis keywords route
-   to 988/Tele-MANAS humans.)
+   to real humans the person has chosen themselves.)
 9. **Self-evaluating OS.** No FOSS wellbeing project instruments itself for evidence.
    MindAnchor ships local telemetry (ActivityWatch-style), per-user n-of-1 experiments
    (features A/B themselves against *your* WHO-5/PSS-4 pulse), and opt-in anonymized
