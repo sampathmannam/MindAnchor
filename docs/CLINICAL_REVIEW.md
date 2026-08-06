@@ -7,9 +7,9 @@ them from source code.
 
 MindAnchor is a phone launcher. It is not a medical device, makes no
 diagnostic claim, and provides no therapy. It nonetheless holds a suicide
-safety plan, the phone numbers a person would call at their worst, a
-validated wellbeing questionnaire, and distress-tolerance skills drawn
-from DBT. Those four things put it inside the blast radius of clinical
+safety plan, the phone numbers a person has chosen as the ones they would
+call at their worst, a validated wellbeing questionnaire, and
+distress-tolerance skills drawn from DBT. Those four things put it inside the blast radius of clinical
 harm, which is why this document exists.
 
 ---
@@ -78,8 +78,8 @@ enables nothing; the closing screen points at where each feature is
 switched on. Imposed minimalism fails ("Going Light", CHI 2026);
 self-endorsed structure does not.
 
-**A failed crisis dial is reported, never swallowed.** If no dialer opens,
-the screen says so and shows the number in plain text. Silence would leave
+**A failed call is reported, never swallowed.** If no dialer opens, the
+screen says so and shows the number in plain text. Silence would leave
 someone believing a call was placed.
 
 **No data leaves the device, and this is structural.** There is no
@@ -124,16 +124,21 @@ checking, and the list of conditions may be incomplete.
 ## 5. What has been verified, and how
 
 - Unit tests cover scoring, notification classification, phone matching,
-  crisis-line ordering, sleep and sunset maths, and contrast.
+  sleep and sunset maths, and contrast.
 - Instrumented tests run on emulators at API 33 and 34 and cover the
   support screen, safety plan round-trip, onboarding, the pulse flow,
-  large font scales, and the privacy guarantees.
-- Contrast ratios were solved numerically; worst case is 4.56:1.
+  large font scales, and the privacy guarantees. 43 tests, green on both.
+- Contrast was re-solved after rendering the palette and measuring every
+  text position at every minute of the day, in both themes. The worst case
+  is 4.57:1. The previous figure in this document, 4.56:1, was wrong: the
+  solver had never checked the band the clock sits on, where the true
+  worst case was 3.77:1.
 
-**What has not been verified:** no clinician has reviewed any of this, no
-person with lived experience has tested it, and the crisis numbers have
-not been checked against the operators. The app has also never been used
-by anyone for a sustained period.
+**What has not been verified:** no clinician has reviewed any of this, and
+no person with lived experience has tested it. Nobody has used the app for
+a sustained period, and until very recently nobody had seen it render at
+all — the screens have been checked by rendering the palette code
+directly rather than by looking at a running phone.
 
 ---
 
