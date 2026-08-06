@@ -18,6 +18,32 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // Real signing, when and only when a key is supplied.
+    //
+    // Debug-signed builds are the reason Play Protect blocks every install
+    // and the user has to dig through "restricted settings" to get the app
+    // onto a phone — a miserable first contact for something meant to feel
+    // calm.
+    //
+    // The key lives in CI secrets and never in this repository. When the
+    // secrets are absent, as they are for every fork and every local
+    // build, signingConfig stays null and Gradle falls back to the debug
+    // key exactly as before. Nothing breaks for anyone who does not have
+    // the key; the release simply is not the official one.
+    val keystoreFile = System.getenv("MINDANCHOR_KEYSTORE")
+    val hasKeystore = !keystoreFile.isNullOrBlank() && file(keystoreFile).exists()
+
+    signingConfigs {
+        if (hasKeystore) {
+            create("release") {
+                storeFile = file(keystoreFile!!)
+                storePassword = System.getenv("MINDANCHOR_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("MINDANCHOR_KEY_ALIAS")
+                keyPassword = System.getenv("MINDANCHOR_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -26,6 +52,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            if (hasKeystore) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
