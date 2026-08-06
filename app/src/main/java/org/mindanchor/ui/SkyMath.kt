@@ -52,7 +52,8 @@ object SkyMath {
      * clear [MIN_CONTRAST]. Solved against the text colours above, then
      * rounded inwards for margin; SkyMathTest sweeps every minute of the
      * day in both themes and fails if a palette edit ever breaks them.
-     * (Measured worst case with these values: 4.56 : 1.)
+     * (Measured worst case with these values, across every text position
+     * at every minute of the day: 4.92 : 1.)
      */
     private const val LIGHT_TEXT_MAX_LUMINANCE = 0.125
     private const val DARK_TEXT_MIN_LUMINANCE = 0.395
@@ -88,6 +89,13 @@ object SkyMath {
         Anchor(23 * 60, NIGHT_TOP, NIGHT_MID, NIGHT_BOTTOM),
     )
 
+    /**
+     * Where the clock sits, as a fraction of the way from the top band to
+     * the middle one. The clock is centred at roughly 28% of the screen
+     * height and the top-to-mid gradient covers the first half, so 0.28/0.5.
+     */
+    private const val CLOCK_BAND_FRACTION = 0.56
+
     private const val DAY_MINUTES = 24 * 60
     private const val DARK_THEME_SCALE = 0.55
 
@@ -105,9 +113,24 @@ object SkyMath {
             bottom = scale(bottom, DARK_THEME_SCALE)
         }
 
-        // Text sits over the middle and bottom bands; the veil is sized for
-        // whichever of those is hardest to read against.
-        val textBands = listOf(mid, bottom)
+        // Text sits over the middle and bottom bands — and, crucially, over
+        // the stretch above them where the clock lives.
+        //
+        // This used to check only mid and bottom, which quietly excluded the
+        // largest thing on the screen. The clock sits at roughly 28% of the
+        // height, inside the top-to-mid gradient, where the sky is darker
+        // than mid and so harder to read against. Rendering the palette and
+        // measuring every text position across a full day put the real worst
+        // case at 3.77:1 around 07:05, not the 4.56:1 this file claimed.
+        //
+        // Nothing was failing WCAG — the clock is large text, which needs
+        // only 3:1 — but a stated guarantee should be true. Including the
+        // clock's band lifts the worst case to 4.92:1, at the cost of the
+        // veil reaching its ceiling at dawn and flattening that sky a
+        // little. Legibility wins over prettiness at the one time of day
+        // they conflict.
+        val clockBand = lerp(top, mid, CLOCK_BAND_FRACTION)
+        val textBands = listOf(clockBand, mid, bottom)
         val darkVeil = hazeFor(textBands, HAZE_DARK) { luminance(it) <= LIGHT_TEXT_MAX_LUMINANCE }
         val lightVeil = hazeFor(textBands, HAZE_LIGHT) { luminance(it) >= DARK_TEXT_MIN_LUMINANCE }
 
