@@ -1,6 +1,7 @@
 package org.mindanchor.ui
 
 import android.graphics.Bitmap
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -45,13 +46,24 @@ class ScreenshotTest {
 
         val bitmap = rule.onRoot().captureToImage().asAndroidBitmap()
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val dir = File(context.getExternalFilesDir(null), "shots").apply { mkdirs() }
+
+        // External storage is not guaranteed to be mounted on a bare AVD,
+        // and getExternalFilesDir returns null when it is not. The first
+        // version of this assumed otherwise and silently wrote nowhere:
+        // the tests passed, the workflow found no files, and the whole
+        // point of the exercise produced nothing. Internal storage always
+        // exists, so that is the fallback.
+        val base = context.getExternalFilesDir(null) ?: context.filesDir
+        val dir = File(base, "shots").apply { mkdirs() }
+        val file = File(dir, "$name.png")
         // Lossless on purpose: JPEG banding around a gradient would be
         // indistinguishable from a real fault in the sky, which is the
         // main thing worth looking at.
-        File(dir, "$name.png").outputStream().use {
+        file.outputStream().use {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
+        // Say where it landed, so the job can find it instead of guessing.
+        Log.i("MINDANCHOR_SHOT", "${file.absolutePath} ${file.length()}")
     }
 
     @Test
