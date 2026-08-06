@@ -27,6 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -128,11 +129,18 @@ fun SupportScreen(
                         )
                     }
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                    TextButton(onClick = { dial("988") }, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.crisis_us), modifier = Modifier.weight(1f))
-                    }
-                    TextButton(onClick = { dial("14416") }, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.crisis_india), modifier = Modifier.weight(1f))
+                    // The reader's own country first. Nothing is hidden on
+                    // the strength of a locale guess — people travel, borrow
+                    // phones, and set their region to somewhere they do not
+                    // live — so the rest stay listed underneath.
+                    val country = LocalConfiguration.current.locales[0]?.country
+                    CrisisLines.forCountry(country).forEach { line ->
+                        TextButton(
+                            onClick = { dial(line.number) },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(stringResource(line.labelRes), modifier = Modifier.weight(1f))
+                        }
                     }
                     Text(
                         text = stringResource(R.string.crisis_more),

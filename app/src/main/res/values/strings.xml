@@ -150,6 +150,11 @@
     <string name="crisis_explainer">MindAnchor never plays therapist. These reach real humans, any hour:</string>
     <string name="crisis_us">Call 988 — Suicide &amp; Crisis Lifeline (US)</string>
     <string name="crisis_india">Call 14416 — Tele-MANAS (India)</string>
+    <string name="crisis_ca">Call 988 — Suicide Crisis Helpline (Canada)</string>
+    <string name="crisis_gb">Call 116 123 — Samaritans (UK)</string>
+    <string name="crisis_ie">Call 116 123 — Samaritans (Ireland)</string>
+    <string name="crisis_au">Call 13 11 14 — Lifeline (Australia)</string>
+    <string name="crisis_nz">Call or text 1737 — Need to Talk (New Zealand)</string>
     <string name="crisis_more">Elsewhere: findahelpline.com lists lines for most countries.</string>
     <string name="dial_failed">This phone could not open a dialer. The number is %1$s — call it from your phone app, or ask someone near you to.</string>
 
