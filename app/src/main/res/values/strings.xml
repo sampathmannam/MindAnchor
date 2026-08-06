@@ -151,6 +151,14 @@
     <string name="support_open">Open support and safety plan</string>
     <string name="dial_failed">This phone could not open a dialer. The number is %1$s — call it from your phone app, or ask someone near you to.</string>
 
+    <string name="backup_section">Keep a copy</string>
+    <string name="backup_explainer">Nothing here is backed up to the cloud, on purpose — so a reset or lost phone would take your plan and your people with it. Save a copy somewhere you trust, and bring it back whenever you need to.</string>
+    <string name="backup_save">Save a copy…</string>
+    <string name="backup_restore">Restore from a copy…</string>
+    <string name="backup_saved">Saved. Keep it somewhere only you can reach.</string>
+    <string name="backup_restored">Restored.</string>
+    <string name="backup_not_a_backup">That file isn\'t a MindAnchor copy, or it came from a newer version. Nothing was changed.</string>
+    <string name="backup_failed">Couldn\'t read or write that file. Nothing was changed.</string>
     <string name="about_text">MindAnchor is an open-source, research-backed launcher. It has no accounts, no server and no analytics — your data never leaves this phone. It is a wellness tool, not a medical device, and it is no substitute for talking to someone.</string>
 
     <string-array name="who5_items">

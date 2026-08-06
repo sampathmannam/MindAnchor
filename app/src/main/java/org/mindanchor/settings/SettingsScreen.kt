@@ -25,7 +25,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,6 +37,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
 import org.mindanchor.R
 import org.mindanchor.launcher.DisplayApp
@@ -404,6 +407,77 @@ fun SettingsScreen(
             },
         ) {
             Text(stringResource(R.string.support_open))
+        }
+
+        // --- Keeping a copy ---
+        //
+        // The counterpart to refusing cloud backup. Without this, a reset
+        // phone takes the safety plan with it and there is no way back.
+        Text(
+            text = stringResource(R.string.backup_section),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
+        )
+        Text(
+            text = stringResource(R.string.backup_explainer),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        var backupMessage by remember { mutableStateOf<Int?>(null) }
+        val scope = rememberCoroutineScope()
+        val repo = remember { org.mindanchor.backup.BackupRepository(context) }
+
+        val saveTo = rememberLauncherForActivityResult(
+            ActivityResultContracts.CreateDocument("application/json"),
+        ) { uri ->
+            if (uri == null) return@rememberLauncherForActivityResult
+            scope.launch {
+                val now = System.currentTimeMillis()
+                val text = repo.export(now)
+                backupMessage = if (org.mindanchor.backup.BackupRepository.write(context, uri, text)) {
+                    R.string.backup_saved
+                } else {
+                    R.string.backup_failed
+                }
+            }
+        }
+        val restoreFrom = rememberLauncherForActivityResult(
+            ActivityResultContracts.OpenDocument(),
+        ) { uri ->
+            if (uri == null) return@rememberLauncherForActivityResult
+            scope.launch {
+                val text = org.mindanchor.backup.BackupRepository.read(context, uri)
+                backupMessage = when {
+                    text == null -> R.string.backup_failed
+                    repo.import(text, System.currentTimeMillis()) -> R.string.backup_restored
+                    else -> R.string.backup_not_a_backup
+                }
+            }
+        }
+
+        TextButton(
+            onClick = {
+                val stamp = java.time.LocalDate.now().toString()
+                runCatching {
+                    saveTo.launch(org.mindanchor.backup.BackupRepository.fileName(stamp))
+                }
+            },
+        ) {
+            Text(stringResource(R.string.backup_save))
+        }
+        TextButton(
+            onClick = {
+                runCatching { restoreFrom.launch(arrayOf("application/json", "text/plain", "*/*")) }
+            },
+        ) {
+            Text(stringResource(R.string.backup_restore))
+        }
+        backupMessage?.let {
+            Text(
+                text = stringResource(it),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
         Text(

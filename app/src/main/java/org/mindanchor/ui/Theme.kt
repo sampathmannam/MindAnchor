@@ -102,10 +102,29 @@ private val CalmTypography = Typography().run {
     )
 }
 
+/**
+ * The whole app follows the sky, not the system switch.
+ *
+ * The home screen has always been time-driven: at half past nine it draws
+ * a night sky whatever the phone's light/dark setting says. Every other
+ * screen followed the system instead, so on a phone in light mode, opening
+ * support at night meant going from a near-black sky to a near-white sheet
+ * in one tap. The first screenshots showed exactly that — a dark home and
+ * a pale support screen, a jolt on the one journey this app most needs to
+ * feel gentle.
+ *
+ * So the sky decides. [SkyMath] already works out whether this moment
+ * wants light text on dark ground or the reverse, purely to keep text
+ * readable; that same answer now chooses the colour scheme everywhere. The
+ * system setting still feeds in, because it shifts the palette itself, but
+ * it no longer contradicts what the sky is doing.
+ */
 @Composable
 fun MindAnchorTheme(content: @Composable () -> Unit) {
+    val now = rememberMinuteTick()
+    val palette = SkyMath.palette(now.hour * 60 + now.minute, isSystemInDarkTheme())
     MaterialTheme(
-        colorScheme = if (isSystemInDarkTheme()) DarkColors else LightColors,
+        colorScheme = if (palette.lightText) DarkColors else LightColors,
         shapes = CalmShapes,
         typography = CalmTypography,
         content = content,
