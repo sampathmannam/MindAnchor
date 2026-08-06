@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    An anchor, drawn rather than photographed so the app carries no binary
+    assets and stays reviewable as text.
+
+    Adaptive icons are 108x108dp with only the middle 72dp guaranteed
+    visible, so everything here sits well inside that safe circle. The
+    shape is a single continuous stroke: a ring, a shank, a crossbar and
+    two curved flukes. No sharp points, no red, nothing alarming — the
+    same restraint the rest of the app follows.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Ring at the crown. -->
+    <path
+        android:strokeColor="#F4F1E9"
+        android:strokeWidth="3.5"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M 54 33 m -6 0 a 6 6 0 1 0 12 0 a 6 6 0 1 0 -12 0" />
+
+    <!-- Shank, from below the ring down to the crown of the flukes. -->
+    <path
+        android:strokeColor="#F4F1E9"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:pathData="M 54 39 L 54 74" />
+
+    <!-- Crossbar. -->
+    <path
+        android:strokeColor="#F4F1E9"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:pathData="M 42 46 L 66 46" />
+
+    <!-- Flukes: one sweep out and up on each side. -->
+    <path
+        android:strokeColor="#F4F1E9"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M 54 74 C 44 74 36 68 34 58" />
+    <path
+        android:strokeColor="#F4F1E9"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M 54 74 C 64 74 72 68 74 58" />
+</vector>

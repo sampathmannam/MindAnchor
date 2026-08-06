@@ -9,13 +9,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -35,6 +38,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.text.font.FontWeight
@@ -168,11 +172,23 @@ private fun HomeSurface(
     val now = rememberMinuteTick()
     val clockFormat = rememberClockFormat()
 
-    Box(modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(32.dp)) {
+    Box(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
+        // Centred when it fits, scrollable when it does not.
+        //
+        // The content used to be centred with no way to scroll, so anything
+        // taller than the screen was simply cut off and unreachable. That
+        // needed neither an exotic device nor landscape to happen: a large
+        // font scale, or enough favourites, was sufficient — and a person
+        // who has set a large font scale is exactly the person who cannot
+        // recover by squinting. The bottom padding keeps the last favourite
+        // clear of the drawer and settings buttons layered over this.
         Column(
-            modifier = Modifier.align(Alignment.Center).fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(start = 32.dp, end = 32.dp, top = 32.dp, bottom = 88.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
         ) {
             Text(
                 text = now.format(DateTimeFormatter.ofPattern(clockFormat)),
@@ -198,17 +214,29 @@ private fun HomeSurface(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 favorites.forEach { app ->
-                    Text(
-                        text = app.label,
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = sky.textPrimary,
+                    // The target is the full width of the row, not the width
+                    // of the word. A favourite named "X" used to offer a
+                    // sliver to hit; anyone with a tremor, large fingers or
+                    // shaking hands was aiming at almost nothing. 48dp is
+                    // the documented minimum and the floor here.
+                    Box(
                         modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
                             .combinedClickable(
                                 onClick = { onLaunch(app) },
                                 onLongClick = { onLongPress(app) },
-                            )
-                            .padding(vertical = 10.dp),
-                    )
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = app.label,
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = sky.textPrimary,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(vertical = 10.dp),
+                        )
+                    }
                 }
             }
         }

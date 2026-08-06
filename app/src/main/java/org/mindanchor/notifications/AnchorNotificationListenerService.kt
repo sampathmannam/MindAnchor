@@ -46,6 +46,7 @@ class AnchorNotificationListenerService : NotificationListenerService() {
         scope.launch {
             AnchorDatabase.get(applicationContext).safety().contacts().collect { contacts ->
                 crisisContacts = contacts.map { CrisisContactRef(it.name, it.phone) }
+                crisisContactsLoaded = true
             }
         }
     }
@@ -59,7 +60,20 @@ class AnchorNotificationListenerService : NotificationListenerService() {
         BatchAlarms.ensureScheduled(applicationContext)
     }
 
+    /**
+     * True once the chosen people have been read from disk at least once.
+     *
+     * Until then we hold nothing. The alternative was to batch with an
+     * empty bypass list, which in the seconds after the service connects
+     * would delay a message from exactly the person the bypass exists to
+     * protect. Letting a few notifications through early is the harmless
+     * side of that trade.
+     */
+    @Volatile
+    private var crisisContactsLoaded: Boolean = false
+
     override fun onNotificationPosted(sbn: StatusBarNotification) {
+        if (!crisisContactsLoaded) return
         val (enabled, batchedApps) = config.value
         val meta = sbn.toMeta()
         val hold = NotificationClassifier.shouldHold(
@@ -121,8 +135,12 @@ class AnchorNotificationListenerService : NotificationListenerService() {
             template.endsWith("MessagingStyle") ||
                 notification.category == Notification.CATEGORY_MESSAGE ||
                 notification.shortcutId != null
+        // Spelled out as this.packageName on purpose. A bare packageName
+        // here reads identically to the Service's own package, and if it
+        // ever resolved that way every notification would look like our
+        // own and batching would silently stop holding anything at all.
         return NotificationMeta(
-            packageName = packageName,
+            packageName = this.packageName,
             category = notification.category,
             isOngoing = isOngoing,
             isClearable = isClearable,

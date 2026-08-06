@@ -10,3 +10,9 @@ captures/
 *.aab
 *.keystore
 !debug.keystore
+
+# Signing keys never belong in the repository. The docs tell you to
+# create mindanchor.jks, so make it impossible to commit by accident.
+*.jks
+*.jks.base64
+*.base64

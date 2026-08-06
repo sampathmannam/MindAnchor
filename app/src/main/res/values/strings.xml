@@ -119,6 +119,7 @@
     <string name="skill_stop_body">Stop. Take a step back. Observe what is happening, inside and around you. Proceed mindfully — pick the next small action, not the whole day.</string>
     <string name="skill_tipp_title">TIPP</string>
     <string name="skill_tipp_body">Cold water on your face or hands. Intense movement for a minute. Paced breathing, out longer than in. Then relax each muscle group in turn. These change body chemistry fast when thinking alone will not.</string>
+    <string name="skill_tipp_caution">The cold water and the hard movement both swing your heart rate on purpose. If you have a heart condition, an eating disorder, or are pregnant, skip those two and ask a doctor first. The paced breathing and the muscle relaxation are gentle, and they work on their own.</string>
     <string name="skill_grounding_title">5-4-3-2-1</string>
     <string name="skill_grounding_body">Name five things you can see, four you can touch, three you can hear, two you can smell, one you can taste. Slowly, out loud if you can.</string>
 
@@ -139,7 +140,7 @@
     <string name="contact_phone">Phone</string>
     <string name="contact_is_professional">A professional or service</string>
     <string name="contact_add">Add person</string>
-    <string name="contact_remove">Remove</string>
+    <string name="contact_needs_number">A number is what makes this callable. Add one to save this person.</string>
     <string name="action_remove">remove</string>
     <string name="action_edit">edit</string>
     <string name="action_done">done</string>
@@ -150,6 +151,11 @@
     <string name="crisis_explainer">MindAnchor never plays therapist. These reach real humans, any hour:</string>
     <string name="crisis_us">Call 988 — Suicide &amp; Crisis Lifeline (US)</string>
     <string name="crisis_india">Call 14416 — Tele-MANAS (India)</string>
+    <string name="crisis_ca">Call 988 — Suicide Crisis Helpline (Canada)</string>
+    <string name="crisis_gb">Call 116 123 — Samaritans (UK)</string>
+    <string name="crisis_ie">Call 116 123 — Samaritans (Ireland)</string>
+    <string name="crisis_au">Call 13 11 14 — Lifeline (Australia)</string>
+    <string name="crisis_nz">Call or text 1737 — Need to Talk (New Zealand)</string>
     <string name="crisis_more">Elsewhere: findahelpline.com lists lines for most countries.</string>
     <string name="dial_failed">This phone could not open a dialer. The number is %1$s — call it from your phone app, or ask someone near you to.</string>
 

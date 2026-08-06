@@ -27,8 +27,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import org.mindanchor.R
@@ -83,7 +86,9 @@ fun SupportScreen(
             Text(
                 text = stringResource(R.string.support_title),
                 style = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                modifier = Modifier
+                    .padding(top = 8.dp, bottom = 4.dp)
+                    .semantics { heading() },
             )
             Text(
                 text = stringResource(R.string.support_intro),
@@ -103,6 +108,7 @@ fun SupportScreen(
                         text = stringResource(R.string.support_reach_someone),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.semantics { heading() },
                     )
                     contacts.forEach { contact ->
                         TextButton(
@@ -128,11 +134,18 @@ fun SupportScreen(
                         )
                     }
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                    TextButton(onClick = { dial("988") }, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.crisis_us), modifier = Modifier.weight(1f))
-                    }
-                    TextButton(onClick = { dial("14416") }, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.crisis_india), modifier = Modifier.weight(1f))
+                    // The reader's own country first. Nothing is hidden on
+                    // the strength of a locale guess — people travel, borrow
+                    // phones, and set their region to somewhere they do not
+                    // live — so the rest stay listed underneath.
+                    val country = LocalConfiguration.current.locales[0]?.country
+                    CrisisLines.forCountry(country).forEach { line ->
+                        TextButton(
+                            onClick = { dial(line.number) },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(stringResource(line.labelRes), modifier = Modifier.weight(1f))
+                        }
                     }
                     Text(
                         text = stringResource(R.string.crisis_more),
@@ -154,18 +167,30 @@ fun SupportScreen(
             Text(
                 text = stringResource(R.string.skills_section),
                 style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
+                modifier = Modifier
+                    .padding(top = 24.dp, bottom = 4.dp)
+                    .semantics { heading() },
             )
             Text(
                 text = stringResource(R.string.skills_intro),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            // The caution belongs with TIPP specifically. Two of its four
+            // steps — cold water and hard movement — swing heart rate
+            // sharply on purpose, which is exactly why they work and
+            // exactly why they are not for everyone. Presenting them with
+            // no caveat was the one place this screen asked something
+            // physical of a person without saying who should not do it.
             listOf(
-                R.string.skill_stop_title to R.string.skill_stop_body,
-                R.string.skill_tipp_title to R.string.skill_tipp_body,
-                R.string.skill_grounding_title to R.string.skill_grounding_body,
-            ).forEach { (title, body) ->
+                Triple(R.string.skill_stop_title, R.string.skill_stop_body, null),
+                Triple(
+                    R.string.skill_tipp_title,
+                    R.string.skill_tipp_body,
+                    R.string.skill_tipp_caution,
+                ),
+                Triple(R.string.skill_grounding_title, R.string.skill_grounding_body, null),
+            ).forEach { (title, body, caution) ->
                 Text(
                     text = stringResource(title),
                     style = MaterialTheme.typography.bodyLarge,
@@ -176,6 +201,14 @@ fun SupportScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                caution?.let {
+                    Text(
+                        text = stringResource(it),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
             }
 
             // --- The plan ---
@@ -186,7 +219,9 @@ fun SupportScreen(
                 Text(
                     text = stringResource(R.string.plan_section),
                     style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .semantics { heading() },
                 )
                 TextButton(onClick = { editing = !editing }) {
                     Text(
@@ -321,6 +356,8 @@ private fun SafetyPlanEditor(
         )
         Switch(checked = professional, onCheckedChange = { professional = it })
     }
+    // Disabled rather than silently refusing: a tap that does nothing
+    // reads as a broken app, and this screen cannot afford to look broken.
     TextButton(
         onClick = {
             onAddContact(name, phone, professional)
@@ -328,8 +365,16 @@ private fun SafetyPlanEditor(
             phone = ""
             professional = false
         },
+        enabled = phone.isNotBlank(),
     ) {
         Text(stringResource(R.string.contact_add))
+    }
+    if (phone.isBlank()) {
+        Text(
+            text = stringResource(R.string.contact_needs_number),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
     Text(
         text = stringResource(R.string.contact_bypass_note),

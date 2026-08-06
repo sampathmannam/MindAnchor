@@ -10,16 +10,40 @@
         android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
 
+    <!--
+        Backup is off, deliberately and completely.
+
+        This app holds a suicide safety plan, the phone numbers of the
+        people someone would call at their worst, a mood history and the
+        text of held notifications. The About screen promises that data
+        never leaves the phone. Cloud backup and device-to-device
+        transfer would have made that promise false, so the promise wins:
+        nothing here is eligible for either.
+
+        The rules files are declared as well as the flag, so the intent
+        survives anyone flipping allowBackup back on.
+    -->
     <application
         android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/Theme.MindAnchor"
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
         android:supportsRtl="true">
 
         <!--
             MindAnchor is a HOME app. The activity is also exported as a normal
             launcher entry so it can be opened and explored before being set
             as the default home.
+
+            Orientation is deliberately not locked. A launcher that refuses
+            to work the way the phone is being held is a launcher fighting
+            its owner, and that bites hardest for anyone using a mount, a
+            stand, a keyboard or a tablet. This is only safe because every
+            surface now scrolls rather than clipping, so a short screen is
+            no longer a screen with unreachable content.
         -->
         <activity
             android:name=".HomeActivity"
@@ -27,7 +51,6 @@
             android:launchMode="singleTask"
             android:stateNotNeeded="true"
             android:excludeFromRecents="true"
-            android:screenOrientation="portrait"
             android:configChanges="orientation|screenSize|keyboard|keyboardHidden">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

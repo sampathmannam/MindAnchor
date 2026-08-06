@@ -26,8 +26,15 @@ class SupportViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    /**
+     * A crisis contact exists to be called, so the number is what makes it
+     * one. The old guard only rejected a contact that was blank in both
+     * fields, which let a name with no number through — it then sat at the
+     * top of the crisis card looking like a way to reach someone and did
+     * nothing when tapped.
+     */
     fun addContact(name: String, phone: String, isProfessional: Boolean) {
-        if (name.isBlank() && phone.isBlank()) return
+        if (phone.isBlank()) return
         viewModelScope.launch {
             dao.addContact(
                 CrisisContact(

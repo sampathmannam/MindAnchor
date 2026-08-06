@@ -3,8 +3,10 @@ package org.mindanchor.ui
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.Density
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Rule
@@ -53,5 +55,24 @@ class LargeFontTest {
     fun theHomeScreenSurvivesTheLargestAccessibilityText() {
         setContentAtFontScale(3.0f) { LauncherRoot() }
         rule.onNodeWithText("support").assertExists()
+    }
+
+    @Test
+    fun theClockCanActuallyBeReachedAtTripleSize() {
+        setContentAtFontScale(3.0f) { LauncherRoot() }
+        // assertExists() was never enough. A node clipped off the bottom of
+        // an unscrollable screen still exists in the semantics tree, which
+        // is exactly how the home surface shipped for so long with content
+        // no thumb could reach. performScrollTo() fails if nothing can
+        // scroll to it, so this asserts reachability rather than presence.
+        rule.onNodeWithText("support").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun supportRemainsReachableWhenTheCrisisCardIsTallerThanTheScreen() {
+        setContentAtFontScale(2.0f) { SupportScreen(onClose = {}) }
+        // The crisis card alone runs to seven lines plus contacts at this
+        // size. The safety plan below it must still be gettable to.
+        rule.onNodeWithText("My plan").performScrollTo().assertIsDisplayed()
     }
 }

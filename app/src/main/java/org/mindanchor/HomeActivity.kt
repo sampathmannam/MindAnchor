@@ -10,6 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import org.mindanchor.friction.SessionManager
 import org.mindanchor.launcher.LauncherRoot
 import org.mindanchor.onboarding.OnboardingPrefs
 import org.mindanchor.onboarding.OnboardingScreen
@@ -62,5 +63,15 @@ class HomeActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         goHomeSignal.value += 1
+    }
+
+    /**
+     * Being back at the launcher means any timed app has been left, so its
+     * session stops counting. Someone who got what they came for and left
+     * should not be chimed at later about an app they already closed.
+     */
+    override fun onResume() {
+        super.onResume()
+        SessionManager.onReturnedHome(applicationContext)
     }
 }

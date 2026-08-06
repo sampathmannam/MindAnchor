@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The dusk end of the same palette the home screen uses, so the icon on
+    the app grid and the sky behind the clock read as one thing.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr xmlns:aapt="http://schemas.android.com/aapt" name="android:fillColor">
+            <gradient
+                android:startX="54"
+                android:startY="0"
+                android:endX="54"
+                android:endY="108"
+                android:type="linear">
+                <item android:offset="0" android:color="#1E2A38" />
+                <item android:offset="0.55" android:color="#2C3A4A" />
+                <item android:offset="1" android:color="#3E4A55" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>
