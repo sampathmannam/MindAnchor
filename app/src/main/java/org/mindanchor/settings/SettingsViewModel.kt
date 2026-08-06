@@ -1,19 +1,29 @@
 package org.mindanchor.settings
 
 import android.app.Application
+import android.app.NotificationManager
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.mindanchor.data.NotificationPrefs
+import org.mindanchor.data.SunsetPrefs
 import org.mindanchor.notifications.BatchAlarms
 import org.mindanchor.notifications.BatchReleaser
+import org.mindanchor.sleep.SleepRepository
+import org.mindanchor.sleep.SleepSummary
+import org.mindanchor.sunset.SunsetController
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
 
     private val prefs = NotificationPrefs(application)
+    private val sunsetPrefs = SunsetPrefs(application)
+    private val sleepRepository = SleepRepository(application)
 
     val batchingEnabled = prefs.batchingEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
@@ -38,5 +48,39 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun releaseNow() {
         viewModelScope.launch { BatchReleaser.releaseNow(getApplication()) }
+    }
+
+    // --- Sunset mode ---
+
+    val sunsetEnabled = sunsetPrefs.enabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun hasDndAccess(): Boolean =
+        getApplication<Application>()
+            .getSystemService(NotificationManager::class.java)
+            ?.isNotificationPolicyAccessGranted == true
+
+    fun setSunsetEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            sunsetPrefs.setEnabled(enabled)
+            SunsetController.onToggled(getApplication(), enabled)
+        }
+    }
+
+    // --- Sleep rhythm ---
+
+    private val sleepState = MutableStateFlow<SleepSummary?>(null)
+    val sleepSummary = sleepState.asStateFlow()
+
+    init {
+        refreshSleep()
+    }
+
+    fun hasUsageAccess(): Boolean = sleepRepository.hasUsageAccess()
+
+    fun refreshSleep() {
+        viewModelScope.launch(Dispatchers.IO) {
+            sleepState.value = sleepRepository.estimate()
+        }
     }
 }

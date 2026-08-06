@@ -59,12 +59,13 @@ class BatchReleaseReceiver : BroadcastReceiver() {
     }
 }
 
-/** Re-arms release alarms after reboot. */
+/** Re-arms release and sunset alarms after reboot. */
 class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
             BatchAlarms.ensureScheduled(context.applicationContext)
+            org.mindanchor.sunset.SunsetController.ensureScheduled(context.applicationContext)
         }
     }
 }

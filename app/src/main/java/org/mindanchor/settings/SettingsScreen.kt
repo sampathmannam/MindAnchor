@@ -162,6 +162,102 @@ fun SettingsScreen(
             }
         }
 
+        // --- Sunset mode (F4) ---
+        val sunsetEnabled by viewModel.sunsetEnabled.collectAsState()
+        Text(
+            text = stringResource(R.string.sunset_section),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
+        )
+        Text(
+            text = stringResource(R.string.sunset_explainer),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (!viewModel.hasDndAccess()) {
+            TextButton(
+                onClick = {
+                    activityLauncher.launch(
+                        Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS),
+                    )
+                },
+            ) {
+                Text(stringResource(R.string.grant_dnd_access))
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.sunset_toggle),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(
+                    checked = sunsetEnabled,
+                    onCheckedChange = viewModel::setSunsetEnabled,
+                )
+            }
+        }
+
+        // --- Sleep rhythm (F5) ---
+        val sleepSummary by viewModel.sleepSummary.collectAsState()
+        Text(
+            text = stringResource(R.string.sleep_section),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
+        )
+        if (!viewModel.hasUsageAccess()) {
+            Text(
+                text = stringResource(R.string.sleep_explainer),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            TextButton(
+                onClick = {
+                    activityLauncher.launch(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+                    viewModel.refreshSleep()
+                },
+            ) {
+                Text(stringResource(R.string.grant_usage_access))
+            }
+        } else {
+            val summary = sleepSummary
+            if (summary == null || summary.windows.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.sleep_no_data),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                summary.regularityScore?.let { score ->
+                    Text(
+                        text = stringResource(R.string.sleep_regularity, score),
+                        style = MaterialTheme.typography.headlineSmall,
+                        modifier = Modifier.padding(vertical = 4.dp),
+                    )
+                }
+                summary.windows.forEach { window ->
+                    Text(
+                        text = stringResource(
+                            R.string.sleep_window_row,
+                            window.wakeDate.toString(),
+                            "%.1f".format(window.durationHours),
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Text(
+                    text = stringResource(R.string.sleep_regularity_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+        }
+
         // --- Hidden apps ---
         Text(
             text = stringResource(R.string.hidden_apps),
