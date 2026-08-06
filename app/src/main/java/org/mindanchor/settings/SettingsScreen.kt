@@ -11,9 +11,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -28,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import org.mindanchor.R
 import org.mindanchor.launcher.DisplayApp
+import org.mindanchor.ui.NatureScene
 
 /**
  * Minimal settings: default-launcher role, notification batching, hidden
@@ -159,6 +162,43 @@ fun SettingsScreen(
                         )
                     }
                 }
+            }
+        }
+
+        // --- Home screen appearance ---
+        val natureScene by viewModel.natureScene.collectAsState()
+        Text(
+            text = stringResource(R.string.appearance_section),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
+        )
+        Text(
+            text = stringResource(R.string.appearance_explainer),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        listOf(
+            NatureScene.ROTATE to R.string.scene_rotate,
+            NatureScene.MEADOW to R.string.scene_meadow,
+            NatureScene.WATER to R.string.scene_water,
+            NatureScene.FOREST to R.string.scene_forest,
+            NatureScene.OFF to R.string.scene_off,
+        ).forEach { (scene, label) ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { viewModel.setNatureScene(scene) }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RadioButton(
+                    selected = natureScene == scene,
+                    onClick = { viewModel.setNatureScene(scene) },
+                )
+                Text(
+                    text = stringResource(label),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
             }
         }
 

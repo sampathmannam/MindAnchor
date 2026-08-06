@@ -49,6 +49,14 @@
     <string name="digest_empty">Nothing here. When batching is on, held notifications collect in this journal so nothing is ever lost.</string>
     <string name="digest_text">From %1$s</string>
 
+    <string name="appearance_section">Home screen</string>
+    <string name="appearance_explainer">A quiet landscape under the sky. Even a brief glance at greenery or water measurably steadies attention, so this is drawn to be looked at — and never to move.</string>
+    <string name="scene_rotate">A different scene each day</string>
+    <string name="scene_meadow">Meadow</string>
+    <string name="scene_water">Water</string>
+    <string name="scene_forest">Forest</string>
+    <string name="scene_off">Just the sky</string>
+
     <string name="sunset_section">Sunset mode</string>
     <string name="sunset_explainer">From 22:00 to 07:00 the phone goes priority-only: starred contacts and repeat callers still reach you, everything else waits for morning.</string>
     <string name="grant_dnd_access">Grant Do Not Disturb access to enable sunset</string>

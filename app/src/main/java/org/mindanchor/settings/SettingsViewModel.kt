@@ -11,8 +11,10 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import org.mindanchor.data.AppearancePrefs
 import org.mindanchor.data.NotificationPrefs
 import org.mindanchor.data.SunsetPrefs
+import org.mindanchor.ui.NatureScene
 import org.mindanchor.notifications.BatchAlarms
 import org.mindanchor.notifications.BatchReleaser
 import org.mindanchor.sleep.SleepRepository
@@ -24,6 +26,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val prefs = NotificationPrefs(application)
     private val sunsetPrefs = SunsetPrefs(application)
     private val sleepRepository = SleepRepository(application)
+    private val appearancePrefs = AppearancePrefs(application)
 
     val batchingEnabled = prefs.batchingEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
@@ -82,5 +85,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch(Dispatchers.IO) {
             sleepState.value = sleepRepository.estimate()
         }
+    }
+
+    // --- Home-screen appearance ---
+
+    val natureScene = appearancePrefs.scene
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), NatureScene.ROTATE)
+
+    fun setNatureScene(scene: NatureScene) {
+        viewModelScope.launch { appearancePrefs.setScene(scene) }
     }
 }
