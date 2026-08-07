@@ -239,6 +239,22 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
+
+        <!--
+            Fires when exact-alarm permission is granted or revoked. Every
+            alarm already scheduled keeps the window it was armed with, so
+            without this a person could grant the permission and watch
+            nothing change for a fortnight. Sent by the system to this app
+            only; exported="false" is correct and the system delivery is
+            unaffected.
+        -->
+        <receiver
+            android:name=".notifications.ExactAlarmPermissionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

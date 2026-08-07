@@ -69,6 +69,14 @@ interface PulseDao {
 
     @Query("SELECT * FROM pulse_results ORDER BY takenAt DESC LIMIT 30")
     fun history(): Flow<List<PulseResult>>
+
+    /**
+     * The most recent pulse, for re-arming the fortnightly reminder after
+     * a reboot. One-shot rather than a Flow: the caller is a broadcast
+     * receiver with a few seconds to live, not a screen.
+     */
+    @Query("SELECT * FROM pulse_results ORDER BY takenAt DESC LIMIT 1")
+    suspend fun latest(): PulseResult?
 }
 
 /**

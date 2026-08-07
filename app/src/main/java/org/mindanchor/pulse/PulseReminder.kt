@@ -12,6 +12,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import org.mindanchor.R
+import org.mindanchor.data.db.AnchorDatabase
 
 /**
  * One gentle reminder 14 days after each completed pulse — the WHO-5's
@@ -23,8 +24,44 @@ object PulseReminder {
     private const val CHANNEL_ID = "pulse"
     private const val REQUEST_CODE = 71
     private const val INTERVAL_DAYS = 14L
+    private const val INTERVAL_INTERVAL_MILLIS = INTERVAL_DAYS * 24 * 3_600_000
+
+    /** Long enough that a reboot never turns into an instant reminder. */
+    private const val OVERDUE_GRACE_MILLIS = 3_600_000L
 
     fun scheduleNext(context: Context) {
+        armAt(context, System.currentTimeMillis() + INTERVAL_INTERVAL_MILLIS)
+    }
+
+    /**
+     * Puts the reminder back after a reboot, which otherwise loses it
+     * silently — an alarm does not survive a restart, and nothing was
+     * re-arming this one, so a fortnightly check-in simply stopped
+     * arriving until the person next opened the screen themselves.
+     *
+     * Deliberately not [scheduleNext]. That one counts fourteen days from
+     * *now*, so calling it on boot would push the reminder out afresh
+     * every restart and a frequently-rebooted phone would never reach it.
+     * This counts from the last pulse actually taken, which is the date
+     * the cadence is supposed to hang off.
+     *
+     * No pulse ever taken means nothing to re-arm: the first reminder only
+     * exists once somebody has answered once, which is the existing
+     * design and not something to change here.
+     */
+    suspend fun ensureScheduled(context: Context) {
+        val last = runCatching {
+            AnchorDatabase.get(context).pulses().latest()
+        }.getOrNull() ?: return
+        val due = last.takenAt + INTERVAL_INTERVAL_MILLIS
+        // Already overdue, because the phone was off when it should have
+        // fired. Restore it shortly rather than firing the instant the
+        // device finishes booting — "missing it never nags" is the rule
+        // this feature is built on.
+        armAt(context, maxOf(due, System.currentTimeMillis() + OVERDUE_GRACE_MILLIS))
+    }
+
+    private fun armAt(context: Context, triggerAt: Long) {
         val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
         val pending = PendingIntent.getBroadcast(
             context,
@@ -32,7 +69,6 @@ object PulseReminder {
             Intent(context, PulseReminderReceiver::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val triggerAt = System.currentTimeMillis() + INTERVAL_DAYS * 24 * 3_600_000
         val canExact =
             Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
         if (canExact) {

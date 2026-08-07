@@ -2,6 +2,8 @@ package org.mindanchor.settings
 
 import android.app.role.RoleManager
 import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -47,6 +49,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
+import org.mindanchor.Alarms
 import org.mindanchor.R
 import org.mindanchor.admin.DeviceOwner
 import org.mindanchor.friction.AppWatchService
@@ -609,6 +612,37 @@ fun SettingsScreen(
                             onEarlier = { viewModel.nudgeReleaseTime(slot, -BatchSchedule.NUDGE_MINUTES) },
                             onLater = { viewModel.nudgeReleaseTime(slot, BatchSchedule.NUDGE_MINUTES) },
                         )
+                    }
+
+                    // Said here, next to the times themselves, because
+                    // this is where somebody forms the belief that 18:00
+                    // means 18:00. From Android 14 an app targeting 34+
+                    // is not granted exact alarms by default, so every
+                    // scheduler in this app falls back to a window of up
+                    // to an hour — and nothing said so.
+                    if (!Alarms.canBeExact(context)) {
+                        Text(
+                            text = stringResource(R.string.exact_alarms_explainer),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            TextButton(
+                                onClick = {
+                                    runCatching {
+                                        activityLauncher.launch(
+                                            Intent(
+                                                Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                                                Uri.fromParts("package", context.packageName, null),
+                                            ),
+                                        )
+                                    }
+                                },
+                            ) {
+                                Text(stringResource(R.string.exact_alarms_grant))
+                            }
+                        }
                     }
 
                     Text(

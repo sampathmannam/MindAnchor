@@ -72,7 +72,15 @@ class BatchReleaseReceiver : BroadcastReceiver() {
     }
 }
 
-/** Re-arms release and sunset alarms after reboot. */
+/**
+ * Re-arms every alarm after a reboot.
+ *
+ * The list used to live here and had drifted out of date — check-in
+ * prompts and the pulse reminder were missing from it, so both stopped
+ * after a restart. It now lives in [org.mindanchor.Alarms], which the
+ * exact-alarm permission receiver shares, so there is one list to keep
+ * right instead of two to keep in step.
+ */
 class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -85,12 +93,38 @@ class BootReceiver : BroadcastReceiver() {
         val pending = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             try {
-                BatchAlarms.ensureScheduled(appContext)
-                org.mindanchor.sunset.SunsetController.ensureScheduled(appContext)
-                // The nightly report's alarm does not survive a reboot
-                // either, and unlike a batch release nobody would notice
-                // it missing — it would simply never run again.
-                org.mindanchor.report.ReportScheduler.ensureScheduled(appContext)
+                org.mindanchor.Alarms.ensureAll(appContext)
+            } finally {
+                pending.finish()
+            }
+        }
+    }
+}
+
+/**
+ * Re-arms everything the moment exact alarms become available.
+ *
+ * Granting the permission does nothing to alarms already scheduled — they
+ * keep whatever inexact window they were armed with, in some cases for
+ * the next fourteen days. Without this the person grants permission,
+ * sees no change, and reasonably concludes the setting is decorative.
+ *
+ * Android also delivers this when the permission is *revoked*, which is
+ * equally worth acting on: the alarms are then re-armed inexactly and
+ * on purpose rather than lingering as exact ones the system will refuse.
+ */
+class ExactAlarmPermissionReceiver : BroadcastReceiver() {
+
+    override fun onReceive(context: Context, intent: Intent) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        if (intent.action != AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED) {
+            return
+        }
+        val appContext = context.applicationContext
+        val pending = goAsync()
+        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+            try {
+                org.mindanchor.Alarms.ensureAll(appContext)
             } finally {
                 pending.finish()
             }
