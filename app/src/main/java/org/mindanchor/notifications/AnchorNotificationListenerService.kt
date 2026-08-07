@@ -57,7 +57,10 @@ class AnchorNotificationListenerService : NotificationListenerService() {
     }
 
     override fun onListenerConnected() {
-        BatchAlarms.ensureScheduled(applicationContext)
+        // On the service's own scope now: arming a release reads the
+        // person's chosen times off DataStore, and a suspend call cannot
+        // happen on the connection callback directly.
+        scope.launch { BatchAlarms.ensureScheduled(applicationContext) }
     }
 
     /**

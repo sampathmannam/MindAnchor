@@ -1,0 +1,348 @@
+package org.mindanchor.report
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import kotlin.math.roundToLong
+import org.mindanchor.R
+import org.mindanchor.ui.Spacing
+
+/**
+ * Renders the most recently stored [Report] — see [ReportScheduler] for how
+ * it gets there.
+ *
+ * Three states before a single number appears: no report has ever been
+ * generated ([R.string.report_none] — nothing has run yet, or there is
+ * not enough history for any signal), a report exists and genuinely found
+ * nothing unusual ([R.string.report_quiet] — the common, good outcome
+ * [ReportComposer] is built around), or a report has one to three things
+ * to say. Whichever of the three it is, [R.string.report_disclaimer]
+ * always appears at the bottom: this screen prints a count from the
+ * person's own history next to what the research says the signal *is*,
+ * and it is never the thing that joins those two together.
+ */
+@Composable
+fun ReportScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val store = remember { ReportStore(context.applicationContext) }
+    val stored by store.stored.collectAsState(initial = null)
+    ReportScreen(stored = stored, onBack = onBack)
+}
+
+/**
+ * The same screen, given its content directly instead of reading it.
+ *
+ * ## Why this overload exists
+ *
+ * Until it did, this screen could only ever be photographed empty. A bare
+ * emulator has generated no report, so every screenshot of the one
+ * surface this whole system exists to produce showed "Nothing yet" — and
+ * the state that actually matters, with observations, research in their
+ * containers, pattern lines and the label above a generated paragraph,
+ * had never been looked at by anybody.
+ *
+ * That mattered more than it sounds. Three separate design judgements
+ * made about this app by reading code turned out to be wrong the moment
+ * a screenshot existed, all three the same mistake. There was no reason
+ * to believe the fourth would be different, and no way to check it
+ * without being able to hand this screen a report.
+ */
+@Composable
+fun ReportScreen(stored: StoredReport?, onBack: () -> Unit) {
+    val report = stored?.report
+    val narration = stored?.narration
+    val patterns = stored?.patterns.orEmpty()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .safeDrawingPadding()
+            .verticalScroll(rememberScrollState())
+            .padding(Spacing.Edge),
+    ) {
+        TextButton(onClick = onBack) {
+            Text(stringResource(R.string.action_back))
+        }
+
+        Text(
+            text = stringResource(R.string.report_section),
+            style = MaterialTheme.typography.headlineMedium,
+            modifier = Modifier.padding(vertical = Spacing.Comfortable),
+        )
+
+        // The paragraph a narrator wrote, shown above the sections it was
+        // drawn from and never in place of them — see NarrationGuard's own
+        // KDoc for why a rejected or unwritten paragraph costs nothing but
+        // itself. Blank is treated the same as absent: a narrator that
+        // returned an all-whitespace string, which nothing here should
+        // ever do, must not render an empty label above nothing.
+        if (!narration.isNullOrBlank()) {
+            Text(
+                text = stringResource(R.string.report_generated_label),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = Spacing.Hair),
+            )
+            Text(
+                text = narration,
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.padding(bottom = Spacing.Loose),
+            )
+        }
+
+        // What PatternFinder found in this person's own history, shown
+        // after the narration and before the sections — it is a count of
+        // their own past days, not a look at today, so it belongs neither
+        // above the paragraph about today nor inside a section that is
+        // about today. Nothing renders at all when there is nothing to
+        // say, the same discipline as everywhere else on this screen: a
+        // heading and a caveat around an empty list would be a machine
+        // announcing it found nothing worth finding.
+        if (patterns.isNotEmpty()) {
+            Text(
+                text = stringResource(R.string.pattern_section),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(top = Spacing.Tight, bottom = Spacing.Snug),
+            )
+            // forEach is inline, so stringResource still runs in the
+            // composable body — see the notYetKnown comment below for why
+            // that distinction matters here.
+            patterns.forEach { pattern ->
+                val bodyRes = if (pattern.lower) R.string.pattern_lower else R.string.pattern_higher
+                Text(
+                    text = stringResource(
+                        bodyRes,
+                        pattern.similarDays,
+                        // Inline forms, not the headings: these land in
+                        // the middle of a sentence. See the comment above
+                        // signal_inline_* in strings.xml for what the
+                        // headings actually produced there.
+                        stringResource(pattern.signal.inlineNameRes()),
+                        stringResource(pattern.label.inlineNameRes()),
+                    ),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(bottom = Spacing.Snug),
+                )
+            }
+            Text(
+                text = stringResource(R.string.pattern_caveat),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = Spacing.Loose),
+            )
+        }
+
+        val current = report
+        when {
+            current == null -> Text(
+                text = stringResource(R.string.report_none),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            current.isEmpty -> Text(
+                text = stringResource(R.string.report_quiet),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+
+            else -> current.sections.forEach { section -> ReportSectionCard(section) }
+        }
+
+        if (current != null && current.notYetKnown.isNotEmpty()) {
+            // Resolved through map, which is inline, so stringResource
+            // still runs in the composable body — joinToString is not
+            // inline and calling it from that lambda does not compile.
+            val names = current.notYetKnown.map { stringResource(it.displayNameRes()) }
+            Text(
+                text = stringResource(R.string.report_still_learning, names.joinToString(", ")),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Spacing.Loose),
+            )
+        }
+
+        // The disclaimer only makes sense once there is something to
+        // disclaim.
+        //
+        // Seen in a screenshot of the empty state: under "Nothing yet"
+        // sat a paragraph explaining that these are counts from your own
+        // history next to what the research says — describing a screen
+        // that was not there. For the first weeks, which is most of what
+        // somebody will see of this, it was the only other text present
+        // and it explained nothing they could look at. A caution about
+        // claims is noise until a claim is made.
+        val hasSomethingToDisclaim =
+            !narration.isNullOrBlank() || patterns.isNotEmpty() || current?.isEmpty == false
+        if (hasSomethingToDisclaim) {
+            Text(
+                text = stringResource(R.string.report_disclaimer),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Spacing.Section),
+            )
+        }
+    }
+}
+
+/**
+ * One section: the observation in plain words, then the research behind
+ * it or an honest statement that none was found. [ReportSection.sources]
+ * is never optional in [Report.kt] and is not optional here either — a
+ * claim with no passage to check it against is not shown as a claim.
+ */
+@Composable
+private fun ReportSectionCard(section: ReportSection) {
+    val observation = section.observation
+    val signalName = stringResource(observation.signal.displayNameRes())
+    val todayText = observation.signal.formatValue(observation.today)
+    val usualText = observation.signal.formatValue(observation.usual)
+    // A bedtime is not "higher". Every other signal here is a quantity
+    // where more and less are the natural words; sleep onset is a clock
+    // reading, where they are not, and a sentence that reads wrong is a
+    // sentence somebody stops trusting.
+    val clock = observation.signal == Signal.SLEEP_ONSET
+    val bodyRes = when (observation.direction) {
+        Direction.ABOVE -> if (clock) R.string.report_later else R.string.report_above
+        Direction.BELOW -> if (clock) R.string.report_earlier else R.string.report_below
+    }
+
+    Column(modifier = Modifier.padding(top = Spacing.Loose)) {
+        Text(
+            text = stringResource(bodyRes, signalName, todayText, usualText),
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        // The research sits inside its own quiet container, and the count
+        // above it does not.
+        //
+        // That is this screen's one real design decision, and it is the
+        // architecture made visible rather than decoration. The whole
+        // system rests on two separable claims — a count from this
+        // person's own history, and an explanation of what the thing
+        // counted is — with the join left to them. Rendered as an
+        // undifferentiated stack of grey text, as this was, the two read
+        // as one voice saying both, which is precisely the conflation
+        // ReportComposer refuses to make. Giving the quoted half a
+        // visible edge says "this part is not about you" without a word
+        // of copy having to claim it.
+        section.passages.forEach { passage ->
+            Text(
+                text = passage.text,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .padding(top = Spacing.Snug)
+                    .fillMaxWidth()
+                    .background(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = MaterialTheme.shapes.small,
+                    )
+                    .padding(horizontal = Spacing.Comfortable, vertical = Spacing.Snug),
+            )
+        }
+        if (section.passages.isEmpty()) {
+            Text(
+                text = stringResource(R.string.report_no_research),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Spacing.Tight),
+            )
+        } else {
+            Text(
+                text = stringResource(R.string.report_sources, section.sources.joinToString(" · ")),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Spacing.Tight),
+            )
+        }
+    }
+}
+
+/**
+ * The same names as a noun phrase, for use inside a sentence.
+ *
+ * Kept separate from [displayNameRes] rather than replacing it: a section
+ * heading wants "When you got to sleep" and a sentence wants "bedtime",
+ * and one string cannot be both without reading wrong in one of the two
+ * places.
+ */
+private fun Signal.inlineNameRes(): Int = when (this) {
+    Signal.HRV -> R.string.signal_inline_hrv
+    Signal.RESTING_HEART_RATE -> R.string.signal_inline_resting_hr
+    Signal.SLEEP_MINUTES -> R.string.signal_inline_sleep_minutes
+    Signal.SLEEP_ONSET -> R.string.signal_inline_sleep_onset
+    Signal.STEPS -> R.string.signal_inline_steps
+    Signal.VALENCE -> R.string.signal_inline_valence
+    Signal.AROUSAL -> R.string.signal_inline_arousal
+}
+
+private fun Label.inlineNameRes(): Int = when (this) {
+    Label.VALENCE -> R.string.label_inline_valence
+    Label.AROUSAL -> R.string.label_inline_arousal
+}
+
+private fun Signal.displayNameRes(): Int = when (this) {
+    Signal.HRV -> R.string.signal_hrv
+    Signal.RESTING_HEART_RATE -> R.string.signal_resting_hr
+    Signal.SLEEP_MINUTES -> R.string.signal_sleep_minutes
+    Signal.SLEEP_ONSET -> R.string.signal_sleep_onset
+    Signal.STEPS -> R.string.signal_steps
+    Signal.VALENCE -> R.string.signal_valence
+    Signal.AROUSAL -> R.string.signal_arousal
+}
+
+/**
+ * Same two strings [Signal.displayNameRes] already uses for
+ * [Signal.VALENCE] and [Signal.AROUSAL] — [Label] and [Signal] name the
+ * same two axes for two different purposes, so the words a person reads
+ * are the same words either way; see [SignalLabel]'s own KDoc.
+ */
+private fun Label.displayNameRes(): Int = when (this) {
+    Label.VALENCE -> R.string.signal_valence
+    Label.AROUSAL -> R.string.signal_arousal
+}
+
+/**
+ * A number fit to show a person, never a raw double like `41.33333333`.
+ * Valence and arousal live on a tidy 1–5 scale, so one decimal place
+ * still means something on them; every other signal is a count of
+ * milliseconds, minutes, or steps, where a fraction is not something
+ * anyone measured and rounding to a whole number is the honest choice.
+ *
+ * Sleep onset is the exception that is not a count at all. It is stored
+ * as minutes after 18:00 — see [ReportScheduler], which uses that frame so a
+ * bedtime past midnight does not wrap — and "1430" is not a thing anybody
+ * can check against their own memory of last night. It is turned back
+ * into the clock.
+ */
+private fun Signal.formatValue(value: Double): String = when (this) {
+    Signal.VALENCE, Signal.AROUSAL -> "%.1f".format(value)
+    Signal.SLEEP_ONSET -> clockTime(value)
+    else -> value.roundToLong().toString()
+}
+
+/**
+ * Minutes after 18:00 back to a 24-hour clock reading.
+ *
+ * Internal rather than private only so it can be tested: it is the exact
+ * inverse of [org.mindanchor.sleep.Deviation.minutesAfterSixPm], and an
+ * inverse that is quietly wrong shows a person a bedtime they did not have.
+ */
+internal fun clockTime(minutesAfterSixPm: Double): String {
+    val minuteOfDay = ((minutesAfterSixPm.roundToLong() + 18 * 60) % 1440 + 1440) % 1440
+    return "%02d:%02d".format(minuteOfDay / 60, minuteOfDay % 60)
+}

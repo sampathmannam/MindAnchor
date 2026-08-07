@@ -203,6 +203,16 @@
             </intent-filter>
         </receiver>
 
+        <!--
+            The nightly report. AlarmManager rather than WorkManager: the
+            latter merges ACCESS_NETWORK_STATE into this manifest, and a
+            no-network app is the basis of the promise on the About
+            screen. See ReportSchedule for the whole reasoning.
+        -->
+        <receiver
+            android:name=".report.ReportAlarmReceiver"
+            android:exported="false" />
+
         <receiver
             android:name=".notifications.BootReceiver"
             android:exported="false">

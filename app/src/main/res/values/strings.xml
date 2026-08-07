@@ -8,6 +8,18 @@
     <string name="open_drawer">search</string>
     <string name="search_hint">Type to find an app…</string>
     <string name="settings">settings</string>
+    <string name="settings_group_quiet">Quiet</string>
+    <string name="settings_group_quiet_desc">Batching, quiet hours, and colour.</string>
+    <string name="settings_group_pauses">Pauses</string>
+    <string name="settings_group_pauses_desc">A moment before an app opens.</string>
+    <string name="settings_group_measuring">Measuring</string>
+    <string name="settings_group_measuring_desc">What this phone notices, and what you tell it.</string>
+    <string name="settings_group_reading">Reading</string>
+    <string name="settings_group_reading_desc">Last night\'s look, the research behind it, and the model.</string>
+    <string name="settings_group_plan">Your plan</string>
+    <string name="settings_group_plan_desc">The people and the words you chose in advance.</string>
+    <string name="settings_group_phone">This phone</string>
+    <string name="settings_group_phone_desc">Home screen, hidden apps, goals, and a copy of your data.</string>
 
     <string name="action_favorite">Add to home</string>
     <string name="action_unfavorite">Remove from home</string>
@@ -43,6 +55,8 @@
     <string name="batching_explainer">Chosen apps stop interrupting you; their notifications wait quietly and arrive together at 8:00, 12:30 and 18:00. Conversations, calls and alarms always come through instantly.</string>
     <string name="grant_notification_access">Grant notification access to enable batching</string>
     <string name="batching_toggle">Batch notifications</string>
+    <string name="batching_times_explainer">When the batches arrive. The default three follow the trial this is drawn from, not anything about your day — move them to where you can actually take an interruption.</string>
+    <string name="batching_time_slot">Arrives at %1$s</string>
     <string name="batching_choose_apps">Apps to batch:</string>
 
     <string name="digest_channel_name">Digest</string>
@@ -106,6 +120,75 @@
     <string name="mirror_toggle">Count nights that ran late</string>
     <string name="mirror_explainer">This counts and does not interpret. It compares your nights to your own usual — not to anybody else\'s, and not to a norm — and tells you the number. What it means is yours to say; phones are not good at that part and this one does not try.</string>
     <string name="mirror_line">You got to sleep well after your usual on %1$d of the last few nights.</string>
+    <string name="report_section">Last night\'s look</string>
+    <string name="report_explainer">Once a night, while the phone is charging and you are not using it, this compares the day against your own usual and pulls up what the research says the thing measured actually is. It never joins those two together — what a change means is yours to say.</string>
+    <string name="report_toggle">Look at my days overnight</string>
+    <string name="report_open">Read it</string>
+    <string name="report_none">Nothing yet. There will be something once there are enough days to compare against.</string>
+    <string name="report_quiet">Nothing stood out. That is the usual answer and it is a good one.</string>
+    <string name="report_still_learning">Still building a picture of: %1$s</string>
+    <string name="report_above">%1$s was higher than your usual — %2$s against about %3$s.</string>
+    <string name="report_below">%1$s was lower than your usual — %2$s against about %3$s.</string>
+    <string name="report_later">%1$s was later than your usual — %2$s against about %3$s.</string>
+    <string name="report_earlier">%1$s was earlier than your usual — %2$s against about %3$s.</string>
+    <string name="report_sources">From: %1$s</string>
+    <string name="report_no_research">No matching research on file for this one.</string>
+    <string name="report_disclaimer">These are counts from your own history, next to what the research says the thing counted is. Nothing here knows what it means about you.</string>
+    <string name="report_generated_label">Written on this phone, by a small model, from the passages below.</string>
+    <string name="pattern_section">What your days have tended to do</string>
+    <string name="pattern_lower">Of the %1$d days when your %2$s was closest to last night\'s, %3$s came out lower than your usual.</string>
+    <string name="pattern_higher">Of the %1$d days when your %2$s was closest to last night\'s, %3$s came out higher than your usual.</string>
+    <string name="pattern_caveat">That is a count of your own past days, not a forecast. It says nothing about how today will go, and nothing about why.</string>
+    <string name="corpus_section">Research on file</string>
+    <string name="corpus_explainer">Every report shows you what the research says the thing measured actually is, drawn from a small set of passages that ships with the app. You can add more from a file on this phone — the more there is on file, the better the match to what your report is about.</string>
+    <string name="corpus_verbatim">Passages are shown to you word for word. What you add is what you will read.</string>
+    <string name="corpus_format">One passage per line: an id, a source, then the text, separated by tab characters. Lines starting with # are ignored.</string>
+    <string name="corpus_count">%1$d passages on file.</string>
+    <string name="corpus_import">Add research from a file</string>
+    <string name="corpus_clear">Back to the built-in set</string>
+    <string name="corpus_result_changed">Added %1$d, corrected %2$d.</string>
+    <string name="corpus_result_skipped">Ignored %1$d rows that were not in this format.</string>
+    <string name="corpus_result_truncated">That file held more than fits, so the rest was left out.</string>
+    <string name="corpus_result_none">Nothing in that file could be read as research, so nothing was changed.</string>
+    <string name="corpus_result_unreadable">That file could not be read.</string>
+    <string name="model_section">Model</string>
+    <string name="model_explainer">The paragraph above a report — see Last night\'s look — would be written on this phone, by a small language model, from the passages already shown to you. You can add that model here, as a single GGUF file.</string>
+    <string name="model_no_engine">No engine that can actually run a model is built into this app yet, so importing one does not produce any writing today. It records the file and reports whether this phone has enough memory to run it once an engine exists to try.</string>
+    <string name="model_none">No model on file.</string>
+    <string name="model_present">A model is on file.</string>
+    <string name="model_fit_fits">This phone has room to run it, with room to spare.</string>
+    <string name="model_fit_tight">This phone can run it, but it is a tight fit — a busy night could still cost it.</string>
+    <string name="model_fit_too_large">This model is too large to run in the background on this phone.</string>
+    <string name="model_fit_unsupported">This phone is flagged as low on memory, so no model is offered on it, at any size.</string>
+    <string name="model_import">Add a model from a file</string>
+    <string name="model_clear">Remove the model</string>
+    <string name="model_import_failed">That file could not be copied.</string>
+    <!--
+        Inline forms, for the pattern sentence.
+
+        The names above are headings: standalone, capitalised, read on
+        their own line. Dropped into the middle of a sentence they produce
+        "when your When you got to sleep was closest to last night's",
+        which is what the first screenshot of a populated report actually
+        said. A heading and a noun phrase are not the same string and
+        pretending otherwise reads as broken.
+    -->
+    <string name="signal_inline_hrv">heart-rate variability</string>
+    <string name="signal_inline_resting_hr">resting heart rate</string>
+    <string name="signal_inline_sleep_minutes">time asleep</string>
+    <string name="signal_inline_sleep_onset">bedtime</string>
+    <string name="signal_inline_steps">step count</string>
+    <string name="signal_inline_valence">sense of how things felt</string>
+    <string name="signal_inline_arousal">energy</string>
+    <string name="label_inline_valence">how things felt</string>
+    <string name="label_inline_arousal">how much energy you had</string>
+    <string name="signal_hrv">Heart-rate variability</string>
+    <string name="signal_resting_hr">Resting heart rate</string>
+    <string name="signal_sleep_minutes">Time asleep</string>
+    <string name="signal_sleep_onset">When you got to sleep</string>
+    <string name="signal_steps">Steps</string>
+    <string name="signal_valence">How things felt</string>
+    <string name="signal_arousal">Energy</string>
     <string name="ema_section">Check-ins</string>
     <string name="ema_explainer">A couple of taps, a few times a day, at times that move around so you cannot see them coming. This is the part that teaches the app what your own normal looks like — without it there is nothing to compare anything to. It asks less once it has learned enough, and you can skip any of them.</string>
     <string name="ema_toggle">Ask me how I am</string>

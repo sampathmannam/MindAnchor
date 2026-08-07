@@ -14,8 +14,8 @@ android {
         applicationId = "org.mindanchor"
         minSdk = 33
         targetSdk = 35
-        versionCode = 15
-        versionName = "0.15.0"
+        versionCode = 16
+        versionName = "0.16.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -140,6 +140,12 @@ dependencies {
     // force above is what makes it the real artifact rather than the
     // empty placeholder.
     compileOnly(libs.guava.listenablefuture)
+    // No WorkManager here, deliberately. It expressed the nightly
+    // report's "charging and idle" constraints in two lines, and it also
+    // merged ACCESS_NETWORK_STATE into the manifest, which PrivacyTest
+    // caught. A no-network app is the basis of the promise on the About
+    // screen, so the constraints are checked by hand instead — see
+    // ReportSchedule for the full reasoning.
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)

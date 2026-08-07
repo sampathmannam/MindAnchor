@@ -1,6 +1,7 @@
 package org.mindanchor.pulse
 
 import android.app.Application
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -115,13 +116,44 @@ fun PulseScreen(
                                 modifier = Modifier.weight(1f),
                                 contentPadding = PaddingValues(vertical = 12.dp),
                             ) {
+                                // Every number is in the app's own
+                                // colour, chosen or not, because every
+                                // number is a button.
+                                //
+                                // Found in a screenshot of an unanswered
+                                // questionnaire: the unchosen state was
+                                // muted grey, so before answering
+                                // anything a person saw five statements
+                                // and thirty grey numerals with no
+                                // indication that any of them could be
+                                // tapped. Colour was doing two jobs at
+                                // once — "this is tappable" and "this is
+                                // the one you picked" — and the first
+                                // job matters more, because somebody who
+                                // cannot see the controls never gets as
+                                // far as selecting one.
+                                //
+                                // So the selected state is carried by a
+                                // filled pill instead, which says it
+                                // more plainly than a colour shift ever
+                                // did.
                                 Text(
                                     text = value.toString(),
                                     style = MaterialTheme.typography.titleMedium,
                                     color = if (chosen) {
-                                        MaterialTheme.colorScheme.primary
+                                        MaterialTheme.colorScheme.onPrimaryContainer
                                     } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                        MaterialTheme.colorScheme.primary
+                                    },
+                                    modifier = if (chosen) {
+                                        Modifier
+                                            .background(
+                                                color = MaterialTheme.colorScheme.primaryContainer,
+                                                shape = MaterialTheme.shapes.small,
+                                            )
+                                            .padding(horizontal = 12.dp, vertical = 4.dp)
+                                    } else {
+                                        Modifier
                                     },
                                 )
                             }
