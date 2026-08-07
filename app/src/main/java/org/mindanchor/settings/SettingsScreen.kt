@@ -766,6 +766,90 @@ fun SettingsScreen(
             Text(stringResource(R.string.report_open))
         }
 
+        // --- Research on file (the corpus every report draws on) ---
+        //
+        // Twenty-six bundled passages is a seed, not a library, and the
+        // retrieval behind every report gets better the more there is to
+        // retrieve from. Everything else here can be improved by shipping
+        // an update; the research should not have to wait on one, nor be
+        // limited to what one person thought to include. See CorpusImport
+        // for why an import merges rather than replaces.
+        SectionHeading(R.string.corpus_section, SettingsSection.PULSE, goals)
+        Text(
+            text = stringResource(R.string.corpus_explainer),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            // Nothing checks whether an imported passage explains or
+            // interprets. Saying so is the honest alternative to
+            // pretending to a check that is not there.
+            text = stringResource(R.string.corpus_verbatim),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        val corpusSize by viewModel.corpusSize.collectAsState()
+        val corpusImported by viewModel.corpusImported.collectAsState()
+        val lastImport by viewModel.lastImport.collectAsState()
+        LaunchedEffect(Unit) { viewModel.refreshCorpus() }
+        Text(
+            text = stringResource(R.string.corpus_count, corpusSize),
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        val corpusPicker = rememberLauncherForActivityResult(
+            // OpenDocument rather than GetContent: it returns a document
+            // this app may read again later, and it lets a plain .tsv
+            // through on providers that would not offer it under a
+            // stricter MIME type. "*/*" because text/tab-separated-values
+            // is not a type every file provider on every phone reports,
+            // and a picker that shows nothing selectable is a dead end.
+            ActivityResultContracts.OpenDocument(),
+        ) { uri -> uri?.let(viewModel::importCorpus) }
+        TextButton(onClick = { corpusPicker.launch(arrayOf("*/*")) }) {
+            Text(stringResource(R.string.corpus_import))
+        }
+        Text(
+            text = stringResource(R.string.corpus_format),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        lastImport?.let { result ->
+            // Reported in whatever combination actually happened: added
+            // and corrected, or nothing usable, plus the counts that tell
+            // somebody their file was in the wrong format rather than
+            // leaving them to wonder why it did so little.
+            Column(modifier = Modifier.padding(top = 8.dp)) {
+                val line = when {
+                    result.unreadable -> stringResource(R.string.corpus_result_unreadable)
+                    result.added == 0 && result.replaced == 0 ->
+                        stringResource(R.string.corpus_result_none)
+                    else -> stringResource(R.string.corpus_result_changed, result.added, result.replaced)
+                }
+                Text(text = line, style = MaterialTheme.typography.bodyMedium)
+                if (result.skippedRows > 0) {
+                    Text(
+                        text = stringResource(R.string.corpus_result_skipped, result.skippedRows),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (result.truncated) {
+                    Text(
+                        text = stringResource(R.string.corpus_result_truncated),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+        if (corpusImported) {
+            TextButton(onClick = viewModel::clearCorpus) {
+                Text(stringResource(R.string.corpus_clear))
+            }
+        }
+
         // --- Check-ins (EMA) ---
         //
         // The other half of "Labels" alongside the pulse above: a handful

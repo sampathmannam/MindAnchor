@@ -2,6 +2,7 @@ package org.mindanchor.settings
 
 import android.app.Application
 import android.app.NotificationManager
+import android.net.Uri
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -14,6 +15,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import org.mindanchor.corpus.CorpusImport
+import org.mindanchor.corpus.CorpusStore
 import org.mindanchor.data.AppearancePrefs
 import org.mindanchor.data.NotificationPrefs
 import org.mindanchor.data.SunsetPrefs
@@ -313,4 +316,85 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             }
         }
     }
+
+    // --- Research on file (the corpus behind every report) ---
+
+    private val _corpusSize = MutableStateFlow(0)
+
+    /** How many passages the report has to draw on. */
+    val corpusSize: StateFlow<Int> = _corpusSize.asStateFlow()
+
+    private val _corpusImported = MutableStateFlow(false)
+
+    /** Whether anything has been added on top of the bundled seed. */
+    val corpusImported: StateFlow<Boolean> = _corpusImported.asStateFlow()
+
+    private val _lastImport = MutableStateFlow<CorpusImportReport?>(null)
+
+    /**
+     * What the last import did, or null before one has happened this
+     * session. Deliberately not persisted: it is a reply to a tap, and a
+     * reply still sitting there a week later is not news, it is clutter.
+     */
+    val lastImport: StateFlow<CorpusImportReport?> = _lastImport.asStateFlow()
+
+    fun refreshCorpus() {
+        viewModelScope.launch(Dispatchers.IO) {
+            _corpusSize.value = CorpusStore.load(getApplication()).size
+            _corpusImported.value = CorpusStore.hasImported(getApplication())
+        }
+    }
+
+    /**
+     * Reads a picked file, merges it into what is already on file, and
+     * stores the result.
+     *
+     * All of it on [Dispatchers.IO]: this reads a file of unknown size
+     * off storage the app does not own, and doing that on the main thread
+     * is how a settings screen freezes on somebody's slow SD card.
+     *
+     * A file that yields nothing usable is reported and **not** written.
+     * Overwriting a working corpus with the result of a mis-tap would be
+     * a destructive answer to a harmless mistake.
+     */
+    fun importCorpus(uri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val context = getApplication<Application>()
+            val raw = CorpusStore.readPicked(context, uri)
+            if (raw == null) {
+                _lastImport.value = CorpusImportReport(unreadable = true)
+                return@launch
+            }
+            val outcome = CorpusImport.merge(CorpusStore.load(context), raw)
+            val stored = if (outcome.isEmpty) true else CorpusStore.saveImported(context, outcome.corpus)
+            _lastImport.value = CorpusImportReport(
+                added = outcome.added,
+                replaced = outcome.replaced,
+                skippedRows = outcome.skippedRows,
+                truncated = outcome.truncated,
+                unreadable = !stored,
+            )
+            _corpusSize.value = CorpusStore.load(context).size
+            _corpusImported.value = CorpusStore.hasImported(context)
+        }
+    }
+
+    /** Back to the bundled seed alone. */
+    fun clearCorpus() {
+        viewModelScope.launch(Dispatchers.IO) {
+            CorpusStore.clearImported(getApplication())
+            _lastImport.value = null
+            _corpusSize.value = CorpusStore.load(getApplication()).size
+            _corpusImported.value = CorpusStore.hasImported(getApplication())
+        }
+    }
 }
+
+/** What an import did, in the terms the settings screen reports it. */
+data class CorpusImportReport(
+    val added: Int = 0,
+    val replaced: Int = 0,
+    val skippedRows: Int = 0,
+    val truncated: Boolean = false,
+    val unreadable: Boolean = false,
+)
