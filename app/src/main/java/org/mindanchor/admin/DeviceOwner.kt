@@ -56,13 +56,18 @@ object DeviceOwner {
     }.getOrDefault(false)
 
     /**
-     * Suspends [chosen], minus anything that must stay reachable, and
-     * un-suspends everything else this app had suspended.
+     * Suspends [chosen], minus anything that must stay reachable — the
+     * dialer, messaging, this app, and whatever the person has marked
+     * [alwaysOpen] because their work or their people run through it.
      *
      * Returns the packages actually suspended, which is what the caller
      * should show the person — never the list they asked for.
      */
-    fun apply(context: Context, chosen: Set<String>): List<String> = runCatching {
+    fun apply(
+        context: Context,
+        chosen: Set<String>,
+        alwaysOpen: Set<String> = emptySet(),
+    ): List<String> = runCatching {
         val manager = dpm(context) ?: return emptyList()
         if (!isDeviceOwner(context)) return emptyList()
 
@@ -73,6 +78,7 @@ object DeviceOwner {
             }.getOrNull(),
             sms = runCatching { Telephony.Sms.getDefaultSmsPackage(context) }.getOrNull(),
             self = context.packageName,
+            alsoNeverSuspend = alwaysOpen,
         )
         if (safe.isNotEmpty()) {
             manager.setPackagesSuspended(component(context), safe.toTypedArray(), true)

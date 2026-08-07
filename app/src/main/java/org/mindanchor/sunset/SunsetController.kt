@@ -122,9 +122,11 @@ object SunsetController {
                 // suspended that SuspensionGuard has not cleared, and
                 // everything is lifted again at the end of the window.
                 if (org.mindanchor.admin.DeviceOwner.isDeviceOwner(appContext)) {
-                    val chosen = org.mindanchor.data.FrictionPrefs(appContext).flaggedApps.first()
+                    val friction = org.mindanchor.data.FrictionPrefs(appContext)
+                    val chosen = friction.flaggedApps.first()
+                    val alwaysOpen = friction.alwaysOpen.first()
                     if (starting) {
-                        org.mindanchor.admin.DeviceOwner.apply(appContext, chosen)
+                        org.mindanchor.admin.DeviceOwner.apply(appContext, chosen, alwaysOpen)
                     } else {
                         org.mindanchor.admin.DeviceOwner.clear(appContext, chosen)
                     }

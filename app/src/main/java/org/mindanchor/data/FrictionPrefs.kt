@@ -33,6 +33,28 @@ class FrictionPrefs(private val context: Context) {
     }
 
     /** Increments and returns today's extension count for [packageName]. */
+    /**
+     * Apps that must never be suspended or delayed, whatever else is
+     * switched on.
+     *
+     * This exists because "distracting" and "must reach me at 3am" are not
+     * opposites. Someone on call for work marks a messaging app as
+     * distracting for good reason, and then enforced quiet hours would
+     * close the one channel their job runs through. The person knows which
+     * apps those are; nothing here tries to guess.
+     */
+    private val alwaysOpenKey = stringSetPreferencesKey("always_open")
+
+    val alwaysOpen: Flow<Set<String>> =
+        context.dataStore.data.map { it[alwaysOpenKey] ?: emptySet() }
+
+    suspend fun setAlwaysOpen(packageName: String, always: Boolean) {
+        context.dataStore.edit { prefs ->
+            val current = prefs[alwaysOpenKey] ?: emptySet()
+            prefs[alwaysOpenKey] = if (always) current + packageName else current - packageName
+        }
+    }
+
     private val reachKey = stringPreferencesKey("recent_reaches")
 
     /**

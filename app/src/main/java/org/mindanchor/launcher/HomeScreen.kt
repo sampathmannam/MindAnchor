@@ -167,10 +167,12 @@ fun LauncherRoot(
         AppActionsDialog(
             app = app,
             isFrictioned = app.component.substringBefore('/') in state.frictionPackages,
+            isAlwaysOpen = app.component.substringBefore('/') in state.alwaysOpenPackages,
             onDismiss = { actionsFor = null },
             onToggleFavorite = { viewModel.toggleFavorite(app); actionsFor = null },
             onToggleHidden = { viewModel.setHidden(app, !app.isHidden); actionsFor = null },
             onToggleFriction = { viewModel.toggleFriction(app); actionsFor = null },
+            onToggleAlwaysOpen = { viewModel.toggleAlwaysOpen(app); actionsFor = null },
             onRename = { label -> viewModel.rename(app, label); actionsFor = null },
         )
     }

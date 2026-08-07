@@ -22,6 +22,8 @@ data class LauncherUiState(
     val allApps: List<DisplayApp> = emptyList(),
     val favorites: List<DisplayApp> = emptyList(),
     val frictionPackages: Set<String> = emptySet(),
+    /** Apps the person has said must never be closed on them. */
+    val alwaysOpenPackages: Set<String> = emptySet(),
 )
 
 class LauncherViewModel(application: Application) : AndroidViewModel(application) {
@@ -33,19 +35,29 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val query = MutableStateFlow("")
     val searchQuery: StateFlow<String> = query.asStateFlow()
 
+    /**
+     * The two friction lists as one flow. combine() only has typed
+     * overloads up to five sources, and this is the sixth.
+     */
+    private val frictionLists = combine(
+        frictionPrefs.flaggedApps,
+        frictionPrefs.alwaysOpen,
+    ) { flagged, alwaysOpen -> flagged to alwaysOpen }
+
     val uiState: StateFlow<LauncherUiState> =
         combine(
             repository.apps,
             prefs.favorites,
             prefs.hidden,
             prefs.renames,
-            frictionPrefs.flaggedApps,
-        ) { apps, favorites, hidden, renames, flagged ->
+            frictionLists,
+        ) { apps, favorites, hidden, renames, friction ->
             val display = AppFiltering.toDisplayApps(apps, favorites, hidden, renames)
             LauncherUiState(
                 allApps = display,
                 favorites = AppFiltering.favorites(display, favorites),
-                frictionPackages = flagged,
+                frictionPackages = friction.first,
+                alwaysOpenPackages = friction.second,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LauncherUiState())
 
@@ -79,6 +91,16 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             frictionPrefs.setFlagged(
                 packageName,
                 packageName !in uiState.value.frictionPackages,
+            )
+        }
+    }
+
+    fun toggleAlwaysOpen(app: DisplayApp) {
+        val packageName = app.component.substringBefore('/')
+        viewModelScope.launch {
+            frictionPrefs.setAlwaysOpen(
+                packageName,
+                packageName !in uiState.value.alwaysOpenPackages,
             )
         }
     }

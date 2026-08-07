@@ -23,10 +23,12 @@ import org.mindanchor.R
 fun AppActionsDialog(
     app: DisplayApp,
     isFrictioned: Boolean,
+    isAlwaysOpen: Boolean,
     onDismiss: () -> Unit,
     onToggleFavorite: () -> Unit,
     onToggleHidden: () -> Unit,
     onToggleFriction: () -> Unit,
+    onToggleAlwaysOpen: () -> Unit,
     onRename: (String?) -> Unit,
 ) {
     var renaming by remember { mutableStateOf(false) }
@@ -95,6 +97,19 @@ fun AppActionsDialog(
                         stringResource(
                             if (isFrictioned) R.string.action_remove_pause
                             else R.string.action_add_pause,
+                        ),
+                    )
+                }
+                // "Distracting" and "must reach me at 3am" are not
+                // opposites. Someone on call marks their work messenger as
+                // distracting for perfectly good reasons, and enforced
+                // quiet hours would then close the channel their job runs
+                // through. This is how they say so.
+                TextButton(onClick = onToggleAlwaysOpen, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        stringResource(
+                            if (isAlwaysOpen) R.string.action_not_always_open
+                            else R.string.action_always_open,
                         ),
                     )
                 }

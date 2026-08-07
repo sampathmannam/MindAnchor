@@ -18,6 +18,9 @@
     <string name="action_unhide">Unhide</string>
     <string name="action_close">Close</string>
     <string name="action_add_pause">Add a pause before opening</string>
+    <string name="action_always_open">Never close this one on me</string>
+    <string name="action_not_always_open">Stop protecting this one</string>
+
     <string name="action_remove_pause">Remove the pause</string>
 
     <string name="breath_in">Breathe in…</string>
