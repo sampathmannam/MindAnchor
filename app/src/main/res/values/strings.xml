@@ -24,6 +24,7 @@
     <string name="action_favorite">Add to home</string>
     <string name="action_unfavorite">Remove from home</string>
     <string name="action_rename">Rename</string>
+    <string name="rename_hint">New name</string>
     <string name="action_save">Save</string>
     <string name="action_reset_name">Reset name</string>
     <string name="action_hide">Hide</string>

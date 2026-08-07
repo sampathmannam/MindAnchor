@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -137,6 +138,10 @@ private fun JournalRow(item: HeldNotification, waiting: Boolean, onClick: () -> 
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            // A one-line entry — no title, no text — is otherwise a
+            // ~36dp target, under the 48dp floor everything else here
+            // keeps.
+            .heightIn(min = 48.dp)
             .clickable(onClick = onClick)
             .padding(vertical = 8.dp),
     ) {

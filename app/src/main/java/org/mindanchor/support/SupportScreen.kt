@@ -6,9 +6,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -28,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -324,8 +327,15 @@ private fun SafetyPlanEditor(
         singleLine = true,
         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
     )
+    // The row is the toggle and the switch is only a picture of it — one
+    // named node for a screen reader, and a target the full width of the
+    // line rather than a thumb-sized square.
     Row(
-        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .toggleable(value = professional, role = Role.Switch) { professional = it }
+            .padding(top = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -333,7 +343,7 @@ private fun SafetyPlanEditor(
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.weight(1f),
         )
-        Switch(checked = professional, onCheckedChange = { professional = it })
+        Switch(checked = professional, onCheckedChange = null)
     }
     // Disabled rather than silently refusing: a tap that does nothing
     // reads as a broken app, and this screen cannot afford to look broken.
