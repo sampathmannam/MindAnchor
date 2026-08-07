@@ -18,10 +18,10 @@ import java.io.File
  *
  * ## Why loading never throws
  *
- * The one caller that matters most, [org.mindanchor.report.ReportWorker],
+ * The one caller that matters most, [org.mindanchor.report.ReportScheduler],
  * runs unattended at night with nobody watching for a crash. A missing
  * asset, a permission hiccup, anything at all reading the file — none of
- * it is grounds for taking the worker down; it is grounds for reporting
+ * it is grounds for taking the nightly run down; it is grounds for reporting
  * nothing, the same as a night with too little history to say anything
  * about. See [org.mindanchor.grayscale.Grayscale] for the same
  * "never throws" convention used for the same reason.
@@ -37,11 +37,11 @@ object CorpusStore {
      *
      * The corpus is bundled with the app and only ever changes when the
      * app updates or a future file-picker import replaces it — never
-     * between two runs of the nightly worker — so re-reading and
+     * between two runs of the nightly report — so re-reading and
      * re-parsing forty-odd lines every single night buys nothing.
      * [Volatile] because [load] can legitimately be called from more than
      * one coroutine dispatcher (a settings screen and a background
-     * worker, say) and the cache is only ever replaced, never mutated in
+     * alarm, say) and the cache is only ever replaced, never mutated in
      * place.
      */
     @Volatile

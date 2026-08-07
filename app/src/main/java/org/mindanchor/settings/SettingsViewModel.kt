@@ -26,7 +26,7 @@ import org.mindanchor.ui.NatureScene
 import org.mindanchor.notifications.BatchAlarms
 import org.mindanchor.notifications.BatchReleaser
 import org.mindanchor.report.ReportStore
-import org.mindanchor.report.ReportWorker
+import org.mindanchor.report.ReportScheduler
 import org.mindanchor.sleep.Deviation
 import org.mindanchor.sleep.SleepRepository
 import org.mindanchor.sleep.SleepSummary
@@ -306,15 +306,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setReportEnabled(enabled: Boolean) {
         viewModelScope.launch {
             reportStore.setEnabled(enabled)
-            // Arms the nightly worker when switched on; cancels the
-            // unique job when switched off — see
-            // ReportWorker.ensureScheduled for why calling this again on
-            // an already-armed worker re-arms it in place rather than
-            // stacking a second one.
+            // Arms the nightly alarm when switched on; cancels it when
+            // switched off. Calling this again on an already-armed
+            // schedule replaces the one alarm rather than stacking a
+            // second — see ReportScheduler.ensureScheduled.
             if (enabled) {
-                ReportWorker.ensureScheduled(getApplication())
+                ReportScheduler.ensureScheduled(getApplication())
             } else {
-                ReportWorker.cancel(getApplication())
+                ReportScheduler.cancel(getApplication())
             }
         }
     }

@@ -199,7 +199,7 @@ object ReportLedger {
  * Holds exactly one thing: the most recent nightly [Report], the day it
  * was actually generated, and whether the feature is switched on at all.
  *
- * Deliberately not a history. [ReportWorker] overwrites the single stored
+ * Deliberately not a history. [ReportScheduler] overwrites the single stored
  * report every time it runs, and nothing here ever accumulates a log of
  * past nights — a growing archive of "what was unusual about you, night
  * by night" is exactly the kind of record this app has chosen not to
@@ -231,7 +231,7 @@ class ReportStore(private val context: Context) {
     }
 
     /**
-     * The calendar day [ReportWorker] last actually ran, distinct from
+     * The calendar day [ReportScheduler] last actually ran, distinct from
      * [Report.day] (the night the report is *about*, one day earlier in
      * the ordinary case). Kept mainly so a future screen could notice the
      * worker has stopped running at all — a stale [Report.day] with no

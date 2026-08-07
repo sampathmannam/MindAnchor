@@ -30,7 +30,7 @@ interface Narrator {
      * showing: nothing to write about, no model able to run, generation
      * that failed outright, or output [NarrationGuard] judged unsafe. None
      * of those are errors to the caller — see
-     * [org.mindanchor.report.ReportWorker], which folds "no narration"
+     * [org.mindanchor.report.ReportScheduler], which folds "no narration"
      * into the same success outcome as "no report at all", for the same
      * reason [org.mindanchor.report.ReportComposer]'s own KDoc gives: this
      * runs unattended at night, and a paragraph is a nice-to-have on top

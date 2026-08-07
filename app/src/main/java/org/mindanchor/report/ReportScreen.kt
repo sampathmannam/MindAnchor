@@ -21,7 +21,7 @@ import kotlin.math.roundToLong
 import org.mindanchor.R
 
 /**
- * Renders the most recently stored [Report] — see [ReportWorker] for how
+ * Renders the most recently stored [Report] — see [ReportScheduler] for how
  * it gets there.
  *
  * Three states before a single number appears: no report has ever been
@@ -188,7 +188,7 @@ private fun Signal.displayNameRes(): Int = when (this) {
  * anyone measured and rounding to a whole number is the honest choice.
  *
  * Sleep onset is the exception that is not a count at all. It is stored
- * as minutes after 18:00 — see [ReportWorker], which uses that frame so a
+ * as minutes after 18:00 — see [ReportScheduler], which uses that frame so a
  * bedtime past midnight does not wrap — and "1430" is not a thing anybody
  * can check against their own memory of last night. It is turned back
  * into the clock.

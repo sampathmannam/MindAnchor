@@ -139,17 +139,52 @@ frame and its inverse against each other for all 1440 minutes.
 
 ## 5. When the report is written
 
-`ReportWorker` is a `CoroutineWorker` constrained on **charging *and*
-device-idle**. Either alone would let it run while somebody is using the
-phone; both together is what makes "overnight, unattended" a guarantee
-rather than a hope. WorkManager rather than AlarmManager for exactly this:
-AlarmManager cannot express those constraints, and they are the whole
-point.
+The report runs at **03:00**, and only when the phone is **charging** and
+**not interactive**. Either constraint alone would let it run while
+somebody is mid-task on their own phone. If both are not met it retries
+hourly until 08:00, then waits for the next night — past that somebody is
+plausibly awake, and last night's news has gone stale.
 
-Every outcome returns `Result.success()`, including exceptions. This runs
-at 3am with nobody watching, and a retry storm over a missing Health
-Connect provider helps nobody. An empty report is success for the reason
-in §4.
+### This was WorkManager, for exactly one commit
+
+`setRequiresCharging(true)` and `setRequiresDeviceIdle(true)` express
+those two constraints in two lines, which is why WorkManager was the
+obvious choice. It also merges **`android.permission.ACCESS_NETWORK_STATE`**
+into the manifest, because it supports network constraints whether or not
+anything asks for one.
+
+This app declares **no network permission at all**. That is the whole
+basis of the About screen's promise that nothing leaves the phone, and
+`PrivacyTest` asserts it against the app *as actually installed* rather
+than against the manifest as written — which is exactly how the silent
+merge was caught, on the emulator job, and not before.
+
+The permission could have been stripped back out with
+`tools:node="remove"`. That was rejected. WorkManager's constraint
+trackers read connectivity through `ConnectivityManager`, and whether any
+given path does so when no work declares a network constraint is a
+question that can only be settled on a device. There is no device here.
+Trading a structural, tested privacy guarantee for an untestable
+assumption about a library's internals is a bad trade at any odds.
+
+So `ReportSchedule` checks the two conditions itself — `EXTRA_PLUGGED`
+from the sticky `ACTION_BATTERY_CHANGED` broadcast, and
+`PowerManager.isInteractive`, neither of which needs a permission — and
+`ReportScheduler` arms a plain `AlarmManager` alarm, the same idiom
+`BatchAlarms` and `EmaScheduler` already use. It is more code. It also
+turns a property of a scheduler that could not be tested into a pure
+function that is: `ReportScheduleTest` covers both constraints
+independently, the retry window, the already-ran guard, and the invariant
+that every armed alarm is in the future.
+
+Both readings err towards waiting when they cannot be taken. Waiting
+costs a night; running while somebody is using the phone is the thing the
+constraints exist to prevent.
+
+Every firing arms the next one, whatever it decided. Nothing ever leaves
+AlarmManager holding nothing, which is the failure that ends a feature
+silently rather than loudly. Nothing throws either: this runs at 3am with
+nobody watching, and an empty report is success for the reason in §4.
 
 ---
 

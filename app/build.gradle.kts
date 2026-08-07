@@ -140,11 +140,12 @@ dependencies {
     // force above is what makes it the real artifact rather than the
     // empty placeholder.
     compileOnly(libs.guava.listenablefuture)
-    // WorkManager, for the nightly report. AlarmManager cannot express
-    // "only while charging and only while the device is idle", and those
-    // constraints are the whole point: generation is slow and hot, so it
-    // has to happen when nobody is waiting and the phone is on mains.
-    implementation(libs.androidx.work.runtime.ktx)
+    // No WorkManager here, deliberately. It expressed the nightly
+    // report's "charging and idle" constraints in two lines, and it also
+    // merged ACCESS_NETWORK_STATE into the manifest, which PrivacyTest
+    // caught. A no-network app is the basis of the promise on the About
+    // screen, so the constraints are checked by hand instead — see
+    // ReportSchedule for the full reasoning.
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)

@@ -74,6 +74,10 @@ class BootReceiver : BroadcastReceiver() {
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             try {
                 org.mindanchor.sunset.SunsetController.ensureScheduled(appContext)
+                // The nightly report's alarm does not survive a reboot
+                // either, and unlike a batch release nobody would notice
+                // it missing — it would simply never run again.
+                org.mindanchor.report.ReportScheduler.ensureScheduled(appContext)
             } finally {
                 pending.finish()
             }

@@ -744,7 +744,7 @@ fun SettingsScreen(
         // compares the day against this person's own history and pulls
         // up what the research says the thing measured actually is. See
         // ReportComposer for why it never joins those two together, and
-        // ReportWorker for why an ordinary, quiet night is success too.
+        // ReportScheduler for why an ordinary, quiet night is success too.
         SectionHeading(R.string.report_section, SettingsSection.PULSE, goals)
         Text(
             text = stringResource(R.string.report_explainer),
