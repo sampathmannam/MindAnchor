@@ -4,7 +4,15 @@
 # hangs on the answer — so this looks instead of assuming, and does
 # nothing else.
 name: Probe NDK
-on: workflow_dispatch
+# workflow_dispatch is only registered once a workflow reaches the default
+# branch, so until this merges it also fires on pushes that touch it —
+# which is how it runs at all from a feature branch.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/probe-ndk.yml"
+
 jobs:
   probe:
     runs-on: ubuntu-latest
