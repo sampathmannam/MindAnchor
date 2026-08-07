@@ -8,6 +8,18 @@
     <string name="open_drawer">search</string>
     <string name="search_hint">Type to find an app…</string>
     <string name="settings">settings</string>
+    <string name="settings_group_quiet">Quiet</string>
+    <string name="settings_group_quiet_desc">Batching, quiet hours, and colour.</string>
+    <string name="settings_group_pauses">Pauses</string>
+    <string name="settings_group_pauses_desc">A moment before an app opens.</string>
+    <string name="settings_group_measuring">Measuring</string>
+    <string name="settings_group_measuring_desc">What this phone notices, and what you tell it.</string>
+    <string name="settings_group_reading">Reading</string>
+    <string name="settings_group_reading_desc">Last night\'s look, the research behind it, and the model.</string>
+    <string name="settings_group_plan">Your plan</string>
+    <string name="settings_group_plan_desc">The people and the words you chose in advance.</string>
+    <string name="settings_group_phone">This phone</string>
+    <string name="settings_group_phone_desc">Home screen, hidden apps, goals, and a copy of your data.</string>
 
     <string name="action_favorite">Add to home</string>
     <string name="action_unfavorite">Remove from home</string>
