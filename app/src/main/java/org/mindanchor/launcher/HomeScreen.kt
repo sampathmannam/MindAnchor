@@ -194,8 +194,6 @@ fun LauncherRoot(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
 /**
  * The one unfinished thing — see [org.mindanchor.friction.OpenLoop].
  *
@@ -263,6 +261,8 @@ private fun OpenLoopCard(
     }
 }
 
+// combinedClickable, for the long-press on a favourite.
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun HomeSurface(
     sky: SkyContent,
