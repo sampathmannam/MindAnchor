@@ -97,3 +97,37 @@ object CoverageLedger {
             )
         }.toList()
 }
+
+/**
+ * Codec for yesterday's plain facts — each signal's value and where it
+ * came from, written beside the report that was built from them.
+ *
+ * ## Why facts exist at all
+ *
+ * For the first two weeks the baseline refuses to speak, and for around
+ * eight the pattern search does; that silence is measured and right. But
+ * a screen that says only "nothing yet" for six weeks teaches a person
+ * to stop opening it before it ever has something to say. A diary of
+ * measured facts — no interpretation, no comparison, just what arrived —
+ * gives the screen an honest reason to exist from the second morning.
+ */
+object FactsLedger {
+
+    fun encode(facts: Map<Signal, Sourced>): String =
+        facts.entries.sortedBy { it.key.name }.joinToString("\n") { (signal, sourced) ->
+            listOf(signal.name, sourced.value.toString(), sourced.source.name).joinToString("\t")
+        }
+
+    /** A bad line costs one fact, never the day. */
+    fun decode(raw: String): Map<Signal, Sourced> =
+        raw.lineSequence().mapNotNull { line ->
+            val parts = line.split('\t')
+            if (parts.size < 3) return@mapNotNull null
+            val signal = runCatching { Signal.valueOf(parts[0]) }.getOrNull()
+                ?: return@mapNotNull null
+            val value = parts[1].toDoubleOrNull() ?: return@mapNotNull null
+            val source = runCatching { MeasureSource.valueOf(parts[2]) }.getOrNull()
+                ?: return@mapNotNull null
+            signal to Sourced(value, source)
+        }.toMap()
+}

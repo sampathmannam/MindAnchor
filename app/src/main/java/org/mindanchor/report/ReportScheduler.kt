@@ -322,6 +322,7 @@ object ReportScheduler {
             generatedDay = LocalDate.now(zone).toString(),
         )
         store.saveCoverage(CoverageLedger.encode(coverage))
+        store.saveFacts(FactsLedger.encode(sourcedByDate.getValue(reportDay)))
     }
 }
 

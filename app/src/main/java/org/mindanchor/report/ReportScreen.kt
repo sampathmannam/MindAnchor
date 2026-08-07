@@ -41,7 +41,12 @@ fun ReportScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val store = remember { ReportStore(context.applicationContext) }
     val stored by store.stored.collectAsState(initial = null)
-    ReportScreen(stored = stored, onBack = onBack)
+    val factsRaw by store.facts.collectAsState(initial = null)
+    ReportScreen(
+        stored = stored,
+        onBack = onBack,
+        facts = factsRaw?.let(FactsLedger::decode),
+    )
 }
 
 /**
@@ -63,7 +68,12 @@ fun ReportScreen(onBack: () -> Unit) {
  * without being able to hand this screen a report.
  */
 @Composable
-fun ReportScreen(stored: StoredReport?, onBack: () -> Unit) {
+fun ReportScreen(
+    stored: StoredReport?,
+    onBack: () -> Unit,
+    /** Yesterday's measured facts, or null when nothing has ever been built. */
+    facts: Map<Signal, Sourced>? = null,
+) {
     val report = stored?.report
     val narration = stored?.narration
     val patterns = stored?.patterns.orEmpty()
@@ -161,6 +171,44 @@ fun ReportScreen(stored: StoredReport?, onBack: () -> Unit) {
             )
 
             else -> current.sections.forEach { section -> ReportSectionCard(section) }
+        }
+
+        // The diary of what actually arrived, in the signal's own units
+        // with its provenance — no comparison, no interpretation, just
+        // facts. This is what the screen has to offer during the weeks
+        // the baseline and the pattern search rightly refuse to speak,
+        // and it makes a silently starved source visible on the one
+        // screen the person actually opens. An empty day says so
+        // plainly: "nothing arrived" is diagnostic gold, not filler.
+        if (current != null && facts != null) {
+            Text(
+                text = stringResource(R.string.facts_heading, current.day),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(top = Spacing.Loose, bottom = Spacing.Tight),
+            )
+            if (facts.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.facts_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                // Signal.entries order, so the diary reads in the same
+                // order every day rather than reshuffling.
+                Signal.entries.forEach { signal ->
+                    val sourced = facts[signal] ?: return@forEach
+                    Text(
+                        text = stringResource(
+                            R.string.facts_line,
+                            stringResource(signal.displayNameRes()),
+                            signal.formatValue(sourced.value),
+                            stringResource(sourced.source.labelRes()),
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(bottom = Spacing.Hair),
+                    )
+                }
+            }
         }
 
         if (current != null && current.notYetKnown.isNotEmpty()) {
@@ -293,6 +341,13 @@ private fun Signal.inlineNameRes(): Int = when (this) {
 private fun Label.inlineNameRes(): Int = when (this) {
     Label.VALENCE -> R.string.label_inline_valence
     Label.AROUSAL -> R.string.label_inline_arousal
+}
+
+/** The provenance, in words a person can check against their own morning. */
+private fun MeasureSource.labelRes(): Int = when (this) {
+    MeasureSource.MEASURED_HERE -> R.string.source_measured
+    MeasureSource.WEARABLE -> R.string.source_wearable
+    MeasureSource.PHONE_INFERRED -> R.string.source_phone
 }
 
 private fun Signal.displayNameRes(): Int = when (this) {

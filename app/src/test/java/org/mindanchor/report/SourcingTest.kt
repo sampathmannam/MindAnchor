@@ -54,6 +54,46 @@ class SourcingTest {
         )
     }
 
+    // --- yesterday's facts ---
+
+    @Test
+    fun `facts survive a round trip in a stable order`() {
+        val facts = mapOf(
+            Signal.STEPS to Sourced(9200.0, MeasureSource.WEARABLE),
+            Signal.HRV to Sourced(41.5, MeasureSource.MEASURED_HERE),
+        )
+        assertEquals(facts, FactsLedger.decode(FactsLedger.encode(facts)))
+        // Sorted by signal name on the way out, so the stored file reads
+        // the same way every night.
+        assertEquals(
+            listOf("HRV", "STEPS"),
+            FactsLedger.encode(facts).lines().map { it.substringBefore('\t') },
+        )
+    }
+
+    @Test
+    fun `a day with nothing measured encodes and decodes as exactly that`() {
+        assertEquals(emptyMap<Signal, Sourced>(), FactsLedger.decode(FactsLedger.encode(emptyMap())))
+    }
+
+    @Test
+    fun `a corrupt fact costs one line, never the day`() {
+        val raw = listOf(
+            "HRV\t41.5\tMEASURED_HERE",
+            "NOT_A_SIGNAL\t1.0\tWEARABLE",
+            "STEPS\tnot-a-number\tWEARABLE",
+            "SLEEP_MINUTES\t400.0\tNOT_A_SOURCE",
+            "STEPS\t9200.0\tWEARABLE",
+        ).joinToString("\n")
+        assertEquals(
+            mapOf(
+                Signal.HRV to Sourced(41.5, MeasureSource.MEASURED_HERE),
+                Signal.STEPS to Sourced(9200.0, MeasureSource.WEARABLE),
+            ),
+            FactsLedger.decode(raw),
+        )
+    }
+
     @Test
     fun `a source name from some future version costs the word, not the row`() {
         val decoded = CoverageLedger.decode("HRV\t12\t2026-08-06\tSOME_FUTURE_SOURCE")

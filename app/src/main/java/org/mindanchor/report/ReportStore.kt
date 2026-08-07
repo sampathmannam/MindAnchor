@@ -307,6 +307,15 @@ class ReportStore(private val context: Context) {
         context.dataStore.edit { it[coverageKey] = encoded }
     }
 
+    private val factsKey = stringPreferencesKey("facts")
+
+    /** Yesterday's measured facts — see [FactsLedger] for why they exist. */
+    val facts: Flow<String?> = context.dataStore.data.map { it[factsKey] }
+
+    suspend fun saveFacts(encoded: String) {
+        context.dataStore.edit { it[factsKey] = encoded }
+    }
+
     /**
      * Overwrites the single stored report. There is never more than one.
      *
