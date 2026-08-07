@@ -93,19 +93,38 @@ class SemanticsTest {
      * Checks every clickable node currently on screen against the two
      * floors. [surface] names the state for the failure message, because
      * one test method may walk several states of the same screen.
+     *
+     * Each candidate is scrolled fully into view before it is measured.
+     * Semantics bounds are clipped by scroll containers, so a button
+     * below the fold reports a 0x0 touch target and one straddling the
+     * fold reports only its visible sliver — the first run of this gate
+     * failed three surfaces on exactly that, all three of them
+     * artefacts of the ruler rather than faults in the screen. The
+     * measuring instrument needs the same scepticism as the thing
+     * measured.
      */
     private fun walk(surface: String) {
         rule.waitForIdle()
         val floorPx = with(rule.density) { 48.dp.toPx() }
-        val nodes = rule.onAllNodes(hasClickAction()).fetchSemanticsNodes()
+        val total = rule.onAllNodes(hasClickAction()).fetchSemanticsNodes().size
         // Every surface here has at least a back or continue affordance; a
         // walk that finds nothing clickable means the matcher or the
         // composition broke, and a gate that silently passes an empty
         // room would be worse than no gate.
-        assertTrue("$surface: found nothing clickable — the walk itself is broken", nodes.isNotEmpty())
+        assertTrue("$surface: found nothing clickable — the walk itself is broken", total > 0)
 
         val faults = mutableListOf<String>()
-        for (node in nodes) {
+        for (index in 0 until total) {
+            val all = rule.onAllNodes(hasClickAction())
+            if (index >= all.fetchSemanticsNodes().size) break
+            val interaction = all[index]
+            // Surfaces without a scroll container throw here; on them
+            // everything is already in view, so that is a no-op rather
+            // than a problem.
+            runCatching { interaction.performScrollTo() }
+            rule.waitForIdle()
+            val node = interaction.fetchSemanticsNode()
+
             val words = buildList {
                 node.config.getOrNull(SemanticsProperties.ContentDescription)
                     ?.forEach { add(it) }

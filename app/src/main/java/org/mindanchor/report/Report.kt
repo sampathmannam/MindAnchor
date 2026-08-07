@@ -9,6 +9,15 @@ enum class Signal {
     SLEEP_MINUTES,
     SLEEP_ONSET,
     STEPS,
+
+    // The two the phone can count about itself with no grant beyond the
+    // usage access the sleep estimate already asked for: when it was
+    // first picked up after 03:00, and how many minutes its screen was
+    // lit. Both are read from the same retroactive event log as sleep —
+    // nothing new watches anything.
+    FIRST_UNLOCK,
+    SCREEN_TIME,
+
     VALENCE,
     AROUSAL,
     ;
@@ -28,6 +37,8 @@ enum class Signal {
             SLEEP_MINUTES -> "sleep duration hours"
             SLEEP_ONSET -> "sleep regularity timing bedtime circadian"
             STEPS -> "physical activity steps movement"
+            FIRST_UNLOCK -> "wake timing morning circadian body clock social jetlag"
+            SCREEN_TIME -> "smartphone screen time attention presence"
             VALENCE -> "momentary affect valence mood assessment"
             AROUSAL -> "arousal activation energy"
         }
