@@ -63,9 +63,20 @@ class BatchReleaseReceiver : BroadcastReceiver() {
 class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
-            BatchAlarms.ensureScheduled(context.applicationContext)
-            org.mindanchor.sunset.SunsetController.ensureScheduled(context.applicationContext)
+        if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
+        val appContext = context.applicationContext
+        BatchAlarms.ensureScheduled(appContext)
+        // The sunset window is stored rather than hardcoded, so re-arming
+        // it has to read preferences. goAsync keeps the receiver alive for
+        // that read — without it the process can be torn down first and
+        // the quiet hours simply never come back after a reboot.
+        val pending = goAsync()
+        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+            try {
+                org.mindanchor.sunset.SunsetController.ensureScheduled(appContext)
+            } finally {
+                pending.finish()
+            }
         }
     }
 }

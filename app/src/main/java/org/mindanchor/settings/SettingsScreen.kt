@@ -15,7 +15,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -43,9 +45,75 @@ import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
 import org.mindanchor.R
 import org.mindanchor.admin.DeviceOwner
+import org.mindanchor.friction.AppWatchService
 import org.mindanchor.grayscale.Grayscale
 import org.mindanchor.launcher.DisplayApp
+import org.mindanchor.onboarding.Goal
+import org.mindanchor.onboarding.GoalMap
+import org.mindanchor.onboarding.SettingsSection
 import org.mindanchor.ui.NatureScene
+import java.time.format.DateTimeFormatter
+
+/**
+ * A section title, marked when the person named a reason for it.
+ *
+ * The marker is a quiet line of small text rather than a colour, a badge
+ * or a count. This app has no badges anywhere by design, and a settings
+ * screen that scores you against your own stated goals is the shape of
+ * thing it exists to be the opposite of.
+ */
+@Composable
+private fun SectionHeading(titleRes: Int, section: SettingsSection?, goals: Set<Goal>) {
+    Column(modifier = Modifier.padding(top = 24.dp, bottom = 4.dp)) {
+        Text(
+            text = stringResource(titleRes),
+            style = MaterialTheme.typography.titleMedium,
+        )
+        if (section != null && GoalMap.isChosen(section, goals)) {
+            Text(
+                text = stringResource(R.string.goal_marker),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+private val HOUR_MINUTE: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+
+/**
+ * A half-hour stepper for one end of the quiet hours.
+ *
+ * Steppers rather than a clock dialog: the targets are large, which
+ * matters for anyone with tremor or in distress, and nudging is what
+ * people actually do to a bedtime.
+ */
+@Composable
+private fun TimeNudger(labelRes: Int, onEarlier: () -> Unit, onLater: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(labelRes),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(onClick = onEarlier) {
+            Text(stringResource(R.string.time_earlier))
+        }
+        TextButton(onClick = onLater) {
+            Text(stringResource(R.string.time_later))
+        }
+    }
+}
+
+private fun Goal.labelRes(): Int = when (this) {
+    Goal.INTERRUPTIONS -> R.string.goal_interruptions
+    Goal.COMPULSIVE_APPS -> R.string.goal_compulsive
+    Goal.SLEEP -> R.string.goal_sleep
+    Goal.MEASUREMENT -> R.string.goal_measurement
+}
 
 /**
  * Minimal settings: default-launcher role, notification batching, hidden
@@ -126,12 +194,171 @@ fun SettingsScreen(
             )
         }
 
-        // --- Notification batching (F1) ---
+        // --- What you said you wanted ---
+        //
+        // Onboarding asked, stored the answer, and nothing ever read it
+        // again — which made the whole step decorative and left this a
+        // long screen where everything looks equally relevant to everyone.
+        // Nothing here switches anything on: onboarding promises in as
+        // many words that it will not, and imposed structure is the thing
+        // "Going Light" found fails.
+        val goals by viewModel.goals.collectAsState()
+        var editingGoals by remember { mutableStateOf(false) }
+        run {
+            Text(
+                text = stringResource(R.string.goals_section),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
+            )
+            if (editingGoals) {
+                Goal.entries.forEach { goal ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                viewModel.setGoals(
+                                    if (goal in goals) goals - goal else goals + goal,
+                                )
+                            }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(checked = goal in goals, onCheckedChange = null)
+                        Text(
+                            text = stringResource(goal.labelRes()),
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(start = 8.dp),
+                        )
+                    }
+                }
+            } else if (goals.isEmpty()) {
+                // Shown rather than hidden. Hiding the whole block when
+                // nothing is named left the only way to name something
+                // behind a replay of onboarding, which cannot be replayed.
+                Text(
+                    text = stringResource(R.string.goals_none),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                // Resolved through map, which is inline, so stringResource
+                // still runs in the composable body. joinToString is not
+                // inline, and calling it from that lambda does not compile.
+                val named = goals.map { stringResource(it.labelRes()) }
+                Text(
+                    text = named.joinToString(" · "),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            TextButton(onClick = { editingGoals = !editingGoals }) {
+                Text(
+                    stringResource(
+                        if (editingGoals) R.string.goals_done else R.string.goals_change,
+                    ),
+                )
+            }
+        }
+
+        // --- Pauses that have stopped being pauses ---
+        //
+        // The one place this is allowed to appear. Never a notification,
+        // never a card on the home screen, never anything uninvited: a
+        // person having a bad month does not need their phone volunteering
+        // that their guards look pointless. They have to come and ask.
+        //
+        // It reports and declines to interpret. Whether going through every
+        // time means the pause is useless or means it is quietly working is
+        // not something a launcher can know, so both doors are the same
+        // size and neither is recommended.
+        val stale by viewModel.stalePauses.collectAsState()
+        if (stale.isNotEmpty()) {
+            Text(
+                text = stringResource(R.string.stale_section),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
+            )
+            Text(
+                text = stringResource(R.string.stale_explainer),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            stale.forEach { (packageName, tally) ->
+                val label = allApps
+                    .firstOrNull { it.component.substringBefore('/') == packageName }
+                    ?.label
+                    ?: packageName
+                Text(
+                    text = stringResource(R.string.stale_line, label, tally.shown),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+                Row {
+                    TextButton(onClick = { viewModel.keepPause(packageName) }) {
+                        Text(stringResource(R.string.stale_keep))
+                    }
+                    TextButton(onClick = { viewModel.dropPause(packageName) }) {
+                        Text(stringResource(R.string.stale_drop))
+                    }
+                }
+            }
+        }
+
+        // --- Small things ---
+        //
+        // Behavioural activation: the small thing shifts mood, and the
+        // moment somebody reaches for a distraction is the only moment
+        // anything can see that a small thing is being avoided. What makes
+        // that safe rather than cruel is that these are the person's own
+        // words, written while calm — nothing here is ever seeded with
+        // suggestions about how somebody ought to feel better.
         Text(
-            text = stringResource(R.string.batching_section),
+            text = stringResource(R.string.small_things_section),
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
         )
+        Text(
+            text = stringResource(R.string.small_things_explainer),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        val smallThings by viewModel.smallThings.collectAsState()
+        smallThings.forEach { thing ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = thing,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = { viewModel.removeSmallThing(thing) }) {
+                    Text(stringResource(R.string.small_things_remove))
+                }
+            }
+        }
+        if (smallThings.size < org.mindanchor.friction.SmallThings.MAX) {
+            var draft by remember { mutableStateOf("") }
+            OutlinedTextField(
+                value = draft,
+                onValueChange = { draft = it },
+                singleLine = true,
+                placeholder = { Text(stringResource(R.string.small_things_hint)) },
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            )
+            TextButton(
+                onClick = {
+                    viewModel.addSmallThing(draft)
+                    draft = ""
+                },
+            ) {
+                Text(stringResource(R.string.small_things_add))
+            }
+        }
+
+        // --- Notification batching (F1) ---
+        SectionHeading(R.string.batching_section, SettingsSection.BATCHING, goals)
         Text(
             text = stringResource(R.string.batching_explainer),
             style = MaterialTheme.typography.bodySmall,
@@ -239,17 +466,90 @@ fun SettingsScreen(
             }
         }
 
+        // --- Where the pause applies ---
+        //
+        // The pause used to exist only inside this launcher, which meant it
+        // covered the deliberate route to an app and missed the compulsive
+        // one — nobody navigates home and searches for an app when a
+        // notification already put it one tap away.
+        //
+        // Turning this on means enabling an accessibility service, which is
+        // the most alarming thing this app ever asks for and ought to be.
+        // So the screen says what it can and cannot do before it asks, and
+        // works fine forever if the answer is no.
+        SectionHeading(R.string.watch_section, SettingsSection.WATCH, goals)
+        Text(
+            text = stringResource(R.string.watch_explainer),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = stringResource(R.string.watch_cannot_read),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        // Read fresh on every resume: the service can be switched off from
+        // Android's own settings without this app being told, and a screen
+        // insisting it is on when it is not is worse than no screen.
+        val watching = remember(permissionEpoch) { AppWatchService.running }
+        Text(
+            text = stringResource(
+                if (watching) R.string.watch_on else R.string.watch_off,
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        TextButton(
+            onClick = {
+                runCatching {
+                    context.startActivity(
+                        Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                    )
+                }
+            },
+        ) {
+            Text(
+                stringResource(
+                    if (watching) R.string.watch_manage else R.string.watch_turn_on,
+                ),
+            )
+        }
+
         // --- Sunset mode (F4) ---
         val sunsetEnabled by viewModel.sunsetEnabled.collectAsState()
-        Text(
-            text = stringResource(R.string.sunset_section),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
-        )
+        SectionHeading(R.string.sunset_section, SettingsSection.SUNSET, goals)
         Text(
             text = stringResource(R.string.sunset_explainer),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        // The window used to be hardcoded to 22:00 → 07:00. That is
+        // somebody else's bedtime: wrong for shift workers, wrong for
+        // anyone on call, wrong for night staff — and a wind-down that
+        // begins three hours after you went to bed is not a wind-down.
+        val sunsetStart by viewModel.sunsetStart.collectAsState()
+        val sunsetEnd by viewModel.sunsetEnd.collectAsState()
+        Text(
+            text = stringResource(
+                R.string.sunset_window,
+                sunsetStart.format(HOUR_MINUTE),
+                sunsetEnd.format(HOUR_MINUTE),
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        TimeNudger(
+            labelRes = R.string.sunset_starts,
+            onEarlier = { viewModel.nudgeSunset(-30, 0) },
+            onLater = { viewModel.nudgeSunset(30, 0) },
+        )
+        TimeNudger(
+            labelRes = R.string.sunset_ends,
+            onEarlier = { viewModel.nudgeSunset(0, -30) },
+            onLater = { viewModel.nudgeSunset(0, 30) },
         )
         if (!hasDndAccess) {
             TextButton(
@@ -282,11 +582,7 @@ fun SettingsScreen(
 
         // --- Sleep rhythm (F5) ---
         val sleepSummary by viewModel.sleepSummary.collectAsState()
-        Text(
-            text = stringResource(R.string.sleep_section),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
-        )
+        SectionHeading(R.string.sleep_section, SettingsSection.SLEEP, goals)
         if (!hasUsageAccess) {
             Text(
                 text = stringResource(R.string.sleep_explainer),
@@ -326,6 +622,39 @@ fun SettingsScreen(
                         ),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                // A mirror, not a diagnosis.
+                //
+                // Cross-person inference from phone signals does not
+                // transfer — an AUC of 0.82 in 57 students became 0.57 in
+                // 5,262. So this keeps the within-person baseline, which
+                // does generalise, and drops the inference entirely: it
+                // counts nights and names nothing. Off until asked for,
+                // and it never notifies.
+                val mirrorOn by viewModel.sleepMirror.collectAsState()
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(R.string.mirror_toggle),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(checked = mirrorOn, onCheckedChange = viewModel::setSleepMirror)
+                }
+                Text(
+                    text = stringResource(R.string.mirror_explainer),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                val laterNights by viewModel.nightsLaterThanUsual.collectAsState()
+                laterNights?.let { count ->
+                    Text(
+                        text = stringResource(R.string.mirror_line, count),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 8.dp),
                     )
                 }
                 Text(
@@ -368,11 +697,7 @@ fun SettingsScreen(
         }
 
         // --- Wellbeing pulse (F7) ---
-        Text(
-            text = stringResource(R.string.pulse_section),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
-        )
+        SectionHeading(R.string.pulse_section, SettingsSection.PULSE, goals)
         Text(
             text = stringResource(R.string.pulse_section_explainer),
             style = MaterialTheme.typography.bodySmall,
@@ -418,11 +743,7 @@ fun SettingsScreen(
         // The only thing in this app that a person cannot walk straight
         // through. That is the point, and also why it is buried this far
         // down, gated behind a factory reset, and reversible from here.
-        Text(
-            text = stringResource(R.string.owner_section),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
-        )
+        SectionHeading(R.string.owner_section, SettingsSection.OWNER, goals)
         Text(
             text = stringResource(R.string.owner_explainer),
             style = MaterialTheme.typography.bodySmall,
@@ -490,11 +811,7 @@ fun SettingsScreen(
         // the app, which is correct. So the screen states plainly what to
         // run, once, from a computer — and works fine forever if nobody
         // ever does.
-        Text(
-            text = stringResource(R.string.grayscale_section),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
-        )
+        SectionHeading(R.string.grayscale_section, SettingsSection.GRAYSCALE, goals)
         Text(
             text = stringResource(R.string.grayscale_explainer),
             style = MaterialTheme.typography.bodySmall,

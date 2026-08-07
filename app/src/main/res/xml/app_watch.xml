@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Configuration for the app watcher.
+
+    Every value here is set to the least this service can be given and
+    still do its one job, because "enable an accessibility service" is the
+    scariest thing this app ever asks for and it should be able to survive
+    somebody reading the configuration.
+
+    - canRetrieveWindowContent is FALSE. The service cannot read the
+      screen: not messages, not passwords, not what anybody is looking at.
+      This is enforced by Android, not by our restraint.
+    - accessibilityEventTypes is window-state changes only, so nothing is
+      delivered about typing, scrolling, focus or content.
+    - accessibilityFeedbackType is generic; this gives no spoken or haptic
+      feedback of its own.
+    - No packageNames filter, because the list of flagged apps is the
+      person's and changes at runtime; filtering happens in WatchPolicy,
+      which is pure and tested.
+
+    What arrives is a package name. That is the whole capability.
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:canRetrieveWindowContent="false"
+    android:description="@string/watch_service_description"
+    android:notificationTimeout="100"
+    android:summary="@string/watch_service_summary" />
