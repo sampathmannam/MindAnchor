@@ -35,8 +35,14 @@ own device whether it is actually helping you.
 
 ## Project status
 
-Early development. See [docs/PLAN.md](docs/PLAN.md) for the roadmap (currently: M0
-scaffold). Requires Android 13+.
+Early development, but well past the scaffold: milestones M0–M5 are built and
+CI-verified, and the sensing and writing layers on top of them are in place. See
+[docs/PLAN.md](docs/PLAN.md) for the roadmap and for what is genuinely still
+outstanding — chiefly a release signing key, a clinician's reading of the wording,
+and a real-device beta. Requires Android 13+.
+
+Every release so far is debug-signed, so Play Protect will warn about the APK; see
+[docs/RELEASING.md](docs/RELEASING.md).
 
 ## Building
 
