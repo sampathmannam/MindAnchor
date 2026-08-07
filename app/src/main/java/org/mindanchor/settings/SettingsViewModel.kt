@@ -29,6 +29,19 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val frictionPrefs = org.mindanchor.data.FrictionPrefs(application)
     private val sleepRepository = SleepRepository(application)
     private val appearancePrefs = AppearancePrefs(application)
+    private val onboardingPrefs = org.mindanchor.onboarding.OnboardingPrefs(application)
+
+    /**
+     * What the person said they were struggling with, at onboarding or
+     * since. Used to mark the parts of this screen they came for — never
+     * to switch anything on for them.
+     */
+    val goals = onboardingPrefs.goals
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
+    fun setGoals(goals: Set<org.mindanchor.onboarding.Goal>) {
+        viewModelScope.launch { onboardingPrefs.setGoals(goals) }
+    }
 
     val batchingEnabled = prefs.batchingEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)

@@ -15,6 +15,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
@@ -46,7 +47,42 @@ import org.mindanchor.admin.DeviceOwner
 import org.mindanchor.friction.AppWatchService
 import org.mindanchor.grayscale.Grayscale
 import org.mindanchor.launcher.DisplayApp
+import org.mindanchor.onboarding.Goal
+import org.mindanchor.onboarding.GoalMap
+import org.mindanchor.onboarding.SettingsSection
 import org.mindanchor.ui.NatureScene
+
+/**
+ * A section title, marked when the person named a reason for it.
+ *
+ * The marker is a quiet line of small text rather than a colour, a badge
+ * or a count. This app has no badges anywhere by design, and a settings
+ * screen that scores you against your own stated goals is the shape of
+ * thing it exists to be the opposite of.
+ */
+@Composable
+private fun SectionHeading(titleRes: Int, section: SettingsSection?, goals: Set<Goal>) {
+    Column(modifier = Modifier.padding(top = 24.dp, bottom = 4.dp)) {
+        Text(
+            text = stringResource(titleRes),
+            style = MaterialTheme.typography.titleMedium,
+        )
+        if (section != null && GoalMap.isChosen(section, goals)) {
+            Text(
+                text = stringResource(R.string.goal_marker),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+private fun Goal.labelRes(): Int = when (this) {
+    Goal.INTERRUPTIONS -> R.string.goal_interruptions
+    Goal.COMPULSIVE_APPS -> R.string.goal_compulsive
+    Goal.SLEEP -> R.string.goal_sleep
+    Goal.MEASUREMENT -> R.string.goal_measurement
+}
 
 /**
  * Minimal settings: default-launcher role, notification batching, hidden
@@ -127,12 +163,61 @@ fun SettingsScreen(
             )
         }
 
+        // --- What you said you wanted ---
+        //
+        // Onboarding asked, stored the answer, and nothing ever read it
+        // again — which made the whole step decorative and left this a
+        // long screen where everything looks equally relevant to everyone.
+        // Nothing here switches anything on: onboarding promises in as
+        // many words that it will not, and imposed structure is the thing
+        // "Going Light" found fails.
+        val goals by viewModel.goals.collectAsState()
+        var editingGoals by remember { mutableStateOf(false) }
+        if (goals.isNotEmpty() || editingGoals) {
+            Text(
+                text = stringResource(R.string.goals_section),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
+            )
+            if (editingGoals) {
+                Goal.entries.forEach { goal ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                viewModel.setGoals(
+                                    if (goal in goals) goals - goal else goals + goal,
+                                )
+                            }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(checked = goal in goals, onCheckedChange = null)
+                        Text(
+                            text = stringResource(goal.labelRes()),
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(start = 8.dp),
+                        )
+                    }
+                }
+            } else {
+                Text(
+                    text = goals.joinToString(" · ") { stringResource(it.labelRes()) },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            TextButton(onClick = { editingGoals = !editingGoals }) {
+                Text(
+                    stringResource(
+                        if (editingGoals) R.string.goals_done else R.string.goals_change,
+                    ),
+                )
+            }
+        }
+
         // --- Notification batching (F1) ---
-        Text(
-            text = stringResource(R.string.batching_section),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
-        )
+        SectionHeading(R.string.batching_section, SettingsSection.BATCHING, goals)
         Text(
             text = stringResource(R.string.batching_explainer),
             style = MaterialTheme.typography.bodySmall,
@@ -251,11 +336,7 @@ fun SettingsScreen(
         // the most alarming thing this app ever asks for and ought to be.
         // So the screen says what it can and cannot do before it asks, and
         // works fine forever if the answer is no.
-        Text(
-            text = stringResource(R.string.watch_section),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
-        )
+        SectionHeading(R.string.watch_section, SettingsSection.WATCH, goals)
         Text(
             text = stringResource(R.string.watch_explainer),
             style = MaterialTheme.typography.bodySmall,
@@ -297,11 +378,7 @@ fun SettingsScreen(
 
         // --- Sunset mode (F4) ---
         val sunsetEnabled by viewModel.sunsetEnabled.collectAsState()
-        Text(
-            text = stringResource(R.string.sunset_section),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
-        )
+        SectionHeading(R.string.sunset_section, SettingsSection.SUNSET, goals)
         Text(
             text = stringResource(R.string.sunset_explainer),
             style = MaterialTheme.typography.bodySmall,
@@ -338,11 +415,7 @@ fun SettingsScreen(
 
         // --- Sleep rhythm (F5) ---
         val sleepSummary by viewModel.sleepSummary.collectAsState()
-        Text(
-            text = stringResource(R.string.sleep_section),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
-        )
+        SectionHeading(R.string.sleep_section, SettingsSection.SLEEP, goals)
         if (!hasUsageAccess) {
             Text(
                 text = stringResource(R.string.sleep_explainer),
@@ -424,11 +497,7 @@ fun SettingsScreen(
         }
 
         // --- Wellbeing pulse (F7) ---
-        Text(
-            text = stringResource(R.string.pulse_section),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
-        )
+        SectionHeading(R.string.pulse_section, SettingsSection.PULSE, goals)
         Text(
             text = stringResource(R.string.pulse_section_explainer),
             style = MaterialTheme.typography.bodySmall,
@@ -474,11 +543,7 @@ fun SettingsScreen(
         // The only thing in this app that a person cannot walk straight
         // through. That is the point, and also why it is buried this far
         // down, gated behind a factory reset, and reversible from here.
-        Text(
-            text = stringResource(R.string.owner_section),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
-        )
+        SectionHeading(R.string.owner_section, SettingsSection.OWNER, goals)
         Text(
             text = stringResource(R.string.owner_explainer),
             style = MaterialTheme.typography.bodySmall,
@@ -546,11 +611,7 @@ fun SettingsScreen(
         // the app, which is correct. So the screen states plainly what to
         // run, once, from a computer — and works fine forever if nobody
         // ever does.
-        Text(
-            text = stringResource(R.string.grayscale_section),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
-        )
+        SectionHeading(R.string.grayscale_section, SettingsSection.GRAYSCALE, goals)
         Text(
             text = stringResource(R.string.grayscale_explainer),
             style = MaterialTheme.typography.bodySmall,
