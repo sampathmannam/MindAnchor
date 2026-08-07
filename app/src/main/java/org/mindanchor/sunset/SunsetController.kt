@@ -10,6 +10,7 @@ import android.os.Build
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.mindanchor.data.SunsetPrefs
 import org.mindanchor.notifications.BatchSchedule
@@ -115,6 +116,19 @@ object SunsetController {
                 val starting = action == ACTION_START
                 if (quietHours) applyFilter(appContext, priorityOnly = starting)
                 if (greyNights) org.mindanchor.grayscale.Grayscale.set(appContext, starting)
+
+                // If this phone was set up as its own guardian, quiet
+                // hours are enforced rather than suggested. Nothing is
+                // suspended that SuspensionGuard has not cleared, and
+                // everything is lifted again at the end of the window.
+                if (org.mindanchor.admin.DeviceOwner.isDeviceOwner(appContext)) {
+                    val chosen = org.mindanchor.data.FrictionPrefs(appContext).flaggedApps.first()
+                    if (starting) {
+                        org.mindanchor.admin.DeviceOwner.apply(appContext, chosen)
+                    } else {
+                        org.mindanchor.admin.DeviceOwner.clear(appContext, chosen)
+                    }
+                }
                 ensureScheduled(appContext)
             }
         }

@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
 import org.mindanchor.R
+import org.mindanchor.admin.DeviceOwner
 import org.mindanchor.grayscale.Grayscale
 import org.mindanchor.launcher.DisplayApp
 import org.mindanchor.ui.NatureScene
@@ -409,6 +410,51 @@ fun SettingsScreen(
             },
         ) {
             Text(stringResource(R.string.support_open))
+        }
+
+        // --- Enforced quiet hours ---
+        //
+        // The only thing in this app that a person cannot walk straight
+        // through. That is the point, and also why it is buried this far
+        // down, gated behind a factory reset, and reversible from here.
+        Text(
+            text = stringResource(R.string.owner_section),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
+        )
+        Text(
+            text = stringResource(R.string.owner_explainer),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        val isOwner = remember(permissionEpoch) { DeviceOwner.isDeviceOwner(context) }
+        if (!isOwner) {
+            Text(
+                text = stringResource(R.string.owner_needs_setup),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            Text(
+                text = DeviceOwner.setupCommand(context),
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier.padding(vertical = 8.dp),
+            )
+        } else {
+            Text(
+                text = stringResource(R.string.owner_active),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            Text(
+                text = stringResource(R.string.owner_protected),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            TextButton(onClick = { viewModel.releaseDeviceOwner() }) {
+                Text(stringResource(R.string.owner_release))
+            }
         }
 
         // --- Colour ---

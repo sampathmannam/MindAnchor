@@ -153,6 +153,12 @@
     <string name="support_open">Open support and safety plan</string>
     <string name="dial_failed">This phone could not open a dialer. The number is %1$s — call it from your phone app, or ask someone near you to.</string>
 
+    <string name="owner_section">Enforced quiet hours</string>
+    <string name="owner_explainer">Everything else here can be walked through, which is usually right and useless on the nights it matters. If this phone is set up as its own guardian, the apps you chose a pause for become genuinely unopenable through the quiet hours — a decision made while calm, kept by the phone rather than by you.</string>
+    <string name="owner_needs_setup">This has to be granted once from a computer, on a phone with no accounts signed in — usually right after a factory reset. It is a high bar on purpose.</string>
+    <string name="owner_active">This phone is set up as its own guardian. Chosen apps close for the quiet hours.</string>
+    <string name="owner_protected">Your phone app, messages, settings and this app are never suspended, whatever you choose.</string>
+    <string name="owner_release">Hand this back</string>
     <string name="grayscale_section">Colour</string>
     <string name="grayscale_explainer">A grey screen is the single most effective change measured in this field — not through willpower, but because colour is most of what makes a feed feel alive. Trials consistently find people put the phone down sooner without it.</string>
     <string name="grayscale_needs_grant">Android will not let an app turn this on by itself, which is the right rule. Run this once from a computer with the phone plugged in, and it sticks through reboots:</string>
