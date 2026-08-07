@@ -260,10 +260,11 @@ private fun ReportSectionCard(section: ReportSection) {
     val todayText = observation.signal.formatValue(observation.today)
     val usualText = observation.signal.formatValue(observation.usual)
     // A bedtime is not "higher". Every other signal here is a quantity
-    // where more and less are the natural words; sleep onset is a clock
-    // reading, where they are not, and a sentence that reads wrong is a
-    // sentence somebody stops trusting.
-    val clock = observation.signal == Signal.SLEEP_ONSET
+    // where more and less are the natural words; sleep onset and the
+    // first pickup are clock readings, where they are not, and a
+    // sentence that reads wrong is a sentence somebody stops trusting.
+    val clock = observation.signal == Signal.SLEEP_ONSET ||
+        observation.signal == Signal.FIRST_UNLOCK
     val bodyRes = when (observation.direction) {
         Direction.ABOVE -> if (clock) R.string.report_later else R.string.report_above
         Direction.BELOW -> if (clock) R.string.report_earlier else R.string.report_below
@@ -334,6 +335,8 @@ private fun Signal.inlineNameRes(): Int = when (this) {
     Signal.SLEEP_MINUTES -> R.string.signal_inline_sleep_minutes
     Signal.SLEEP_ONSET -> R.string.signal_inline_sleep_onset
     Signal.STEPS -> R.string.signal_inline_steps
+    Signal.FIRST_UNLOCK -> R.string.signal_inline_first_unlock
+    Signal.SCREEN_TIME -> R.string.signal_inline_screen_time
     Signal.VALENCE -> R.string.signal_inline_valence
     Signal.AROUSAL -> R.string.signal_inline_arousal
 }
@@ -356,6 +359,8 @@ private fun Signal.displayNameRes(): Int = when (this) {
     Signal.SLEEP_MINUTES -> R.string.signal_sleep_minutes
     Signal.SLEEP_ONSET -> R.string.signal_sleep_onset
     Signal.STEPS -> R.string.signal_steps
+    Signal.FIRST_UNLOCK -> R.string.signal_first_unlock
+    Signal.SCREEN_TIME -> R.string.signal_screen_time
     Signal.VALENCE -> R.string.signal_valence
     Signal.AROUSAL -> R.string.signal_arousal
 }
@@ -387,6 +392,10 @@ private fun Label.displayNameRes(): Int = when (this) {
 private fun Signal.formatValue(value: Double): String = when (this) {
     Signal.VALENCE, Signal.AROUSAL -> "%.1f".format(value)
     Signal.SLEEP_ONSET -> clockTime(value)
+    // Stored as a plain minute of the day — the first pickup is a
+    // morning fact, fenced past 03:00 at the source, so it never
+    // straddles midnight and never needs sleep onset's 18:00 re-frame.
+    Signal.FIRST_UNLOCK -> minuteOfDayClock(value)
     else -> value.roundToLong().toString()
 }
 
@@ -400,4 +409,15 @@ private fun Signal.formatValue(value: Double): String = when (this) {
 internal fun clockTime(minutesAfterSixPm: Double): String {
     val minuteOfDay = ((minutesAfterSixPm.roundToLong() + 18 * 60) % 1440 + 1440) % 1440
     return "%02d:%02d".format(minuteOfDay / 60, minuteOfDay % 60)
+}
+
+/**
+ * A plain minute of the day back to the clock — for the first pickup,
+ * which unlike [clockTime]'s bedtimes carries no 18:00 offset. Internal
+ * for the same reason as its sibling: a wrong inverse shows a person a
+ * morning they did not have.
+ */
+internal fun minuteOfDayClock(minuteOfDay: Double): String {
+    val minute = (minuteOfDay.roundToLong() % 1440 + 1440) % 1440
+    return "%02d:%02d".format(minute / 60, minute % 60)
 }

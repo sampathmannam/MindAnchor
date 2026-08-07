@@ -78,6 +78,13 @@ object BackupCodec {
         val checkIns: List<CheckIn> = emptyList(),
         val readings: List<Reading> = emptyList(),
         val corpusAdditions: String = "",
+        // What the phone worked out about its own days — the screen
+        // rhythm ledger. Not authored by the person, but it took months
+        // to accumulate and the event log it came from forgets in a
+        // week, so losing it to a reset costs the baselines their
+        // memory. Same Reading shape and the same default-empty
+        // discipline that keeps every older file readable.
+        val inferred: List<Reading> = emptyList(),
     ) {
         companion object {
             const val NOTE =

@@ -179,6 +179,8 @@
     <string name="signal_inline_sleep_minutes">time asleep</string>
     <string name="signal_inline_sleep_onset">bedtime</string>
     <string name="signal_inline_steps">step count</string>
+    <string name="signal_inline_first_unlock">first pickup of the phone</string>
+    <string name="signal_inline_screen_time">screen time</string>
     <string name="signal_inline_valence">sense of how things felt</string>
     <string name="signal_inline_arousal">energy</string>
     <string name="label_inline_valence">how things felt</string>
@@ -210,6 +212,8 @@
     <string name="signal_sleep_minutes">Time asleep</string>
     <string name="signal_sleep_onset">When you got to sleep</string>
     <string name="signal_steps">Steps</string>
+    <string name="signal_first_unlock">First pickup</string>
+    <string name="signal_screen_time">Screen time in minutes</string>
     <string name="signal_valence">How things felt</string>
     <string name="signal_arousal">Energy</string>
     <string name="ema_section">Check-ins</string>

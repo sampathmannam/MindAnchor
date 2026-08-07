@@ -136,6 +136,8 @@ private fun signalLabelRes(signal: Signal): Int = when (signal) {
     Signal.SLEEP_MINUTES -> R.string.signal_sleep_minutes
     Signal.SLEEP_ONSET -> R.string.signal_sleep_onset
     Signal.STEPS -> R.string.signal_steps
+    Signal.FIRST_UNLOCK -> R.string.signal_first_unlock
+    Signal.SCREEN_TIME -> R.string.signal_screen_time
     Signal.VALENCE -> R.string.signal_valence
     Signal.AROUSAL -> R.string.signal_arousal
 }

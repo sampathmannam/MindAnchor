@@ -10,6 +10,7 @@ import org.mindanchor.corpus.CorpusStore
 import org.mindanchor.data.LauncherPrefs
 import org.mindanchor.data.db.AnchorDatabase
 import org.mindanchor.model.MomentStore
+import org.mindanchor.usage.InferredStore
 import org.mindanchor.vitals.MeasuredStore
 
 /**
@@ -40,6 +41,7 @@ class BackupRepository(private val context: Context) {
                 renames = prefs.renames.first(),
                 checkIns = MomentStore(context).moments.first().map(BackupCodec::checkInOf),
                 readings = MeasuredStore(context).all().map(BackupCodec::readingOf),
+                inferred = InferredStore(context).all().map(BackupCodec::readingOf),
                 // The imported difference file as it stands, verbatim —
                 // already the person's own curation in a readable format.
                 corpusAdditions = runCatching {
@@ -92,6 +94,18 @@ class BackupRepository(private val context: Context) {
                 // reading, not the restore.
                 runCatching {
                     measuredStore.record(java.time.LocalDate.parse(reading.day), reading.key, reading.value)
+                }
+            }
+
+        // The inferred ledger restores under exactly the readings' rules:
+        // local wins, and a day that does not parse costs itself alone.
+        val inferredStore = InferredStore(context)
+        val haveInferred = inferredStore.all().map { it.day to it.key }.toHashSet()
+        BackupCodec.toMeasurements(backup.inferred)
+            .filterNot { (it.day to it.key) in haveInferred }
+            .forEach { reading ->
+                runCatching {
+                    inferredStore.record(java.time.LocalDate.parse(reading.day), reading.key, reading.value)
                 }
             }
 
