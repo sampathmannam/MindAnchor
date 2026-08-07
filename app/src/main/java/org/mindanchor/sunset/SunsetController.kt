@@ -29,8 +29,9 @@ object SunsetController {
     private const val ACTION_START = "org.mindanchor.SUNSET_START"
     private const val ACTION_END = "org.mindanchor.SUNSET_END"
 
-    /** Overnight-aware window test. */
     /**
+     * Overnight-aware window test.
+     *
      * Delegates to [SunsetPrefs.isInWindow], which is the single definition
      * of what "inside the window" means. Kept here so existing callers and
      * tests need not move.
@@ -118,11 +119,21 @@ object SunsetController {
                 if (quietHours) applyFilter(appContext, priorityOnly = starting)
                 if (greyNights) org.mindanchor.grayscale.Grayscale.set(appContext, starting)
 
-                // If this phone was set up as its own guardian, quiet
-                // hours are enforced rather than suggested. Nothing is
-                // suspended that SuspensionGuard has not cleared, and
-                // everything is lifted again at the end of the window.
-                if (org.mindanchor.admin.DeviceOwner.isDeviceOwner(appContext)) {
+                // Gated on quietHours specifically, not on the pair above.
+                // Someone who switched on only the grey screen asked for a
+                // colourless phone, not one that makes their apps refuse to
+                // open — and finding out at 22:00 that a colour setting had
+                // started suspending things would be the worst possible way
+                // to learn what this app does.
+                //
+                // Where it does apply, quiet hours are enforced rather than
+                // suggested: nothing is suspended that SuspensionGuard has
+                // not cleared, and everything is lifted at the end of the
+                // window. Clearing passes the whole chosen set rather than
+                // the filtered one, because lifting a suspension that was
+                // never applied does nothing, and missing one would leave
+                // an app shut until somebody noticed.
+                if (quietHours && org.mindanchor.admin.DeviceOwner.isDeviceOwner(appContext)) {
                     val friction = org.mindanchor.data.FrictionPrefs(appContext)
                     val chosen = friction.flaggedApps.first()
                     val alwaysOpen = friction.alwaysOpen.first()
