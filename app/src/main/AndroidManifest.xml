@@ -11,6 +11,17 @@
         tools:ignore="ProtectedPermissions" />
 
     <!--
+        Fingertip PPG, and nothing else. HRV is the best physiological
+        signal available here and the watch does not release it, so it is
+        measured directly: finger over the lens, torch on, ~90 seconds.
+        No image is stored, shown, or leaves the frame loop — each frame is
+        reduced to a single average brightness number and discarded.
+    -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera.flash" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+
+    <!--
         Granted over adb, once, by someone who wants it — never requestable
         from inside the app, which is correct. It exists so the screen can
         be turned grey, the largest single effect in the digital-wellbeing
