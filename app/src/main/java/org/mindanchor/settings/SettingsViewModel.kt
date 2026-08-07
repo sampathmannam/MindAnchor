@@ -79,10 +79,20 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
      * their way out of a wellbeing app is a factory reset would be its own
      * small cruelty.
      */
-    fun releaseDeviceOwner() {
+    /**
+     * Hands device ownership back, lifting every suspension first.
+     *
+     * [onDone] runs once the release has actually happened, so the screen
+     * can re-read ownership rather than keep showing the state it had a
+     * moment ago. Without it the section still reads "set up as its own
+     * guardian" until the next resume, which is the kind of lie that makes
+     * a person tap the button again.
+     */
+    fun releaseDeviceOwner(onDone: () -> Unit = {}) {
         viewModelScope.launch {
             val chosen = frictionPrefs.flaggedApps.first()
             org.mindanchor.admin.DeviceOwner.release(getApplication(), chosen)
+            onDone()
         }
     }
 

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
@@ -452,8 +453,34 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            TextButton(onClick = { viewModel.releaseDeviceOwner() }) {
+            // Confirmed, but never discouraged. Handing this back is the
+            // escape hatch and must stay one tap from reachable — the
+            // dialog exists only because getting it back afterwards needs
+            // a factory reset, which is not a thing to discover after an
+            // accidental tap. It states that cost and gets out of the way.
+            var confirmingRelease by remember { mutableStateOf(false) }
+            TextButton(onClick = { confirmingRelease = true }) {
                 Text(stringResource(R.string.owner_release))
+            }
+            if (confirmingRelease) {
+                AlertDialog(
+                    onDismissRequest = { confirmingRelease = false },
+                    title = { Text(stringResource(R.string.owner_release)) },
+                    text = { Text(stringResource(R.string.owner_release_cost)) },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            confirmingRelease = false
+                            viewModel.releaseDeviceOwner { permissionEpoch++ }
+                        }) {
+                            Text(stringResource(R.string.owner_release_confirm))
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { confirmingRelease = false }) {
+                            Text(stringResource(R.string.action_close))
+                        }
+                    },
+                )
             }
         }
 
@@ -474,8 +501,13 @@ fun SettingsScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        val grayscaleGranted = remember { Grayscale.isGranted(context) }
-        var grayscaleNow by remember { mutableStateOf(Grayscale.isOn(context)) }
+        // Keyed on the resume epoch like every other grant on this screen.
+        // Without it, someone runs the adb command on their computer, comes
+        // back to the phone, and is still told to run the adb command.
+        // The current state is keyed too: the sunset schedule turns
+        // grayscale on at 22:00 without this screen's involvement.
+        val grayscaleGranted = remember(permissionEpoch) { Grayscale.isGranted(context) }
+        var grayscaleNow by remember(permissionEpoch) { mutableStateOf(Grayscale.isOn(context)) }
         val greyNights by viewModel.grayscaleAtNight.collectAsState(initial = false)
 
         if (!grayscaleGranted) {

@@ -162,6 +162,8 @@
     <string name="owner_active">This phone is set up as its own guardian. Chosen apps close for the quiet hours.</string>
     <string name="owner_protected">Your phone app, messages, settings and this app are never suspended, whatever you choose.</string>
     <string name="owner_release">Hand this back</string>
+    <string name="owner_release_cost">Any suspended apps open again straight away. Getting this back later needs another factory reset, so it is worth being sure — but if you want it back, take it back.</string>
+    <string name="owner_release_confirm">Hand it back</string>
     <string name="grayscale_section">Colour</string>
     <string name="grayscale_explainer">A grey screen is the single most effective change measured in this field — not through willpower, but because colour is most of what makes a feed feel alive. Trials consistently find people put the phone down sooner without it.</string>
     <string name="grayscale_needs_grant">Android will not let an app turn this on by itself, which is the right rule. Run this once from a computer with the phone plugged in, and it sticks through reboots:</string>
