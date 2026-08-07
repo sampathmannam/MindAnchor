@@ -67,6 +67,24 @@
     <string name="digest_release_now">Release now</string>
     <string name="digest_clear_released">Clear released</string>
     <string name="digest_empty">Nothing here. When batching is on, held notifications collect in this journal so nothing is ever lost.</string>
+    <!--
+        The journal is the batcher's proof that nothing was lost, and it
+        used to run the two groups together with no heading and no date —
+        so the times read 08:19, 07:42, 07:05, 14:55, and a person could
+        not tell what was still held from what had already arrived.
+    -->
+    <string name="digest_released_heading">Already arrived</string>
+    <!--
+        Shown only while exact alarms are unavailable, and next to the
+        times themselves rather than buried — this is where somebody
+        forms the belief that a batch set for 18:00 arrives at 18:00.
+        Deliberately says what happens instead, rather than asking for a
+        permission and not explaining why.
+    -->
+    <string name="exact_alarms_explainer">Android is letting these times drift by up to an hour to save battery. If you want them kept exactly, this phone can allow it.</string>
+    <string name="exact_alarms_grant">Allow exact timing</string>
+    <!-- A day and a time, for entries that are not from today. -->
+    <string name="digest_stamp_other_day">%1$s %2$s</string>
     <string name="digest_text">From %1$s</string>
 
     <string name="appearance_section">Home screen</string>
@@ -128,6 +146,13 @@
     <string name="report_none">Nothing yet. There will be something once there are enough days to compare against.</string>
     <string name="report_quiet">Nothing stood out. That is the usual answer and it is a good one.</string>
     <string name="report_still_learning">Still building a picture of: %1$s</string>
+    <!--
+        Said only while the pattern search cannot run yet — under the
+        twenty-eight paired days LinkFinder needs. Deliberately does not
+        promise a finding at the end of it: most links never become
+        findable, and silence is this app's ordinary good outcome.
+    -->
+    <string name="report_patterns_still_learning">Not yet looking for patterns across your days — that needs about four weeks of nights and check-ins together.</string>
     <string name="report_above">%1$s was higher than your usual — %2$s against about %3$s.</string>
     <string name="report_below">%1$s was lower than your usual — %2$s against about %3$s.</string>
     <string name="report_later">%1$s was later than your usual — %2$s against about %3$s.</string>
@@ -186,6 +211,19 @@
     <string name="label_inline_valence">how things felt</string>
     <string name="label_inline_arousal">how much energy you had</string>
     <string name="facts_heading">Measured on %1$s</string>
+    <!--
+        Units, so a number on the facts list can be read without arithmetic.
+        "Time asleep: 435" was the app's own headline metric asking the
+        reader to divide by sixty; the two clock signals had been formatted
+        properly all along, and these are the rest catching up.
+
+        Durations under an hour keep the minutes form rather than reading
+        "0h 40m".
+    -->
+    <string name="value_hours_minutes">%1$dh %2$dm</string>
+    <string name="value_minutes">%1$d min</string>
+    <string name="value_milliseconds">%1$d ms</string>
+    <string name="value_bpm">%1$d bpm</string>
     <string name="facts_line">%1$s: %2$s — %3$s</string>
     <string name="facts_empty">Nothing arrived that day — no reading, no wearable data, no check-in.</string>
     <string name="report_last_built">Last built: %1$s</string>
@@ -213,7 +251,7 @@
     <string name="signal_sleep_onset">When you got to sleep</string>
     <string name="signal_steps">Steps</string>
     <string name="signal_first_unlock">First pickup</string>
-    <string name="signal_screen_time">Screen time in minutes</string>
+    <string name="signal_screen_time">Screen time</string>
     <string name="signal_valence">How things felt</string>
     <string name="signal_arousal">Energy</string>
     <string name="ema_section">Check-ins</string>
@@ -232,7 +270,7 @@
     <string name="ema_settled">It has enough to work with, so it asks less now.</string>
     <string name="ema_channel_name">Check-ins</string>
     <string name="ppg_section">Heart rhythm</string>
-    <string name="ppg_explainer">Your watch measures heart-rate variability but keeps it to itself — it never leaves the COROS app, and it cannot be worked out from heart rate alone. So this measures it directly. It also means it still works if you change watch, or aren\'t wearing one.</string>
+    <string name="ppg_explainer">Many watches measure heart-rate variability and never hand it over — it stays inside the maker\'s own app, and it cannot be worked out from heart rate alone. So this measures it directly, from your fingertip. It also means it still works if you change watch, or aren\'t wearing one.</string>
     <string name="ppg_how">Rest your index finger over the rear camera and the flash, covering both. Hold still, breathe normally, and stay off the phone for about 90 seconds. Sitting, before you get up, is the most comparable time of day.</string>
     <string name="ppg_start">Take a reading</string>
     <string name="ppg_grant">Allow the camera</string>
@@ -272,7 +310,15 @@
     <string name="onboarding_begin">begin</string>
 
     <string name="pulse_section">Wellbeing pulse</string>
-    <string name="pulse_section_explainer">A 2-minute WHO-5 check-in every two weeks. It\'s how you — and MindAnchor — know honestly whether any of this is helping.</string>
+    <!--
+        This used to say "It's how you — and MindAnchor — know honestly
+        whether any of this is helping." MindAnchor knows nothing of the
+        sort: docs/CLINICAL_REVIEW.md §66 makes never interpreting a score
+        a deliberate invariant, so the app shows the numbers and the
+        change between them and stops there. Claiming a judgement it is
+        built not to make was the one dishonest sentence in this screen.
+    -->
+    <string name="pulse_section_explainer">A 2-minute WHO-5 check-in every two weeks. It keeps an honest record, in your own words and numbers, of whether any of this is helping — the reading of it stays yours.</string>
     <string name="pulse_take">Take the pulse</string>
     <string name="pulse_title">How have the last two weeks felt?</string>
     <string name="pulse_intro">Five statements, answered 0 (at no time) to 5 (all of the time). This is a self-check, not a diagnosis.</string>
@@ -282,6 +328,15 @@
     <string name="pulse_low_note">Scores in this range are common when things are heavy. Your people and your plan are one tap from the home screen whenever you want them.</string>
     <string name="pulse_open_support">Open support</string>
     <string name="pulse_history">History</string>
+    <!--
+        The history was a bare list of ISO dates and scores, which made a
+        person do the subtraction themselves across a fortnight's gap.
+        The change is arithmetic on two numbers they produced — not a
+        reading of them — so it is shown, unlabelled and unexplained.
+        Nothing here says whether a direction is good.
+    -->
+    <string name="pulse_history_line">%1$s — %2$d/100</string>
+    <string name="pulse_history_change">%1$s since the one before</string>
     <string name="pulse_channel_name">Wellbeing pulse</string>
     <string name="pulse_reminder_title">Two weeks since your last pulse</string>
     <string name="pulse_reminder_text">Two minutes, whenever suits you.</string>

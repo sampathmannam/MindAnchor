@@ -18,6 +18,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import android.text.format.DateFormat
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 import org.mindanchor.R
 import org.mindanchor.ui.Spacing
@@ -182,7 +187,7 @@ fun ReportScreen(
         // plainly: "nothing arrived" is diagnostic gold, not filler.
         if (current != null && facts != null) {
             Text(
-                text = stringResource(R.string.facts_heading, current.day),
+                text = stringResource(R.string.facts_heading, friendlyDay(current.day)),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(top = Spacing.Loose, bottom = Spacing.Tight),
             )
@@ -209,6 +214,21 @@ fun ReportScreen(
                     )
                 }
             }
+        }
+
+        // The pattern search has not started yet, which is a different
+        // thing from having run and found nothing — and until now both
+        // rendered as the same silence, so a person three weeks in could
+        // not tell whether the app had even looked. Said once, quietly,
+        // in the same voice the signals' own "still building a picture"
+        // line already uses.
+        if (current != null && stored?.patternsStillLearning == true) {
+            Text(
+                text = stringResource(R.string.report_patterns_still_learning),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Spacing.Loose),
+            )
         }
 
         if (current != null && current.notYetKnown.isNotEmpty()) {
@@ -389,6 +409,7 @@ private fun Label.displayNameRes(): Int = when (this) {
  * can check against their own memory of last night. It is turned back
  * into the clock.
  */
+@Composable
 private fun Signal.formatValue(value: Double): String = when (this) {
     Signal.VALENCE, Signal.AROUSAL -> "%.1f".format(value)
     Signal.SLEEP_ONSET -> clockTime(value)
@@ -396,8 +417,76 @@ private fun Signal.formatValue(value: Double): String = when (this) {
     // morning fact, fenced past 03:00 at the source, so it never
     // straddles midnight and never needs sleep onset's 18:00 re-frame.
     Signal.FIRST_UNLOCK -> minuteOfDayClock(value)
-    else -> value.roundToLong().toString()
+
+    // The rest carry their unit. "Time asleep: 435" was this app's own
+    // headline metric handing the reader a division problem, and a
+    // number nobody can read at a glance is a number they stop reading.
+    Signal.SLEEP_MINUTES -> durationText(value)
+    Signal.SCREEN_TIME -> durationText(value)
+    Signal.HRV -> stringResource(R.string.value_milliseconds, value.roundToInt())
+    Signal.RESTING_HEART_RATE -> stringResource(R.string.value_bpm, value.roundToInt())
+    // Steps are a bare count in every context a person has ever met one.
+    Signal.STEPS -> value.roundToLong().toString()
 }
+
+/** Minutes as hours-and-minutes once there is an hour to show. */
+@Composable
+private fun durationText(minutes: Double): String {
+    val (hours, remainder) = hoursAndMinutes(minutes)
+    return if (hours == 0) {
+        stringResource(R.string.value_minutes, remainder)
+    } else {
+        stringResource(R.string.value_hours_minutes, hours, remainder)
+    }
+}
+
+/**
+ * Splits a duration in minutes into whole hours and the minutes left over.
+ *
+ * Pure and internal so it can be tested directly: this is the arithmetic
+ * behind every duration the report shows, and rounding it in the wrong
+ * order — dividing before rounding — turns 59.6 minutes into "0h 59m"
+ * where the total said an hour. Round first, then split.
+ */
+internal fun hoursAndMinutes(minutes: Double): Pair<Int, Int> {
+    val total = minutes.roundToLong().coerceAtLeast(0L)
+    return (total / 60).toInt() to (total % 60).toInt()
+}
+
+/**
+ * An ISO day as a person would say it — "Friday, 7 August".
+ *
+ * The stored form is ISO because that is what sorts and compares
+ * correctly everywhere else in this app, but "2026-08-07" on the one
+ * screen somebody actually reads is a database key showing through. The
+ * year is dropped: this is last night, and nobody needs telling which
+ * year last night was in.
+ *
+ * The pattern comes from ICU where it is available, so the field order
+ * follows the reader's locale rather than an English assumption.
+ *
+ * Two failures, deliberately handled differently. If ICU cannot supply a
+ * pattern — off-device, in a plain JVM test — a written-out one still
+ * names the day and month in the right language, which is far closer to
+ * right than dropping back to "2026-08-07". Only a day that will not
+ * parse at all returns unchanged, because at that point there is nothing
+ * to format and a heading is never worth a crash.
+ */
+internal fun friendlyDay(isoDay: String): String {
+    val date = runCatching { LocalDate.parse(isoDay) }.getOrNull() ?: return isoDay
+    val locale = Locale.getDefault()
+    val pattern = runCatching { DateFormat.getBestDateTimePattern(locale, DAY_SKELETON) }
+        .getOrNull()
+        ?.takeIf { it.isNotBlank() }
+        ?: FALLBACK_DAY_PATTERN
+    return runCatching { date.format(DateTimeFormatter.ofPattern(pattern, locale)) }
+        .getOrElse { date.format(DateTimeFormatter.ofPattern(FALLBACK_DAY_PATTERN, locale)) }
+}
+
+/** Weekday, day-of-month and month name — no year. */
+private const val DAY_SKELETON = "EEEEdMMMM"
+
+private const val FALLBACK_DAY_PATTERN = "EEEE d MMMM"
 
 /**
  * Minutes after 18:00 back to a 24-hour clock reading.
