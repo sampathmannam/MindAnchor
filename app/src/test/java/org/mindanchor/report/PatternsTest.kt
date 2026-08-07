@@ -185,4 +185,71 @@ class PatternsTest {
     fun `the grid key is spelled out so a future field cannot move every p-value`() {
         assertEquals("HRV:VALENCE", SignalLabel(Signal.HRV, Label.VALENCE).toString())
     }
+
+    // --- the neighbourhood must point the way the whole record does ---
+
+    private fun link(rho: Double) = org.mindanchor.model.Link(
+        n = 60, rho = rho, rawP = 0.0001, adjustedP = 0.001,
+    )
+
+    /** Signals 0..19, so the median sits at 9.5 and either side is unambiguous. */
+    private val evenHistory = (0 until 20).map {
+        org.mindanchor.model.Paired(signal = it.toDouble(), label = 3.0)
+    }
+
+    private fun neighbourhood(lower: Boolean) = org.mindanchor.model.Anticipation.Neighbourhood(
+        similarDays = 5,
+        medianWhenLikeToday = if (lower) 2.0 else 4.0,
+        medianOverall = 3.0,
+    )
+
+    @Test
+    fun `a rising link with a low day today expects a low day, and agrees`() {
+        assertTrue(
+            PatternFinder.agrees(link(0.8), evenHistory, todaysSignal = 1.0, neighbourhood(lower = true)),
+        )
+    }
+
+    @Test
+    fun `a rising link with a low day today does not expect a high day`() {
+        // Global trend says lower signal goes with lower label; the days
+        // nearest today say the opposite. That is a relationship that is
+        // not monotone near today, and the honest output is nothing.
+        assertFalse(
+            PatternFinder.agrees(link(0.8), evenHistory, todaysSignal = 1.0, neighbourhood(lower = false)),
+        )
+    }
+
+    @Test
+    fun `a falling link inverts what is expected`() {
+        assertTrue(
+            PatternFinder.agrees(link(-0.8), evenHistory, todaysSignal = 1.0, neighbourhood(lower = false)),
+        )
+        assertFalse(
+            PatternFinder.agrees(link(-0.8), evenHistory, todaysSignal = 1.0, neighbourhood(lower = true)),
+        )
+    }
+
+    @Test
+    fun `a high day today flips the expectation again`() {
+        assertTrue(
+            PatternFinder.agrees(link(0.8), evenHistory, todaysSignal = 18.0, neighbourhood(lower = false)),
+        )
+        assertFalse(
+            PatternFinder.agrees(link(0.8), evenHistory, todaysSignal = 18.0, neighbourhood(lower = true)),
+        )
+    }
+
+    @Test
+    fun `a day sitting exactly on the usual has no side to be on`() {
+        // Nothing to predict, so nothing to check, so nothing to say.
+        val median = org.mindanchor.model.Anticipation.median(evenHistory.map { it.signal })!!
+        assertFalse(PatternFinder.agrees(link(0.8), evenHistory, median, neighbourhood(lower = true)))
+        assertFalse(PatternFinder.agrees(link(0.8), evenHistory, median, neighbourhood(lower = false)))
+    }
+
+    @Test
+    fun `an empty record cannot agree with anything`() {
+        assertFalse(PatternFinder.agrees(link(0.8), emptyList(), 1.0, neighbourhood(lower = true)))
+    }
 }

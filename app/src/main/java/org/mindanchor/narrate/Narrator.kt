@@ -56,8 +56,65 @@ interface Narrator {
  * paragraph, does not simulate one from a template, and does not claim to
  * have tried and failed. It returns null, honestly, every single time.
  */
-object NoEngineNarrator : Narrator {
-    override suspend fun narrate(report: Report): Narration? = null
+/**
+ * Everything around a language model except the model.
+ *
+ * ## Why this class exists rather than a convention
+ *
+ * [Prompting] and [NarrationGuard] were written before any engine, and
+ * for a while nothing called them. That is a worse state than it looks:
+ * a guard nobody invokes is not a safeguard, it is a file. Whoever
+ * eventually drops in llama.cpp would have had to remember, unprompted,
+ * to build the prompt through [Prompting] and to put the output through
+ * [NarrationGuard] — and the failure mode of forgetting is a phone
+ * telling somebody they sound depressed.
+ *
+ * So the order is fixed here and [narrate] is final. An engine supplies
+ * [generate] and nothing else. It cannot choose its own prompt, cannot
+ * skip the check, and cannot return text that has not been judged. The
+ * guard is load-bearing rather than advisory, and
+ * [org.mindanchor.narrate.GuardedNarratorTest] proves it by running a
+ * fake engine that tries to say exactly the wrong thing.
+ */
+abstract class GuardedNarrator : Narrator {
+
+    /**
+     * Runs the model.
+     *
+     * [system] is the instruction and [prompt] the day's counts and
+     * passages — see [Prompting], which built both. Return the model's
+     * raw text, or null if it could not run at all. Returning unchecked
+     * text is safe precisely because the caller checks it.
+     */
+    protected abstract suspend fun generate(system: String, prompt: String): String?
+
+    final override suspend fun narrate(report: Report): Narration? {
+        // Null here means a quiet night, or nothing in the corpus worth
+        // writing from. Neither is worth waking a model for.
+        val prompt = Prompting.build(report) ?: return null
+        val raw = runCatching { generate(Prompting.SYSTEM, prompt) }.getOrNull() ?: return null
+        return when (val verdict = NarrationGuard.judge(raw)) {
+            is NarrationGuard.Verdict.Accepted -> Narration(verdict.text)
+            // Rejected output is dropped whole and silently. The report
+            // still shows the counts and the passages, exactly as it did
+            // before any model existed, which is why this costs a
+            // paragraph rather than a night.
+            is NarrationGuard.Verdict.Rejected -> null
+        }
+    }
+}
+
+/**
+ * The only [Narrator] this build has. Its engine does not exist, so it
+ * generates nothing.
+ *
+ * It goes through [GuardedNarrator] rather than short-circuiting
+ * [Narrator] directly, so the path a real engine will take is the path
+ * that runs today — already built, already tested, and waiting on one
+ * method.
+ */
+object NoEngineNarrator : GuardedNarrator() {
+    override suspend fun generate(system: String, prompt: String): String? = null
 }
 
 /** Picks the [Narrator] this device should use. */

@@ -138,11 +138,13 @@ object PatternFinder {
             )
             .mapNotNull { (key, link) ->
                 val today = todaysSignals[key.signal] ?: return@mapNotNull null
+                val history = grid.getValue(key)
                 val neighbourhood = Anticipation.forToday(
                     link = link,
-                    history = grid.getValue(key),
+                    history = history,
                     todaysSignal = today,
                 ) ?: return@mapNotNull null
+                if (!agrees(link, history, today, neighbourhood)) return@mapNotNull null
                 Pattern(
                     signal = key.signal,
                     label = key.label,
@@ -152,6 +154,49 @@ object PatternFinder {
                 )
             }
             .take(MAX_PATTERNS)
+    }
+
+    /**
+     * Whether the neighbourhood around today points the same way the
+     * whole record does.
+     *
+     * [LinkFinder] measures a **monotone** trend across every day on
+     * file; [Anticipation] looks only at the handful of days nearest
+     * today's value. Those can disagree, and where they do the
+     * relationship is not monotone near today — a U-shape, most likely,
+     * where both unusually high and unusually low signals sit next to the
+     * same kind of day.
+     *
+     * When they disagree, the honest output is nothing. The sentence this
+     * would otherwise produce says "came out lower than your usual" on
+     * the strength of a link whose overall trend points the other way,
+     * which is either confusing or wrong and is not worth being either.
+     *
+     * This is also what makes [Link.direction] load-bearing rather than
+     * decorative. A rank correlation's sign is the one thing about it
+     * that survives this sample size, and this is the place that uses it.
+     *
+     * Internal rather than private so it can be tested directly. Building
+     * a history that both clears the significance bar and disagrees with
+     * itself locally is fiddly enough that a test doing it would pass for
+     * the wrong reason as easily as the right one.
+     */
+    internal fun agrees(
+        link: org.mindanchor.model.Link,
+        history: List<Paired>,
+        todaysSignal: Double,
+        neighbourhood: Anticipation.Neighbourhood,
+    ): Boolean {
+        val typicalSignal = Anticipation.median(history.map { it.signal }) ?: return false
+        // A day sitting exactly on the person's own usual has no side to
+        // be on, so there is nothing to predict and nothing to check.
+        if (todaysSignal == typicalSignal) return false
+        val belowUsual = todaysSignal < typicalSignal
+        val expectLower = when (link.direction) {
+            org.mindanchor.model.LinkDirection.SAME -> belowUsual
+            org.mindanchor.model.LinkDirection.OPPOSITE -> !belowUsual
+        }
+        return expectLower == neighbourhood.lower
     }
 
     /**
