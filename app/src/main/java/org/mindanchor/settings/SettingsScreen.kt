@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
@@ -36,10 +37,13 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
 import org.mindanchor.R
+import org.mindanchor.admin.DeviceOwner
+import org.mindanchor.grayscale.Grayscale
 import org.mindanchor.launcher.DisplayApp
 import org.mindanchor.ui.NatureScene
 
@@ -407,6 +411,155 @@ fun SettingsScreen(
             },
         ) {
             Text(stringResource(R.string.support_open))
+        }
+
+        // --- Enforced quiet hours ---
+        //
+        // The only thing in this app that a person cannot walk straight
+        // through. That is the point, and also why it is buried this far
+        // down, gated behind a factory reset, and reversible from here.
+        Text(
+            text = stringResource(R.string.owner_section),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
+        )
+        Text(
+            text = stringResource(R.string.owner_explainer),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        val isOwner = remember(permissionEpoch) { DeviceOwner.isDeviceOwner(context) }
+        if (!isOwner) {
+            Text(
+                text = stringResource(R.string.owner_needs_setup),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            Text(
+                text = DeviceOwner.setupCommand(context),
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier.padding(vertical = 8.dp),
+            )
+        } else {
+            Text(
+                text = stringResource(R.string.owner_active),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            Text(
+                text = stringResource(R.string.owner_protected),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            // Confirmed, but never discouraged. Handing this back is the
+            // escape hatch and must stay one tap from reachable — the
+            // dialog exists only because getting it back afterwards needs
+            // a factory reset, which is not a thing to discover after an
+            // accidental tap. It states that cost and gets out of the way.
+            var confirmingRelease by remember { mutableStateOf(false) }
+            TextButton(onClick = { confirmingRelease = true }) {
+                Text(stringResource(R.string.owner_release))
+            }
+            if (confirmingRelease) {
+                AlertDialog(
+                    onDismissRequest = { confirmingRelease = false },
+                    title = { Text(stringResource(R.string.owner_release)) },
+                    text = { Text(stringResource(R.string.owner_release_cost)) },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            confirmingRelease = false
+                            viewModel.releaseDeviceOwner { permissionEpoch++ }
+                        }) {
+                            Text(stringResource(R.string.owner_release_confirm))
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { confirmingRelease = false }) {
+                            Text(stringResource(R.string.action_close))
+                        }
+                    },
+                )
+            }
+        }
+
+        // --- Colour ---
+        //
+        // Needs a permission Android will not hand to an app from inside
+        // the app, which is correct. So the screen states plainly what to
+        // run, once, from a computer — and works fine forever if nobody
+        // ever does.
+        Text(
+            text = stringResource(R.string.grayscale_section),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
+        )
+        Text(
+            text = stringResource(R.string.grayscale_explainer),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        // Keyed on the resume epoch like every other grant on this screen.
+        // Without it, someone runs the adb command on their computer, comes
+        // back to the phone, and is still told to run the adb command.
+        // The current state is keyed too: the sunset schedule turns
+        // grayscale on at 22:00 without this screen's involvement.
+        val grayscaleGranted = remember(permissionEpoch) { Grayscale.isGranted(context) }
+        var grayscaleNow by remember(permissionEpoch) { mutableStateOf(Grayscale.isOn(context)) }
+        val greyNights by viewModel.grayscaleAtNight.collectAsState(initial = false)
+
+        if (!grayscaleGranted) {
+            Text(
+                text = stringResource(R.string.grayscale_needs_grant),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            Text(
+                text = Grayscale.grantCommand(context.packageName),
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier.padding(vertical = 8.dp),
+            )
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.grayscale_now),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(
+                    checked = grayscaleNow,
+                    onCheckedChange = {
+                        Grayscale.set(context, it)
+                        grayscaleNow = Grayscale.isOn(context)
+                    },
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.grayscale_at_night),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(
+                    checked = greyNights,
+                    onCheckedChange = { viewModel.setGrayscaleAtNight(it) },
+                )
+            }
+            Text(
+                text = stringResource(R.string.grayscale_shares_a_switch),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
         // --- Keeping a copy ---

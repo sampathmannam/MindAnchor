@@ -63,4 +63,13 @@
     -->
     <issue id="MissingTranslation" severity="ignore" />
 
+
+    <!--
+        PROMOTE. An unescaped apostrophe in a string value fails aapt with
+        "Can not extract resource", which names no string and points at a
+        merged file in the build directory. It cost a full CI round trip to
+        find one. Lint knows about this and can say which string.
+    -->
+    <issue id="UnescapedEntity" severity="warning" />
+
 </lint>

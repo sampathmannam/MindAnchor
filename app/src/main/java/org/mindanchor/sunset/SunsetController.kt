@@ -10,6 +10,7 @@ import android.os.Build
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.mindanchor.data.SunsetPrefs
 import org.mindanchor.notifications.BatchSchedule
@@ -28,13 +29,15 @@ object SunsetController {
     private const val ACTION_START = "org.mindanchor.SUNSET_START"
     private const val ACTION_END = "org.mindanchor.SUNSET_END"
 
-    /** Overnight-aware window test. */
+    /**
+     * Overnight-aware window test.
+     *
+     * Delegates to [SunsetPrefs.isInWindow], which is the single definition
+     * of what "inside the window" means. Kept here so existing callers and
+     * tests need not move.
+     */
     fun isInWindow(now: LocalTime, start: LocalTime, end: LocalTime): Boolean =
-        if (start <= end) {
-            now >= start && now < end
-        } else {
-            now >= start || now < end
-        }
+        SunsetPrefs.isInWindow(now, start, end)
 
     suspend fun onToggled(context: Context, enabled: Boolean) {
         if (enabled) {
@@ -106,10 +109,39 @@ object SunsetController {
         val appContext = context.applicationContext
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             val prefs = SunsetPrefs(appContext)
-            if (prefs.isEnabled()) {
-                when (action) {
-                    ACTION_START -> applyFilter(appContext, priorityOnly = true)
-                    ACTION_END -> applyFilter(appContext, priorityOnly = false)
+            // Quiet hours and colourless hours are independent switches, so
+            // each is checked on its own. Someone may want a phone that
+            // stops interrupting without one that stops being colourful.
+            val quietHours = prefs.isEnabled()
+            val greyNights = prefs.isGrayscaleAtNight()
+            if (quietHours || greyNights) {
+                val starting = action == ACTION_START
+                if (quietHours) applyFilter(appContext, priorityOnly = starting)
+                if (greyNights) org.mindanchor.grayscale.Grayscale.set(appContext, starting)
+
+                // Gated on quietHours specifically, not on the pair above.
+                // Someone who switched on only the grey screen asked for a
+                // colourless phone, not one that makes their apps refuse to
+                // open — and finding out at 22:00 that a colour setting had
+                // started suspending things would be the worst possible way
+                // to learn what this app does.
+                //
+                // Where it does apply, quiet hours are enforced rather than
+                // suggested: nothing is suspended that SuspensionGuard has
+                // not cleared, and everything is lifted at the end of the
+                // window. Clearing passes the whole chosen set rather than
+                // the filtered one, because lifting a suspension that was
+                // never applied does nothing, and missing one would leave
+                // an app shut until somebody noticed.
+                if (quietHours && org.mindanchor.admin.DeviceOwner.isDeviceOwner(appContext)) {
+                    val friction = org.mindanchor.data.FrictionPrefs(appContext)
+                    val chosen = friction.flaggedApps.first()
+                    val alwaysOpen = friction.alwaysOpen.first()
+                    if (starting) {
+                        org.mindanchor.admin.DeviceOwner.apply(appContext, chosen, alwaysOpen)
+                    } else {
+                        org.mindanchor.admin.DeviceOwner.clear(appContext, chosen)
+                    }
                 }
                 ensureScheduled(appContext)
             }

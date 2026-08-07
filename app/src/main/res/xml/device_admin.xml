@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Device admin policies this app declares.
+
+    Deliberately empty. Device Owner status is what grants the ability to
+    suspend packages, and that needs no policy declared here — while every
+    policy listed in this file is a power the app would be claiming.
+    Password rules, wipe, camera disabling and the rest have no business in
+    a launcher for people having a hard time, so none are asked for.
+-->
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-policies />
+</device-admin>

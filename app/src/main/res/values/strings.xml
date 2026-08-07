@@ -18,11 +18,16 @@
     <string name="action_unhide">Unhide</string>
     <string name="action_close">Close</string>
     <string name="action_add_pause">Add a pause before opening</string>
+    <string name="action_always_open">Never close this one on me</string>
+    <string name="action_not_always_open">Stop protecting this one</string>
+
     <string name="action_remove_pause">Remove the pause</string>
 
     <string name="breath_in">Breathe in…</string>
     <string name="breath_out">…and out</string>
     <string name="never_mind">never mind</string>
+    <string name="friction_feather">You\&#39;ve opened %1$s a few times just now.</string>
+    <string name="friction_feather_open">Open it</string>
     <string name="intention_question">What are you here to do in %1$s?</string>
     <string name="intention_hint">Pick a time box — you\'ll get a gentle nudge when it\'s up.</string>
     <string name="open_for_minutes">%1$d min</string>
@@ -151,6 +156,20 @@
     <string name="support_open">Open support and safety plan</string>
     <string name="dial_failed">This phone could not open a dialer. The number is %1$s — call it from your phone app, or ask someone near you to.</string>
 
+    <string name="owner_section">Enforced quiet hours</string>
+    <string name="owner_explainer">Everything else here can be walked through, which is usually right and useless on the nights it matters. If this phone is set up as its own guardian, the apps you chose a pause for become genuinely unopenable through the quiet hours — a decision made while calm, kept by the phone rather than by you.</string>
+    <string name="owner_needs_setup">This has to be granted once from a computer, on a phone with no accounts signed in — usually right after a factory reset. It is a high bar on purpose.</string>
+    <string name="owner_active">This phone is set up as its own guardian. Chosen apps close for the quiet hours.</string>
+    <string name="owner_protected">Your phone app, messages, settings and this app are never suspended, whatever you choose.</string>
+    <string name="owner_release">Hand this back</string>
+    <string name="owner_release_cost">Any suspended apps open again straight away. Getting this back later needs another factory reset, so it is worth being sure — but if you want it back, take it back.</string>
+    <string name="owner_release_confirm">Hand it back</string>
+    <string name="grayscale_section">Colour</string>
+    <string name="grayscale_explainer">A grey screen is the single most effective change measured in this field — not through willpower, but because colour is most of what makes a feed feel alive. Trials consistently find people put the phone down sooner without it.</string>
+    <string name="grayscale_needs_grant">Android will not let an app turn this on by itself, which is the right rule. Run this once from a computer with the phone plugged in, and it sticks through reboots:</string>
+    <string name="grayscale_now">Grey screen now</string>
+    <string name="grayscale_at_night">Go grey through the quiet hours</string>
+    <string name="grayscale_shares_a_switch">This borrows Android\&#39;s colour correction, so the two cannot both be on at once. Whatever correction you had set is put back when the grey screen goes off. If you rely on it during the day, you may still want to leave the night setting alone.</string>
     <string name="backup_section">Keep a copy</string>
     <string name="backup_explainer">Nothing here is backed up to the cloud, on purpose — so a reset or lost phone would take your plan and your people with it. Save a copy somewhere you trust, and bring it back whenever you need to.</string>
     <string name="backup_save">Save a copy…</string>
