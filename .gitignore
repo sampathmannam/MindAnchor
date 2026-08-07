@@ -16,3 +16,6 @@ captures/
 *.jks
 *.jks.base64
 *.base64
+
+# Kotlin compiler session state, written on every build.
+.kotlin/

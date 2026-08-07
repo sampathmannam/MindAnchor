@@ -22,6 +22,13 @@ android {
         versionCode = 17
         versionName = "0.17.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Fixtures write months of history into the app under test, which
+        // would leak into whatever ran next. They are excluded from every
+        // Gradle run, CI included, and invoked deliberately instead:
+        //   adb shell am instrument -w -e class org.mindanchor.SeedThirtyDays \
+        //     org.mindanchor.test/androidx.test.runner.AndroidJUnitRunner
+        // am instrument does not read these arguments, so that still works.
+        testInstrumentationRunnerArguments["notAnnotation"] = "org.mindanchor.Fixture"
 
         externalNativeBuild {
             cmake {
