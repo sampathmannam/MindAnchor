@@ -149,12 +149,26 @@ fun ReportScreen(onBack: () -> Unit) {
             )
         }
 
-        Text(
-            text = stringResource(R.string.report_disclaimer),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = Spacing.Section),
-        )
+        // The disclaimer only makes sense once there is something to
+        // disclaim.
+        //
+        // Seen in a screenshot of the empty state: under "Nothing yet"
+        // sat a paragraph explaining that these are counts from your own
+        // history next to what the research says — describing a screen
+        // that was not there. For the first weeks, which is most of what
+        // somebody will see of this, it was the only other text present
+        // and it explained nothing they could look at. A caution about
+        // claims is noise until a claim is made.
+        val hasSomethingToDisclaim =
+            !narration.isNullOrBlank() || patterns.isNotEmpty() || current?.isEmpty == false
+        if (hasSomethingToDisclaim) {
+            Text(
+                text = stringResource(R.string.report_disclaimer),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Spacing.Section),
+            )
+        }
     }
 }
 

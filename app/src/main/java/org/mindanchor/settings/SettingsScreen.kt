@@ -156,6 +156,19 @@ private fun GroupRow(titleRes: Int, descriptionRes: Int, marked: Boolean, onClic
         Text(
             text = stringResource(titleRes),
             style = MaterialTheme.typography.titleMedium,
+            // In the app's own colour, because on this screen that is
+            // what "you can tap this" looks like.
+            //
+            // Found by looking at a screenshot rather than at the code.
+            // Every other tappable thing here — the back link, the
+            // default-launcher request — is a TextButton and therefore
+            // primary-coloured, while these six sat in plain onSurface
+            // like the section headings they replaced. Six words stacked
+            // down the page in heading colour read as a table of
+            // contents, not as six doors. That is the honest cost of
+            // having no chevrons and no cards: the only cue left is
+            // colour, so it has to carry the whole job.
+            color = MaterialTheme.colorScheme.primary,
         )
         Text(
             text = stringResource(descriptionRes),
