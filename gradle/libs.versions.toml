@@ -11,6 +11,7 @@ ksp = "2.0.21-1.0.27"
 kotlinxSerialization = "1.7.3"
 healthConnect = "1.1.0-alpha07"
 cameraX = "1.4.1"
+concurrentFutures = "1.2.0"
 junit = "4.13.2"
 androidxTestJunit = "1.2.1"
 androidxTestRunner = "1.6.2"
@@ -35,6 +36,7 @@ androidx-health-connect = { group = "androidx.health.connect", name = "connect-c
 androidx-camera-core = { group = "androidx.camera", name = "camera-core", version.ref = "cameraX" }
 androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "cameraX" }
 androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "cameraX" }
+androidx-concurrent-futures-ktx = { group = "androidx.concurrent", name = "concurrent-futures-ktx", version.ref = "concurrentFutures" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-test-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxTestJunit" }
 androidx-test-runner = { group = "androidx.test", name = "runner", version.ref = "androidxTestRunner" }

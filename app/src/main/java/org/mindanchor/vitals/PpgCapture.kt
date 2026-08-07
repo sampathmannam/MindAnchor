@@ -6,20 +6,17 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import androidx.concurrent.futures.await
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.util.concurrent.Executors
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -152,7 +149,7 @@ class PpgCapture(private val context: Context) {
                 PpgCaptureState.Failed(REASON_NO_FLASH)
             } else {
                 withContext(Dispatchers.Main) {
-                    // NOTE(ci): enableTorch returns a ListenableFuture<Void>;
+                    // enableTorch returns a ListenableFuture<Void>,
                     // deliberately not awaited. Torch-on failing silently
                     // still lets the recording run and get refused by the
                     // quality gate, which is safer than the whole
@@ -235,20 +232,13 @@ class PpgCapture(private val context: Context) {
     // --- Camera plumbing -----------------------------------------------------
 
     private suspend fun awaitCameraProvider(): ProcessCameraProvider =
-        suspendCancellableCoroutine { continuation ->
-            // NOTE(ci): ProcessCameraProvider.getInstance(context) returning
-            // a Guava ListenableFuture is the documented 1.x entry point;
-            // verify the signature hasn't moved in 1.4.1.
-            val future = ProcessCameraProvider.getInstance(context)
-            future.addListener(
-                {
-                    runCatching { future.get() }
-                        .onSuccess { continuation.resume(it) }
-                        .onFailure { continuation.resumeWithException(it) }
-                },
-                ContextCompat.getMainExecutor(context),
-            )
-        }
+        // await() comes from androidx.concurrent:concurrent-futures-ktx,
+        // which is also what puts Guava's ListenableFuture on the compile
+        // classpath at all — CameraX returns it from getInstance() and
+        // enableTorch() without exporting it, so those signatures do not
+        // resolve on their own. A hand-rolled addListener bridge failed to
+        // compile here for exactly that reason.
+        ProcessCameraProvider.getInstance(context).await()
 
     private fun buildAnalysisUseCase(): ImageAnalysis {
         val useCase = ImageAnalysis.Builder()

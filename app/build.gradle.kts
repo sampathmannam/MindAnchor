@@ -100,6 +100,12 @@ dependencies {
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.lifecycle)
+    // CameraX returns Guava ListenableFuture from getInstance() and
+    // enableTorch(), but does not export Guava on the compile classpath —
+    // so those signatures are unresolvable without this. It also supplies
+    // ListenableFuture.await(), which replaces a hand-rolled
+    // suspendCancellableCoroutine bridge.
+    implementation(libs.androidx.concurrent.futures.ktx)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
