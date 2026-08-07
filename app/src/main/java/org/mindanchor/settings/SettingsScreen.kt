@@ -49,6 +49,7 @@ import org.mindanchor.friction.AppWatchService
 import org.mindanchor.grayscale.Grayscale
 import org.mindanchor.launcher.DisplayApp
 import org.mindanchor.narrate.ModelSlot
+import org.mindanchor.notifications.BatchSchedule
 import org.mindanchor.onboarding.Goal
 import org.mindanchor.onboarding.GoalMap
 import org.mindanchor.onboarding.SettingsSection
@@ -90,13 +91,13 @@ private val HOUR_MINUTE: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm"
  * people actually do to a bedtime.
  */
 @Composable
-private fun TimeNudger(labelRes: Int, onEarlier: () -> Unit, onLater: () -> Unit) {
+private fun TimeNudger(label: String, onEarlier: () -> Unit, onLater: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = stringResource(labelRes),
+            text = label,
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.weight(1f),
         )
@@ -409,6 +410,29 @@ fun SettingsScreen(
                 TextButton(onClick = viewModel::releaseNow) {
                     Text(stringResource(R.string.digest_release_now))
                 }
+
+                // The three release times, editable. The default 08:00 /
+                // 12:30 / 18:00 is the studied dosage, not a claim about
+                // anybody's day — a night shift makes a lunchtime batch
+                // meaningless, and the whole point of batching is that
+                // interruptions land when a person can absorb them.
+                val releaseTimes by viewModel.releaseTimes.collectAsState()
+                Text(
+                    text = stringResource(R.string.batching_times_explainer),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+                releaseTimes.forEachIndexed { slot, time ->
+                    // forEachIndexed is inline, so stringResource here is
+                    // still a call from the composable body.
+                    TimeNudger(
+                        label = stringResource(R.string.batching_time_slot, time.format(HOUR_MINUTE)),
+                        onEarlier = { viewModel.nudgeReleaseTime(slot, -BatchSchedule.NUDGE_MINUTES) },
+                        onLater = { viewModel.nudgeReleaseTime(slot, BatchSchedule.NUDGE_MINUTES) },
+                    )
+                }
+
                 Text(
                     text = stringResource(R.string.batching_choose_apps),
                     style = MaterialTheme.typography.bodyMedium,
@@ -547,12 +571,12 @@ fun SettingsScreen(
             modifier = Modifier.padding(top = 8.dp),
         )
         TimeNudger(
-            labelRes = R.string.sunset_starts,
+            label = stringResource(R.string.sunset_starts),
             onEarlier = { viewModel.nudgeSunset(-30, 0) },
             onLater = { viewModel.nudgeSunset(30, 0) },
         )
         TimeNudger(
-            labelRes = R.string.sunset_ends,
+            label = stringResource(R.string.sunset_ends),
             onEarlier = { viewModel.nudgeSunset(0, -30) },
             onLater = { viewModel.nudgeSunset(0, 30) },
         )

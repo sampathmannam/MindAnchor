@@ -11,6 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
+import org.mindanchor.data.NotificationPrefs
 import java.time.ZoneId
 
 /**
@@ -22,9 +23,21 @@ object BatchAlarms {
 
     private const val REQUEST_CODE = 41
 
-    fun ensureScheduled(context: Context) {
+    /**
+     * Arms the next release.
+     *
+     * Suspend because the release times are now the person's own rather
+     * than three constants, and reading them means reading DataStore. The
+     * cost is that every caller has to be in a coroutine already — see
+     * [BootReceiver], where the call had to move inside the `goAsync`
+     * block it was sitting next to, since a receiver whose process is torn
+     * down mid-read simply never re-arms.
+     */
+    suspend fun ensureScheduled(context: Context) {
         val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
-        val next = BatchSchedule.nextRelease(LocalDateTime.now())
+        val times = runCatching { NotificationPrefs(context).currentReleaseTimes() }
+            .getOrDefault(BatchSchedule.DEFAULT_TIMES)
+        val next = BatchSchedule.nextRelease(LocalDateTime.now(), times)
         val triggerAt = next.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val pending = PendingIntent.getBroadcast(
             context,
@@ -65,14 +78,14 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
         val appContext = context.applicationContext
-        BatchAlarms.ensureScheduled(appContext)
-        // The sunset window is stored rather than hardcoded, so re-arming
-        // it has to read preferences. goAsync keeps the receiver alive for
-        // that read — without it the process can be torn down first and
-        // the quiet hours simply never come back after a reboot.
+        // Every one of these reads stored preferences now — the release
+        // times as much as the sunset window — so all of them have to run
+        // inside goAsync. Without it the process can be torn down first
+        // and none of the alarms ever come back after a reboot.
         val pending = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             try {
+                BatchAlarms.ensureScheduled(appContext)
                 org.mindanchor.sunset.SunsetController.ensureScheduled(appContext)
                 // The nightly report's alarm does not survive a reboot
                 // either, and unlike a batch release nobody would notice

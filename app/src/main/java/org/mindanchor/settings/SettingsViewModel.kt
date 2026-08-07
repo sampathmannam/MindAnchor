@@ -24,6 +24,7 @@ import org.mindanchor.data.NotificationPrefs
 import org.mindanchor.data.SunsetPrefs
 import org.mindanchor.ui.NatureScene
 import org.mindanchor.notifications.BatchAlarms
+import org.mindanchor.notifications.BatchSchedule
 import org.mindanchor.notifications.BatchReleaser
 import org.mindanchor.report.ReportStore
 import org.mindanchor.report.ReportScheduler
@@ -121,6 +122,27 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             prefs.setBatchingEnabled(enabled)
             if (enabled) BatchAlarms.ensureScheduled(getApplication())
+        }
+    }
+
+    /** When the batches arrive. The person's own, defaulting to the studied dosage. */
+    val releaseTimes = prefs.releaseTimes
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BatchSchedule.DEFAULT_TIMES)
+
+    /**
+     * Moves one release time by [byMinutes], or does nothing.
+     *
+     * Nothing is the right answer when the move would land on another
+     * release: see BatchSchedule.nudged for why two batches at the same
+     * minute is refused rather than stored. A refused nudge simply leaves
+     * the times as they were, which is what the button not appearing to
+     * do anything already means to somebody pressing it.
+     */
+    fun nudgeReleaseTime(slot: Int, byMinutes: Long) {
+        viewModelScope.launch {
+            val moved = BatchSchedule.nudged(prefs.currentReleaseTimes(), slot, byMinutes)
+                ?: return@launch
+            if (prefs.setReleaseTimes(moved)) BatchAlarms.ensureScheduled(getApplication())
         }
     }
 

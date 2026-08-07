@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -49,6 +51,7 @@ import org.mindanchor.friction.FrictionGate
 import org.mindanchor.friction.FrictionTone
 import org.mindanchor.friction.LoopPhase
 import org.mindanchor.report.ReportScreen
+import org.mindanchor.report.ReportStore
 import org.mindanchor.settings.SettingsScreen
 import org.mindanchor.vitals.PpgScreen
 import org.mindanchor.support.SupportActivity
@@ -76,6 +79,21 @@ fun LauncherRoot(
     var surface by remember { mutableStateOf(LauncherSurface.Home) }
     var actionsFor by remember { mutableStateOf<DisplayApp?>(null) }
     var gateFor by remember { mutableStateOf<DisplayApp?>(null) }
+
+    // Where the report was opened from, so back returns there. Two ways
+    // in now — the settings section and a line on the home screen — and
+    // sending somebody who came from home into settings would be a small
+    // daily disorientation.
+    var reportCameFrom by remember { mutableStateOf(LauncherSurface.Settings) }
+    val context = LocalContext.current
+    val reportStore = remember(context) { ReportStore(context.applicationContext) }
+    val storedReport by reportStore.stored.collectAsState(initial = null)
+    // Only when there is genuinely something to read. An empty report is
+    // ReportComposer's ordinary, good outcome, and offering a way in to
+    // read nothing teaches somebody to stop looking.
+    val hasReport = storedReport?.let {
+        it.patterns.isNotEmpty() || !it.narration.isNullOrBlank() || !it.report.isEmpty
+    } == true
 
     // Pressing home while deep in the drawer or settings must land on the
     // home surface — otherwise the launcher "sticks" wherever you left it.
@@ -159,6 +177,11 @@ fun LauncherRoot(
                 loopNote = openLoop.second,
                 onLoopSave = viewModel::saveOpenLoop,
                 onLoopClear = viewModel::clearOpenLoop,
+                hasReport = hasReport,
+                onOpenReport = {
+                    reportCameFrom = LauncherSurface.Home
+                    surface = LauncherSurface.Report
+                },
             )
         }
 
@@ -178,7 +201,10 @@ fun LauncherRoot(
                 onUnhide = { viewModel.setHidden(it, false) },
                 onBack = { surface = LauncherSurface.Home },
                 onOpenPpg = { surface = LauncherSurface.Ppg },
-                onOpenReport = { surface = LauncherSurface.Report },
+                onOpenReport = {
+                    reportCameFrom = LauncherSurface.Settings
+                    surface = LauncherSurface.Report
+                },
             )
         }
 
@@ -191,7 +217,10 @@ fun LauncherRoot(
         }
 
         LauncherSurface.Report -> Surface(modifier = Modifier.fillMaxSize()) {
-            ReportScreen(onBack = { surface = LauncherSurface.Settings })
+            // Back goes wherever this was opened from. Sending somebody
+            // who tapped the line on the home screen into settings would
+            // be a small, daily disorientation.
+            ReportScreen(onBack = { surface = reportCameFrom })
         }
     }
 
@@ -291,6 +320,9 @@ private fun HomeSurface(
     loopNote: String? = null,
     onLoopSave: (String) -> Unit = {},
     onLoopClear: () -> Unit = {},
+    /** Shown only when last night's report actually has something in it. */
+    hasReport: Boolean = false,
+    onOpenReport: () -> Unit = {},
 ) {
     val now = rememberMinuteTick()
     val clockFormat = rememberClockFormat()
@@ -339,6 +371,24 @@ private fun HomeSurface(
                 onSave = onLoopSave,
                 onClear = onLoopClear,
             )
+
+            // One quiet line, and only when there is genuinely something
+            // to read. No badge, no count, no dot — this app has none of
+            // those anywhere by design, and a permanent entry point would
+            // be a standing invitation to check, which is the habit the
+            // rest of the launcher exists to unwind. A steady week
+            // produces no report and therefore no line at all.
+            if (hasReport) {
+                Text(
+                    text = stringResource(R.string.report_section),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = sky.textSecondary,
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .clickable(onClick = onOpenReport)
+                        .wrapContentHeight(Alignment.CenterVertically),
+                )
+            }
 
             Column(
                 modifier = Modifier.padding(top = 40.dp),

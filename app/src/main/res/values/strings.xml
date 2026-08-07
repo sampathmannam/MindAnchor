@@ -43,6 +43,8 @@
     <string name="batching_explainer">Chosen apps stop interrupting you; their notifications wait quietly and arrive together at 8:00, 12:30 and 18:00. Conversations, calls and alarms always come through instantly.</string>
     <string name="grant_notification_access">Grant notification access to enable batching</string>
     <string name="batching_toggle">Batch notifications</string>
+    <string name="batching_times_explainer">When the batches arrive. The default three follow the trial this is drawn from, not anything about your day — move them to where you can actually take an interruption.</string>
+    <string name="batching_time_slot">Arrives at %1$s</string>
     <string name="batching_choose_apps">Apps to batch:</string>
 
     <string name="digest_channel_name">Digest</string>
