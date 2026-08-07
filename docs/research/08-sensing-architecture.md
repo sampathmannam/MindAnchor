@@ -237,3 +237,44 @@ Android glue around it stays thin enough to read.
 - **The wording still needs a clinician.** Unchanged from `07`. Building
   the mechanism does not resolve it, and it will land hardest on the
   person it is meant to help.
+
+---
+
+## 7. Addendum: the screen-rhythm pair and the inferred ledger
+
+*Added after the build reached them; recorded here because §2.1 promised
+"already permitted, mostly already collected" and this is the rest of it
+being collected.*
+
+Two signals joined the grid with no new permission and no new sensor:
+**first pickup** (the minute of the first `KEYGUARD_HIDDEN` at or after
+03:00) and **screen time** (minutes the display spent interactive, spans
+split at midnight so an evening running past twelve charges each day its
+own share). Both come from the same retroactive `UsageStatsManager`
+event log the sleep estimate reads, and both are things a person can
+check against their own memory of a day — the bar §2 set for a signal.
+
+The 03:00 floor makes first pickup a morning fact rather than the tail
+of an evening, and inherits the day-sleeper caveat sleep already
+carries. First pickup renders as a plain clock and reads
+"later/earlier" in the report, never "higher": it needs none of sleep
+onset's 18:00 re-frame because a morning fenced past 03:00 cannot
+straddle midnight.
+
+**The retention problem, and the ledger.** Android keeps detailed usage
+events for only about a week; a baseline needs months. So the nightly
+build recomputes the recent days from the log and writes them into a
+persistent inferred ledger — the same day-key-value codec as the camera
+readings, deliberately a separate file so measured-here and
+phone-inferred provenance stay structurally unmixable. Recomputing a day
+already on file is an upsert, which is what lets missed nights heal on
+the next run. Days from before the log's reach are null, never zero — a
+fabricated day of perfect abstinence would sit in the baseline forever.
+The ledger rides in the backup under the readings' local-wins rules.
+
+One measured consequence for the statistics: inserting two enum entries
+shifts which pseudo-random draws each signal receives in the fixed-seed
+noise test, so the whole 18-cell grid was re-simulated through the exact
+Xorshift/block-permutation/Holm mirror before the change was pushed.
+Worst cell: adjusted p = 0.47 against the 0.005 bar. Still silence on
+noise, as designed.
