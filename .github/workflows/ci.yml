@@ -22,6 +22,21 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      # docs/CLINICIAN_PACK.md is the wording a clinician is asked to read,
+      # generated from strings.xml. It says "regenerate after wording
+      # changes" and nothing enforced it, so it drifted: it was quoting
+      # copy that had already been rewritten. A stale pack means a review
+      # of text that is not what ships, which for this app's most
+      # sensitive screens is the review being quietly worthless.
+      - name: Clinician pack matches the strings it documents
+        run: |
+          python3 tools/clinician-pack.py
+          if ! git diff --quiet -- docs/CLINICIAN_PACK.md; then
+            echo "::error::docs/CLINICIAN_PACK.md is stale. Run tools/clinician-pack.py and commit the result."
+            git --no-pager diff -- docs/CLINICIAN_PACK.md
+            exit 1
+          fi
+
       - name: Build, lint and test
         run: ./gradlew build --stacktrace
 
