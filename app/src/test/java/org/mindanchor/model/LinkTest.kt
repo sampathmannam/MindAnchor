@@ -236,6 +236,35 @@ class LinkTest {
     }
 
     @Test
+    fun permutationFloorIsReachable() {
+        // The trap this pins: a permutation test cannot report a p below
+        // 1/(permutations+1), and Holm multiplies the smallest by the
+        // number of tests. If that floor sits above ALPHA, no link can
+        // ever be found however real it is — and nothing would say so.
+        // The feature would go silent forever and look like it was
+        // working. At 2000 permutations and ten tests the floor is 0.005,
+        // which is ALPHA exactly; one more testable signal would have
+        // broken it silently.
+        val grid = 14
+        val floor = grid.toDouble() / (LinkFinder.PERMUTATIONS + 1.0)
+        assertTrue(
+            "a grid of $grid could never produce a finding: floor $floor vs alpha ${LinkFinder.ALPHA}",
+            floor < LinkFinder.ALPHA,
+        )
+        // And with real headroom, not by a hair.
+        assertTrue("no margin left for another signal", floor < LinkFinder.ALPHA / 2)
+    }
+
+    @Test
+    fun `the bar is set where the false-positive rate was measured, not at habit`() {
+        // 0.05 was measured on this exact grid against pure autocorrelated
+        // noise and produced false links in up to 21.7% of runs, because
+        // Holm assumes valid p-values and block permutation's are still
+        // optimistic in the far tail. See LinkFinder.ALPHA for the table.
+        assertTrue("0.05 is the number that did not work", LinkFinder.ALPHA <= 0.005)
+    }
+
+    @Test
     fun `week-long blocks divide the minimum record evenly`() {
         // Both numbers are chosen, and a change to either that left a
         // ragged final block would quietly bias the last few days.

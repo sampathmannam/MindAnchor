@@ -132,15 +132,90 @@ object LinkFinder {
     /**
      * Permutations per test.
      *
-     * Two thousand puts the resolution of a p-value at about 0.0005,
-     * which is far finer than anything here acts on, and costs a few
-     * milliseconds on thirty points. This runs once a night on a phone
-     * that is already awake and charging.
+     * This number is not free to choose. A permutation test cannot report
+     * a p below `1 / (permutations + 1)`, and Holm multiplies the
+     * smallest p by the number of tests, so the smallest **adjusted** p
+     * the whole grid can ever produce is `m / (permutations + 1)`. If
+     * that floor sits above [ALPHA], no link can be found however real it
+     * is, and nothing anywhere would say so — the feature would simply
+     * be silent forever and look like it was working.
+     *
+     * At [ALPHA] = 0.005 and ten tests, two thousand permutations puts
+     * the floor at 0.005 exactly: it passes, barely, and one more
+     * testable signal would push it over and silently break everything.
+     * Twenty thousand leaves the floor at 0.0005 for a ten-test grid and
+     * 0.0007 for fourteen, so the margin survives adding signals. It
+     * costs a couple of seconds at three in the morning on a phone that
+     * is already awake and charging, which is the cheapest thing here.
+     *
+     * `permutationFloorIsReachable` in the tests pins this.
      */
-    const val PERMUTATIONS = 2_000
+    const val PERMUTATIONS = 20_000
 
-    /** The threshold a Holm-adjusted p must clear. */
-    const val ALPHA = 0.05
+    /**
+     * The threshold a Holm-adjusted p must clear.
+     *
+     * ## Why not 0.05
+     *
+     * Because 0.05 was measured and it does not work. Simulated on the
+     * real grid — five signals against two labels, every series pure
+     * autocorrelated noise, so every "finding" is false by construction:
+     *
+     * | days | φ    | α = 0.05 | α = 0.01 | α = 0.005 |
+     * |------|------|----------|----------|-----------|
+     * | 28   | 0.60 | 8.3%     | 0.0%     | 0.0%      |
+     * | 28   | 0.85 | 8.3%     | 1.7%     | 0.0%      |
+     * | 56   | 0.60 | 15.0%    | 3.3%     | 1.7%      |
+     * | 56   | 0.85 | **21.7%**| 8.3%     | 3.3%      |
+     * | 84   | 0.60 | 0.0%     | 0.0%     | 0.0%      |
+     * | 84   | 0.85 | 15.0%    | 3.3%     | 1.7%      |
+     *
+     * Holm is supposed to hold the family-wise rate at α, and at 0.05 it
+     * does not, because it assumes valid p-values and block permutation's
+     * are still optimistic in the far tail — a week-long block cannot
+     * represent dependence that outlives a week, and twenty-eight days is
+     * only four blocks to shuffle. Only 0.005 keeps the worst case under
+     * the nominal 5% everywhere tested.
+     *
+     * ## What that costs, stated plainly
+     *
+     * Detection of a genuinely linked signal, same grid, one real link
+     * among ten tests:
+     *
+     * | days | true ρ | α = 0.05 | α = 0.005 |
+     * |------|--------|----------|-----------|
+     * | 28   | 0.3    | 8.3%     | 1.7%      |
+     * | 28   | 0.7    | 66.7%    | 36.7%     |
+     * | 56   | 0.7    | 96.7%    | 86.7%     |
+     * | 84   | 0.5    | 70.0%    | 46.7%     |
+     * | 84   | 0.7    | 100%     | 96.7%     |
+     *
+     * So: a strong link takes about eight weeks to become reliably
+     * findable, a moderate one takes twelve and is still a coin flip, and
+     * a weak one is never found at all. That is the deal, and it is the
+     * right way round for this particular app. Finding nothing is its
+     * ordinary, stated good outcome and costs a person nothing. Telling
+     * somebody their sleep predicts their mood when it does not is a
+     * machine inventing a fact about their mind, and they may well
+     * rearrange their life around it.
+     *
+     * ## One caveat on those tables
+     *
+     * Both were measured at two thousand permutations rather than the
+     * twenty thousand [PERMUTATIONS] now sets, because twenty thousand
+     * takes hours to simulate and seconds to run. The direction of that
+     * difference is knowable without re-measuring, and it is favourable
+     * on both axes. At two thousand, clearing α = 0.005 across ten tests
+     * required *zero* of two thousand shuffles to match the observation,
+     * and a signal whose true tail probability is 0.001 gets zero by luck
+     * about 13% of the time. At twenty thousand the same bar allows nine
+     * of twenty thousand, and that same signal passes about 0.5% of the
+     * time. Less Monte Carlo luck means fewer false links **and** more
+     * real ones, so the rates above are pessimistic about power and
+     * optimistic about false positives — the safe way round for a table
+     * being used to justify a threshold.
+     */
+    const val ALPHA = 0.005
 
     /**
      * Tests every signal against every label and returns what survived.
