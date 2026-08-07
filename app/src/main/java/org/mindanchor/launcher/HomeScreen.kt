@@ -47,6 +47,7 @@ import org.mindanchor.R
 import org.mindanchor.digest.DigestActivity
 import org.mindanchor.friction.FrictionGate
 import org.mindanchor.friction.FrictionTone
+import org.mindanchor.friction.LoopPhase
 import org.mindanchor.settings.SettingsScreen
 import org.mindanchor.support.SupportActivity
 import org.mindanchor.ui.CalmBackground
@@ -69,6 +70,7 @@ fun LauncherRoot(
     goHomeSignal: Int = 0,
 ) {
     val state by viewModel.uiState.collectAsState()
+    val openLoop by viewModel.openLoop.collectAsState()
     var surface by remember { mutableStateOf(LauncherSurface.Home) }
     var actionsFor by remember { mutableStateOf<DisplayApp?>(null) }
     var gateFor by remember { mutableStateOf<DisplayApp?>(null) }
@@ -105,9 +107,9 @@ fun LauncherRoot(
         // is a disk read. Nothing is drawn until it resolves — showing the
         // full breath and then swapping it for a lighter prompt would be
         // worse than the brief blank the sky already covers.
-        var tone by remember(app) { mutableStateOf<FrictionTone?>(null) }
-        LaunchedEffect(app) { tone = viewModel.toneFor(app) }
-        val resolved = tone
+        var gate by remember(app) { mutableStateOf<Pair<FrictionTone, String?>?>(null) }
+        LaunchedEffect(app) { gate = viewModel.gateFor(app) }
+        val resolved = gate?.first
         if (resolved == null) {
             // Hold the sky. Falling through here would draw the home screen
             // for a frame between tapping an app and the pause appearing,
@@ -118,6 +120,15 @@ fun LauncherRoot(
             FrictionGate(
                 tone = resolved,
                 appLabel = app.label,
+                smallThing = gate?.second,
+                // Taking the small thing is leaving, not entering. It
+                // counts as backing out for the same reason "never mind"
+                // does: the person met the pause and did not go in.
+                onSmallThingTaken = {
+                    viewModel.recordNeverMind(app)
+                    gateFor = null
+                    surface = LauncherSurface.Home
+                },
                 onOpen = { minutes ->
                     viewModel.launchTimed(app, minutes)
                     gateFor = null
@@ -142,6 +153,10 @@ fun LauncherRoot(
                 onOpenSettings = { surface = LauncherSurface.Settings },
                 onLaunch = ::attemptLaunch,
                 onLongPress = { actionsFor = it },
+                loopPhase = openLoop.first,
+                loopNote = openLoop.second,
+                onLoopSave = viewModel::saveOpenLoop,
+                onLoopClear = viewModel::clearOpenLoop,
             )
         }
 
@@ -181,6 +196,74 @@ fun LauncherRoot(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
+/**
+ * The one unfinished thing — see [org.mindanchor.friction.OpenLoop].
+ *
+ * Deliberately silent most of the time. It appears once in the quiet
+ * hours to take a line, and once the next morning to give it back, and
+ * otherwise draws nothing at all. A home screen that always has something
+ * to say is a home screen people stop reading.
+ */
+@Composable
+private fun OpenLoopCard(
+    sky: SkyContent,
+    phase: LoopPhase,
+    note: String?,
+    onSave: (String) -> Unit,
+    onClear: () -> Unit,
+) {
+    when (phase) {
+        LoopPhase.NONE -> Unit
+
+        LoopPhase.CAPTURE -> {
+            var draft by remember { mutableStateOf("") }
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text = stringResource(R.string.loop_capture),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = sky.textSecondary,
+                    textAlign = TextAlign.Center,
+                )
+                OutlinedTextField(
+                    value = draft,
+                    onValueChange = { draft = it },
+                    singleLine = true,
+                    placeholder = { Text(stringResource(R.string.loop_capture_hint)) },
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                )
+                TextButton(onClick = { onSave(draft) }) {
+                    Text(stringResource(R.string.loop_save), color = sky.textPrimary)
+                }
+            }
+        }
+
+        LoopPhase.RETURN -> Column(
+            modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = stringResource(R.string.loop_return),
+                style = MaterialTheme.typography.bodySmall,
+                color = sky.textSecondary,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text = note.orEmpty(),
+                style = MaterialTheme.typography.titleMedium,
+                color = sky.textPrimary,
+                textAlign = TextAlign.Center,
+            )
+            TextButton(onClick = onClear) {
+                Text(stringResource(R.string.loop_clear), color = sky.textSecondary)
+            }
+        }
+    }
+}
+
+@Composable
 private fun HomeSurface(
     sky: SkyContent,
     favorites: List<DisplayApp>,
@@ -188,6 +271,10 @@ private fun HomeSurface(
     onOpenSettings: () -> Unit,
     onLaunch: (DisplayApp) -> Unit,
     onLongPress: (DisplayApp) -> Unit,
+    loopPhase: LoopPhase = LoopPhase.NONE,
+    loopNote: String? = null,
+    onLoopSave: (String) -> Unit = {},
+    onLoopClear: () -> Unit = {},
 ) {
     val now = rememberMinuteTick()
     val clockFormat = rememberClockFormat()
@@ -227,6 +314,14 @@ private fun HomeSurface(
                 ),
                 style = MaterialTheme.typography.titleMedium,
                 color = sky.textSecondary,
+            )
+
+            OpenLoopCard(
+                sky = sky,
+                phase = loopPhase,
+                note = loopNote,
+                onSave = onLoopSave,
+                onClear = onLoopClear,
             )
 
             Column(

@@ -47,6 +47,13 @@ fun FrictionGate(
     onNeverMind: () -> Unit,
     /** How hard to push this time; see [FrictionTone]. */
     tone: FrictionTone = FrictionTone.FULL,
+    /**
+     * One of the person's own small things, or null. Chosen by
+     * [SmallThings], which is where the rules about when to stay quiet
+     * live. Never shown on FEATHER and never in the quiet hours.
+     */
+    smallThing: String? = null,
+    onSmallThingTaken: () -> Unit = {},
 ) {
     // The breath is skipped entirely below FULL rather than shortened.
     // A hurried version of a calming ritual is not calming.
@@ -76,6 +83,8 @@ fun FrictionGate(
                 appLabel = appLabel,
                 onOpen = onOpen,
                 onNeverMind = onNeverMind,
+                smallThing = smallThing,
+                onSmallThingTaken = onSmallThingTaken,
             )
         }
     }
@@ -205,6 +214,8 @@ private fun IntentionPrompt(
     appLabel: String,
     onOpen: (minutes: Long?) -> Unit,
     onNeverMind: () -> Unit,
+    smallThing: String? = null,
+    onSmallThingTaken: () -> Unit = {},
 ) {
     Box(modifier = Modifier.fillMaxSize().padding(32.dp)) {
         Column(
@@ -234,6 +245,22 @@ private fun IntentionPrompt(
             }
             TextButton(onClick = { onOpen(null) }) {
                 Text(stringResource(R.string.open_untimed), color = sky.textSecondary)
+            }
+
+            // Their own words, offered beside the door rather than in
+            // front of it. Behavioural activation says the small thing is
+            // what shifts mood, and this is the one moment anything can
+            // see that a small thing is being avoided. It is one line and
+            // it never argues — the way in is still exactly where it was.
+            if (smallThing != null) {
+                Text(
+                    text = stringResource(R.string.small_thing_prompt),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = sky.textSecondary,
+                )
+                TextButton(onClick = onSmallThingTaken) {
+                    Text(smallThing, color = sky.textPrimary)
+                }
             }
         }
         TextButton(

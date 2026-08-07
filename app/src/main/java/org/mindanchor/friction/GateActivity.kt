@@ -16,6 +16,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import org.mindanchor.data.FrictionPrefs
 import org.mindanchor.data.SunsetPrefs
@@ -48,20 +49,27 @@ class GateActivity : ComponentActivity() {
 
         setContent {
             MindAnchorTheme {
-                var tone by remember { mutableStateOf<FrictionTone?>(null) }
+                var gate by remember { mutableStateOf<Pair<FrictionTone, String?>?>(null) }
                 LaunchedEffect(target) {
-                    val prior = withContext(Dispatchers.IO) {
-                        prefs.recordReach(
+                    gate = withContext(Dispatchers.IO) {
+                        val prior = prefs.recordReach(
                             target,
                             System.currentTimeMillis(),
                             FrictionContext.RECENT_WINDOW_MILLIS,
                         )
+                        prefs.recordGateShown(target)
+                        val quiet = sunsetPrefs.isQuietHour()
+                        val tone = FrictionContext.toneFor(
+                            recentOpens = prior,
+                            insideSleepWindow = quiet,
+                        )
+                        tone to SmallThings.offer(
+                            things = prefs.smallThings.first(),
+                            nthReach = prior,
+                            tone = tone,
+                            quietHours = quiet,
+                        )
                     }
-                    withContext(Dispatchers.IO) { prefs.recordGateShown(target) }
-                    tone = FrictionContext.toneFor(
-                        recentOpens = prior,
-                        insideSleepWindow = sunsetPrefs.isQuietHour(),
-                    )
                 }
 
                 // Back is a way out, not a way through. Letting it dismiss
@@ -69,11 +77,21 @@ class GateActivity : ComponentActivity() {
                 // thing a formality that one gesture defeats.
                 BackHandler { goHome() }
 
-                when (val resolved = tone) {
+                when (val resolved = gate?.first) {
                     null -> CalmBackground { }
                     else -> FrictionGate(
                         tone = resolved,
                         appLabel = label,
+                        smallThing = gate?.second,
+                        // Taking the small thing is leaving, not entering,
+                        // and counts as backing out for the same reason
+                        // "never mind" does.
+                        onSmallThingTaken = {
+                            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                                prefs.recordGateAbandoned(target)
+                            }
+                            goHome()
+                        },
                         onOpen = { minutes -> allow(target, label, minutes) },
                         onNeverMind = {
                             // Counted before leaving. This is the outcome

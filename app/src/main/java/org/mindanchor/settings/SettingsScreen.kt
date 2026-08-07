@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -300,6 +301,59 @@ fun SettingsScreen(
                         Text(stringResource(R.string.stale_drop))
                     }
                 }
+            }
+        }
+
+        // --- Small things ---
+        //
+        // Behavioural activation: the small thing shifts mood, and the
+        // moment somebody reaches for a distraction is the only moment
+        // anything can see that a small thing is being avoided. What makes
+        // that safe rather than cruel is that these are the person's own
+        // words, written while calm — nothing here is ever seeded with
+        // suggestions about how somebody ought to feel better.
+        Text(
+            text = stringResource(R.string.small_things_section),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
+        )
+        Text(
+            text = stringResource(R.string.small_things_explainer),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        val smallThings by viewModel.smallThings.collectAsState()
+        smallThings.forEach { thing ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = thing,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = { viewModel.removeSmallThing(thing) }) {
+                    Text(stringResource(R.string.small_things_remove))
+                }
+            }
+        }
+        if (smallThings.size < org.mindanchor.friction.SmallThings.MAX) {
+            var draft by remember { mutableStateOf("") }
+            OutlinedTextField(
+                value = draft,
+                onValueChange = { draft = it },
+                singleLine = true,
+                placeholder = { Text(stringResource(R.string.small_things_hint)) },
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            )
+            TextButton(
+                onClick = {
+                    viewModel.addSmallThing(draft)
+                    draft = ""
+                },
+            ) {
+                Text(stringResource(R.string.small_things_add))
             }
         }
 

@@ -62,6 +62,17 @@
     <string name="scene_forest">Forest</string>
     <string name="scene_off">Just the sky</string>
 
+    <string name="small_things_section">Small things that help</string>
+    <string name="small_things_explainer">If you write down a few small things that help you, one of them is offered — beside the app, never instead of it — at the moment you reach for something else. Only your words, never ours. Nothing is offered on a fourth reach in ten minutes, or during your quiet hours: those are not moments to be asked whether you have tried going for a walk.</string>
+    <string name="small_things_hint">Two minutes outside</string>
+    <string name="small_things_add">Add</string>
+    <string name="small_things_remove">Remove</string>
+    <string name="small_thing_prompt">Or, one of yours:</string>
+    <string name="loop_capture">Anything still open? Put it down here and pick it up in the morning.</string>
+    <string name="loop_capture_hint">The one thing on your mind</string>
+    <string name="loop_save">Put it down</string>
+    <string name="loop_return">You left this for yourself last night:</string>
+    <string name="loop_clear">Done with it</string>
     <string name="stale_section">Pauses worth a look</string>
     <string name="stale_explainer">These are ones you have gone through every time. That might mean the pause has become scenery, or it might mean it is quietly doing its job and you genuinely wanted to go in. Only you know which. Nothing changes unless you change it.</string>
     <string name="stale_line">%1$s — shown %2$d times, and you went in every time.</string>

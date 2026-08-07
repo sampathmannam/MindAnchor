@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.map
 import org.mindanchor.friction.ExtensionLedger
 import org.mindanchor.friction.GateLedger
 import org.mindanchor.friction.GateTally
+import org.mindanchor.friction.OpenLoop
+import org.mindanchor.friction.SmallThings
 import java.time.LocalDate
 
 private val Context.dataStore by preferencesDataStore(name = "friction")
@@ -86,6 +88,54 @@ class FrictionPrefs(private val context: Context) {
                 .joinToString("\n") { "${it.first}\t${it.second}" }
         }
         return priorReaches
+    }
+
+    private val smallThingsKey = stringPreferencesKey("small_things")
+
+    /**
+     * The small things the person said help them — see
+     * [org.mindanchor.friction.SmallThings]. Their words only; nothing
+     * here is ever seeded with suggestions.
+     */
+    val smallThings: Flow<List<String>> =
+        context.dataStore.data.map { SmallThings.decode(it[smallThingsKey].orEmpty()) }
+
+    suspend fun addSmallThing(thing: String) {
+        context.dataStore.edit {
+            it[smallThingsKey] =
+                SmallThings.encode(SmallThings.add(SmallThings.decode(it[smallThingsKey].orEmpty()), thing))
+        }
+    }
+
+    suspend fun removeSmallThing(thing: String) {
+        context.dataStore.edit {
+            it[smallThingsKey] =
+                SmallThings.encode(SmallThings.remove(SmallThings.decode(it[smallThingsKey].orEmpty()), thing))
+        }
+    }
+
+    private val loopNoteKey = stringPreferencesKey("open_loop_note")
+    private val loopDayKey = stringPreferencesKey("open_loop_day")
+
+    /** The one unfinished thing — see [org.mindanchor.friction.OpenLoop]. */
+    val openLoopNote: Flow<String?> = context.dataStore.data.map { it[loopNoteKey] }
+
+    val openLoopDay: Flow<String?> = context.dataStore.data.map { it[loopDayKey] }
+
+    suspend fun setOpenLoop(note: String, today: LocalDate = LocalDate.now()) {
+        val cleaned = OpenLoop.clean(note) ?: return
+        context.dataStore.edit {
+            it[loopNoteKey] = cleaned
+            it[loopDayKey] = today.toString()
+        }
+    }
+
+    /** Clears it. One line, replaced each night — never a task list. */
+    suspend fun clearOpenLoop() {
+        context.dataStore.edit {
+            it.remove(loopNoteKey)
+            it.remove(loopDayKey)
+        }
     }
 
     private val ledgerTallyKey = stringPreferencesKey("gate_tallies")

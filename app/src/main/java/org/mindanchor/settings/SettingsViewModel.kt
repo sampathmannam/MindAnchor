@@ -67,6 +67,23 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }.sortedBy { it.first }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /**
+     * The small things the person said help them — their words only, never
+     * seeded with suggestions. See
+     * [org.mindanchor.friction.SmallThings] for when they are offered and,
+     * more importantly, when they are not.
+     */
+    val smallThings = frictionPrefs.smallThings
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun addSmallThing(thing: String) {
+        viewModelScope.launch { frictionPrefs.addSmallThing(thing) }
+    }
+
+    fun removeSmallThing(thing: String) {
+        viewModelScope.launch { frictionPrefs.removeSmallThing(thing) }
+    }
+
     /** Somebody looked at the numbers and kept the pause. Start again. */
     fun keepPause(packageName: String) {
         viewModelScope.launch { frictionPrefs.resetTally(packageName) }
