@@ -149,6 +149,68 @@ class ScreenshotTest {
      * everywhere. A screenshot of the gentlest possible case would prove
      * nothing about the case that actually needs to read calmly.
      */
+    /**
+     * The observations and their research, with nothing above them.
+     *
+     * A screenshot is clipped to the viewport, so in the full report the
+     * sections sit below the fold and the container around each research
+     * passage — the one real design decision on this screen, the thing
+     * that makes "this part is not about you" visible without a word of
+     * copy claiming it — went unphotographed. This drops the paragraph
+     * and the pattern so the sections start at the top and can actually
+     * be looked at.
+     */
+    @Test
+    fun reportSectionsOnly() = shoot("report-sections") {
+        ReportScreen(
+            stored = StoredReport(
+                report = Report(
+                    day = "2026-08-06",
+                    sections = listOf(
+                        ReportSection(
+                            observation = Observation(
+                                signal = Signal.HRV,
+                                direction = Direction.BELOW,
+                                today = 28.0,
+                                usual = 46.0,
+                            ),
+                            passages = listOf(
+                                Passage(
+                                    "hrv-rmssd",
+                                    "Shaffer & Ginsberg 2017, Frontiers in Public Health",
+                                    "RMSSD is the primary time-domain measure of short-term heart " +
+                                        "rate variability. It reflects vagally mediated, " +
+                                        "beat-to-beat changes in heart rhythm, and is the HRV " +
+                                        "metric least affected by breathing rate.",
+                                ),
+                            ),
+                        ),
+                        ReportSection(
+                            observation = Observation(
+                                signal = Signal.SLEEP_ONSET,
+                                direction = Direction.ABOVE,
+                                today = 330.0,
+                                usual = 240.0,
+                            ),
+                            passages = listOf(
+                                Passage(
+                                    "sleep-regularity",
+                                    "Windred et al. 2024, Sleep 47:zsad285",
+                                    "In a large accelerometry cohort, sleep regularity predicted " +
+                                        "all-cause mortality more strongly than sleep duration did.",
+                                ),
+                            ),
+                        ),
+                    ),
+                    notYetKnown = emptyList(),
+                ),
+                narration = null,
+                patterns = emptyList(),
+            ),
+            onBack = {},
+        )
+    }
+
     @Test
     fun reportWithContent() = shoot("report-full") {
         ReportScreen(

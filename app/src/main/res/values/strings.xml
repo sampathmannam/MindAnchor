@@ -163,6 +163,25 @@
     <string name="model_import">Add a model from a file</string>
     <string name="model_clear">Remove the model</string>
     <string name="model_import_failed">That file could not be copied.</string>
+    <!--
+        Inline forms, for the pattern sentence.
+
+        The names above are headings: standalone, capitalised, read on
+        their own line. Dropped into the middle of a sentence they produce
+        "when your When you got to sleep was closest to last night's",
+        which is what the first screenshot of a populated report actually
+        said. A heading and a noun phrase are not the same string and
+        pretending otherwise reads as broken.
+    -->
+    <string name="signal_inline_hrv">heart-rate variability</string>
+    <string name="signal_inline_resting_hr">resting heart rate</string>
+    <string name="signal_inline_sleep_minutes">time asleep</string>
+    <string name="signal_inline_sleep_onset">bedtime</string>
+    <string name="signal_inline_steps">step count</string>
+    <string name="signal_inline_valence">sense of how things felt</string>
+    <string name="signal_inline_arousal">energy</string>
+    <string name="label_inline_valence">how things felt</string>
+    <string name="label_inline_arousal">how much energy you had</string>
     <string name="signal_hrv">Heart-rate variability</string>
     <string name="signal_resting_hr">Resting heart rate</string>
     <string name="signal_sleep_minutes">Time asleep</string>

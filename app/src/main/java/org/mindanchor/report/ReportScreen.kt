@@ -128,8 +128,12 @@ fun ReportScreen(stored: StoredReport?, onBack: () -> Unit) {
                     text = stringResource(
                         bodyRes,
                         pattern.similarDays,
-                        stringResource(pattern.signal.displayNameRes()),
-                        stringResource(pattern.label.displayNameRes()),
+                        // Inline forms, not the headings: these land in
+                        // the middle of a sentence. See the comment above
+                        // signal_inline_* in strings.xml for what the
+                        // headings actually produced there.
+                        stringResource(pattern.signal.inlineNameRes()),
+                        stringResource(pattern.label.inlineNameRes()),
                     ),
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.padding(bottom = Spacing.Snug),
@@ -266,6 +270,29 @@ private fun ReportSectionCard(section: ReportSection) {
             )
         }
     }
+}
+
+/**
+ * The same names as a noun phrase, for use inside a sentence.
+ *
+ * Kept separate from [displayNameRes] rather than replacing it: a section
+ * heading wants "When you got to sleep" and a sentence wants "bedtime",
+ * and one string cannot be both without reading wrong in one of the two
+ * places.
+ */
+private fun Signal.inlineNameRes(): Int = when (this) {
+    Signal.HRV -> R.string.signal_inline_hrv
+    Signal.RESTING_HEART_RATE -> R.string.signal_inline_resting_hr
+    Signal.SLEEP_MINUTES -> R.string.signal_inline_sleep_minutes
+    Signal.SLEEP_ONSET -> R.string.signal_inline_sleep_onset
+    Signal.STEPS -> R.string.signal_inline_steps
+    Signal.VALENCE -> R.string.signal_inline_valence
+    Signal.AROUSAL -> R.string.signal_inline_arousal
+}
+
+private fun Label.inlineNameRes(): Int = when (this) {
+    Label.VALENCE -> R.string.label_inline_valence
+    Label.AROUSAL -> R.string.label_inline_arousal
 }
 
 private fun Signal.displayNameRes(): Int = when (this) {
