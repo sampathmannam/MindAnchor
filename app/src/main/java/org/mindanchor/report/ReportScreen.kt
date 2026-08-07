@@ -38,7 +38,9 @@ import org.mindanchor.R
 fun ReportScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val store = remember { ReportStore(context.applicationContext) }
-    val report by store.report.collectAsState(initial = null)
+    val stored by store.stored.collectAsState(initial = null)
+    val report = stored?.report
+    val narration = stored?.narration
 
     Column(
         modifier = Modifier
@@ -56,6 +58,26 @@ fun ReportScreen(onBack: () -> Unit) {
             style = MaterialTheme.typography.headlineMedium,
             modifier = Modifier.padding(vertical = 16.dp),
         )
+
+        // The paragraph a narrator wrote, shown above the sections it was
+        // drawn from and never in place of them — see NarrationGuard's own
+        // KDoc for why a rejected or unwritten paragraph costs nothing but
+        // itself. Blank is treated the same as absent: a narrator that
+        // returned an all-whitespace string, which nothing here should
+        // ever do, must not render an empty label above nothing.
+        if (!narration.isNullOrBlank()) {
+            Text(
+                text = stringResource(R.string.report_generated_label),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 4.dp),
+            )
+            Text(
+                text = narration,
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.padding(bottom = 16.dp),
+            )
+        }
 
         val current = report
         when {

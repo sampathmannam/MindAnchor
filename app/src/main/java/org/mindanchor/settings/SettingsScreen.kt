@@ -48,6 +48,7 @@ import org.mindanchor.admin.DeviceOwner
 import org.mindanchor.friction.AppWatchService
 import org.mindanchor.grayscale.Grayscale
 import org.mindanchor.launcher.DisplayApp
+import org.mindanchor.narrate.ModelSlot
 import org.mindanchor.onboarding.Goal
 import org.mindanchor.onboarding.GoalMap
 import org.mindanchor.onboarding.SettingsSection
@@ -847,6 +848,70 @@ fun SettingsScreen(
         if (corpusImported) {
             TextButton(onClick = viewModel::clearCorpus) {
                 Text(stringResource(R.string.corpus_clear))
+            }
+        }
+
+        // --- Model (the small model a future writing engine would run) ---
+        //
+        // No inference engine is built into this app yet — see
+        // org.mindanchor.narrate.NoEngineNarrator. Importing a model here
+        // does not yet make any writing happen; it records the file and,
+        // exactly like ModelSlot was built to, reports honestly whether
+        // this phone has enough memory to run it once an engine exists.
+        SectionHeading(R.string.model_section, SettingsSection.PULSE, goals)
+        Text(
+            text = stringResource(R.string.model_explainer),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = stringResource(R.string.model_no_engine),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        val modelPresent by viewModel.modelPresent.collectAsState()
+        val modelFit by viewModel.modelFit.collectAsState()
+        val modelImportFailed by viewModel.modelImportFailed.collectAsState()
+        LaunchedEffect(Unit) { viewModel.refreshModel() }
+        Text(
+            text = stringResource(if (modelPresent) R.string.model_present else R.string.model_none),
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        if (modelPresent) {
+            val fitRes = when (modelFit) {
+                ModelSlot.Fit.FITS -> R.string.model_fit_fits
+                ModelSlot.Fit.TIGHT -> R.string.model_fit_tight
+                ModelSlot.Fit.TOO_LARGE -> R.string.model_fit_too_large
+                ModelSlot.Fit.UNSUPPORTED -> R.string.model_fit_unsupported
+            }
+            Text(
+                text = stringResource(fitRes),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        val modelPicker = rememberLauncherForActivityResult(
+            // OpenDocument, and "*/*", for the same reason as the corpus
+            // picker above: a GGUF is not a MIME type every file provider
+            // on every phone reports, and a picker offering nothing
+            // selectable is a dead end.
+            ActivityResultContracts.OpenDocument(),
+        ) { uri -> uri?.let(viewModel::importModel) }
+        TextButton(onClick = { modelPicker.launch(arrayOf("*/*")) }) {
+            Text(stringResource(R.string.model_import))
+        }
+        if (modelImportFailed) {
+            Text(
+                text = stringResource(R.string.model_import_failed),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (modelPresent) {
+            TextButton(onClick = viewModel::clearModel) {
+                Text(stringResource(R.string.model_clear))
             }
         }
 

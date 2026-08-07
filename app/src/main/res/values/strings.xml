@@ -120,6 +120,7 @@
     <string name="report_sources">From: %1$s</string>
     <string name="report_no_research">No matching research on file for this one.</string>
     <string name="report_disclaimer">These are counts from your own history, next to what the research says the thing counted is. Nothing here knows what it means about you.</string>
+    <string name="report_generated_label">Written on this phone, by a small model, from the passages below.</string>
     <string name="corpus_section">Research on file</string>
     <string name="corpus_explainer">Every report shows you what the research says the thing measured actually is, drawn from a small set of passages that ships with the app. You can add more from a file on this phone — the more there is on file, the better the match to what your report is about.</string>
     <string name="corpus_verbatim">Passages are shown to you word for word. What you add is what you will read.</string>
@@ -132,6 +133,18 @@
     <string name="corpus_result_truncated">That file held more than fits, so the rest was left out.</string>
     <string name="corpus_result_none">Nothing in that file could be read as research, so nothing was changed.</string>
     <string name="corpus_result_unreadable">That file could not be read.</string>
+    <string name="model_section">Model</string>
+    <string name="model_explainer">The paragraph above a report — see Last night\'s look — would be written on this phone, by a small language model, from the passages already shown to you. You can add that model here, as a single GGUF file.</string>
+    <string name="model_no_engine">No engine that can actually run a model is built into this app yet, so importing one does not produce any writing today. It records the file and reports whether this phone has enough memory to run it once an engine exists to try.</string>
+    <string name="model_none">No model on file.</string>
+    <string name="model_present">A model is on file.</string>
+    <string name="model_fit_fits">This phone has room to run it, with room to spare.</string>
+    <string name="model_fit_tight">This phone can run it, but it is a tight fit — a busy night could still cost it.</string>
+    <string name="model_fit_too_large">This model is too large to run in the background on this phone.</string>
+    <string name="model_fit_unsupported">This phone is flagged as low on memory, so no model is offered on it, at any size.</string>
+    <string name="model_import">Add a model from a file</string>
+    <string name="model_clear">Remove the model</string>
+    <string name="model_import_failed">That file could not be copied.</string>
     <string name="signal_hrv">Heart-rate variability</string>
     <string name="signal_resting_hr">Resting heart rate</string>
     <string name="signal_sleep_minutes">Time asleep</string>

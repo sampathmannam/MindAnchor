@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.first
 import org.mindanchor.corpus.CorpusStore
 import org.mindanchor.model.Moment
 import org.mindanchor.model.MomentStore
+import org.mindanchor.narrate.Narrators
 import org.mindanchor.sleep.Deviation
 import org.mindanchor.vitals.DailyVitals
 import org.mindanchor.vitals.HealthConnectSource
@@ -94,7 +95,17 @@ class ReportWorker(context: Context, params: WorkerParameters) : CoroutineWorker
             history = history,
             corpus = corpus,
         )
-        ReportStore(applicationContext).save(report, generatedDay = LocalDate.now(zone).toString())
+        // A model failing to write anything — no engine yet, this phone
+        // cannot run one, generation itself threw — is not a reason to
+        // fail the whole night's report; the report stands on its own
+        // without a paragraph on top of it. See Narrator's own KDoc for
+        // why null is the ordinary outcome here, not an error.
+        val narration = runCatching { Narrators.forDevice(applicationContext).narrate(report) }.getOrNull()
+        ReportStore(applicationContext).save(
+            report = report,
+            narration = narration?.text,
+            generatedDay = LocalDate.now(zone).toString(),
+        )
         Result.success()
     }.getOrElse { Result.success() }
 

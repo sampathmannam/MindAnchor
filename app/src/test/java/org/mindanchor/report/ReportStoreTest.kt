@@ -27,13 +27,16 @@ class ReportStoreTest {
 
     @Test
     fun `a report survives a round trip through storage`() {
-        val original = sampleReport()
+        val original = StoredReport(sampleReport(), narration = null)
         assertEquals(original, ReportLedger.decode(ReportLedger.encode(original)))
     }
 
     @Test
     fun `an empty report — the common outcome — round trips too`() {
-        val quiet = Report(day = "2026-08-06", sections = emptyList(), notYetKnown = emptyList())
+        val quiet = StoredReport(
+            Report(day = "2026-08-06", sections = emptyList(), notYetKnown = emptyList()),
+            narration = null,
+        )
         assertEquals(quiet, ReportLedger.decode(ReportLedger.encode(quiet)))
     }
 
@@ -44,8 +47,11 @@ class ReportStoreTest {
 
     @Test
     fun `passage text carrying its own tab characters survives intact`() {
-        val decoded = ReportLedger.decode(ReportLedger.encode(sampleReport()))
-        assertEquals("Second passage, with\ttab inside.", decoded?.sections?.get(0)?.passages?.get(1)?.text)
+        val decoded = ReportLedger.decode(ReportLedger.encode(StoredReport(sampleReport(), narration = null)))
+        assertEquals(
+            "Second passage, with\ttab inside.",
+            decoded?.report?.sections?.get(0)?.passages?.get(1)?.text,
+        )
     }
 
     @Test
@@ -69,11 +75,11 @@ class ReportStoreTest {
             "SECTION\tSTEPS\tABOVE\t15000.0\t6000.0",
         ).joinToString("\n")
         val decoded = ReportLedger.decode(raw)
-        assertEquals(2, decoded?.sections?.size)
-        assertEquals(Signal.HRV, decoded?.sections?.get(0)?.observation?.signal)
-        assertEquals(1, decoded?.sections?.get(0)?.passages?.size)
-        assertEquals(Signal.STEPS, decoded?.sections?.get(1)?.observation?.signal)
-        assertEquals(0, decoded?.sections?.get(1)?.passages?.size)
+        assertEquals(2, decoded?.report?.sections?.size)
+        assertEquals(Signal.HRV, decoded?.report?.sections?.get(0)?.observation?.signal)
+        assertEquals(1, decoded?.report?.sections?.get(0)?.passages?.size)
+        assertEquals(Signal.STEPS, decoded?.report?.sections?.get(1)?.observation?.signal)
+        assertEquals(0, decoded?.report?.sections?.get(1)?.passages?.size)
     }
 
     @Test
@@ -84,8 +90,8 @@ class ReportStoreTest {
             "SECTION\tSTEPS\tABOVE\t15000.0\t6000.0",
         ).joinToString("\n")
         val decoded = ReportLedger.decode(raw)
-        assertEquals(1, decoded?.sections?.size)
-        assertEquals(Signal.STEPS, decoded?.sections?.get(0)?.observation?.signal)
+        assertEquals(1, decoded?.report?.sections?.size)
+        assertEquals(Signal.STEPS, decoded?.report?.sections?.get(0)?.observation?.signal)
     }
 
     @Test
@@ -96,13 +102,13 @@ class ReportStoreTest {
             "SECTION\tSTEPS\tABOVE\t15000.0\t6000.0",
         ).joinToString("\n")
         val decoded = ReportLedger.decode(raw)
-        assertEquals(1, decoded?.sections?.size)
-        assertEquals(0, decoded?.sections?.get(0)?.passages?.size)
+        assertEquals(1, decoded?.report?.sections?.size)
+        assertEquals(0, decoded?.report?.sections?.get(0)?.passages?.size)
     }
 
     @Test
     fun `notYetKnown names that no longer exist are dropped, not crashed on`() {
         val decoded = ReportLedger.decode("REPORT\t2026-08-06\tHRV,NOT_A_SIGNAL,STEPS")
-        assertEquals(listOf(Signal.HRV, Signal.STEPS), decoded?.notYetKnown)
+        assertEquals(listOf(Signal.HRV, Signal.STEPS), decoded?.report?.notYetKnown)
     }
 }
