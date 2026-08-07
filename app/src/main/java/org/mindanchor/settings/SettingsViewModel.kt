@@ -7,6 +7,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -41,6 +42,42 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setGoals(goals: Set<org.mindanchor.onboarding.Goal>) {
         viewModelScope.launch { onboardingPrefs.setGoals(goals) }
+    }
+
+    /**
+     * Pauses that have stopped being pauses — see
+     * [org.mindanchor.friction.GateLedger].
+     *
+     * Only ever read here. This never becomes a notification: somebody
+     * having a bad month does not need their phone volunteering that their
+     * guards look pointless. They have to come and ask.
+     */
+    val stalePauses = combine(
+        frictionPrefs.gateTallies,
+        frictionPrefs.flaggedApps,
+    ) { tallies, flagged ->
+        val today = java.time.LocalDate.now()
+        flagged.mapNotNull { pkg ->
+            val tally = tallies[pkg] ?: return@mapNotNull null
+            if (org.mindanchor.friction.GateLedger.worthMentioning(tally, today)) {
+                pkg to tally
+            } else {
+                null
+            }
+        }.sortedBy { it.first }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Somebody looked at the numbers and kept the pause. Start again. */
+    fun keepPause(packageName: String) {
+        viewModelScope.launch { frictionPrefs.resetTally(packageName) }
+    }
+
+    /** Somebody looked at the numbers and let the pause go. */
+    fun dropPause(packageName: String) {
+        viewModelScope.launch {
+            frictionPrefs.setFlagged(packageName, false)
+            frictionPrefs.resetTally(packageName)
+        }
     }
 
     val batchingEnabled = prefs.batchingEnabled
@@ -79,26 +116,18 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             ?.isNotificationPolicyAccessGranted == true
 
     /**
-     * Whether the screen also goes grey through the quiet hours. Kept
-     * separate from sunset itself: a quiet phone and a colourless one are
-     * different wishes and neither should imply the other.
-     */
-    /**
      * Hands device ownership back, lifting every suspension first.
      *
      * A way out has to exist and has to be here. Ownership cannot be
-     * removed by adb once granted, so if this button did not exist the
-     * only route back would be wiping the phone — and telling someone
-     * their way out of a wellbeing app is a factory reset would be its own
-     * small cruelty.
-     */
-    /**
-     * Hands device ownership back, lifting every suspension first.
+     * removed by adb once granted, so if this did not exist the only route
+     * back would be wiping the phone — and telling someone their way out
+     * of a wellbeing app is a factory reset would be its own small
+     * cruelty.
      *
      * [onDone] runs once the release has actually happened, so the screen
      * can re-read ownership rather than keep showing the state it had a
      * moment ago. Without it the section still reads "set up as its own
-     * guardian" until the next resume, which is the kind of lie that makes
+     * guardian" once it no longer is, which is the kind of lie that makes
      * a person tap the button again.
      */
     fun releaseDeviceOwner(onDone: () -> Unit = {}) {
@@ -109,6 +138,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    /**
+     * Whether the screen also goes grey through the quiet hours. Kept
+     * separate from sunset itself: a quiet phone and a colourless one are
+     * different wishes and neither should imply the other.
+     */
     val grayscaleAtNight = sunsetPrefs.grayscaleAtNight
 
     fun setGrayscaleAtNight(enabled: Boolean) {

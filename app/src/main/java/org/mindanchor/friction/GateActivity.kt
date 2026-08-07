@@ -12,7 +12,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.mindanchor.data.FrictionPrefs
 import org.mindanchor.data.SunsetPrefs
@@ -53,6 +56,7 @@ class GateActivity : ComponentActivity() {
                             FrictionContext.RECENT_WINDOW_MILLIS,
                         )
                     }
+                    withContext(Dispatchers.IO) { prefs.recordGateShown(target) }
                     tone = FrictionContext.toneFor(
                         recentOpens = prior,
                         insideSleepWindow = SunsetPrefs.isQuietHour(),
@@ -70,7 +74,16 @@ class GateActivity : ComponentActivity() {
                         tone = resolved,
                         appLabel = label,
                         onOpen = { minutes -> allow(target, label, minutes) },
-                        onNeverMind = { goHome() },
+                        onNeverMind = {
+                            // Counted before leaving. This is the outcome
+                            // the pause exists to make possible, and a
+                            // pause nobody ever takes is one worth telling
+                            // the person about.
+                            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                                prefs.recordGateAbandoned(target)
+                            }
+                            goHome()
+                        },
                     )
                 }
             }

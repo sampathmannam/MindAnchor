@@ -9,6 +9,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import org.mindanchor.friction.ExtensionLedger
+import org.mindanchor.friction.GateLedger
+import org.mindanchor.friction.GateTally
+import java.time.LocalDate
 
 private val Context.dataStore by preferencesDataStore(name = "friction")
 
@@ -83,6 +86,43 @@ class FrictionPrefs(private val context: Context) {
                 .joinToString("\n") { "${it.first}\t${it.second}" }
         }
         return priorReaches
+    }
+
+    private val ledgerTallyKey = stringPreferencesKey("gate_tallies")
+
+    /**
+     * How each app's pause has actually been going — see [GateLedger].
+     *
+     * Two integers and a date per app. Nothing about when, nothing about
+     * what was done inside the app, nothing that could reconstruct a day.
+     */
+    val gateTallies: Flow<Map<String, GateTally>> =
+        context.dataStore.data.map { GateLedger.decode(it[ledgerTallyKey].orEmpty()) }
+
+    private suspend fun editTally(
+        packageName: String,
+        block: (GateTally) -> GateTally,
+    ) {
+        context.dataStore.edit { prefs ->
+            val all = GateLedger.decode(prefs[ledgerTallyKey].orEmpty()).toMutableMap()
+            all[packageName] = block(all[packageName] ?: GateTally())
+            prefs[ledgerTallyKey] = GateLedger.encode(all)
+        }
+    }
+
+    /** The gate appeared for [packageName]. */
+    suspend fun recordGateShown(packageName: String, today: LocalDate = LocalDate.now()) {
+        editTally(packageName) { GateLedger.recordShown(it, today) }
+    }
+
+    /** The gate appeared and the person chose not to go through. */
+    suspend fun recordGateAbandoned(packageName: String, today: LocalDate = LocalDate.now()) {
+        editTally(packageName) { GateLedger.recordAbandoned(it, today) }
+    }
+
+    /** Starts [packageName]'s count again, after somebody keeps the pause. */
+    suspend fun resetTally(packageName: String, today: LocalDate = LocalDate.now()) {
+        editTally(packageName) { GateLedger.reset(today) }
     }
 
     /** Increments and returns today's extension count for [packageName]. */

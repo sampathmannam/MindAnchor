@@ -124,6 +124,7 @@ fun LauncherRoot(
                     surface = LauncherSurface.Home
                 },
                 onNeverMind = {
+                    viewModel.recordNeverMind(app)
                     gateFor = null
                     surface = LauncherSurface.Home
                 },

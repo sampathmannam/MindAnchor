@@ -216,6 +216,50 @@ fun SettingsScreen(
             }
         }
 
+        // --- Pauses that have stopped being pauses ---
+        //
+        // The one place this is allowed to appear. Never a notification,
+        // never a card on the home screen, never anything uninvited: a
+        // person having a bad month does not need their phone volunteering
+        // that their guards look pointless. They have to come and ask.
+        //
+        // It reports and declines to interpret. Whether going through every
+        // time means the pause is useless or means it is quietly working is
+        // not something a launcher can know, so both doors are the same
+        // size and neither is recommended.
+        val stale by viewModel.stalePauses.collectAsState()
+        if (stale.isNotEmpty()) {
+            Text(
+                text = stringResource(R.string.stale_section),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
+            )
+            Text(
+                text = stringResource(R.string.stale_explainer),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            stale.forEach { (packageName, tally) ->
+                val label = allApps
+                    .firstOrNull { it.component.substringBefore('/') == packageName }
+                    ?.label
+                    ?: packageName
+                Text(
+                    text = stringResource(R.string.stale_line, label, tally.shown),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+                Row {
+                    TextButton(onClick = { viewModel.keepPause(packageName) }) {
+                        Text(stringResource(R.string.stale_keep))
+                    }
+                    TextButton(onClick = { viewModel.dropPause(packageName) }) {
+                        Text(stringResource(R.string.stale_drop))
+                    }
+                }
+            }
+        }
+
         // --- Notification batching (F1) ---
         SectionHeading(R.string.batching_section, SettingsSection.BATCHING, goals)
         Text(

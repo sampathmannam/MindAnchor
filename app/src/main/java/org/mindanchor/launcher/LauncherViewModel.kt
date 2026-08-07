@@ -122,7 +122,22 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             System.currentTimeMillis(),
             FrictionContext.RECENT_WINDOW_MILLIS,
         )
+        frictionPrefs.recordGateShown(packageName)
         return FrictionContext.toneFor(prior, insideSleepWindow = SunsetPrefs.isQuietHour())
+    }
+
+    /**
+     * The person met the pause and chose not to go in.
+     *
+     * This is the outcome the whole thing exists to make possible, and
+     * until now nothing counted it — so there was no way to tell a pause
+     * that was working from one that had become a formality. See
+     * [org.mindanchor.friction.GateLedger].
+     */
+    fun recordNeverMind(app: DisplayApp) {
+        viewModelScope.launch {
+            frictionPrefs.recordGateAbandoned(app.component.substringBefore('/'))
+        }
     }
 
     /**
