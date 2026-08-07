@@ -35,9 +35,9 @@ class OnboardingPrefs(private val context: Context) {
      * on somebody's home screen.
      */
     val goals: Flow<Set<Goal>> = context.dataStore.data.map { prefs ->
-        prefs[goalsKey].orEmpty().mapNotNullTo(mutableSetOf()) { name ->
-            runCatching { Goal.valueOf(name) }.getOrNull()
-        }
+        prefs[goalsKey].orEmpty()
+            .mapNotNull { name -> runCatching { Goal.valueOf(name) }.getOrNull() }
+            .toSet()
     }
 
     suspend fun complete(goals: Set<Goal>) {

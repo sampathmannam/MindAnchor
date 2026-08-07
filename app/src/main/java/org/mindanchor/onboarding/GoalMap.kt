@@ -43,7 +43,7 @@ object GoalMap {
 
     /** The sections that speak to [goals]. Empty in, empty out. */
     fun sectionsFor(goals: Set<Goal>): Set<SettingsSection> =
-        goals.flatMapTo(mutableSetOf()) { goal ->
+        goals.flatMap { goal ->
             when (goal) {
                 Goal.INTERRUPTIONS -> setOf(SettingsSection.BATCHING)
 
@@ -64,7 +64,7 @@ object GoalMap {
 
                 Goal.MEASUREMENT -> setOf(SettingsSection.PULSE)
             }
-        }
+        }.toSet()
 
     /** Whether [section] is one the person named a reason for. */
     fun isChosen(section: SettingsSection, goals: Set<Goal>): Boolean =

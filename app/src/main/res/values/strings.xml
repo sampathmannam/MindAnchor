@@ -69,6 +69,7 @@
     <string name="stale_drop">Let it go</string>
     <string name="goals_section">What you said you wanted</string>
     <string name="goals_change">Change this</string>
+    <string name="goals_none">You have not named anything yet. You do not have to.</string>
     <string name="goals_done">Done</string>
     <string name="goal_marker">One of yours</string>
     <string name="watch_section">Where the pause applies</string>

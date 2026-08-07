@@ -173,7 +173,7 @@ fun SettingsScreen(
         // "Going Light" found fails.
         val goals by viewModel.goals.collectAsState()
         var editingGoals by remember { mutableStateOf(false) }
-        if (goals.isNotEmpty() || editingGoals) {
+        run {
             Text(
                 text = stringResource(R.string.goals_section),
                 style = MaterialTheme.typography.titleMedium,
@@ -200,6 +200,15 @@ fun SettingsScreen(
                         )
                     }
                 }
+            } else if (goals.isEmpty()) {
+                // Shown rather than hidden. Hiding the whole block when
+                // nothing is named left the only way to name something
+                // behind a replay of onboarding, which cannot be replayed.
+                Text(
+                    text = stringResource(R.string.goals_none),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             } else {
                 Text(
                     text = goals.joinToString(" · ") { stringResource(it.labelRes()) },
