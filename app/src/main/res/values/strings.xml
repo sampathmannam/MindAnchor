@@ -82,10 +82,15 @@
     <string name="watch_service_label">MindAnchor pause</string>
     <string name="watch_service_summary">Lets the pause apply when you open an app from a notification or from recents, not just from the home screen.</string>
     <string name="watch_service_description">MindAnchor uses this to notice when an app you have chosen a pause for comes to the front, so the pause works however you opened it. It cannot read your screen — only the name of the app that arrived.</string>
+    <string name="sunset_window">Quiet hours run %1$s to %2$s.</string>
+    <string name="sunset_starts">Starts</string>
+    <string name="sunset_ends">Ends</string>
+    <string name="time_earlier">Earlier</string>
+    <string name="time_later">Later</string>
     <string name="sunset_section">Sunset mode</string>
-    <string name="sunset_explainer">From 22:00 to 07:00 the phone goes priority-only: starred contacts and repeat callers still reach you, everything else waits for morning.</string>
+    <string name="sunset_explainer">Through your quiet hours the phone goes priority-only: starred contacts and repeat callers still reach you, everything else waits for morning. Set the hours to your night, not to a default — shift work and being on call are the norm, not the exception.</string>
     <string name="grant_dnd_access">Grant Do Not Disturb access to enable sunset</string>
-    <string name="sunset_toggle">Wind down from 22:00 to 07:00</string>
+    <string name="sunset_toggle">Wind down through the quiet hours</string>
 
     <string name="sleep_section">Sleep rhythm</string>
     <string name="sleep_explainer">MindAnchor can estimate your sleep window from when the screen goes quiet at night — on this phone only, no wearable, nothing uploaded. Consistency matters more than hours.</string>

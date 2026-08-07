@@ -31,6 +31,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     private val repository = AppRepository(application)
     private val prefs = LauncherPrefs(application)
+    private val sunsetPrefs = SunsetPrefs(application)
     private val frictionPrefs = FrictionPrefs(application)
 
     private val query = MutableStateFlow("")
@@ -123,7 +124,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             FrictionContext.RECENT_WINDOW_MILLIS,
         )
         frictionPrefs.recordGateShown(packageName)
-        return FrictionContext.toneFor(prior, insideSleepWindow = SunsetPrefs.isQuietHour())
+        return FrictionContext.toneFor(prior, insideSleepWindow = sunsetPrefs.isQuietHour())
     }
 
     /**

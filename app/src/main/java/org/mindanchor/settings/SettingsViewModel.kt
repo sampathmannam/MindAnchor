@@ -150,7 +150,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             sunsetPrefs.setGrayscaleAtNight(enabled)
             // Apply immediately if the quiet hours have already begun,
             // rather than leaving the switch looking broken until 22:00.
-            val inWindow = SunsetPrefs.isQuietHour()
+            val inWindow = sunsetPrefs.isQuietHour()
             if (inWindow || !enabled) {
                 org.mindanchor.grayscale.Grayscale.set(getApplication(), enabled && inWindow)
             }
@@ -162,6 +162,35 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             sunsetPrefs.setEnabled(enabled)
             SunsetController.onToggled(getApplication(), enabled)
+        }
+    }
+
+    val sunsetStart = sunsetPrefs.startTime
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SunsetPrefs.DEFAULT_START)
+
+    val sunsetEnd = sunsetPrefs.endTime
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SunsetPrefs.DEFAULT_END)
+
+    /**
+     * Moves either end of the quiet hours by [startMinutes] / [endMinutes].
+     *
+     * Steppers rather than a clock dialog: the targets are large, which
+     * matters for anyone with tremor or in distress, and nudging is what
+     * people actually do to a bedtime — half an hour at a time, not by
+     * typing an exact number.
+     *
+     * The alarms are re-armed afterwards. They are held by AlarmManager at
+     * the old times, and nothing else would ever move them — the window
+     * would look changed in settings and behave exactly as before.
+     */
+    fun nudgeSunset(startMinutes: Long, endMinutes: Long) {
+        viewModelScope.launch {
+            val (start, end) = sunsetPrefs.window()
+            val moved = sunsetPrefs.setWindow(
+                start.plusMinutes(startMinutes),
+                end.plusMinutes(endMinutes),
+            )
+            if (moved) SunsetController.ensureScheduled(getApplication())
         }
     }
 

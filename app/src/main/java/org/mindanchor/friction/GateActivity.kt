@@ -43,6 +43,7 @@ class GateActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         val prefs = FrictionPrefs(applicationContext)
+        val sunsetPrefs = SunsetPrefs(applicationContext)
         val label = labelFor(target)
 
         setContent {
@@ -59,7 +60,7 @@ class GateActivity : ComponentActivity() {
                     withContext(Dispatchers.IO) { prefs.recordGateShown(target) }
                     tone = FrictionContext.toneFor(
                         recentOpens = prior,
-                        insideSleepWindow = SunsetPrefs.isQuietHour(),
+                        insideSleepWindow = sunsetPrefs.isQuietHour(),
                     )
                 }
 

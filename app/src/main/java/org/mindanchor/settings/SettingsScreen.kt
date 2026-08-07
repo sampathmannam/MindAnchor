@@ -51,6 +51,7 @@ import org.mindanchor.onboarding.Goal
 import org.mindanchor.onboarding.GoalMap
 import org.mindanchor.onboarding.SettingsSection
 import org.mindanchor.ui.NatureScene
+import java.time.format.DateTimeFormatter
 
 /**
  * A section title, marked when the person named a reason for it.
@@ -73,6 +74,35 @@ private fun SectionHeading(titleRes: Int, section: SettingsSection?, goals: Set<
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+    }
+}
+
+private val HOUR_MINUTE: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+
+/**
+ * A half-hour stepper for one end of the quiet hours.
+ *
+ * Steppers rather than a clock dialog: the targets are large, which
+ * matters for anyone with tremor or in distress, and nudging is what
+ * people actually do to a bedtime.
+ */
+@Composable
+private fun TimeNudger(labelRes: Int, onEarlier: () -> Unit, onLater: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(labelRes),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(onClick = onEarlier) {
+            Text(stringResource(R.string.time_earlier))
+        }
+        TextButton(onClick = onLater) {
+            Text(stringResource(R.string.time_later))
         }
     }
 }
@@ -440,6 +470,32 @@ fun SettingsScreen(
             text = stringResource(R.string.sunset_explainer),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        // The window used to be hardcoded to 22:00 → 07:00. That is
+        // somebody else's bedtime: wrong for shift workers, wrong for
+        // anyone on call, wrong for night staff — and a wind-down that
+        // begins three hours after you went to bed is not a wind-down.
+        val sunsetStart by viewModel.sunsetStart.collectAsState()
+        val sunsetEnd by viewModel.sunsetEnd.collectAsState()
+        Text(
+            text = stringResource(
+                R.string.sunset_window,
+                sunsetStart.format(HOUR_MINUTE),
+                sunsetEnd.format(HOUR_MINUTE),
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        TimeNudger(
+            labelRes = R.string.sunset_starts,
+            onEarlier = { viewModel.nudgeSunset(-30, 0) },
+            onLater = { viewModel.nudgeSunset(30, 0) },
+        )
+        TimeNudger(
+            labelRes = R.string.sunset_ends,
+            onEarlier = { viewModel.nudgeSunset(0, -30) },
+            onLater = { viewModel.nudgeSunset(0, 30) },
         )
         if (!hasDndAccess) {
             TextButton(

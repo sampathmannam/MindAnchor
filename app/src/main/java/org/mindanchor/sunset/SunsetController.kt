@@ -42,7 +42,7 @@ object SunsetController {
     suspend fun onToggled(context: Context, enabled: Boolean) {
         if (enabled) {
             ensureScheduled(context)
-            if (isInWindow(LocalTime.now(), SunsetPrefs.START, SunsetPrefs.END)) {
+            if (SunsetPrefs(context).isQuietHour()) {
                 applyFilter(context, priorityOnly = true)
             }
         } else {
@@ -50,9 +50,18 @@ object SunsetController {
         }
     }
 
-    fun ensureScheduled(context: Context) {
-        schedule(context, ACTION_START, SunsetPrefs.START, requestCode = 61)
-        schedule(context, ACTION_END, SunsetPrefs.END, requestCode = 62)
+    /**
+     * Re-arms both alarms at the person's own window.
+     *
+     * Suspending because the window is stored now rather than hardcoded.
+     * Call it again after changing the times: the alarms already sitting
+     * with AlarmManager point at the old ones, and nothing else will move
+     * them.
+     */
+    suspend fun ensureScheduled(context: Context) {
+        val (start, end) = SunsetPrefs(context).window()
+        schedule(context, ACTION_START, start, requestCode = 61)
+        schedule(context, ACTION_END, end, requestCode = 62)
     }
 
     private fun schedule(context: Context, action: String, time: LocalTime, requestCode: Int) {
