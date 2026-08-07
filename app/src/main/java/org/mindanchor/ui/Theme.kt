@@ -122,6 +122,27 @@ private val CalmTypography = Typography().run {
  * system setting still feeds in, because it shifts the palette itself, but
  * it no longer contradicts what the sky is doing.
  */
+/**
+ * The same theme with the palette chosen by the caller instead of the
+ * sky.
+ *
+ * Exists for the screenshot tests alone. The real theme follows the
+ * clock, which means a CI emulator photographs whichever palette its
+ * clock happens to land on — and the three affordance faults this
+ * project has shipped were all found in screenshots, so the palette not
+ * pictured is precisely where the next one hides. Same shapes, same
+ * typography; only the choice of scheme is forced.
+ */
+@Composable
+internal fun MindAnchorThemeForced(dark: Boolean, content: @Composable () -> Unit) {
+    MaterialTheme(
+        colorScheme = if (dark) DarkColors else LightColors,
+        shapes = CalmShapes,
+        typography = CalmTypography,
+        content = content,
+    )
+}
+
 @Composable
 fun MindAnchorTheme(content: @Composable () -> Unit) {
     val now = rememberMinuteTick()

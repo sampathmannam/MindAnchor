@@ -5,6 +5,9 @@ import android.util.Base64
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -55,6 +58,35 @@ class ScreenshotTest {
 
     private fun shoot(name: String, content: @Composable () -> Unit) {
         rule.setContent { MindAnchorTheme { content() } }
+        capture(name)
+    }
+
+    /**
+     * The same camera with the palette and font scale forced.
+     *
+     * Dark mode and a doubled font scale are exactly the states no
+     * screenshot had ever covered, and every affordance fault this app
+     * has shipped was found in a screenshot — so the unpictured states
+     * are where the next one is. Font scale 2.0 is the top of Android's
+     * ordinary range and the setting chosen by exactly the people the
+     * 48dp touch floors exist for.
+     */
+    private fun shootForced(
+        name: String,
+        dark: Boolean,
+        fontScale: Float,
+        content: @Composable () -> Unit,
+    ) {
+        rule.setContent {
+            val density = LocalDensity.current.density
+            CompositionLocalProvider(LocalDensity provides Density(density, fontScale)) {
+                MindAnchorThemeForced(dark = dark) { content() }
+            }
+        }
+        capture(name)
+    }
+
+    private fun capture(name: String) {
         rule.waitForIdle()
 
         val bitmap = rule.onRoot().captureToImage().asAndroidBitmap()
@@ -137,84 +169,13 @@ class ScreenshotTest {
     fun report() = shoot("report") { ReportScreen(onBack = {}) }
 
     /**
-     * The report with something in it, which is the state that matters
-     * and the one nothing could photograph until [ReportScreen] grew an
-     * overload taking its content directly.
-     *
-     * The data is invented, and deliberately shaped like a bad night
-     * rather than a good one: two observations, a pattern, and a
-     * generated paragraph all at once. That is close to the most this
-     * screen will ever show — three sections is the hard cap, two
-     * patterns is the other — so if the layout holds here it holds
-     * everywhere. A screenshot of the gentlest possible case would prove
-     * nothing about the case that actually needs to read calmly.
+     * The full report, shaped like a bad night on purpose: two
+     * observations, a pattern and a generated paragraph at once — close
+     * to the most this screen can ever legally show, so if the layout
+     * holds here it holds everywhere. Shared by the light, dark and
+     * doubled-type shots below so all three photograph the same truth.
      */
-    /**
-     * The observations and their research, with nothing above them.
-     *
-     * A screenshot is clipped to the viewport, so in the full report the
-     * sections sit below the fold and the container around each research
-     * passage — the one real design decision on this screen, the thing
-     * that makes "this part is not about you" visible without a word of
-     * copy claiming it — went unphotographed. This drops the paragraph
-     * and the pattern so the sections start at the top and can actually
-     * be looked at.
-     */
-    @Test
-    fun reportSectionsOnly() = shoot("report-sections") {
-        ReportScreen(
-            stored = StoredReport(
-                report = Report(
-                    day = "2026-08-06",
-                    sections = listOf(
-                        ReportSection(
-                            observation = Observation(
-                                signal = Signal.HRV,
-                                direction = Direction.BELOW,
-                                today = 28.0,
-                                usual = 46.0,
-                            ),
-                            passages = listOf(
-                                Passage(
-                                    "hrv-rmssd",
-                                    "Shaffer & Ginsberg 2017, Frontiers in Public Health",
-                                    "RMSSD is the primary time-domain measure of short-term heart " +
-                                        "rate variability. It reflects vagally mediated, " +
-                                        "beat-to-beat changes in heart rhythm, and is the HRV " +
-                                        "metric least affected by breathing rate.",
-                                ),
-                            ),
-                        ),
-                        ReportSection(
-                            observation = Observation(
-                                signal = Signal.SLEEP_ONSET,
-                                direction = Direction.ABOVE,
-                                today = 330.0,
-                                usual = 240.0,
-                            ),
-                            passages = listOf(
-                                Passage(
-                                    "sleep-regularity",
-                                    "Windred et al. 2024, Sleep 47:zsad285",
-                                    "In a large accelerometry cohort, sleep regularity predicted " +
-                                        "all-cause mortality more strongly than sleep duration did.",
-                                ),
-                            ),
-                        ),
-                    ),
-                    notYetKnown = emptyList(),
-                ),
-                narration = null,
-                patterns = emptyList(),
-            ),
-            onBack = {},
-        )
-    }
-
-    @Test
-    fun reportWithContent() = shoot("report-full") {
-        ReportScreen(
-            stored = StoredReport(
+    private fun fullFixture(): StoredReport = StoredReport(
                 report = Report(
                     day = "2026-08-06",
                     sections = listOf(
@@ -269,8 +230,46 @@ class ScreenshotTest {
                         medianOverall = 3.0,
                     ),
                 ),
-            ),
+            )
+
+    @Test
+    fun reportWithContent() = shoot("report-full") {
+        ReportScreen(stored = fullFixture(), onBack = {})
+    }
+
+    /**
+     * The observations and their research with nothing above them — the
+     * container treatment is this screen's one real design decision, and
+     * in the full shot it sits below the fold where no picture reaches.
+     */
+    @Test
+    fun reportSectionsOnly() = shoot("report-sections") {
+        ReportScreen(
+            stored = fullFixture().copy(narration = null, patterns = emptyList()),
             onBack = {},
         )
+    }
+
+    // The matrix: the two states every affordance fault so far had in
+    // common was that nothing had ever photographed them.
+
+    @Test
+    fun reportFullDark() = shootForced("report-full-dark", dark = true, fontScale = 1f) {
+        ReportScreen(stored = fullFixture(), onBack = {})
+    }
+
+    @Test
+    fun settingsDark() = shootForced("settings-dark", dark = true, fontScale = 1f) {
+        SettingsScreen(allApps = emptyList(), hiddenApps = emptyList(), onUnhide = {}, onBack = {})
+    }
+
+    @Test
+    fun settingsBigType() = shootForced("settings-x2", dark = false, fontScale = 2f) {
+        SettingsScreen(allApps = emptyList(), hiddenApps = emptyList(), onUnhide = {}, onBack = {})
+    }
+
+    @Test
+    fun reportFullBigType() = shootForced("report-full-x2", dark = false, fontScale = 2f) {
+        ReportScreen(stored = fullFixture(), onBack = {})
     }
 }
