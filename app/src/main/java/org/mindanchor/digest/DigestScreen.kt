@@ -33,6 +33,7 @@ import org.mindanchor.data.db.AnchorDatabase
 import org.mindanchor.data.db.HeldNotification
 import org.mindanchor.notifications.BatchReleaser
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
@@ -108,6 +109,22 @@ fun DigestScreen(
                 items(waiting, key = { it.id }) { item ->
                     JournalRow(item, waiting = true) { viewModel.openApp(item.packageName) }
                 }
+                // The two groups need a line between them. Without one the
+                // list runs 08:19, 07:42, 07:05, 14:55 — today's held
+                // entries followed straight by yesterday's delivered ones,
+                // so the clock appears to jump backwards and then forwards
+                // again. Colour alone carried this before, and at equal
+                // luminance it is not a difference somebody can see.
+                if (released.isNotEmpty()) {
+                    item(key = "released-heading") {
+                        Text(
+                            text = stringResource(R.string.digest_released_heading),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
+                        )
+                    }
+                }
                 items(released, key = { it.id }) { item ->
                     JournalRow(item, waiting = false) { viewModel.openApp(item.packageName) }
                 }
@@ -131,10 +148,34 @@ fun DigestScreen(
 
 private val timeFormat = DateTimeFormatter.ofPattern("HH:mm")
 
+/** Weekday and day-of-month — enough to place an entry, without a year. */
+private val dayFormat = DateTimeFormatter.ofPattern("EEE d MMM")
+
+/**
+ * A journal entry's timestamp, carrying its day only when that day is not
+ * [today].
+ *
+ * Bare `HH:mm` is right for the common case — a batch held since this
+ * morning — and wrong the moment the list reaches back past midnight,
+ * which it does as soon as anything has been released. Dating every row
+ * would be noise; dating only the rows that need it is the whole fix.
+ *
+ * Pure and internal so the boundary can be tested without a device: the
+ * bug being closed here is precisely an off-by-one-day, and a helper that
+ * decides *when* to show a date is the one place it could come back.
+ */
+internal fun journalStamp(postedAt: Long, zone: ZoneId, today: LocalDate): Pair<String, String?> {
+    val moment = Instant.ofEpochMilli(postedAt).atZone(zone)
+    val time = moment.toLocalTime().format(timeFormat)
+    val day = moment.toLocalDate()
+    return time to day.takeIf { it != today }?.format(dayFormat)
+}
+
 @Composable
 private fun JournalRow(item: HeldNotification, waiting: Boolean, onClick: () -> Unit) {
-    val time = Instant.ofEpochMilli(item.postedAt)
-        .atZone(ZoneId.systemDefault()).toLocalTime().format(timeFormat)
+    val zone = ZoneId.systemDefault()
+    val (clock, otherDay) = journalStamp(item.postedAt, zone, LocalDate.now(zone))
+    val time = otherDay?.let { stringResource(R.string.digest_stamp_other_day, it, clock) } ?: clock
     Column(
         modifier = Modifier
             .fillMaxWidth()
