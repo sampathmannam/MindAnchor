@@ -4,6 +4,8 @@ import android.graphics.Bitmap
 import android.util.Base64
 import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
@@ -14,6 +16,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.compose.ui.Modifier
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -80,7 +83,15 @@ class ScreenshotTest {
         rule.setContent {
             val density = LocalDensity.current.density
             CompositionLocalProvider(LocalDensity provides Density(density, fontScale)) {
-                MindAnchorThemeForced(dark = dark) { content() }
+                MindAnchorThemeForced(dark = dark) {
+                    // Inside a Surface, as every one of these screens is
+                    // in the app itself — HomeScreen wraps each surface it
+                    // opens. The first run of this camera skipped that and
+                    // photographed dark-palette text on the activity's
+                    // light window: a state the app cannot produce, which
+                    // is the one thing a camera must never show.
+                    Surface(modifier = Modifier.fillMaxSize()) { content() }
+                }
             }
         }
         capture(name)
