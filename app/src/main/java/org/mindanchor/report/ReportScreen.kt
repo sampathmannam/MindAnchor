@@ -41,6 +41,29 @@ fun ReportScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val store = remember { ReportStore(context.applicationContext) }
     val stored by store.stored.collectAsState(initial = null)
+    ReportScreen(stored = stored, onBack = onBack)
+}
+
+/**
+ * The same screen, given its content directly instead of reading it.
+ *
+ * ## Why this overload exists
+ *
+ * Until it did, this screen could only ever be photographed empty. A bare
+ * emulator has generated no report, so every screenshot of the one
+ * surface this whole system exists to produce showed "Nothing yet" — and
+ * the state that actually matters, with observations, research in their
+ * containers, pattern lines and the label above a generated paragraph,
+ * had never been looked at by anybody.
+ *
+ * That mattered more than it sounds. Three separate design judgements
+ * made about this app by reading code turned out to be wrong the moment
+ * a screenshot existed, all three the same mistake. There was no reason
+ * to believe the fourth would be different, and no way to check it
+ * without being able to hand this screen a report.
+ */
+@Composable
+fun ReportScreen(stored: StoredReport?, onBack: () -> Unit) {
     val report = stored?.report
     val narration = stored?.narration
     val patterns = stored?.patterns.orEmpty()
