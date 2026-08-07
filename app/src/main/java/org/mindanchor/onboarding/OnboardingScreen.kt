@@ -1,14 +1,15 @@
 package org.mindanchor.onboarding
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
@@ -23,6 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import org.mindanchor.R
 
@@ -131,11 +133,14 @@ private fun GoalRow(
     // The whole row is the target, not just the checkbox. The emulator
     // caught this: tapping the words did nothing, so a goal could only be
     // chosen by hitting a small square — the worst possible target for
-    // someone with tremor, large fingers, or in distress.
+    // someone with tremor, large fingers, or in distress. Toggle
+    // semantics live on the row too, so a screen reader hears the words
+    // and the checked state as one thing, at a full 48dp.
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable {
+            .heightIn(min = 48.dp)
+            .toggleable(value = goal in selected, role = Role.Checkbox) {
                 onChange(if (goal in selected) selected - goal else selected + goal)
             }
             .padding(vertical = 4.dp),

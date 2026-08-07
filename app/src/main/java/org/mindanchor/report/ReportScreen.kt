@@ -41,7 +41,12 @@ fun ReportScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val store = remember { ReportStore(context.applicationContext) }
     val stored by store.stored.collectAsState(initial = null)
-    ReportScreen(stored = stored, onBack = onBack)
+    val factsRaw by store.facts.collectAsState(initial = null)
+    ReportScreen(
+        stored = stored,
+        onBack = onBack,
+        facts = factsRaw?.let(FactsLedger::decode),
+    )
 }
 
 /**
@@ -63,7 +68,12 @@ fun ReportScreen(onBack: () -> Unit) {
  * without being able to hand this screen a report.
  */
 @Composable
-fun ReportScreen(stored: StoredReport?, onBack: () -> Unit) {
+fun ReportScreen(
+    stored: StoredReport?,
+    onBack: () -> Unit,
+    /** Yesterday's measured facts, or null when nothing has ever been built. */
+    facts: Map<Signal, Sourced>? = null,
+) {
     val report = stored?.report
     val narration = stored?.narration
     val patterns = stored?.patterns.orEmpty()
@@ -163,6 +173,44 @@ fun ReportScreen(stored: StoredReport?, onBack: () -> Unit) {
             else -> current.sections.forEach { section -> ReportSectionCard(section) }
         }
 
+        // The diary of what actually arrived, in the signal's own units
+        // with its provenance — no comparison, no interpretation, just
+        // facts. This is what the screen has to offer during the weeks
+        // the baseline and the pattern search rightly refuse to speak,
+        // and it makes a silently starved source visible on the one
+        // screen the person actually opens. An empty day says so
+        // plainly: "nothing arrived" is diagnostic gold, not filler.
+        if (current != null && facts != null) {
+            Text(
+                text = stringResource(R.string.facts_heading, current.day),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(top = Spacing.Loose, bottom = Spacing.Tight),
+            )
+            if (facts.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.facts_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                // Signal.entries order, so the diary reads in the same
+                // order every day rather than reshuffling.
+                Signal.entries.forEach { signal ->
+                    val sourced = facts[signal] ?: return@forEach
+                    Text(
+                        text = stringResource(
+                            R.string.facts_line,
+                            stringResource(signal.displayNameRes()),
+                            signal.formatValue(sourced.value),
+                            stringResource(sourced.source.labelRes()),
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(bottom = Spacing.Hair),
+                    )
+                }
+            }
+        }
+
         if (current != null && current.notYetKnown.isNotEmpty()) {
             // Resolved through map, which is inline, so stringResource
             // still runs in the composable body — joinToString is not
@@ -212,10 +260,11 @@ private fun ReportSectionCard(section: ReportSection) {
     val todayText = observation.signal.formatValue(observation.today)
     val usualText = observation.signal.formatValue(observation.usual)
     // A bedtime is not "higher". Every other signal here is a quantity
-    // where more and less are the natural words; sleep onset is a clock
-    // reading, where they are not, and a sentence that reads wrong is a
-    // sentence somebody stops trusting.
-    val clock = observation.signal == Signal.SLEEP_ONSET
+    // where more and less are the natural words; sleep onset and the
+    // first pickup are clock readings, where they are not, and a
+    // sentence that reads wrong is a sentence somebody stops trusting.
+    val clock = observation.signal == Signal.SLEEP_ONSET ||
+        observation.signal == Signal.FIRST_UNLOCK
     val bodyRes = when (observation.direction) {
         Direction.ABOVE -> if (clock) R.string.report_later else R.string.report_above
         Direction.BELOW -> if (clock) R.string.report_earlier else R.string.report_below
@@ -286,6 +335,8 @@ private fun Signal.inlineNameRes(): Int = when (this) {
     Signal.SLEEP_MINUTES -> R.string.signal_inline_sleep_minutes
     Signal.SLEEP_ONSET -> R.string.signal_inline_sleep_onset
     Signal.STEPS -> R.string.signal_inline_steps
+    Signal.FIRST_UNLOCK -> R.string.signal_inline_first_unlock
+    Signal.SCREEN_TIME -> R.string.signal_inline_screen_time
     Signal.VALENCE -> R.string.signal_inline_valence
     Signal.AROUSAL -> R.string.signal_inline_arousal
 }
@@ -295,12 +346,21 @@ private fun Label.inlineNameRes(): Int = when (this) {
     Label.AROUSAL -> R.string.label_inline_arousal
 }
 
+/** The provenance, in words a person can check against their own morning. */
+private fun MeasureSource.labelRes(): Int = when (this) {
+    MeasureSource.MEASURED_HERE -> R.string.source_measured
+    MeasureSource.WEARABLE -> R.string.source_wearable
+    MeasureSource.PHONE_INFERRED -> R.string.source_phone
+}
+
 private fun Signal.displayNameRes(): Int = when (this) {
     Signal.HRV -> R.string.signal_hrv
     Signal.RESTING_HEART_RATE -> R.string.signal_resting_hr
     Signal.SLEEP_MINUTES -> R.string.signal_sleep_minutes
     Signal.SLEEP_ONSET -> R.string.signal_sleep_onset
     Signal.STEPS -> R.string.signal_steps
+    Signal.FIRST_UNLOCK -> R.string.signal_first_unlock
+    Signal.SCREEN_TIME -> R.string.signal_screen_time
     Signal.VALENCE -> R.string.signal_valence
     Signal.AROUSAL -> R.string.signal_arousal
 }
@@ -332,6 +392,10 @@ private fun Label.displayNameRes(): Int = when (this) {
 private fun Signal.formatValue(value: Double): String = when (this) {
     Signal.VALENCE, Signal.AROUSAL -> "%.1f".format(value)
     Signal.SLEEP_ONSET -> clockTime(value)
+    // Stored as a plain minute of the day — the first pickup is a
+    // morning fact, fenced past 03:00 at the source, so it never
+    // straddles midnight and never needs sleep onset's 18:00 re-frame.
+    Signal.FIRST_UNLOCK -> minuteOfDayClock(value)
     else -> value.roundToLong().toString()
 }
 
@@ -345,4 +409,15 @@ private fun Signal.formatValue(value: Double): String = when (this) {
 internal fun clockTime(minutesAfterSixPm: Double): String {
     val minuteOfDay = ((minutesAfterSixPm.roundToLong() + 18 * 60) % 1440 + 1440) % 1440
     return "%02d:%02d".format(minuteOfDay / 60, minuteOfDay % 60)
+}
+
+/**
+ * A plain minute of the day back to the clock — for the first pickup,
+ * which unlike [clockTime]'s bedtimes carries no 18:00 offset. Internal
+ * for the same reason as its sibling: a wrong inverse shows a person a
+ * morning they did not have.
+ */
+internal fun minuteOfDayClock(minuteOfDay: Double): String {
+    val minute = (minuteOfDay.roundToLong() % 1440 + 1440) % 1440
+    return "%02d:%02d".format(minute / 60, minute % 60)
 }

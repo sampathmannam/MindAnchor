@@ -40,23 +40,6 @@ interface Narrator {
 }
 
 /**
- * The only [Narrator] this build has. It always returns null.
- *
- * The inference engine this would need — llama.cpp, run over JNI against
- * whatever [ModelStore] has on file — is not built yet. This object is
- * the honest placeholder for it, and every other part of the path a real
- * engine would sit inside is already built and already tested without
- * one: [Prompting] builds the exact prompt a model would be given,
- * [NarrationGuard] judges the exact output a model would produce,
- * [ModelSlot] and [ModelStore.fit] decide whether a model on file could
- * even run here, and [org.mindanchor.report.ReportStore] and
- * [org.mindanchor.report.ReportScreen] already store and display a
- * narration end to end. The one piece missing is a model actually
- * running, and this must never paper over that: it does not fabricate a
- * paragraph, does not simulate one from a template, and does not claim to
- * have tried and failed. It returns null, honestly, every single time.
- */
-/**
  * Everything around a language model except the model.
  *
  * ## Why this class exists rather than a convention
@@ -105,13 +88,13 @@ abstract class GuardedNarrator : Narrator {
 }
 
 /**
- * The only [Narrator] this build has. Its engine does not exist, so it
- * generates nothing.
+ * The narrator for a phone that cannot run a model tonight: no model on
+ * file, or one [ModelSlot] refuses to run here. It generates nothing,
+ * honestly, rather than fabricating or templating a paragraph.
  *
  * It goes through [GuardedNarrator] rather than short-circuiting
- * [Narrator] directly, so the path a real engine will take is the path
- * that runs today — already built, already tested, and waiting on one
- * method.
+ * [Narrator] directly, so this path and [LlamaNarrator]'s are the same
+ * path with one method swapped.
  */
 object NoEngineNarrator : GuardedNarrator() {
     override suspend fun generate(system: String, prompt: String): String? = null
@@ -121,25 +104,17 @@ object NoEngineNarrator : GuardedNarrator() {
 object Narrators {
 
     /**
-     * [NoEngineNarrator] when there is no model on file, when
-     * [ModelSlot.runnable] says the model on file should not be run on
-     * this phone — and, for now, unconditionally otherwise too, because
-     * no inference engine exists in this build. See [NoEngineNarrator]'s
-     * KDoc for why that must stay honest rather than pretended around.
-     *
-     * When a real engine is written, swapping it in is one line: the
-     * final `return` below becomes `return LlamaNarrator(context)` or
-     * whatever that engine is called, and nothing above it — the model
-     * lookup, the fit check, or any caller of this function — needs to
-     * change for that to happen.
+     * [NoEngineNarrator] when there is no model on file or when
+     * [ModelSlot.runnable] says the one on file should not be run on
+     * this phone; [LlamaNarrator] otherwise. The narrator still checks
+     * nothing itself — every refusal that matters happens here or inside
+     * the guard, and [LlamaEngine.loaded] covers the one failure only
+     * the device can reveal, a library that will not load.
      */
     fun forDevice(context: Context): Narrator {
         if (!ModelStore.hasModel(context)) return NoEngineNarrator
         val fit = ModelStore.fit(context)
         if (!ModelSlot.runnable(fit)) return NoEngineNarrator
-        // No inference engine exists in this build yet — see
-        // NoEngineNarrator's KDoc for why this stays NoEngineNarrator
-        // even when a model that would otherwise run is on file.
-        return NoEngineNarrator
+        return LlamaNarrator(context)
     }
 }

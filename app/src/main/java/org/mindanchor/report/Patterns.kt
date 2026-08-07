@@ -99,7 +99,11 @@ object PatternFinder {
     ): List<Paired> = days.mapNotNull { day ->
         val signal = signalByDay[day.minusDays(1)] ?: return@mapNotNull null
         val label = labelByDay[day] ?: return@mapNotNull null
-        Paired(signal = signal, label = label)
+        // Monday is 0. The stratum feeds LinkFinder's weekday adjustment,
+        // which exists because the weekly schedule is a common cause of
+        // both series — see the measured numbers where the adjustment
+        // lives.
+        Paired(signal = signal, label = label, weekday = day.dayOfWeek.value - 1)
     }
 
     /**

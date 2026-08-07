@@ -182,6 +182,18 @@ class PatternsTest {
     }
 
     @Test
+    fun `each pair carries the weekday of its label's day, Monday as zero`() {
+        // 2026-01-01 is a Thursday. The stratum feeds LinkFinder's
+        // weekday adjustment; a wrong mapping would misalign every
+        // stratum and quietly undo the calibration it exists for.
+        val signal = mapOf(start to 10.0, start.plusDays(1) to 20.0)
+        val label = mapOf(start.plusDays(1) to 2.0, start.plusDays(2) to 3.0)
+        val pairs = PatternFinder.pairsFor(signal, label, days(3))
+        // Labels fall on Fri 2026-01-02 (weekday 4) and Sat 2026-01-03 (5).
+        assertEquals(listOf(4, 5), pairs.map { it.weekday })
+    }
+
+    @Test
     fun `the grid key is spelled out so a future field cannot move every p-value`() {
         assertEquals("HRV:VALENCE", SignalLabel(Signal.HRV, Label.VALENCE).toString())
     }

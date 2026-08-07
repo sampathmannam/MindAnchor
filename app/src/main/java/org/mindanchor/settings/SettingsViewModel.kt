@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -26,12 +27,17 @@ import org.mindanchor.ui.NatureScene
 import org.mindanchor.notifications.BatchAlarms
 import org.mindanchor.notifications.BatchSchedule
 import org.mindanchor.notifications.BatchReleaser
+import org.mindanchor.report.Coverage
+import org.mindanchor.report.CoverageLedger
 import org.mindanchor.report.ReportStore
 import org.mindanchor.report.ReportScheduler
 import org.mindanchor.sleep.Deviation
 import org.mindanchor.sleep.SleepRepository
 import org.mindanchor.sleep.SleepSummary
 import org.mindanchor.sunset.SunsetController
+import org.mindanchor.vitals.DailyVitals
+import org.mindanchor.vitals.HealthConnectSource
+import java.time.LocalDate
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -337,6 +343,59 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             } else {
                 ReportScheduler.cancel(getApplication())
             }
+        }
+    }
+
+    // --- Proving the pipeline on this phone ---
+    //
+    // The nightly build runs unattended, and "it will have worked" is an
+    // assumption this project no longer makes anywhere. These exist so
+    // the person can run the whole pipeline once, on demand, and read
+    // per-signal facts about what is actually arriving — instead of
+    // discovering in week three that a source was silent all along.
+
+    val reportGeneratedDay = reportStore.generatedDay
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    private val _reportRunning = MutableStateFlow(false)
+    val reportRunning: StateFlow<Boolean> = _reportRunning.asStateFlow()
+
+    fun runReportNow() {
+        viewModelScope.launch(Dispatchers.IO) {
+            _reportRunning.value = true
+            ReportScheduler.runNow(getApplication())
+            _reportRunning.value = false
+        }
+    }
+
+    /** Per-signal coverage from the last build, or null before any build. */
+    val coverage: StateFlow<List<Coverage>?> = reportStore.coverage
+        .map { encoded -> encoded?.let(CoverageLedger::decode) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    private val _probe = MutableStateFlow<DailyVitals?>(null)
+
+    /** What Health Connect held for yesterday, read on demand. */
+    val probe: StateFlow<DailyVitals?> = _probe.asStateFlow()
+
+    private val _probing = MutableStateFlow(false)
+    val probing: StateFlow<Boolean> = _probing.asStateFlow()
+
+    /**
+     * Reads yesterday straight from Health Connect, right now.
+     *
+     * The one honest way to learn what a particular watch actually
+     * exports is to look — the vendor documentation for this project's
+     * own watch turned out to describe less than the signal list hoped
+     * for, and the next watch will differ again.
+     */
+    fun probeYesterday() {
+        viewModelScope.launch(Dispatchers.IO) {
+            _probing.value = true
+            _probe.value = runCatching {
+                HealthConnectSource.readDailyVitals(getApplication(), LocalDate.now().minusDays(1))
+            }.getOrNull()
+            _probing.value = false
         }
     }
 

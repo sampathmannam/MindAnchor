@@ -43,6 +43,11 @@ fun AppActionsDialog(
                     OutlinedTextField(
                         value = newLabel,
                         onValueChange = { newLabel = it },
+                        // The field arrives pre-filled, so without a label
+                        // a screen reader announces only the current
+                        // contents — words that stop meaning anything the
+                        // moment they are selected and retyped.
+                        label = { Text(stringResource(R.string.rename_hint)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )

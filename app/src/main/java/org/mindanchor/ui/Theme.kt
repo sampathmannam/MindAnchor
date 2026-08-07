@@ -24,8 +24,11 @@ import androidx.compose.ui.unit.sp
  * white. Shapes are rounded throughout (curvature preference — Bar & Neta
  * 2006; Chuquichambi et al. 2022 meta-analysis).
  */
-private val LightColors = lightColorScheme(
-    primary = Color(0xFF5F7D74), // muted sage
+// Internal rather than private so ContrastTest can hold every pair to
+// WCAG AA arithmetic — measured, not assumed; three light pairs were
+// failing before that test existed.
+internal val LightColors = lightColorScheme(
+    primary = Color(0xFF57726A), // muted sage
     onPrimary = Color(0xFFF4F1E9),
     primaryContainer = Color(0xFFD9E3DC),
     onPrimaryContainer = Color(0xFF25332E),
@@ -36,13 +39,13 @@ private val LightColors = lightColorScheme(
     surface = Color(0xFFF4F1E9),
     onSurface = Color(0xFF2E3B39),
     surfaceVariant = Color(0xFFE4E0D6),
-    onSurfaceVariant = Color(0xFF5C6B66),
+    onSurfaceVariant = Color(0xFF576560),
     outline = Color(0xFFA9B2AC),
-    error = Color(0xFF8C6A63), // muted, never alarm-red
+    error = Color(0xFF86655F), // muted, never alarm-red
     onError = Color(0xFFF4F1E9),
 )
 
-private val DarkColors = darkColorScheme(
+internal val DarkColors = darkColorScheme(
     primary = Color(0xFFA9C5BC),
     onPrimary = Color(0xFF1C2523),
     primaryContainer = Color(0xFF33433E),
@@ -119,6 +122,27 @@ private val CalmTypography = Typography().run {
  * system setting still feeds in, because it shifts the palette itself, but
  * it no longer contradicts what the sky is doing.
  */
+/**
+ * The same theme with the palette chosen by the caller instead of the
+ * sky.
+ *
+ * Exists for the screenshot tests alone. The real theme follows the
+ * clock, which means a CI emulator photographs whichever palette its
+ * clock happens to land on — and the three affordance faults this
+ * project has shipped were all found in screenshots, so the palette not
+ * pictured is precisely where the next one hides. Same shapes, same
+ * typography; only the choice of scheme is forced.
+ */
+@Composable
+internal fun MindAnchorThemeForced(dark: Boolean, content: @Composable () -> Unit) {
+    MaterialTheme(
+        colorScheme = if (dark) DarkColors else LightColors,
+        shapes = CalmShapes,
+        typography = CalmTypography,
+        content = content,
+    )
+}
+
 @Composable
 fun MindAnchorTheme(content: @Composable () -> Unit) {
     val now = rememberMinuteTick()

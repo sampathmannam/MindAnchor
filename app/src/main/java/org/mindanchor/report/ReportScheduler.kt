@@ -9,6 +9,7 @@ import android.content.IntentFilter
 import android.os.BatteryManager
 import android.os.Build
 import android.os.PowerManager
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -22,7 +23,12 @@ import org.mindanchor.model.Moment
 import org.mindanchor.model.MomentStore
 import org.mindanchor.narrate.Narrators
 import org.mindanchor.sleep.Deviation
+import org.mindanchor.sleep.SleepRepository
+import org.mindanchor.sleep.SleepWindow
+import org.mindanchor.usage.InferredStore
+import org.mindanchor.usage.RhythmRepository
 import org.mindanchor.vitals.DailyVitals
+import org.mindanchor.vitals.MeasuredStore
 import org.mindanchor.vitals.HealthConnectSource
 
 /**
@@ -74,6 +80,15 @@ object ReportScheduler {
     private const val PATTERN_WINDOW_DAYS = 90
 
     /**
+     * How many days behind the report day the screen-rhythm recompute
+     * reaches. Android keeps detailed usage events for only about a week,
+     * so this is bounded by what the log can still answer — and a few
+     * skipped nights (phone off the charger, say) heal themselves on the
+     * next run instead of becoming holes in the ledger.
+     */
+    private const val RHYTHM_BACKFILL_DAYS = 6L
+
+    /**
      * Arms, or re-arms, the nightly alarm.
      *
      * Safe to call every time the setting is switched on, on boot, and on
@@ -101,6 +116,19 @@ object ReportScheduler {
                 ?.cancel(pendingIntent(appContext))
         }
     }
+
+    /**
+     * Builds the report right now, on demand, whatever the hour.
+     *
+     * This exists so the whole pipeline — Health Connect reads, the
+     * app-measured store, the sleep fallback, composition, patterns,
+     * storage — can be proven on a real phone in its first minute of use
+     * rather than trusted to a 3am alarm nobody watches. It deliberately
+     * skips [ReportSchedule.decide]: a person pressing a button IS the
+     * charging-and-idle question answered.
+     */
+    internal suspend fun runNow(context: Context): Boolean =
+        runCatching { buildAndStore(context.applicationContext) }.isSuccess
 
     /**
      * The alarm fired. Decide, maybe build, and always arm the next one.
@@ -229,9 +257,69 @@ object ReportScheduler {
             .getOrDefault(emptyList())
         val momentsByDay = moments.groupBy { it.day }
 
-        val today = valuesFor(reportDay, vitalsByDate, momentsByDay)
+        // What the app measured itself — camera PPG readings — and what
+        // the phone can infer about sleep from its own screen rhythm.
+        // Both fail soft to nothing: a corrupt store or a missing
+        // UsageStats grant costs those sources, never the night.
+        val measured = runCatching { MeasuredStore(context).all() }
+            .getOrDefault(emptyList())
+            .associate { (it.day to it.key) to it.value }
+        val sleepByWake = runCatching {
+            SleepRepository(context).estimate()?.windows.orEmpty()
+        }.getOrDefault(emptyList()).associateBy { it.wakeDate }
+
+        // The phone's own daytime rhythm — first pickup after 03:00 and
+        // total screen minutes — recomputed for the recent days the
+        // system's event log still remembers and written into a ledger
+        // before it forgets them. The ledger, not the log, is what the
+        // baseline reads: events survive on the device for about a week,
+        // a baseline needs months, and this line is the difference.
+        // Recomputing a day already on file just overwrites it with the
+        // same answer. No usage-access grant, or any failure, costs this
+        // source and never the night.
+        val inferredStore = InferredStore(context)
+        runCatching {
+            val recent = (RHYTHM_BACKFILL_DAYS downTo 0L).map { reportDay.minusDays(it) }
+            RhythmRepository(context).rhythms(recent)?.forEach { (date, rhythm) ->
+                rhythm.firstUnlockMinute?.let {
+                    inferredStore.record(date, Signal.FIRST_UNLOCK.name, it.toDouble())
+                }
+                rhythm.screenMinutes?.let {
+                    inferredStore.record(date, Signal.SCREEN_TIME.name, it.toDouble())
+                }
+            }
+        }
+        val inferred = runCatching { inferredStore.all() }
+            .getOrDefault(emptyList())
+            .associate { (it.day to it.key) to it.value }
+
+        val allDates = windowDates + reportDay
+        val sourcedByDate = allDates.associateWith { date ->
+            Signal.entries.mapNotNull { signal ->
+                sourcedFor(signal, date, vitalsByDate, momentsByDay, measured, sleepByWake, inferred, zone)
+                    ?.let { signal to it }
+            }.toMap()
+        }
+        val today = sourcedByDate.getValue(reportDay).mapValues { it.value.value }
         val history = Signal.entries.associateWith { signal ->
-            historyDates.mapNotNull { date -> valueFor(signal, date, vitalsByDate, momentsByDay) }
+            historyDates.mapNotNull { date -> sourcedByDate[date]?.get(signal)?.value }
+        }
+        // Per-signal coverage across the whole window: the fact that
+        // answers "why is this signal missing?" before anyone has to ask
+        // it. Computed here because this is the one place that already
+        // holds every source's answer for every day.
+        val coverage = Signal.entries.map { signal ->
+            var days = 0
+            var lastDay: String? = null
+            var lastSource: MeasureSource? = null
+            allDates.forEach { date ->
+                sourcedByDate[date]?.get(signal)?.let {
+                    days += 1
+                    lastDay = date.toString()
+                    lastSource = it.source
+                }
+            }
+            Coverage(signal, days, lastDay, lastSource)
         }
 
         val report = ReportComposer.compose(
@@ -251,19 +339,26 @@ object ReportScheduler {
         // nothing: the report still stands on its own without it.
         val patterns = runCatching {
             PatternFinder.find(
-                signalsByDay = signalsByDay(windowDates, vitalsByDate, momentsByDay),
+                signalsByDay = Signal.entries.associateWith { signal ->
+                    windowDates.mapNotNull { date ->
+                        sourcedByDate[date]?.get(signal)?.let { date to it.value }
+                    }.toMap()
+                },
                 labelsByDay = labelsByDay(windowDates, momentsByDay),
                 days = patternDates,
                 todaysSignals = today,
                 seed = reportDay.toEpochDay(),
             )
         }.getOrDefault(emptyList())
-        ReportStore(context).save(
+        val store = ReportStore(context)
+        store.save(
             report = report,
             narration = narration?.text,
             patterns = patterns,
             generatedDay = LocalDate.now(zone).toString(),
         )
+        store.saveCoverage(CoverageLedger.encode(coverage))
+        store.saveFacts(FactsLedger.encode(sourcedByDate.getValue(reportDay)))
     }
 }
 
@@ -283,15 +378,66 @@ class ReportAlarmReceiver : BroadcastReceiver() {
     }
 }
 
-/** Today's values for every signal that could be read at all on [date]. */
-private fun valuesFor(
+/**
+ * One signal's value on [date] with its provenance, or null when nothing
+ * measured it at all.
+ *
+ * Check-ins are classified [MeasureSource.MEASURED_HERE] rather than
+ * passing through the wearable slot: valence and arousal only ever come
+ * from a person answering a prompt, and calling that "from your wearable"
+ * on the coverage screen would be a small lie told daily.
+ */
+private fun sourcedFor(
+    signal: Signal,
     date: LocalDate,
     vitalsByDate: Map<LocalDate, DailyVitals>,
     momentsByDay: Map<String, List<Moment>>,
-): Map<Signal, Double> =
-    Signal.entries.mapNotNull { signal ->
-        valueFor(signal, date, vitalsByDate, momentsByDay)?.let { signal to it }
-    }.toMap()
+    measured: Map<Pair<String, String>, Double>,
+    sleepByWake: Map<LocalDate, SleepWindow>,
+    inferred: Map<Pair<String, String>, Double>,
+    zone: ZoneId,
+): Sourced? {
+    val existing = valueFor(signal, date, vitalsByDate, momentsByDay)
+    val checkIn = signal == Signal.VALENCE || signal == Signal.AROUSAL
+    return Sourcing.pick(
+        measuredHere = measured[date.toString() to signal.name]
+            ?: existing.takeIf { checkIn },
+        wearable = existing.takeUnless { checkIn },
+        phoneInferred = phoneInferred(signal, date, sleepByWake, inferred, zone),
+    )
+}
+
+/**
+ * Sleep, inferred from the phone's own screen rhythm, for when no
+ * wearable wrote a session — which on this project's own hardware is the
+ * expected case, since the watch's Health Connect exports were verified
+ * to be heart rate and exercise only. Same minutes-after-18:00 frame as
+ * the wearable path, so the baseline never sees two framings of one
+ * signal.
+ */
+private fun phoneInferred(
+    signal: Signal,
+    date: LocalDate,
+    sleepByWake: Map<LocalDate, SleepWindow>,
+    inferred: Map<Pair<String, String>, Double>,
+    zone: ZoneId,
+): Double? = when (signal) {
+    Signal.SLEEP_MINUTES -> sleepByWake[date]?.let { window ->
+        ((window.endMillis - window.startMillis) / 60_000L).toDouble()
+    }
+
+    Signal.SLEEP_ONSET -> sleepByWake[date]?.let { window ->
+        val start = Instant.ofEpochMilli(window.startMillis).atZone(zone)
+        Deviation.minutesAfterSixPm(start.hour * 60 + start.minute).toDouble()
+    }
+
+    // The screen-rhythm pair comes from the inferred ledger rather than
+    // being recomputed here: the ledger holds months where the event log
+    // holds a week — see the recompute-and-record step in buildAndStore.
+    Signal.FIRST_UNLOCK, Signal.SCREEN_TIME -> inferred[date.toString() to signal.name]
+
+    else -> null
+}
 
 /**
  * One signal's value on [date], or null when it was not measured that
@@ -320,6 +466,10 @@ private fun valueFor(
         // same frame and for its honest limitation with day sleepers.
         Signal.SLEEP_ONSET -> vitals?.sleepOnset?.let { Deviation.minutesAfterSixPm(it).toDouble() }
         Signal.STEPS -> vitals?.steps?.toDouble()
+        // The screen-rhythm pair has no wearable behind it and no
+        // check-in either — it exists only through the phone-inferred
+        // slot, so from every other source the honest answer is nothing.
+        Signal.FIRST_UNLOCK, Signal.SCREEN_TIME -> null
         // Valence and arousal have no watch behind them at all — they
         // come only from EMA check-ins, averaged across however many
         // were answered that day.
@@ -333,22 +483,6 @@ private fun valueFor(
             ?.average()
     }
 }
-
-/**
- * Every signal's value across [dates], built off the same [valueFor] this
- * file already uses for the baseline — the sleep-onset 18:00 reframing
- * lives in exactly one place, and this is not it.
- */
-private fun signalsByDay(
-    dates: List<LocalDate>,
-    vitalsByDate: Map<LocalDate, DailyVitals>,
-    momentsByDay: Map<String, List<Moment>>,
-): Map<Signal, Map<LocalDate, Double>> =
-    Signal.entries.associateWith { signal ->
-        dates.mapNotNull { date ->
-            valueFor(signal, date, vitalsByDate, momentsByDay)?.let { date to it }
-        }.toMap()
-    }
 
 /**
  * Both labels' values across [dates], one check-in day averaged into one

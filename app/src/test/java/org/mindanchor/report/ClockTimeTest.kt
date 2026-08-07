@@ -76,4 +76,18 @@ class ClockTimeTest {
         assertEquals("18:00", clockTime(onset(18, 0).toDouble()))
         assertEquals("17:59", clockTime(onset(17, 59).toDouble()))
     }
+
+    @Test
+    fun `the first pickup renders as the plain clock it was stored as`() {
+        // Unlike sleep onset this signal carries no 18:00 frame — it is a
+        // morning fact fenced past 03:00 at the source. Feeding it to
+        // clockTime by mistake would show a pickup six hours late, which
+        // is exactly the kind of drift this pins down.
+        assertEquals("07:22", minuteOfDayClock((7 * 60 + 22).toDouble()))
+        assertEquals("00:00", minuteOfDayClock(0.0))
+        assertEquals("23:59", minuteOfDayClock(1439.0))
+        // A baseline median can land between two minutes; rounding, not
+        // truncation, keeps 07:19.6 from printing as 07:19.
+        assertEquals("07:20", minuteOfDayClock(439.6))
+    }
 }

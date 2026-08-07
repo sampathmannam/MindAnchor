@@ -10,13 +10,58 @@ android {
     namespace = "org.mindanchor"
     compileSdk = 35
 
+    // Pinned to the exact version .github/workflows/probe-ndk.yml proved
+    // present on the CI runners — the engine build depends on it, and an
+    // unpinned NDK is a build that works until the runner image changes.
+    ndkVersion = "27.3.13750724"
+
     defaultConfig {
         applicationId = "org.mindanchor"
         minSdk = 33
         targetSdk = 35
-        versionCode = 16
-        versionName = "0.16.0"
+        versionCode = 17
+        versionName = "0.17.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        externalNativeBuild {
+            cmake {
+                // The off-list is load-bearing, not tidiness. LLAMA_CURL
+                // must be OFF because this app's privacy promise is that
+                // no path to the network exists anywhere in it, native
+                // code included. GGML_NATIVE must be OFF because
+                // -march=native on a build machine produces code the
+                // phone may not run. The rest keeps the vendored tree to
+                // exactly the library — no tools, no tests, no server.
+                arguments += listOf(
+                    "-DLLAMA_CURL=OFF",
+                    "-DLLAMA_BUILD_COMMON=OFF",
+                    "-DLLAMA_BUILD_TESTS=OFF",
+                    "-DLLAMA_BUILD_EXAMPLES=OFF",
+                    "-DLLAMA_BUILD_SERVER=OFF",
+                    "-DGGML_NATIVE=OFF",
+                    "-DGGML_OPENMP=OFF",
+                    "-DBUILD_SHARED_LIBS=OFF",
+                )
+                cppFlags += "-std=c++17"
+            }
+        }
+
+        // arm64 is every real phone this app supports (minSdk 33);
+        // x86_64 exists so the CI emulator can load the library and
+        // prove the JNI surface on device rather than trusting it.
+        ndk {
+            abiFilters += listOf("arm64-v8a", "x86_64")
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            // AGP's default is to demand its own pinned CMake exactly;
+            // the runners carry 3.31 and 4.1 (probed, like the NDK), and
+            // the trailing + lets either satisfy this.
+            version = "3.31.0+"
+        }
     }
 
     // Real signing, when and only when a key is supplied.

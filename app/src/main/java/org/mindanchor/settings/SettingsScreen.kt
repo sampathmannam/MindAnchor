@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
@@ -40,6 +42,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
@@ -52,6 +55,8 @@ import org.mindanchor.launcher.DisplayApp
 import org.mindanchor.narrate.ModelSlot
 import org.mindanchor.notifications.BatchSchedule
 import org.mindanchor.onboarding.Goal
+import org.mindanchor.report.MeasureSource
+import org.mindanchor.report.Signal
 import org.mindanchor.onboarding.GoalMap
 import org.mindanchor.onboarding.SettingsSection
 import org.mindanchor.ui.NatureScene
@@ -109,6 +114,40 @@ private fun TimeNudger(label: String, onEarlier: () -> Unit, onLater: () -> Unit
             Text(stringResource(R.string.time_later))
         }
     }
+}
+
+/** One probe row: the signal's name and what arrived, or an honest dash. */
+@Composable
+private fun ProbeLine(labelRes: Int, value: String?) {
+    Text(
+        text = stringResource(
+            R.string.probe_line,
+            stringResource(labelRes),
+            value ?: stringResource(R.string.probe_absent),
+        ),
+        style = MaterialTheme.typography.bodyMedium,
+        modifier = Modifier.padding(top = 4.dp),
+    )
+}
+
+private fun signalLabelRes(signal: Signal): Int = when (signal) {
+    Signal.HRV -> R.string.signal_hrv
+    Signal.RESTING_HEART_RATE -> R.string.signal_resting_hr
+    Signal.SLEEP_MINUTES -> R.string.signal_sleep_minutes
+    Signal.SLEEP_ONSET -> R.string.signal_sleep_onset
+    Signal.STEPS -> R.string.signal_steps
+    Signal.FIRST_UNLOCK -> R.string.signal_first_unlock
+    Signal.SCREEN_TIME -> R.string.signal_screen_time
+    Signal.VALENCE -> R.string.signal_valence
+    Signal.AROUSAL -> R.string.signal_arousal
+}
+
+/** A null source — from a future version's file — reads as plain absence. */
+private fun sourceLabelRes(source: MeasureSource?): Int = when (source) {
+    MeasureSource.MEASURED_HERE -> R.string.source_measured
+    MeasureSource.WEARABLE -> R.string.source_wearable
+    MeasureSource.PHONE_INFERRED -> R.string.source_phone
+    null -> R.string.arriving_never
 }
 
 private fun Goal.labelRes(): Int = when (this) {
@@ -341,10 +380,19 @@ fun SettingsScreen(
                 )
                 if (editingGoals) {
                     Goal.entries.forEach { goal ->
+                        // One node, not two: the row carries the toggle
+                        // semantics and the checkbox is only a picture of
+                        // the state, so a screen reader hears the words
+                        // and the checked state together. Same pattern on
+                        // every stateful row in this app.
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable {
+                                .heightIn(min = 48.dp)
+                                .toggleable(
+                                    value = goal in goals,
+                                    role = Role.Checkbox,
+                                ) {
                                     viewModel.setGoals(
                                         if (goal in goals) goals - goal else goals + goal,
                                     )
@@ -514,7 +562,18 @@ fun SettingsScreen(
                 }
             } else {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .toggleable(value = batchingEnabled, role = Role.Switch) { enabled ->
+                            if (enabled) {
+                                permissionLauncher.launch(
+                                    android.Manifest.permission.POST_NOTIFICATIONS,
+                                )
+                            }
+                            viewModel.setBatchingEnabled(enabled)
+                        }
+                        .padding(top = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
@@ -522,17 +581,7 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier.weight(1f),
                     )
-                    Switch(
-                        checked = batchingEnabled,
-                        onCheckedChange = { enabled ->
-                            if (enabled) {
-                                permissionLauncher.launch(
-                                    android.Manifest.permission.POST_NOTIFICATIONS,
-                                )
-                            }
-                            viewModel.setBatchingEnabled(enabled)
-                        },
-                    )
+                    Switch(checked = batchingEnabled, onCheckedChange = null)
                 }
 
                 if (batchingEnabled) {
@@ -570,7 +619,13 @@ fun SettingsScreen(
                     allApps.forEach { app ->
                         val packageName = app.component.substringBefore('/')
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp)
+                                .toggleable(
+                                    value = packageName in batchedApps,
+                                    role = Role.Switch,
+                                ) { viewModel.setAppBatched(packageName, it) },
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
@@ -578,10 +633,7 @@ fun SettingsScreen(
                                 style = MaterialTheme.typography.bodyLarge,
                                 modifier = Modifier.weight(1f),
                             )
-                            Switch(
-                                checked = packageName in batchedApps,
-                                onCheckedChange = { viewModel.setAppBatched(packageName, it) },
-                            )
+                            Switch(checked = packageName in batchedApps, onCheckedChange = null)
                         }
                     }
                 }
@@ -608,17 +660,23 @@ fun SettingsScreen(
                 NatureScene.FOREST to R.string.scene_forest,
                 NatureScene.OFF to R.string.scene_off,
             ).forEach { (scene, label) ->
+                // The row is the one target and the radio is only a
+                // picture of the state. When the radio kept its own
+                // onClick there were two tap targets per line and the
+                // inner one had no words — a screen reader landed on an
+                // unnamed radio button between every named row.
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { viewModel.setNatureScene(scene) }
+                        .heightIn(min = 48.dp)
+                        .selectable(
+                            selected = natureScene == scene,
+                            role = Role.RadioButton,
+                        ) { viewModel.setNatureScene(scene) }
                         .padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    RadioButton(
-                        selected = natureScene == scene,
-                        onClick = { viewModel.setNatureScene(scene) },
-                    )
+                    RadioButton(selected = natureScene == scene, onClick = null)
                     Text(
                         text = stringResource(label),
                         style = MaterialTheme.typography.bodyLarge,
@@ -729,7 +787,13 @@ fun SettingsScreen(
                 }
             } else {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .toggleable(value = sunsetEnabled, role = Role.Switch) {
+                            viewModel.setSunsetEnabled(it)
+                        }
+                        .padding(top = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
@@ -737,10 +801,7 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier.weight(1f),
                     )
-                    Switch(
-                        checked = sunsetEnabled,
-                        onCheckedChange = viewModel::setSunsetEnabled,
-                    )
+                    Switch(checked = sunsetEnabled, onCheckedChange = null)
                 }
             }
         }
@@ -819,7 +880,13 @@ fun SettingsScreen(
                     // and it never notifies.
                     val mirrorOn by viewModel.sleepMirror.collectAsState()
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .toggleable(value = mirrorOn, role = Role.Switch) {
+                                viewModel.setSleepMirror(it)
+                            }
+                            .padding(top = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
@@ -827,7 +894,7 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.weight(1f),
                         )
-                        Switch(checked = mirrorOn, onCheckedChange = viewModel::setSleepMirror)
+                        Switch(checked = mirrorOn, onCheckedChange = null)
                     }
                     Text(
                         text = stringResource(R.string.mirror_explainer),
@@ -922,7 +989,13 @@ fun SettingsScreen(
             )
             val reportEnabled by viewModel.reportEnabled.collectAsState()
             Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .toggleable(value = reportEnabled, role = Role.Switch) {
+                        viewModel.setReportEnabled(it)
+                    }
+                    .padding(top = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -930,10 +1003,34 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.weight(1f),
                 )
-                Switch(checked = reportEnabled, onCheckedChange = viewModel::setReportEnabled)
+                Switch(checked = reportEnabled, onCheckedChange = null)
             }
             TextButton(onClick = onOpenReport) {
                 Text(stringResource(R.string.report_open))
+            }
+
+            // When it last actually ran, and a way to run it right now.
+            // The nightly alarm is unattended and a silently stopped one
+            // is indistinguishable from a run of quiet nights; this line
+            // is the difference, and the button proves the whole pipeline
+            // on this phone in its first minute rather than trusting a
+            // 3am alarm to demonstrate it eventually.
+            val generatedDay by viewModel.reportGeneratedDay.collectAsState()
+            Text(
+                text = stringResource(
+                    R.string.report_last_built,
+                    generatedDay ?: stringResource(R.string.report_never_built),
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            val reportRunning by viewModel.reportRunning.collectAsState()
+            TextButton(enabled = !reportRunning, onClick = viewModel::runReportNow) {
+                Text(
+                    stringResource(
+                        if (reportRunning) R.string.report_running_now else R.string.report_run_now,
+                    ),
+                )
             }
         }
 
@@ -1104,7 +1201,16 @@ fun SettingsScreen(
             )
             val emaEnabled by viewModel.emaEnabled.collectAsState()
             Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .toggleable(value = emaEnabled, role = Role.Switch) { enabled ->
+                        if (enabled) {
+                            permissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                        viewModel.setEmaEnabled(enabled)
+                    }
+                    .padding(top = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -1112,15 +1218,7 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.weight(1f),
                 )
-                Switch(
-                    checked = emaEnabled,
-                    onCheckedChange = { enabled ->
-                        if (enabled) {
-                            permissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                        }
-                        viewModel.setEmaEnabled(enabled)
-                    },
-                )
+                Switch(checked = emaEnabled, onCheckedChange = null)
             }
             val emaCount by viewModel.emaCount.collectAsState()
             Text(
@@ -1139,6 +1237,92 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+
+        if (group == SettingsGroup.MEASURING) {
+            // --- What is arriving (coverage and the wearable probe) ---
+            //
+            // Facts, not assumptions. The signal list was designed around
+            // what a wearable could deliver; what one actually delivers
+            // is only learnable by looking, and a signal silently absent
+            // for weeks is the failure this section exists to make
+            // impossible to miss.
+            SectionHeading(R.string.arriving_section, null, goals)
+            Text(
+                text = stringResource(R.string.arriving_explainer),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            val coverage by viewModel.coverage.collectAsState()
+            val entries = coverage
+            if (entries == null) {
+                Text(
+                    text = stringResource(R.string.arriving_not_yet),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            } else {
+                entries.forEach { entry ->
+                    Text(
+                        text = stringResource(
+                            R.string.arriving_line,
+                            stringResource(signalLabelRes(entry.signal)),
+                            entry.daysOnFile,
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                    Text(
+                        text = if (entry.lastDay == null) {
+                            stringResource(R.string.arriving_never)
+                        } else {
+                            stringResource(
+                                R.string.arriving_last,
+                                entry.lastDay,
+                                stringResource(sourceLabelRes(entry.lastSource)),
+                            )
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            val probing by viewModel.probing.collectAsState()
+            TextButton(enabled = !probing, onClick = viewModel::probeYesterday) {
+                Text(
+                    stringResource(
+                        if (probing) R.string.probe_checking else R.string.probe_button,
+                    ),
+                )
+            }
+            val probe by viewModel.probe.collectAsState()
+            probe?.let { vitals ->
+                Text(
+                    text = stringResource(R.string.probe_intro),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                // Spelled out field by field rather than looped, because
+                // each one formats differently and a bedtime shown as
+                // "1410" would defeat the purpose of a screen that exists
+                // to be read literally.
+                ProbeLine(R.string.signal_hrv, vitals.hrvRmssd?.let { "%.0f ms".format(it) })
+                ProbeLine(
+                    R.string.signal_resting_hr,
+                    vitals.restingHeartRate?.let { "%.0f bpm".format(it) },
+                )
+                ProbeLine(
+                    R.string.signal_sleep_minutes,
+                    vitals.sleepMinutes?.let { "$it min" },
+                )
+                ProbeLine(
+                    R.string.signal_sleep_onset,
+                    vitals.sleepOnset?.let { "%02d:%02d".format(it / 60, it % 60) },
+                )
+                ProbeLine(R.string.signal_steps, vitals.steps?.toString())
+            }
         }
 
         if (group == SettingsGroup.PLAN) {
@@ -1273,7 +1457,14 @@ fun SettingsScreen(
                 )
             } else {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .toggleable(value = grayscaleNow, role = Role.Switch) {
+                            Grayscale.set(context, it)
+                            grayscaleNow = Grayscale.isOn(context)
+                        }
+                        .padding(top = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
@@ -1281,16 +1472,15 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.weight(1f),
                     )
-                    Switch(
-                        checked = grayscaleNow,
-                        onCheckedChange = {
-                            Grayscale.set(context, it)
-                            grayscaleNow = Grayscale.isOn(context)
-                        },
-                    )
+                    Switch(checked = grayscaleNow, onCheckedChange = null)
                 }
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .toggleable(value = greyNights, role = Role.Switch) {
+                            viewModel.setGrayscaleAtNight(it)
+                        },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
@@ -1298,10 +1488,7 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.weight(1f),
                     )
-                    Switch(
-                        checked = greyNights,
-                        onCheckedChange = { viewModel.setGrayscaleAtNight(it) },
-                    )
+                    Switch(checked = greyNights, onCheckedChange = null)
                 }
                 Text(
                     text = stringResource(R.string.grayscale_shares_a_switch),
