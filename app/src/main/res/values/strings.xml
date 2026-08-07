@@ -23,6 +23,8 @@
     <string name="breath_in">Breathe in…</string>
     <string name="breath_out">…and out</string>
     <string name="never_mind">never mind</string>
+    <string name="friction_feather">You&#39;ve opened %1$s a few times just now.</string>
+    <string name="friction_feather_open">Open it</string>
     <string name="intention_question">What are you here to do in %1$s?</string>
     <string name="intention_hint">Pick a time box — you\'ll get a gentle nudge when it\'s up.</string>
     <string name="open_for_minutes">%1$d min</string>

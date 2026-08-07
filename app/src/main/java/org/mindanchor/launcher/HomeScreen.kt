@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import org.mindanchor.R
 import org.mindanchor.digest.DigestActivity
 import org.mindanchor.friction.FrictionGate
+import org.mindanchor.friction.FrictionTone
 import org.mindanchor.settings.SettingsScreen
 import org.mindanchor.support.SupportActivity
 import org.mindanchor.ui.CalmBackground
@@ -100,18 +101,34 @@ fun LauncherRoot(
     }
 
     gateFor?.let { app ->
-        FrictionGate(
-            appLabel = app.label,
-            onOpen = { minutes ->
-                viewModel.launchTimed(app, minutes)
-                gateFor = null
-                surface = LauncherSurface.Home
-            },
-            onNeverMind = {
-                gateFor = null
-                surface = LauncherSurface.Home
-            },
-        )
+        // The tone depends on how recently this app was reached for, which
+        // is a disk read. Nothing is drawn until it resolves — showing the
+        // full breath and then swapping it for a lighter prompt would be
+        // worse than the brief blank the sky already covers.
+        var tone by remember(app) { mutableStateOf<FrictionTone?>(null) }
+        LaunchedEffect(app) { tone = viewModel.toneFor(app) }
+        val resolved = tone
+        if (resolved == null) {
+            // Hold the sky. Falling through here would draw the home screen
+            // for a frame between tapping an app and the pause appearing,
+            // which is the flash this launcher has already been fixed for
+            // once.
+            CalmBackground { }
+        } else {
+            FrictionGate(
+                tone = resolved,
+                appLabel = app.label,
+                onOpen = { minutes ->
+                    viewModel.launchTimed(app, minutes)
+                    gateFor = null
+                    surface = LauncherSurface.Home
+                },
+                onNeverMind = {
+                    gateFor = null
+                    surface = LauncherSurface.Home
+                },
+            )
+        }
         return
     }
 

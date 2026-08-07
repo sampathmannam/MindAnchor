@@ -13,6 +13,9 @@ import kotlinx.coroutines.launch
 import org.mindanchor.data.AppRepository
 import org.mindanchor.data.FrictionPrefs
 import org.mindanchor.data.LauncherPrefs
+import org.mindanchor.friction.FrictionContext
+import org.mindanchor.friction.FrictionTone
+import org.mindanchor.data.SunsetPrefs
 import org.mindanchor.friction.SessionManager
 
 data class LauncherUiState(
@@ -78,6 +81,27 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 packageName !in uiState.value.frictionPackages,
             )
         }
+    }
+
+    /**
+     * How hard the pause should push for [app], right now.
+     *
+     * Records the reach as a side effect, because the count only means
+     * anything if every reach is counted. Quiet hours are taken from the
+     * sunset window the app already exposes rather than from sleep
+     * estimates: it is a setting the person can see and reason about, and
+     * it needs no usage-access permission to read.
+     */
+    suspend fun toneFor(app: DisplayApp): FrictionTone {
+        val packageName = app.component.substringBefore('/')
+        val prior = frictionPrefs.recordReach(
+            packageName,
+            System.currentTimeMillis(),
+            FrictionContext.RECENT_WINDOW_MILLIS,
+        )
+        val now = java.time.LocalTime.now()
+        val quiet = now >= SunsetPrefs.START || now < SunsetPrefs.END
+        return FrictionContext.toneFor(prior, insideSleepWindow = quiet)
     }
 
     /**

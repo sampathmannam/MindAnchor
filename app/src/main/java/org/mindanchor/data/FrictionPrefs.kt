@@ -33,6 +33,37 @@ class FrictionPrefs(private val context: Context) {
     }
 
     /** Increments and returns today's extension count for [packageName]. */
+    private val reachKey = stringPreferencesKey("recent_reaches")
+
+    /**
+     * Records a reach for [packageName] at [now], and returns how many
+     * times it had *already* been reached for inside [windowMillis].
+     *
+     * This is the whole memory behind context-gated friction, and it is
+     * deliberately tiny: one timestamp per app, nothing historical, nothing
+     * about what was done inside the app. Entries older than the window are
+     * dropped on every write, so the file cannot grow into a usage log by
+     * accident.
+     */
+    suspend fun recordReach(packageName: String, now: Long, windowMillis: Long): Int {
+        var priorReaches = 0
+        context.dataStore.edit { prefs ->
+            val entries = (prefs[reachKey] ?: "")
+                .lineSequence()
+                .mapNotNull { line ->
+                    val idx = line.lastIndexOf('\t')
+                    val stamp = if (idx <= 0) null else line.substring(idx + 1).toLongOrNull()
+                    if (stamp == null) null else line.substring(0, idx) to stamp
+                }
+                .filter { now - it.second < windowMillis }
+                .toList()
+            priorReaches = entries.count { it.first == packageName }
+            prefs[reachKey] = (entries + (packageName to now))
+                .joinToString("\n") { "${it.first}\t${it.second}" }
+        }
+        return priorReaches
+    }
+
     suspend fun recordExtension(packageName: String, today: String): Int {
         var count = 0
         context.dataStore.edit { prefs ->

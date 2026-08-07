@@ -45,23 +45,81 @@ fun FrictionGate(
     appLabel: String,
     onOpen: (minutes: Long?) -> Unit,
     onNeverMind: () -> Unit,
+    /** How hard to push this time; see [FrictionTone]. */
+    tone: FrictionTone = FrictionTone.FULL,
 ) {
-    var breathDone by remember { mutableStateOf(false) }
+    // The breath is skipped entirely below FULL rather than shortened.
+    // A hurried version of a calming ritual is not calming.
+    var breathDone by remember(tone) { mutableStateOf(tone != FrictionTone.FULL) }
 
     CalmBackground { sky ->
-        if (!breathDone) {
-            BreathingPause(
+        when {
+            !breathDone -> BreathingPause(
                 sky = sky,
                 onFinished = { breathDone = true },
                 onNeverMind = onNeverMind,
             )
-        } else {
-            IntentionPrompt(
+
+            // Asking a fourth time in ten minutes does not produce a fourth
+            // answer; it produces a person who has learned to swipe past
+            // anything this app shows them. So it stops asking, says the
+            // plain thing once, and gets out of the way.
+            tone == FrictionTone.FEATHER -> Feather(
+                sky = sky,
+                appLabel = appLabel,
+                onOpen = { onOpen(null) },
+                onNeverMind = onNeverMind,
+            )
+
+            else -> IntentionPrompt(
                 sky = sky,
                 appLabel = appLabel,
                 onOpen = onOpen,
                 onNeverMind = onNeverMind,
             )
+        }
+    }
+}
+
+/**
+ * The lightest touch: one observation, no question, one way through.
+ *
+ * It states the count rather than judging it. "You have opened this four
+ * times" is a fact the person can do something with; "you keep opening
+ * this" is a verdict, and a launcher has no standing to deliver one.
+ */
+@Composable
+private fun Feather(
+    sky: SkyContent,
+    appLabel: String,
+    onOpen: () -> Unit,
+    onNeverMind: () -> Unit,
+) {
+    Box(modifier = Modifier.fillMaxSize().padding(32.dp)) {
+        Column(
+            modifier = Modifier.align(Alignment.Center),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(24.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.friction_feather, appLabel),
+                style = MaterialTheme.typography.bodyLarge,
+                color = sky.textPrimary,
+            )
+            TextButton(onClick = onOpen) {
+                Text(
+                    text = stringResource(R.string.friction_feather_open),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = sky.textPrimary,
+                )
+            }
+            TextButton(onClick = onNeverMind) {
+                Text(
+                    text = stringResource(R.string.never_mind),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = sky.textSecondary,
+                )
+            }
         }
     }
 }
