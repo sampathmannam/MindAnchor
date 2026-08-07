@@ -20,6 +20,8 @@ import org.mindanchor.data.SunsetPrefs
 import org.mindanchor.ui.NatureScene
 import org.mindanchor.notifications.BatchAlarms
 import org.mindanchor.notifications.BatchReleaser
+import org.mindanchor.report.ReportStore
+import org.mindanchor.report.ReportWorker
 import org.mindanchor.sleep.Deviation
 import org.mindanchor.sleep.SleepRepository
 import org.mindanchor.sleep.SleepSummary
@@ -33,6 +35,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val sleepRepository = SleepRepository(application)
     private val appearancePrefs = AppearancePrefs(application)
     private val onboardingPrefs = org.mindanchor.onboarding.OnboardingPrefs(application)
+    private val reportStore = ReportStore(application)
 
     /**
      * What the person said they were struggling with, at onboarding or
@@ -287,6 +290,27 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             // alarm when switched off. Same call either way — see
             // EmaScheduler.ensureScheduled.
             org.mindanchor.model.EmaScheduler.ensureScheduled(getApplication())
+        }
+    }
+
+    // --- Last night's look (nightly report) ---
+
+    val reportEnabled = reportStore.enabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setReportEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            reportStore.setEnabled(enabled)
+            // Arms the nightly worker when switched on; cancels the
+            // unique job when switched off — see
+            // ReportWorker.ensureScheduled for why calling this again on
+            // an already-armed worker re-arms it in place rather than
+            // stacking a second one.
+            if (enabled) {
+                ReportWorker.ensureScheduled(getApplication())
+            } else {
+                ReportWorker.cancel(getApplication())
+            }
         }
     }
 }

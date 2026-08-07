@@ -140,6 +140,11 @@ dependencies {
     // force above is what makes it the real artifact rather than the
     // empty placeholder.
     compileOnly(libs.guava.listenablefuture)
+    // WorkManager, for the nightly report. AlarmManager cannot express
+    // "only while charging and only while the device is idle", and those
+    // constraints are the whole point: generation is slow and hot, so it
+    // has to happen when nobody is waiting and the phone is on mains.
+    implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)

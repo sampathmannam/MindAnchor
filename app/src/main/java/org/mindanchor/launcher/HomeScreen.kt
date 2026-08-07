@@ -48,6 +48,7 @@ import org.mindanchor.digest.DigestActivity
 import org.mindanchor.friction.FrictionGate
 import org.mindanchor.friction.FrictionTone
 import org.mindanchor.friction.LoopPhase
+import org.mindanchor.report.ReportScreen
 import org.mindanchor.settings.SettingsScreen
 import org.mindanchor.vitals.PpgScreen
 import org.mindanchor.support.SupportActivity
@@ -57,7 +58,7 @@ import org.mindanchor.ui.rememberClockFormat
 import org.mindanchor.ui.rememberMinuteTick
 import java.time.format.DateTimeFormatter
 
-private enum class LauncherSurface { Home, Drawer, Settings, Ppg }
+private enum class LauncherSurface { Home, Drawer, Settings, Ppg, Report }
 
 /**
  * Root of the launcher UI. Three surfaces: the calm home (clock, greeting,
@@ -177,6 +178,7 @@ fun LauncherRoot(
                 onUnhide = { viewModel.setHidden(it, false) },
                 onBack = { surface = LauncherSurface.Home },
                 onOpenPpg = { surface = LauncherSurface.Ppg },
+                onOpenReport = { surface = LauncherSurface.Report },
             )
         }
 
@@ -186,6 +188,10 @@ fun LauncherRoot(
         // scrolling through would mean starting it by accident.
         LauncherSurface.Ppg -> Surface(modifier = Modifier.fillMaxSize()) {
             PpgScreen(onBack = { surface = LauncherSurface.Settings })
+        }
+
+        LauncherSurface.Report -> Surface(modifier = Modifier.fillMaxSize()) {
+            ReportScreen(onBack = { surface = LauncherSurface.Settings })
         }
     }
 

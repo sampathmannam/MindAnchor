@@ -127,6 +127,8 @@ fun SettingsScreen(
     onBack: () -> Unit,
     /** Opens the heart-rhythm reading on its own surface. */
     onOpenPpg: () -> Unit = {},
+    /** Opens last night's report on its own surface. */
+    onOpenReport: () -> Unit = {},
     viewModel: SettingsViewModel = viewModel(),
 ) {
     val context = LocalContext.current
@@ -732,6 +734,36 @@ fun SettingsScreen(
             },
         ) {
             Text(stringResource(R.string.pulse_take))
+        }
+
+        // --- Last night's look (nightly report) ---
+        //
+        // The only part of this screen that ever runs on its own: a
+        // background worker, gated on the phone charging and idle, that
+        // compares the day against this person's own history and pulls
+        // up what the research says the thing measured actually is. See
+        // ReportComposer for why it never joins those two together, and
+        // ReportWorker for why an ordinary, quiet night is success too.
+        SectionHeading(R.string.report_section, SettingsSection.PULSE, goals)
+        Text(
+            text = stringResource(R.string.report_explainer),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        val reportEnabled by viewModel.reportEnabled.collectAsState()
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.report_toggle),
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.weight(1f),
+            )
+            Switch(checked = reportEnabled, onCheckedChange = viewModel::setReportEnabled)
+        }
+        TextButton(onClick = onOpenReport) {
+            Text(stringResource(R.string.report_open))
         }
 
         // --- Check-ins (EMA) ---

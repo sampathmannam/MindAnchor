@@ -1,0 +1,45 @@
+# MindAnchor research corpus, seed edition.
+#
+# Format: id <TAB> source <TAB> text          (lines starting with # ignored)
+#
+# Every passage here describes WHAT A SIGNAL IS. None of them says what a
+# change in a signal means about a person, and none of them may. The
+# personal baseline is the only thing permitted to say something moved;
+# the join between the two is left to the person reading it. There is a
+# test in ReportComposerTest asserting the retrieval queries never ask
+# for an interpretation, and this file is the other half of that promise.
+#
+# Drawn from docs/research/01-08, which carry the full citations and the
+# cautionary findings alongside the positive ones. Passages are short on
+# purpose: retrieval returns whole passages, and a long one buries the
+# sentence that matched.
+#
+# This is a seed, not a library. Importing a fuller corpus is what the
+# file-picker route is for.
+
+hrv-rmssd	Shaffer & Ginsberg 2017, Frontiers in Public Health	RMSSD is the primary time-domain measure of short-term heart rate variability. It reflects vagally mediated, beat-to-beat changes in heart rhythm, and is the HRV metric least affected by breathing rate.
+hrv-window	Task Force 1996, Circulation 93:1043	Short-term HRV is conventionally measured over five minutes. Shorter recordings can give reliable RMSSD from about sixty seconds, but SDNN over one minute is not comparable to published five-minute norms.
+hrv-vagal-tone	Shaffer & Ginsberg 2017, Frontiers in Public Health	Vagal tone indexed by HRV is associated with the capacity to regulate physiological arousal and to recover after it. It varies substantially between individuals, which is why an absolute value says much less than a change against a person's own usual.
+hrv-artifact	Task Force 1996, Circulation 93:1043	Ectopic beats and missed detections inflate RMSSD dramatically, because the metric is built from successive differences. Editing is required before the number means anything, and heavy editing biases the result low.
+sleep-regularity	Windred et al. 2024, Sleep 47:zsad285	In a large accelerometry cohort, sleep regularity predicted all-cause mortality more strongly than sleep duration did. Regularity here means the consistency of sleep and wake timing, not the number of hours.
+sleep-onset-timing	Windred et al. 2024, Sleep 47:zsad285	Irregular sleep timing has been associated with risk across a wide range of conditions, in some analyses more than short sleep duration. Timing and duration are separate things and can move independently.
+sleep-cbti	npj Digital Medicine 2025, fully-automated dCBT-I	Digital cognitive behavioural therapy for insomnia reduces sleep-onset latency and wake-after-sleep-onset against inactive controls. Against active controls the difference is not significant, which is a caution about attributing effects to any single component.
+resting-hr	Shaffer & Ginsberg 2017, Frontiers in Public Health	Resting heart rate and HRV are related but not interchangeable. Resting heart rate is a single rate; HRV describes the variation around it, and the two can move in different directions.
+activity-ba	Linardon et al. 2024, World Psychiatry	Behavioural activation is among the simplest well-evidenced treatments for low mood. Its mechanism is that action precedes mood rather than waiting on it, which is why the size of the action matters less than its occurrence.
+activity-steps	Aguilera et al. 2024, JMIR	In a three-arm randomised trial of adaptive messaging, the reinforcement-learning arm increased daily steps substantially more than fixed or random schedules. The measured outcome was steps, not mood.
+affect-circumplex	Momentary assessment literature, circumplex model	Momentary affect is commonly described on two axes rather than one: how pleasant an experience feels, and how activated it is. Flat-and-low and tense-and-low are distinct states that a single mood scale cannot separate.
+affect-arousal	Circumplex model of affect, arousal dimension	Arousal describes how activated or energised an experience is, independently of whether it feels pleasant. High arousal covers both agitation and enthusiasm; low arousal covers both calm and lethargy, which is why it is measured separately from valence.
+affect-ema	Ecological momentary assessment methodology	Momentary assessment samples experience in the moment rather than by recall, which avoids the reconstruction errors of retrospective report. Signals scattered within blocks are used so a person cannot anticipate the prompt and pre-compose an answer.
+generalisation	Müller, Harari et al. 2021, Scientific Reports	A GPS-mobility model for depression scored an area under the curve of 0.82 in a homogeneous sample of 57 students and 0.57, which is chance, in a heterogeneous sample of 5262. Models fitted across people do not transfer to individuals.
+within-person	Henson, Torous et al. 2023, npj Schizophrenia	Anomaly detection against a person's own passive-data baseline was more frequent in the month before relapse than at other times. Within-person deviation generalises better than cross-person prediction.
+sensing-limits	JMIR 2025 review, mobile sensing for depression	Across nine studies of mobile sensing for depression, most could predict symptom severity to some degree, but only one could distinguish worsening from relapse from recovery. The clinically actionable distinction remains largely unsolved.
+friction-delay	Grüning, Riedel & Lorenz-Spreen 2023, PNAS	A six-second delay before opening a chosen application led participants to abandon 36% of open attempts, and total open attempts fell over six weeks. The mechanism is habit decay rather than willpower.
+friction-context	Meinhardt, Purohit, Rukzio et al. 2025, CHI	Intervention effectiveness during scrolling is context-dependent. Sleepiness lowers reactance, low mood at home slows responsiveness, and people desensitise to prompts that ignore context.
+habituation	Michie/HeartSteps and Sense2Stop trials	Effects of repeated prompting decay over time in multiple micro-randomised trials, and some show null results at follow-up. Habituation is the most consistent finding in this literature.
+app-effects	Linardon et al. 2024, World Psychiatry	A meta-analysis of 176 randomised trials found small effects for mental-health apps: g of about 0.28 for depression and 0.26 for anxiety. Effects were larger where apps included CBT components or mood monitoring.
+retention	Baumel et al. 2019, JMIR	Across 93 mental-health apps, median fifteen-day retention was under four percent and median use was about five sessions. Anything depending on a person opening an app inherits this.
+notification-batching	Fitz, Kushlev, Ariely et al. 2019, Computers in Human Behavior	In a randomised trial, receiving notifications in three daily batches left participants happier, less stressed and more attentive than receiving them as they arrived. The mediator was subjective attention quality.
+grayscale	Monochrome display trials, 2024-2026	Removing colour from a phone display reduces screen time in controlled trials. The proposed mechanism is that colour carries much of what makes a feed engaging, rather than any change in intention.
+zeigarnik	Masicampo & Baumeister 2011	Unfinished tasks intrude on cognition until they are resolved. Writing a specific plan for the unfinished task reduces the intrusion about as effectively as completing it does.
+ppg-camera	Photoplethysmography methodology	A phone camera with the torch lit can record the pulse waveform at a fingertip, from which beat-to-beat intervals and short-term HRV can be derived. Signal quality, not sensor precision, is the limiting factor.
+ppg-quality	Orphanidou et al. 2015, IEEE JBHI 19:832	Beat-template correlation is used to decide whether a photoplethysmography recording is trustworthy. Physiological plausibility of intervals alone is insufficient, because noise can produce plausible-looking rates.
