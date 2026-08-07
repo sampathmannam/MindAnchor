@@ -121,9 +121,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             System.currentTimeMillis(),
             FrictionContext.RECENT_WINDOW_MILLIS,
         )
-        val now = java.time.LocalTime.now()
-        val quiet = now >= SunsetPrefs.START || now < SunsetPrefs.END
-        return FrictionContext.toneFor(prior, insideSleepWindow = quiet)
+        return FrictionContext.toneFor(prior, insideSleepWindow = SunsetPrefs.isQuietHour())
     }
 
     /**

@@ -47,5 +47,22 @@ class SunsetPrefs(private val context: Context) {
     companion object {
         val START: LocalTime = LocalTime.of(22, 0)
         val END: LocalTime = LocalTime.of(7, 0)
+
+        /**
+         * Whether [now] falls inside a window running [start] → [end],
+         * which may cross midnight.
+         *
+         * This lives next to the times themselves because the naive
+         * `now >= start || now < end` is only correct while the window does
+         * cross midnight. Three copies of that naive form had appeared; the
+         * day these times become editable, every copy that is not this one
+         * silently starts answering a different question.
+         */
+        fun isInWindow(now: LocalTime, start: LocalTime, end: LocalTime): Boolean =
+            if (start <= end) now >= start && now < end else now >= start || now < end
+
+        /** Whether [now] falls inside the configured quiet hours. */
+        fun isQuietHour(now: LocalTime = LocalTime.now()): Boolean =
+            isInWindow(now, START, END)
     }
 }

@@ -32,7 +32,6 @@ class FrictionPrefs(private val context: Context) {
         }
     }
 
-    /** Increments and returns today's extension count for [packageName]. */
     /**
      * Apps that must never be suspended or delayed, whatever else is
      * switched on.
@@ -86,6 +85,7 @@ class FrictionPrefs(private val context: Context) {
         return priorReaches
     }
 
+    /** Increments and returns today's extension count for [packageName]. */
     suspend fun recordExtension(packageName: String, today: String): Int {
         var count = 0
         context.dataStore.edit { prefs ->

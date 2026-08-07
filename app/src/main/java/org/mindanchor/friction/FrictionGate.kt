@@ -84,9 +84,11 @@ fun FrictionGate(
 /**
  * The lightest touch: one observation, no question, one way through.
  *
- * It states the count rather than judging it. "You have opened this four
- * times" is a fact the person can do something with; "you keep opening
- * this" is a verdict, and a launcher has no standing to deliver one.
+ * It observes rather than judges. "You've opened this a few times just
+ * now" is something the person can do what they like with; "you keep
+ * opening this" is a verdict, and a launcher has no standing to deliver
+ * one. The wording stays vague about the number on purpose — reciting an
+ * exact count reads as a tally being kept against them.
  */
 @Composable
 private fun Feather(

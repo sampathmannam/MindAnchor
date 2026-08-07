@@ -30,12 +30,13 @@ object SunsetController {
     private const val ACTION_END = "org.mindanchor.SUNSET_END"
 
     /** Overnight-aware window test. */
+    /**
+     * Delegates to [SunsetPrefs.isInWindow], which is the single definition
+     * of what "inside the window" means. Kept here so existing callers and
+     * tests need not move.
+     */
     fun isInWindow(now: LocalTime, start: LocalTime, end: LocalTime): Boolean =
-        if (start <= end) {
-            now >= start && now < end
-        } else {
-            now >= start || now < end
-        }
+        SunsetPrefs.isInWindow(now, start, end)
 
     suspend fun onToggled(context: Context, enabled: Boolean) {
         if (enabled) {

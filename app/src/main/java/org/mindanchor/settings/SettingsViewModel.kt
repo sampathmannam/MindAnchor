@@ -93,8 +93,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             sunsetPrefs.setGrayscaleAtNight(enabled)
             // Apply immediately if the quiet hours have already begun,
             // rather than leaving the switch looking broken until 22:00.
-            val now = java.time.LocalTime.now()
-            val inWindow = now >= SunsetPrefs.START || now < SunsetPrefs.END
+            val inWindow = SunsetPrefs.isQuietHour()
             if (inWindow || !enabled) {
                 org.mindanchor.grayscale.Grayscale.set(getApplication(), enabled && inWindow)
             }
