@@ -125,6 +125,8 @@ fun SettingsScreen(
     hiddenApps: List<DisplayApp>,
     onUnhide: (DisplayApp) -> Unit,
     onBack: () -> Unit,
+    /** Opens the heart-rhythm reading on its own surface. */
+    onOpenPpg: () -> Unit = {},
     viewModel: SettingsViewModel = viewModel(),
 ) {
     val context = LocalContext.current
@@ -578,6 +580,23 @@ fun SettingsScreen(
                     onCheckedChange = viewModel::setSunsetEnabled,
                 )
             }
+        }
+
+        // --- Heart rhythm ---
+        //
+        // The watch measures HRV and keeps it: it never leaves the COROS
+        // app, and it cannot be derived from heart rate, because RMSSD is
+        // defined over beat-to-beat intervals and averaged BPM has already
+        // thrown that away. So it is measured here instead — which also
+        // means it survives changing watch, or wearing none at all.
+        SectionHeading(R.string.ppg_section, SettingsSection.SLEEP, goals)
+        Text(
+            text = stringResource(R.string.ppg_explainer),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        TextButton(onClick = onOpenPpg) {
+            Text(stringResource(R.string.ppg_start))
         }
 
         // --- Sleep rhythm (F5) ---
