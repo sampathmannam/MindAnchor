@@ -436,59 +436,6 @@ private fun valueFor(
 }
 
 /**
- * One signal's value on [date] with its provenance, or null when nothing
- * measured it at all.
- *
- * Check-ins are classified [MeasureSource.MEASURED_HERE] rather than
- * passing through the wearable slot: valence and arousal only ever come
- * from a person answering a prompt, and calling that "from your wearable"
- * on the coverage screen would be a small lie told daily.
- */
-private fun sourcedFor(
-    signal: Signal,
-    date: LocalDate,
-    vitalsByDate: Map<LocalDate, DailyVitals>,
-    momentsByDay: Map<String, List<Moment>>,
-    measured: Map<Pair<String, String>, Double>,
-    sleepByWake: Map<LocalDate, SleepWindow>,
-    zone: ZoneId,
-): Sourced? {
-    val existing = valueFor(signal, date, vitalsByDate, momentsByDay)
-    val checkIn = signal == Signal.VALENCE || signal == Signal.AROUSAL
-    return Sourcing.pick(
-        measuredHere = measured[date.toString() to signal.name]
-            ?: existing.takeIf { checkIn },
-        wearable = existing.takeUnless { checkIn },
-        phoneInferred = phoneInferred(signal, date, sleepByWake, zone),
-    )
-}
-
-/**
- * Sleep, inferred from the phone's own screen rhythm, for when no
- * wearable wrote a session — which on this project's own hardware is the
- * expected case, since the watch's Health Connect exports were verified
- * to be heart rate and exercise only. Same minutes-after-18:00 frame as
- * the wearable path, so the baseline never sees two framings of one
- * signal.
- */
-private fun phoneInferred(
-    signal: Signal,
-    date: LocalDate,
-    sleepByWake: Map<LocalDate, SleepWindow>,
-    zone: ZoneId,
-): Double? {
-    val window = sleepByWake[date] ?: return null
-    return when (signal) {
-        Signal.SLEEP_MINUTES -> ((window.endMillis - window.startMillis) / 60_000L).toDouble()
-        Signal.SLEEP_ONSET -> {
-            val start = Instant.ofEpochMilli(window.startMillis).atZone(zone)
-            Deviation.minutesAfterSixPm(start.hour * 60 + start.minute).toDouble()
-        }
-        else -> null
-    }
-}
-
-/**/**
  * Both labels' values across [dates], one check-in day averaged into one
  * number the same way [valueFor] already averages [Signal.VALENCE] and
  * [Signal.AROUSAL] — kept separate from that function only because
