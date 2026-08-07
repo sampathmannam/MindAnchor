@@ -38,6 +38,7 @@ import org.mindanchor.data.db.AnchorDatabase
 import org.mindanchor.data.db.PulseResult
 import java.time.Instant
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 class PulseViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -52,6 +53,31 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
             PulseReminder.scheduleNext(getApplication())
         }
     }
+}
+
+/** Day and month, no year — every entry is within the last few months. */
+private val historyDateFormat = DateTimeFormatter.ofPattern("d MMM")
+
+/**
+ * The difference between one score and the one before it, signed, or null
+ * when there is nothing to compare against.
+ *
+ * Deliberately arithmetic and nothing more. `docs/CLINICAL_REVIEW.md`
+ * makes never interpreting a WHO-5 score an invariant, and this holds to
+ * it: subtracting two numbers the person produced is not a reading of
+ * them. There is no threshold here, no word for a direction, and no
+ * claim that a change means a feature worked — the minimal important
+ * difference for this instrument is a population statistic, and this app
+ * deals in one person.
+ *
+ * An unchanged score returns null rather than "+0", which is a line worth
+ * nothing and one more thing to read.
+ */
+internal fun signedChange(current: Int, previous: Int?): String? {
+    if (previous == null) return null
+    val delta = current - previous
+    if (delta == 0) return null
+    return if (delta > 0) "+$delta" else delta.toString()
 }
 
 /**
@@ -214,15 +240,27 @@ fun PulseScreen(
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.padding(top = 24.dp, bottom = 8.dp),
                 )
-                history.forEach { result ->
+                // Newest first, which is the order the DAO returns, so the
+                // reading each entry is compared against is the next one
+                // down the list.
+                history.forEachIndexed { index, result ->
                     val date = Instant.ofEpochMilli(result.takenAt)
                         .atZone(ZoneId.systemDefault()).toLocalDate()
+                        .format(historyDateFormat)
                     Text(
-                        text = "$date — ${result.score}/100",
+                        text = stringResource(R.string.pulse_history_line, date, result.score),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(vertical = 2.dp),
                     )
+                    signedChange(result.score, history.getOrNull(index + 1)?.score)?.let { change ->
+                        Text(
+                            text = stringResource(R.string.pulse_history_change, change),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 16.dp, bottom = 6.dp),
+                        )
+                    }
                 }
             }
         }
