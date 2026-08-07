@@ -734,6 +734,56 @@ fun SettingsScreen(
             Text(stringResource(R.string.pulse_take))
         }
 
+        // --- Check-ins (EMA) ---
+        //
+        // The other half of "Labels" alongside the pulse above: a handful
+        // of taps a day rather than a fortnightly instrument. The count
+        // is stated plainly and never as a target — a skipped prompt is
+        // normal, not a shortfall, so nothing here is styled as a streak.
+        SectionHeading(R.string.ema_section, SettingsSection.PULSE, goals)
+        Text(
+            text = stringResource(R.string.ema_explainer),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        val emaEnabled by viewModel.emaEnabled.collectAsState()
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.ema_toggle),
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.weight(1f),
+            )
+            Switch(
+                checked = emaEnabled,
+                onCheckedChange = { enabled ->
+                    if (enabled) {
+                        permissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                    viewModel.setEmaEnabled(enabled)
+                },
+            )
+        }
+        val emaCount by viewModel.emaCount.collectAsState()
+        Text(
+            text = stringResource(R.string.ema_count, emaCount),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        Text(
+            text = stringResource(
+                if (emaCount < org.mindanchor.model.EmaSchedule.LABELS_BEFORE_TAPER) {
+                    R.string.ema_learning
+                } else {
+                    R.string.ema_settled
+                },
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
         // --- Your people and your plan ---
         Text(
             text = stringResource(R.string.support_section),

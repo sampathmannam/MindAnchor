@@ -268,4 +268,25 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setNatureScene(scene: NatureScene) {
         viewModelScope.launch { appearancePrefs.setScene(scene) }
     }
+
+    // --- Check-ins (EMA) ---
+
+    private val momentStore = org.mindanchor.model.MomentStore(application)
+
+    val emaEnabled = momentStore.enabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /** How many check-ins exist, for a plain count — never a streak. */
+    val emaCount = momentStore.count
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
+    fun setEmaEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            momentStore.setEnabled(enabled)
+            // Arms today's prompts when switched on; clears every armed
+            // alarm when switched off. Same call either way — see
+            // EmaScheduler.ensureScheduled.
+            org.mindanchor.model.EmaScheduler.ensureScheduled(getApplication())
+        }
+    }
 }
