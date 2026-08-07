@@ -5,6 +5,8 @@ import kotlinx.serialization.json.Json
 import org.mindanchor.data.db.CrisisContact
 import org.mindanchor.data.db.PulseResult
 import org.mindanchor.data.db.SafetyPlan
+import org.mindanchor.model.Moment
+import org.mindanchor.vitals.Measurement
 
 /**
  * Reading and writing a MindAnchor backup file.
@@ -65,11 +67,22 @@ object BackupCodec {
         val hidden: List<String> = emptyList(),
         val frictioned: List<String> = emptyList(),
         val renames: Map<String, String> = emptyMap(),
+        // The three latecomers, and the reason this file matters most.
+        // Check-ins are the labels the personal model is fitted to and
+        // accumulate at a few per day at best; readings are deliberate
+        // ninety-second acts; corpus additions are hand-curated research.
+        // None of the three can be regenerated, and until they were here,
+        // "keeping a copy" quietly kept the replaceable parts and lost
+        // the irreplaceable ones. Defaults keep every older file
+        // readable: absent fields simply decode empty.
+        val checkIns: List<CheckIn> = emptyList(),
+        val readings: List<Reading> = emptyList(),
+        val corpusAdditions: String = "",
     ) {
         companion object {
             const val NOTE =
-                "This file contains your safety plan and the people you chose to call. " +
-                    "Keep it somewhere only you can reach."
+                "This file contains your safety plan, the people you chose to call, " +
+                    "and your check-in history. Keep it somewhere only you can reach."
         }
     }
 
@@ -91,6 +104,17 @@ object BackupCodec {
 
     @Serializable
     data class Pulse(val score: Int = 0, val takenAt: Long = 0L)
+
+    @Serializable
+    data class CheckIn(
+        val valence: Int = 0,
+        val arousal: Int = 0,
+        val minuteOfDay: Int = 0,
+        val day: String = "",
+    )
+
+    @Serializable
+    data class Reading(val day: String = "", val key: String = "", val value: Double = 0.0)
 
     fun encode(backup: Backup): String = json.encodeToString(Backup.serializer(), backup)
 
@@ -145,4 +169,28 @@ object BackupCodec {
 
     fun toPulseResults(pulses: List<Pulse>): List<PulseResult> =
         pulses.map { PulseResult(score = it.score, takenAt = it.takenAt) }
+
+    fun checkInOf(moment: Moment) = CheckIn(
+        valence = moment.valence,
+        arousal = moment.arousal,
+        minuteOfDay = moment.atMinuteOfDay,
+        day = moment.day,
+    )
+
+    /**
+     * A check-in that fails [Moment]'s own 1..5 validity is dropped on the
+     * way back in rather than let into the label history — an
+     * out-of-range label from a hand-edited file would quietly bend every
+     * baseline and pattern fitted after it.
+     */
+    fun toMoments(checkIns: List<CheckIn>): List<Moment> =
+        checkIns.filter { Moment.isValid(it.valence) && Moment.isValid(it.arousal) && it.day.isNotBlank() }
+            .map { Moment(valence = it.valence, arousal = it.arousal, atMinuteOfDay = it.minuteOfDay, day = it.day) }
+
+    fun readingOf(measurement: Measurement) =
+        Reading(day = measurement.day, key = measurement.key, value = measurement.value)
+
+    fun toMeasurements(readings: List<Reading>): List<Measurement> =
+        readings.filter { it.day.isNotBlank() && it.key.isNotBlank() }
+            .map { Measurement(day = it.day, key = it.key, value = it.value) }
 }

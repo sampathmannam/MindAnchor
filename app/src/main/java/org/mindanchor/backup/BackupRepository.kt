@@ -5,14 +5,18 @@ import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import org.mindanchor.corpus.CorpusImport
+import org.mindanchor.corpus.CorpusStore
 import org.mindanchor.data.LauncherPrefs
 import org.mindanchor.data.db.AnchorDatabase
+import org.mindanchor.model.MomentStore
+import org.mindanchor.vitals.MeasuredStore
 
 /**
  * Gathers everything worth keeping into a file, and puts it back.
  *
- * Restore is additive for contacts and pulses and replacing for the plan
- * and the launcher choices. The reasoning: a plan is one document and the
+ * Restore is additive for contacts, pulses, check-ins, readings and
+ * corpus additions, and replacing for the plan and the launcher choices. The reasoning: a plan is one document and the
  * newer one wins, while contacts and mood history are a record — quietly
  * deleting either because a person restored an old file would be its own
  * kind of data loss.
@@ -34,6 +38,13 @@ class BackupRepository(private val context: Context) {
                 hidden = prefs.hidden.first().toList().sorted(),
                 frictioned = emptyList(),
                 renames = prefs.renames.first(),
+                checkIns = MomentStore(context).moments.first().map(BackupCodec::checkInOf),
+                readings = MeasuredStore(context).all().map(BackupCodec::readingOf),
+                // The imported difference file as it stands, verbatim —
+                // already the person's own curation in a readable format.
+                corpusAdditions = runCatching {
+                    CorpusStore.importedFile(context).takeIf { it.exists() }?.readText()
+                }.getOrNull().orEmpty(),
             ),
         )
     }
@@ -59,6 +70,45 @@ class BackupRepository(private val context: Context) {
         prefs.replaceFavorites(backup.favorites)
         prefs.replaceHidden(backup.hidden.toSet())
         prefs.replaceRenames(backup.renames)
+
+        // Check-ins: additive, de-duplicated by day and minute. The label
+        // history is the slowest data in the app to accumulate, so
+        // restoring an old file must only ever add to it.
+        val momentStore = MomentStore(context)
+        val haveMoments = momentStore.moments.first()
+            .map { it.day to it.atMinuteOfDay }.toHashSet()
+        BackupCodec.toMoments(backup.checkIns)
+            .filterNot { (it.day to it.atMinuteOfDay) in haveMoments }
+            .forEach { momentStore.append(it) }
+
+        // Readings: the phone's own copy wins on conflict. A reading
+        // already on this device is at least as fresh as the file's.
+        val measuredStore = MeasuredStore(context)
+        val haveReadings = measuredStore.all().map { it.day to it.key }.toHashSet()
+        BackupCodec.toMeasurements(backup.readings)
+            .filterNot { (it.day to it.key) in haveReadings }
+            .forEach { reading ->
+                // A hand-edited day that does not parse costs that one
+                // reading, not the restore.
+                runCatching {
+                    measuredStore.record(java.time.LocalDate.parse(reading.day), reading.key, reading.value)
+                }
+            }
+
+        // Corpus additions: only passages whose ids are new anywhere.
+        // Restoring an old file must never overwrite a correction made
+        // since it was saved.
+        if (backup.corpusAdditions.isNotBlank()) {
+            val current = CorpusStore.load(context)
+            val known = current.map { it.id }.toHashSet()
+            val incoming = CorpusStore.parse(backup.corpusAdditions).filterNot { it.id in known }
+            if (incoming.isNotEmpty()) {
+                CorpusStore.saveImported(
+                    context,
+                    CorpusImport.merge(current, CorpusImport.render(incoming)).corpus,
+                )
+            }
+        }
         true
     }
 
