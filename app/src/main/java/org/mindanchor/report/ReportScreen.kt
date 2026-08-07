@@ -41,6 +41,7 @@ fun ReportScreen(onBack: () -> Unit) {
     val stored by store.stored.collectAsState(initial = null)
     val report = stored?.report
     val narration = stored?.narration
+    val patterns = stored?.patterns.orEmpty()
 
     Column(
         modifier = Modifier
@@ -75,6 +76,44 @@ fun ReportScreen(onBack: () -> Unit) {
             Text(
                 text = narration,
                 style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.padding(bottom = 16.dp),
+            )
+        }
+
+        // What PatternFinder found in this person's own history, shown
+        // after the narration and before the sections — it is a count of
+        // their own past days, not a look at today, so it belongs neither
+        // above the paragraph about today nor inside a section that is
+        // about today. Nothing renders at all when there is nothing to
+        // say, the same discipline as everywhere else on this screen: a
+        // heading and a caveat around an empty list would be a machine
+        // announcing it found nothing worth finding.
+        if (patterns.isNotEmpty()) {
+            Text(
+                text = stringResource(R.string.pattern_section),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(top = 8.dp, bottom = 8.dp),
+            )
+            // forEach is inline, so stringResource still runs in the
+            // composable body — see the notYetKnown comment below for why
+            // that distinction matters here.
+            patterns.forEach { pattern ->
+                val bodyRes = if (pattern.lower) R.string.pattern_lower else R.string.pattern_higher
+                Text(
+                    text = stringResource(
+                        bodyRes,
+                        pattern.similarDays,
+                        stringResource(pattern.signal.displayNameRes()),
+                        stringResource(pattern.label.displayNameRes()),
+                    ),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+            }
+            Text(
+                text = stringResource(R.string.pattern_caveat),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 16.dp),
             )
         }
@@ -178,6 +217,17 @@ private fun Signal.displayNameRes(): Int = when (this) {
     Signal.STEPS -> R.string.signal_steps
     Signal.VALENCE -> R.string.signal_valence
     Signal.AROUSAL -> R.string.signal_arousal
+}
+
+/**
+ * Same two strings [Signal.displayNameRes] already uses for
+ * [Signal.VALENCE] and [Signal.AROUSAL] — [Label] and [Signal] name the
+ * same two axes for two different purposes, so the words a person reads
+ * are the same words either way; see [SignalLabel]'s own KDoc.
+ */
+private fun Label.displayNameRes(): Int = when (this) {
+    Label.VALENCE -> R.string.signal_valence
+    Label.AROUSAL -> R.string.signal_arousal
 }
 
 /**

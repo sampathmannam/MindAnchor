@@ -121,6 +121,10 @@
     <string name="report_no_research">No matching research on file for this one.</string>
     <string name="report_disclaimer">These are counts from your own history, next to what the research says the thing counted is. Nothing here knows what it means about you.</string>
     <string name="report_generated_label">Written on this phone, by a small model, from the passages below.</string>
+    <string name="pattern_section">What your days have tended to do</string>
+    <string name="pattern_lower">Of the %1$d days when your %2$s was closest to last night\'s, %3$s came out lower than your usual.</string>
+    <string name="pattern_higher">Of the %1$d days when your %2$s was closest to last night\'s, %3$s came out higher than your usual.</string>
+    <string name="pattern_caveat">That is a count of your own past days, not a forecast. It says nothing about how today will go, and nothing about why.</string>
     <string name="corpus_section">Research on file</string>
     <string name="corpus_explainer">Every report shows you what the research says the thing measured actually is, drawn from a small set of passages that ships with the app. You can add more from a file on this phone — the more there is on file, the better the match to what your report is about.</string>
     <string name="corpus_verbatim">Passages are shown to you word for word. What you add is what you will read.</string>

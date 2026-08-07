@@ -13,18 +13,22 @@ private val Context.dataStore by preferencesDataStore(name = "report")
 
 /**
  * A stored [Report] together with the paragraph, if any, a
- * [org.mindanchor.narrate.Narrator] wrote about it.
+ * [org.mindanchor.narrate.Narrator] wrote about it, and whatever
+ * [PatternFinder] found in this person's own history.
  *
- * Kept apart from [Report] itself rather than adding a field there.
+ * Kept apart from [Report] itself rather than adding fields there.
  * [org.mindanchor.report.ReportComposer] never produces a narration — a
  * narrator only ever runs afterwards, on the finished report — so every
  * caller that builds a bare [Report], test or otherwise, would either
  * have to thread a null through for a field it has no opinion about, or
  * get a default that invites a future caller to forget the field exists.
  * [StoredReport] exists at the one layer that actually knows about
- * narration: storage.
+ * narration and patterns: storage. [patterns] defaults to the empty list
+ * for the same reason — [PatternFinder] runs alongside [ReportComposer]
+ * rather than inside it, so a bare [Report] built anywhere else, in a
+ * test or otherwise, should not have to know patterns exist at all.
  */
-data class StoredReport(val report: Report, val narration: String?)
+data class StoredReport(val report: Report, val narration: String?, val patterns: List<Pattern> = emptyList())
 
 /**
  * Turns a [StoredReport] into one line-oriented block of text and back.
@@ -38,11 +42,11 @@ data class StoredReport(val report: Report, val narration: String?)
  * ## Shape
  *
  * One header line — `REPORT<TAB>day<TAB>notYetKnown` — optionally
- * followed by one `NARRATION<TAB>text` line, then zero or more section
- * blocks. Each block is one `SECTION` line describing an [Observation],
- * followed by zero or more `PASSAGE` lines naming the research it drew
- * on. A `PASSAGE` line only ever attaches to the `SECTION` line
- * immediately above it in the file.
+ * followed by one `NARRATION<TAB>text` line, then zero or more `PATTERN`
+ * lines, then zero or more section blocks. Each block is one `SECTION`
+ * line describing an [Observation], followed by zero or more `PASSAGE`
+ * lines naming the research it drew on. A `PASSAGE` line only ever
+ * attaches to the `SECTION` line immediately above it in the file.
  *
  * The `NARRATION` line is written immediately after the header and only
  * ever read there — a line shaped like one appearing after the first
@@ -52,6 +56,14 @@ data class StoredReport(val report: Report, val narration: String?)
  * [org.mindanchor.narrate.Narrator] declined to write anything about, has
  * no `NARRATION` line at all, and decodes exactly as it always did, with
  * [StoredReport.narration] simply null.
+ *
+ * `PATTERN` lines follow the same rule as `NARRATION`, for the same
+ * reason: recognised only before the first `SECTION`, so a report saved
+ * before [PatternFinder] existed has none at all and decodes with
+ * [StoredReport.patterns] simply empty, and a single unreadable one — an
+ * unrecognised [Signal] or [Label] name from some future version, or a
+ * number that will not parse — drops only that one pattern, never the
+ * report around it.
  *
  * A `SECTION` line that fails to parse — an unrecognised [Signal] name
  * from some future version, say — drops only that section, and any
@@ -63,9 +75,11 @@ object ReportLedger {
 
     private const val HEADER = "REPORT"
     private const val NARRATION = "NARRATION"
+    private const val PATTERN = "PATTERN"
     private const val SECTION = "SECTION"
     private const val PASSAGE = "PASSAGE"
     private const val NARRATION_PREFIX = "$NARRATION\t"
+    private const val PATTERN_PREFIX = "$PATTERN\t"
     private const val SECTION_PREFIX = "$SECTION\t"
     private const val PASSAGE_PREFIX = "$PASSAGE\t"
 
@@ -86,6 +100,19 @@ object ReportLedger {
         // one short paragraph should not produce newlines anyway; this is
         // the guarantee rather than the hope.
         stored.narration?.let { lines += "$NARRATION\t${flatten(it)}" }
+        // Immediately after NARRATION and before the first SECTION, for
+        // the same reason NARRATION sits where it does — see the class
+        // KDoc.
+        stored.patterns.forEach { pattern ->
+            lines += listOf(
+                PATTERN,
+                pattern.signal.name,
+                pattern.label.name,
+                pattern.similarDays.toString(),
+                pattern.medianWhenLikeToday.toString(),
+                pattern.medianOverall.toString(),
+            ).joinToString("\t")
+        }
         report.sections.forEach { section ->
             val observation = section.observation
             lines += listOf(
@@ -122,6 +149,7 @@ object ReportLedger {
             .mapNotNull { name -> runCatching { Signal.valueOf(name) }.getOrNull() }
 
         val sections = mutableListOf<ReportSection>()
+        val patterns = mutableListOf<Pattern>()
         var pendingObservation: Observation? = null
         var pendingPassages = mutableListOf<Passage>()
         var narration: String? = null
@@ -140,6 +168,12 @@ object ReportLedger {
                 // backward-compatible reading it should get.
                 line.startsWith(NARRATION_PREFIX) && !sawSection -> {
                     narration = line.removePrefix(NARRATION_PREFIX)
+                }
+                // Same guard as NARRATION, and for the same reason: a
+                // PATTERN-shaped line appearing after the first SECTION is
+                // not this format's business either.
+                line.startsWith(PATTERN_PREFIX) && !sawSection -> {
+                    decodePattern(line.removePrefix(PATTERN_PREFIX))?.let { patterns += it }
                 }
                 line.startsWith(SECTION_PREFIX) -> {
                     sawSection = true
@@ -162,6 +196,7 @@ object ReportLedger {
         return StoredReport(
             report = Report(day = day, sections = sections, notYetKnown = notYetKnown),
             narration = narration,
+            patterns = patterns,
         )
     }
 
@@ -184,6 +219,23 @@ object ReportLedger {
         val today = parts[2].toDoubleOrNull() ?: return null
         val usual = parts[3].toDoubleOrNull() ?: return null
         return Observation(signal = signal, direction = direction, today = today, usual = usual)
+    }
+
+    private fun decodePattern(rest: String): Pattern? {
+        val parts = rest.split('\t')
+        if (parts.size < 5) return null
+        val signal = runCatching { Signal.valueOf(parts[0]) }.getOrNull() ?: return null
+        val label = runCatching { Label.valueOf(parts[1]) }.getOrNull() ?: return null
+        val similarDays = parts[2].toIntOrNull() ?: return null
+        val medianWhenLikeToday = parts[3].toDoubleOrNull() ?: return null
+        val medianOverall = parts[4].toDoubleOrNull() ?: return null
+        return Pattern(
+            signal = signal,
+            label = label,
+            similarDays = similarDays,
+            medianWhenLikeToday = medianWhenLikeToday,
+            medianOverall = medianOverall,
+        )
     }
 
     private fun decodePassage(rest: String): Passage? {
@@ -246,10 +298,13 @@ class ReportStore(private val context: Context) {
      *
      * [narration] is whatever a [org.mindanchor.narrate.Narrator] wrote —
      * or null, which is the ordinary outcome; see that interface's KDoc.
+     * [patterns] is whatever [PatternFinder] found in this person's own
+     * history — ordinarily empty, for the same reason a strong link is
+     * rare by design; see that object's KDoc.
      */
-    suspend fun save(report: Report, narration: String?, generatedDay: String) {
+    suspend fun save(report: Report, narration: String?, patterns: List<Pattern>, generatedDay: String) {
         context.dataStore.edit { prefs ->
-            prefs[reportKey] = ReportLedger.encode(StoredReport(report, narration))
+            prefs[reportKey] = ReportLedger.encode(StoredReport(report, narration, patterns))
             prefs[generatedDayKey] = generatedDay
         }
     }

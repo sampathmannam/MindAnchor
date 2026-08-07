@@ -7,12 +7,13 @@ import org.junit.Test
 import org.mindanchor.corpus.Passage
 
 /**
- * [StoredReport] is [Report] plus an optional narration — see
- * [ReportLedger]'s own KDoc for the exact line format. [ReportStoreTest]
- * already covers everything about the underlying [Report] encoding; this
- * covers only what changed: the [StoredReport.narration] half of it, and
- * that an old, narration-less report on disk still reads back exactly as
- * it always did.
+ * [StoredReport] is [Report] plus an optional narration and whatever
+ * [PatternFinder] found — see [ReportLedger]'s own KDoc for the exact
+ * line format. [ReportStoreTest] already covers everything about the
+ * underlying [Report] encoding; this covers only what changed: the
+ * [StoredReport.narration] and [StoredReport.patterns] halves of it, and
+ * that an old report on disk with neither still reads back exactly as it
+ * always did.
  */
 class StoredReportTest {
 
@@ -27,6 +28,14 @@ class StoredReportTest {
             ),
         ),
         notYetKnown = emptyList(),
+    )
+
+    private fun samplePattern(): Pattern = Pattern(
+        signal = Signal.SLEEP_MINUTES,
+        label = Label.VALENCE,
+        similarDays = 9,
+        medianWhenLikeToday = 2.0,
+        medianOverall = 3.5,
     )
 
     @Test
@@ -111,5 +120,77 @@ class StoredReportTest {
         val original = StoredReport(report = sampleReport(), narration = "")
         val decoded = ReportLedger.decode(ReportLedger.encode(original))
         assertEquals("", decoded?.narration)
+    }
+
+    @Test
+    fun `a report with patterns round trips whole`() {
+        val original = StoredReport(
+            report = sampleReport(),
+            narration = null,
+            patterns = listOf(samplePattern()),
+        )
+        assertEquals(original, ReportLedger.decode(ReportLedger.encode(original)))
+    }
+
+    @Test
+    fun `an old report with no PATTERN line at all decodes with patterns empty`() {
+        // Exactly the shape ReportLedger produced before patterns existed.
+        // Backward compatibility means this still decodes to the same
+        // report, with patterns simply empty, the same way narration
+        // simply decodes to null when there is no NARRATION line at all.
+        val raw = listOf(
+            "REPORT\t2026-08-06\t",
+            "SECTION\tHRV\tBELOW\t32.5\t48.0",
+            "PASSAGE\thrv-rmssd\tShaffer & Ginsberg 2017\tRMSSD reflects vagal tone.",
+        ).joinToString("\n")
+        val decoded = ReportLedger.decode(raw)
+        assertEquals(sampleReport(), decoded?.report)
+        assertEquals(emptyList<Pattern>(), decoded?.patterns)
+    }
+
+    @Test
+    fun `a corrupt PATTERN line is dropped without losing the patterns around it`() {
+        val raw = listOf(
+            "REPORT\t2026-08-06\t",
+            "PATTERN\tSLEEP_MINUTES\tVALENCE\t9\t2.0\t3.5",
+            "PATTERN\tNOT_A_SIGNAL\tVALENCE\t9\t2.0\t3.5",
+            "PATTERN\tHRV\tVALENCE\tnotanumber\t2.0\t3.5",
+            "PATTERN\tHRV\tAROUSAL\t7\t4.0\t2.5",
+            "SECTION\tHRV\tBELOW\t32.5\t48.0",
+        ).joinToString("\n")
+        val decoded = ReportLedger.decode(raw)
+        assertEquals(
+            listOf(
+                Pattern(Signal.SLEEP_MINUTES, Label.VALENCE, 9, 2.0, 3.5),
+                Pattern(Signal.HRV, Label.AROUSAL, 7, 4.0, 2.5),
+            ),
+            decoded?.patterns,
+        )
+    }
+
+    @Test
+    fun `PATTERN lines sit after NARRATION and before the first SECTION`() {
+        val original = StoredReport(
+            report = sampleReport(),
+            narration = "A short paragraph about the day.",
+            patterns = listOf(samplePattern()),
+        )
+        val lines = ReportLedger.encode(original).lines()
+        assertTrue(lines[0].startsWith("REPORT\t"))
+        assertEquals("NARRATION\tA short paragraph about the day.", lines[1])
+        assertTrue(lines[2].startsWith("PATTERN\t"))
+        assertTrue(lines[3].startsWith("SECTION\t"))
+    }
+
+    @Test
+    fun `a PATTERN-shaped line after the first SECTION is ignored, not read as a pattern`() {
+        val raw = listOf(
+            "REPORT\t2026-08-06\t",
+            "SECTION\tHRV\tBELOW\t32.5\t48.0",
+            "PATTERN\tSLEEP_MINUTES\tVALENCE\t9\t2.0\t3.5",
+        ).joinToString("\n")
+        val decoded = ReportLedger.decode(raw)
+        assertEquals(emptyList<Pattern>(), decoded?.patterns)
+        assertEquals(1, decoded?.report?.sections?.size)
     }
 }

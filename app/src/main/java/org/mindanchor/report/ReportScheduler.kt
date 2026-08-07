@@ -67,6 +67,13 @@ object ReportScheduler {
     private const val HISTORY_DAYS = 30
 
     /**
+     * Mirrors [PatternFinder.WINDOW_DAYS]. Kept as its own constant,
+     * rather than read off that object at every use below, so this file's
+     * date arithmetic reads the same way [HISTORY_DAYS]'s does.
+     */
+    private const val PATTERN_WINDOW_DAYS = 90
+
+    /**
      * Arms, or re-arms, the nightly alarm.
      *
      * Safe to call every time the setting is switched on, on boot, and on
@@ -194,14 +201,25 @@ object ReportScheduler {
         // the exact minute the phone happened to be charging rather than
         // on anything about the day itself.
         val reportDay = LocalDate.now(zone).minusDays(1)
-        // Oldest first, so the lists handed to ReportComposer are in the
-        // order its KDoc says they are — most recent last. Nothing
-        // downstream is order-sensitive today (a median is not), but a
-        // list that quietly disagrees with the contract it is passed
-        // under is a trap for whatever reads it next.
-        val historyDates = (HISTORY_DAYS downTo 1).map { reportDay.minusDays(it.toLong()) }
+        // Oldest first, so the lists handed to ReportComposer — and to
+        // PatternFinder, which is stricter about it — are in the order
+        // their KDocs say they are. Wide enough to cover both the ordinary
+        // 30-day baseline and PatternFinder's 90-day search, plus one more
+        // day: a pattern's oldest labelled day needs the *signal* from the
+        // day before it, so the window has to reach one day further back
+        // than the last day any label is drawn from.
+        val windowDays = maxOf(HISTORY_DAYS, PATTERN_WINDOW_DAYS) + 1
+        val windowDates = (windowDays downTo 1).map { reportDay.minusDays(it.toLong()) }
+        // The most recent HISTORY_DAYS of windowDates, which is exactly
+        // the 30-day list this read used to produce on its own — the
+        // baseline's behaviour does not change just because the read
+        // behind it now covers more ground.
+        val historyDates = windowDates.takeLast(HISTORY_DAYS)
+        val patternDates = windowDates.takeLast(PATTERN_WINDOW_DAYS)
 
-        val vitalsByDate = (listOf(reportDay) + historyDates).associateWith { date ->
+        // One read, wide enough for both purposes — see the windowDates
+        // comment above for why a second, separate read was not the answer.
+        val vitalsByDate = (listOf(reportDay) + windowDates).associateWith { date ->
             HealthConnectSource.readDailyVitals(context, date, zone)
         }
         // A store read that fails — corrupt DataStore file, anything — is
@@ -228,9 +246,22 @@ object ReportScheduler {
         // without a paragraph on top of it. See Narrator's own KDoc for
         // why null is the ordinary outcome here, not an error.
         val narration = runCatching { Narrators.forDevice(context).narrate(report) }.getOrNull()
+        // A failure here — LinkFinder's permutation test throwing on some
+        // unexpected shape of data, say — is no different from finding
+        // nothing: the report still stands on its own without it.
+        val patterns = runCatching {
+            PatternFinder.find(
+                signalsByDay = signalsByDay(windowDates, vitalsByDate, momentsByDay),
+                labelsByDay = labelsByDay(windowDates, momentsByDay),
+                days = patternDates,
+                todaysSignals = today,
+                seed = reportDay.toEpochDay(),
+            )
+        }.getOrDefault(emptyList())
         ReportStore(context).save(
             report = report,
             narration = narration?.text,
+            patterns = patterns,
             generatedDay = LocalDate.now(zone).toString(),
         )
     }
@@ -302,3 +333,41 @@ private fun valueFor(
             ?.average()
     }
 }
+
+/**
+ * Every signal's value across [dates], built off the same [valueFor] this
+ * file already uses for the baseline — the sleep-onset 18:00 reframing
+ * lives in exactly one place, and this is not it.
+ */
+private fun signalsByDay(
+    dates: List<LocalDate>,
+    vitalsByDate: Map<LocalDate, DailyVitals>,
+    momentsByDay: Map<String, List<Moment>>,
+): Map<Signal, Map<LocalDate, Double>> =
+    Signal.entries.associateWith { signal ->
+        dates.mapNotNull { date ->
+            valueFor(signal, date, vitalsByDate, momentsByDay)?.let { date to it }
+        }.toMap()
+    }
+
+/**
+ * Both labels' values across [dates], one check-in day averaged into one
+ * number the same way [valueFor] already averages [Signal.VALENCE] and
+ * [Signal.AROUSAL] — kept separate from that function only because
+ * [Label] and [Signal] are different types naming the same two axes for
+ * two different purposes; see [SignalLabel]'s own KDoc.
+ */
+private fun labelsByDay(
+    dates: List<LocalDate>,
+    momentsByDay: Map<String, List<Moment>>,
+): Map<Label, Map<LocalDate, Double>> =
+    Label.entries.associateWith { label ->
+        dates.mapNotNull { date ->
+            val dayMoments = momentsByDay[date.toString()]?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+            val average = when (label) {
+                Label.VALENCE -> dayMoments.map { it.valence.toDouble() }.average()
+                Label.AROUSAL -> dayMoments.map { it.arousal.toDouble() }.average()
+            }
+            date to average
+        }.toMap()
+    }
