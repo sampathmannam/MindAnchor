@@ -13,6 +13,7 @@ import kotlinx.coroutines.launch
 import org.mindanchor.data.AppRepository
 import org.mindanchor.data.FrictionPrefs
 import org.mindanchor.data.LauncherPrefs
+import org.mindanchor.friction.AppWatchService
 import org.mindanchor.friction.FrictionContext
 import org.mindanchor.friction.FrictionTone
 import org.mindanchor.data.SunsetPrefs
@@ -131,13 +132,15 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
      */
     fun launchTimed(app: DisplayApp, minutes: Long?) {
         val launched = launch(app)
-        if (launched && minutes != null) {
-            SessionManager.startSession(
-                getApplication(),
-                app.component.substringBefore('/'),
-                app.label,
-                minutes,
-            )
+        if (!launched) return
+        val packageName = app.component.substringBefore('/')
+        // Tell the watcher this one is already settled. Without it the app
+        // arriving in the foreground reads as a fresh reach and the person
+        // gets the same pause twice for a single decision — once here and
+        // once a heartbeat later, on top of the app they just opened.
+        AppWatchService.allow(packageName, minutes)
+        if (minutes != null) {
+            SessionManager.startSession(getApplication(), packageName, app.label, minutes)
         }
     }
 }

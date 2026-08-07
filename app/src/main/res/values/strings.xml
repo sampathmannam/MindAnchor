@@ -62,6 +62,16 @@
     <string name="scene_forest">Forest</string>
     <string name="scene_off">Just the sky</string>
 
+    <string name="watch_section">Where the pause applies</string>
+    <string name="watch_explainer">On its own, the pause only appears when you open an app from this screen. Tapping a notification, swiping through recents or following a link goes straight in — which is most of how a phone actually gets used. Turning this on means the pause applies however you arrive.</string>
+    <string name="watch_cannot_read">Android calls this an accessibility service, and that sounds worse than it is. It is set up so it cannot read your screen — not messages, not passwords, not what you are looking at. It is told the name of the app that came to the front, and nothing else. Android enforces that, not us.</string>
+    <string name="watch_on">On. The pause applies however you open an app.</string>
+    <string name="watch_off">Off. The pause only applies from this screen.</string>
+    <string name="watch_turn_on">Turn this on</string>
+    <string name="watch_manage">Turn this off</string>
+    <string name="watch_service_label">MindAnchor pause</string>
+    <string name="watch_service_summary">Lets the pause apply when you open an app from a notification or from recents, not just from the home screen.</string>
+    <string name="watch_service_description">MindAnchor uses this to notice when an app you have chosen a pause for comes to the front, so the pause works however you opened it. It cannot read your screen — only the name of the app that arrived.</string>
     <string name="sunset_section">Sunset mode</string>
     <string name="sunset_explainer">From 22:00 to 07:00 the phone goes priority-only: starred contacts and repeat callers still reach you, everything else waits for morning.</string>
     <string name="grant_dnd_access">Grant Do Not Disturb access to enable sunset</string>

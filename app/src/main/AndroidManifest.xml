@@ -86,6 +86,44 @@
             android:name=".support.SupportActivity"
             android:exported="false" />
 
+        <!--
+            The pause, when an app was opened from somewhere other than the
+            launcher. Its own taskAffinity so it sits in a task of its own
+            on top of whatever opened, rather than joining that app's task
+            and taking its back stack with it. Kept out of recents because
+            a pause is a moment, not a place to return to.
+        -->
+        <activity
+            android:name=".friction.GateActivity"
+            android:exported="false"
+            android:taskAffinity=".friction.gate"
+            android:excludeFromRecents="true"
+            android:stateNotNeeded="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden" />
+
+        <!--
+            Notices when a flagged app reaches the foreground, so the pause
+            covers opens from notifications, recents and links rather than
+            only taps on the home screen.
+
+            canRetrieveWindowContent is false in res/xml/app_watch.xml: this
+            cannot read the screen, only receive a package name. Entirely
+            optional — without it the launcher-only behaviour is unchanged.
+        -->
+        <service
+            android:name=".friction.AppWatchService"
+            android:exported="true"
+            android:label="@string/watch_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/app_watch" />
+        </service>
+
         <service
             android:name=".notifications.AnchorNotificationListenerService"
             android:exported="true"

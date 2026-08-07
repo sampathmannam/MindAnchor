@@ -43,6 +43,7 @@ import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
 import org.mindanchor.R
 import org.mindanchor.admin.DeviceOwner
+import org.mindanchor.friction.AppWatchService
 import org.mindanchor.grayscale.Grayscale
 import org.mindanchor.launcher.DisplayApp
 import org.mindanchor.ui.NatureScene
@@ -237,6 +238,61 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodyLarge,
                 )
             }
+        }
+
+        // --- Where the pause applies ---
+        //
+        // The pause used to exist only inside this launcher, which meant it
+        // covered the deliberate route to an app and missed the compulsive
+        // one — nobody navigates home and searches for an app when a
+        // notification already put it one tap away.
+        //
+        // Turning this on means enabling an accessibility service, which is
+        // the most alarming thing this app ever asks for and ought to be.
+        // So the screen says what it can and cannot do before it asks, and
+        // works fine forever if the answer is no.
+        Text(
+            text = stringResource(R.string.watch_section),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
+        )
+        Text(
+            text = stringResource(R.string.watch_explainer),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = stringResource(R.string.watch_cannot_read),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        // Read fresh on every resume: the service can be switched off from
+        // Android's own settings without this app being told, and a screen
+        // insisting it is on when it is not is worse than no screen.
+        val watching = remember(permissionEpoch) { AppWatchService.running }
+        Text(
+            text = stringResource(
+                if (watching) R.string.watch_on else R.string.watch_off,
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        TextButton(
+            onClick = {
+                runCatching {
+                    context.startActivity(
+                        Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                    )
+                }
+            },
+        ) {
+            Text(
+                stringResource(
+                    if (watching) R.string.watch_manage else R.string.watch_turn_on,
+                ),
+            )
         }
 
         // --- Sunset mode (F4) ---
