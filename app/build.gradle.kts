@@ -88,6 +88,18 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.serialization.json)
+    // Device-agnostic wearable ingestion. Integrating with Health Connect
+    // rather than with any one watch's app is what makes changing watches
+    // a non-event: whatever writes there is readable, and nothing in this
+    // app knows or cares which brand produced it.
+    implementation(libs.androidx.health.connect)
+    // Camera PPG. HRV is the best physiological signal available here and
+    // COROS does not release it — it never leaves their own app. Fingertip
+    // PPG is the one route that needs no wearable at all, so it survives
+    // changing watches, losing one, or wearing none.
+    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)

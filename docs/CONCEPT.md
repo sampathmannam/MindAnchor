@@ -303,7 +303,10 @@ Full literature and landscape reports live in [`docs/research/`](research/):
 [05 Android feasibility](research/05-android-technical-feasibility.md) ·
 [06 calm visual design](research/06-calm-visual-design.md) ·
 [**07 techniques invented**](research/07-techniques-invented.md) — what we
-decided to *do* about all of it, built and unbuilt.
+decided to *do* about all of it, built and unbuilt ·
+[**08 sensing architecture**](research/08-sensing-architecture.md) — the
+turn from sensing almost nothing to learning one person's own signature,
+and why N-of-1 makes that a different question.
 
 ### 6.1 Where the field actually is
 
