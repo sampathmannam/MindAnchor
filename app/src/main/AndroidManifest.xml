@@ -2,6 +2,25 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!--
+        Without this a launcher on API 30+ cannot see the apps it exists to
+        launch. Package-visibility filtering applies to LauncherApps too:
+        on API 34, holding ROLE_HOME was verified to be *not* enough — the
+        app list came back as three entries out of twenty-one installed
+        (itself, Settings and the SIM toolkit) until this block was added.
+
+        Declared as the MAIN/LAUNCHER intent rather than QUERY_ALL_PACKAGES
+        on purpose. It is the narrower of the two — it reveals only what is
+        launchable, which is exactly the catalogue this app draws — and it
+        needs no Play declaration form, where the permission does.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
