@@ -79,24 +79,6 @@ android {
     }
 }
 
-/*
- * Guava publishes two artifacts under com.google.guava:listenablefuture.
- * Version 1.0 contains the interface. Version
- * "9999.0-empty-to-avoid-conflict-with-guava" is a deliberately empty jar,
- * published so that projects using full Guava do not end up with the class
- * twice. Something in the AndroidX graph requests the empty one, and since
- * 9999.0 sorts above 1.0 Gradle picks it — which is why simply depending on
- * concurrent-futures-ktx left ListenableFuture unresolvable and the build
- * failing with "Cannot access class ListenableFuture" even after it was
- * added.
- *
- * Nothing here uses full Guava, so the conflict the empty jar exists to
- * avoid cannot occur, and forcing the real one is safe.
- */
-configurations.configureEach {
-    resolutionStrategy.force("com.google.guava:listenablefuture:1.0")
-}
-
 dependencies {
     implementation(platform(libs.compose.bom))
     implementation(libs.androidx.core.ktx)
@@ -118,14 +100,31 @@ dependencies {
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.lifecycle)
-    // CameraX returns Guava ListenableFuture from getInstance() and
-    // enableTorch(). Those signatures are unresolvable without the
-    // interface on the compile classpath, and adding concurrent-futures-ktx
-    // alone did not supply it — see the resolutionStrategy above for why.
-    // It does supply ListenableFuture.await(), which replaces a hand-rolled
-    // suspendCancellableCoroutine bridge.
+    // Supplies ListenableFuture.await(), which turns CameraX's Guava
+    // futures into ordinary suspend calls.
     implementation(libs.androidx.concurrent.futures.ktx)
-    implementation(libs.guava.listenablefuture)
+    /*
+     * compileOnly, and the reason is worth the paragraph.
+     *
+     * CameraX returns Guava's ListenableFuture from getInstance() and
+     * enableTorch(), but nothing on the compile classpath exports the
+     * interface, so those signatures do not resolve: "Cannot access class
+     * ListenableFuture".
+     *
+     * Guava publishes two artifacts under this coordinate. 1.0 holds the
+     * interface; "9999.0-empty-to-avoid-conflict-with-guava" is an empty
+     * jar that exists so projects already carrying full Guava do not end
+     * up with the class twice. Full Guava *is* in this graph transitively,
+     * so forcing 1.0 onto every configuration — which was the previous
+     * attempt — produced exactly the collision the empty jar prevents:
+     * "Duplicate class ListenableFuture found in guava-31.1-android and
+     * listenablefuture-1.0".
+     *
+     * compileOnly settles both: the interface is visible while compiling,
+     * and nothing extra is packaged, so at runtime the single copy inside
+     * full Guava is the one that loads.
+     */
+    compileOnly(libs.guava.listenablefuture)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
