@@ -299,7 +299,11 @@ Full literature and landscape reports live in [`docs/research/`](research/):
 [01 sensing & JITAI](research/01-sensing-and-jitai-sota.md) ·
 [02 attention design](research/02-attention-design-sota.md) ·
 [03 products & OSS landscape](research/03-products-and-oss-landscape.md) ·
-[04 AI frontier](research/04-ai-frontier-sota.md).
+[04 AI frontier](research/04-ai-frontier-sota.md) ·
+[05 Android feasibility](research/05-android-technical-feasibility.md) ·
+[06 calm visual design](research/06-calm-visual-design.md) ·
+[**07 techniques invented**](research/07-techniques-invented.md) — what we
+decided to *do* about all of it, built and unbuilt.
 
 ### 6.1 Where the field actually is
 
