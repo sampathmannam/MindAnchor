@@ -103,6 +103,9 @@
     <string name="grant_dnd_access">Grant Do Not Disturb access to enable sunset</string>
     <string name="sunset_toggle">Wind down through the quiet hours</string>
 
+    <string name="mirror_toggle">Count nights that ran late</string>
+    <string name="mirror_explainer">This counts and does not interpret. It compares your nights to your own usual — not to anybody else\'s, and not to a norm — and tells you the number. What it means is yours to say; phones are not good at that part and this one does not try.</string>
+    <string name="mirror_line">You got to sleep well after your usual on %1$d of the last few nights.</string>
     <string name="sleep_section">Sleep rhythm</string>
     <string name="sleep_explainer">MindAnchor can estimate your sleep window from when the screen goes quiet at night — on this phone only, no wearable, nothing uploaded. Consistency matters more than hours.</string>
     <string name="grant_usage_access">Grant usage access to see your rhythm</string>

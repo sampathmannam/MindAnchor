@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -19,6 +20,7 @@ import org.mindanchor.data.SunsetPrefs
 import org.mindanchor.ui.NatureScene
 import org.mindanchor.notifications.BatchAlarms
 import org.mindanchor.notifications.BatchReleaser
+import org.mindanchor.sleep.Deviation
 import org.mindanchor.sleep.SleepRepository
 import org.mindanchor.sleep.SleepSummary
 import org.mindanchor.sunset.SunsetController
@@ -221,6 +223,36 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun hasUsageAccess(): Boolean = sleepRepository.hasUsageAccess()
+
+    val sleepMirror = sunsetPrefs.sleepMirror
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setSleepMirror(enabled: Boolean) {
+        viewModelScope.launch { sunsetPrefs.setSleepMirror(enabled) }
+    }
+
+    /**
+     * How many of the recent nights ran later than this person's own
+     * usual, or null when there is nothing honest to say.
+     *
+     * Null covers three separate cases and deliberately renders as
+     * silence in all of them: the mirror is off, there are too few nights
+     * to have a usual, or the week was steady. A screen that reported
+     * "nothing unusual" every day would have taught somebody to check it.
+     */
+    val nightsLaterThanUsual: StateFlow<Int?> = combine(
+        sunsetPrefs.sleepMirror,
+        sleepState,
+    ) { on, summary ->
+        if (!on || summary == null) return@combine null
+        val onsets = summary.windows.map {
+            val time = java.time.Instant.ofEpochMilli(it.startMillis)
+                .atZone(java.time.ZoneId.systemDefault())
+                .toLocalTime()
+            Deviation.minutesAfterSixPm(time.hour * 60 + time.minute)
+        }
+        if (Deviation.worthShowing(onsets)) Deviation.laterThanUsual(onsets) else null
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun refreshSleep() {
         viewModelScope.launch(Dispatchers.IO) {

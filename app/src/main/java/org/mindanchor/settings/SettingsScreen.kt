@@ -624,6 +624,39 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                // A mirror, not a diagnosis.
+                //
+                // Cross-person inference from phone signals does not
+                // transfer — an AUC of 0.82 in 57 students became 0.57 in
+                // 5,262. So this keeps the within-person baseline, which
+                // does generalise, and drops the inference entirely: it
+                // counts nights and names nothing. Off until asked for,
+                // and it never notifies.
+                val mirrorOn by viewModel.sleepMirror.collectAsState()
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(R.string.mirror_toggle),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(checked = mirrorOn, onCheckedChange = viewModel::setSleepMirror)
+                }
+                Text(
+                    text = stringResource(R.string.mirror_explainer),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                val laterNights by viewModel.nightsLaterThanUsual.collectAsState()
+                laterNights?.let { count ->
+                    Text(
+                        text = stringResource(R.string.mirror_line, count),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
                 Text(
                     text = stringResource(R.string.sleep_regularity_note),
                     style = MaterialTheme.typography.bodySmall,

@@ -32,6 +32,23 @@ class SunsetPrefs(private val context: Context) {
      */
     private val grayscaleKey = booleanPreferencesKey("sunset_grayscale")
 
+    private val mirrorKey = booleanPreferencesKey("sleep_mirror")
+
+    /**
+     * Whether to count nights that ran later than usual and show the
+     * count — see [org.mindanchor.sleep.Deviation].
+     *
+     * Off until asked for. It states a fact about somebody's own screen
+     * and never interprets it, but "you usually aren't" can still read as
+     * reproach, and it lands hardest on the person already keeping score
+     * against themselves.
+     */
+    val sleepMirror: Flow<Boolean> = context.dataStore.data.map { it[mirrorKey] ?: false }
+
+    suspend fun setSleepMirror(value: Boolean) {
+        context.dataStore.edit { it[mirrorKey] = value }
+    }
+
     private val startKey = intPreferencesKey("sunset_start_minute")
     private val endKey = intPreferencesKey("sunset_end_minute")
 
