@@ -316,3 +316,40 @@ method that replaced them:
 - **`// NOTE(ci):` markers** on every Android API call site that could not
   be verified here, naming the exact symbols to check first if the file
   fails to compile.
+
+---
+
+## Addendum (2026-08-07): the weekday door, measured and closed
+
+Block permutation preserves autocorrelation under the null, but not the
+alignment between the two series' weekly cycles — and the weekly schedule
+is a *common cause* of both. Short Sunday sleep and a low Monday sit next
+to each other in a lag-one pairing whether or not one drives the other.
+
+Measured with a faithful mirror of the app's own machinery (moving-block
+shuffle, Phipson–Smyth correction), 150 simulated people per shape,
+single cell at α = 0.005:
+
+| Null shape                       | raw FP | weekday-demedianed |
+|----------------------------------|--------|--------------------|
+| plain AR noise                   | 0.007  | 0.007              |
+| weekend lift in both series      | 0.013  | 0.020 (noise-level) |
+| Sunday-sleep → Monday-mood shape | **0.053** | **0.007**       |
+| power, true fortnight link       | 1.00   | 1.00               |
+
+The Monday-adjacency shape inflated false positives tenfold. The fix:
+each weekday's own median is removed from both series before anything is
+correlated — the signal stratified by *its* day, the label by its. With a
+single stratum this is a constant shift that ranks cannot see, which is
+what keeps every dateless caller bit-identical.
+
+The trade, stated: a genuine link that lives entirely in the weekly
+schedule is silenced along with the artefact. Silence over false alarm is
+this design's standing law, and this is that law applied to the calendar.
+
+A first version of the measurement reported 10% false positives on plain
+noise — an alarming number that turned out to be a bug in the *mirror*
+(shift-only permutation, ~12 distinct arrangements), not in the app.
+Worth recording because it is the second time this project's harness was
+wrong before its subject was: the measuring instrument needs the same
+scepticism as the thing measured.

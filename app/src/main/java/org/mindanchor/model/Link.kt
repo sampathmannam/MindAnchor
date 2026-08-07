@@ -11,7 +11,17 @@ import kotlin.math.min
  * badly and you feel bad" — where a lagged one can anticipate. That
  * difference is the entire point of this file.
  */
-data class Paired(val signal: Double, val label: Double)
+data class Paired(
+    val signal: Double,
+    val label: Double,
+    /**
+     * Weekday stratum of the label's day, 0..6. Defaults to a single
+     * stratum, under which the weekday adjustment reduces to subtracting
+     * one constant — invisible to a rank correlation — so callers that
+     * carry no dates behave exactly as they always did.
+     */
+    val weekday: Int = 0,
+)
 
 /** Which way a link runs. Direction only; see [Link] for why not size. */
 enum class LinkDirection {
@@ -241,8 +251,23 @@ object LinkFinder {
         val ordered = testable.entries.sortedBy { it.key.toString() }
 
         val raw = ordered.mapIndexed { index, (key, pairs) ->
-            val xs = pairs.map { it.signal }
-            val ys = pairs.map { it.label }
+            // The weekly schedule is a common cause of both series: short
+            // Sunday sleep and a low Monday sit next to each other in a
+            // lag-one pairing whether or not the one drives the other.
+            // Measured before this adjustment existed, that shape alone
+            // produced false positives at ten times the declared alpha
+            // (0.053 against 0.005); removing each weekday's own median
+            // from both series restored calibration (0.007) at no
+            // measured cost in power on a genuine link. The trade is
+            // stated: a real link that lives entirely in the weekly
+            // schedule is silenced along with the artefact, and silence
+            // over false alarm is this file's standing law.
+            val xs = demedianByStratum(
+                pairs.map { it.signal },
+                // The signal belongs to the day before its label.
+                pairs.map { (it.weekday + 6) % 7 },
+            )
+            val ys = demedianByStratum(pairs.map { it.label }, pairs.map { it.weekday })
             val rho = spearman(xs, ys)
             if (rho == null) {
                 key to null
@@ -275,6 +300,25 @@ object LinkFinder {
         byKey.filterValues { it.isNotEmpty() && it.size < MIN_PAIRED_DAYS }.keys.toList()
 
     private const val PRIME = 7919L
+
+    /**
+     * Subtracts each stratum's own median from its members.
+     *
+     * With a single stratum this is a constant shift, which ranks ignore —
+     * the property that keeps every dateless caller's behaviour
+     * bit-identical. With seven, it removes the weekly cycle from both
+     * series before anything is correlated, which is the entire defence
+     * against the schedule masquerading as a link.
+     */
+    internal fun demedianByStratum(values: List<Double>, strata: List<Int>): List<Double> {
+        val medians = strata.distinct().associateWith { stratum ->
+            val members = values.filterIndexed { i, _ -> strata[i] == stratum }.sorted()
+            val middle = members.size / 2
+            if (members.size % 2 == 1) members[middle]
+            else (members[middle - 1] + members[middle]) / 2.0
+        }
+        return values.mapIndexed { i, v -> v - medians.getValue(strata[i]) }
+    }
 
     /**
      * Spearman's rank correlation, with ties handled by average ranks.

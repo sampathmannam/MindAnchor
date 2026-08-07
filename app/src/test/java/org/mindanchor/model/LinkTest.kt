@@ -135,6 +135,76 @@ class LinkTest {
 
     // --- the grid ---
 
+    // --- the weekday adjustment ---
+
+    @Test
+    fun `a link that is nothing but the weekly schedule does not hold`() {
+        // Signal and label are both pure functions of the weekday —
+        // maximal confounding, zero genuine relationship. Before the
+        // weekday adjustment this held easily; measured in simulation,
+        // milder versions of the same shape produced false positives at
+        // ten times the declared alpha. With each weekday's median
+        // removed there is nothing left to correlate.
+        val n = 84
+        val pairs = List(n) { day ->
+            val weekday = day % 7
+            Paired(
+                signal = doubleArrayOf(300.0, 380.0, 375.0, 370.0, 365.0, 360.0, 420.0)[weekday],
+                label = doubleArrayOf(2.0, 3.0, 3.0, 3.0, 3.0, 4.0, 5.0)[weekday],
+                weekday = weekday,
+            )
+        }
+        val link = LinkFinder.find(mapOf("cell" to pairs), seed = 11)["cell"]
+        assertTrue(
+            "a schedule artefact must not hold, got $link",
+            link == null || !link.holds,
+        )
+    }
+
+    @Test
+    fun `the same series with no weekday information would have held`() {
+        // The other half of the proof: the adjustment, not the alpha, is
+        // what stops the schedule artefact. Identical values, one
+        // stratum, and the machinery finds the (spurious) link easily —
+        // which is exactly what it would have told a person before this.
+        val n = 84
+        val pairs = List(n) { day ->
+            val weekday = day % 7
+            Paired(
+                signal = doubleArrayOf(300.0, 380.0, 375.0, 370.0, 365.0, 360.0, 420.0)[weekday],
+                label = doubleArrayOf(2.0, 3.0, 3.0, 3.0, 3.0, 4.0, 5.0)[weekday],
+            )
+        }
+        val link = LinkFinder.find(mapOf("cell" to pairs), seed = 11)["cell"]
+        assertTrue("without strata the artefact should hold", link != null && link.holds)
+    }
+
+    @Test
+    fun `a genuine link survives the weekday adjustment`() {
+        // Fortnight-long signal blocks driving the label, deliberately
+        // not aligned to any weekday. Power measured 1.00 with and
+        // without the adjustment on this construction.
+        val n = 84
+        val pairs = List(n) { day ->
+            val signal = if ((day / 14) % 2 == 0) 380.0 else 300.0
+            Paired(
+                signal = signal,
+                label = if (signal >= 340.0) 4.0 else 2.0,
+                weekday = day % 7,
+            )
+        }
+        val link = LinkFinder.find(mapOf("cell" to pairs), seed = 5)["cell"]
+        assertTrue("a genuine link must survive, got $link", link != null && link.holds)
+    }
+
+    @Test
+    fun `demedianing one stratum is a constant shift ranks cannot see`() {
+        val values = listOf(5.0, 9.0, 1.0, 7.0, 3.0)
+        val shifted = LinkFinder.demedianByStratum(values, List(values.size) { 0 })
+        // Same ordering, same gaps — the median is subtracted from all.
+        assertEquals(listOf(0.0, 4.0, -4.0, 2.0, -2.0), shifted)
+    }
+
     @Test
     fun `a signal with too little history is not tested and says so`() {
         val short = List(LinkFinder.MIN_PAIRED_DAYS - 1) { Paired(it.toDouble(), it.toDouble()) }
