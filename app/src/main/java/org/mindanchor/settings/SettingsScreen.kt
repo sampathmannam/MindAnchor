@@ -125,6 +125,8 @@ fun SettingsScreen(
     hiddenApps: List<DisplayApp>,
     onUnhide: (DisplayApp) -> Unit,
     onBack: () -> Unit,
+    /** Opens the heart-rhythm reading on its own surface. */
+    onOpenPpg: () -> Unit = {},
     viewModel: SettingsViewModel = viewModel(),
 ) {
     val context = LocalContext.current
@@ -580,6 +582,23 @@ fun SettingsScreen(
             }
         }
 
+        // --- Heart rhythm ---
+        //
+        // The watch measures HRV and keeps it: it never leaves the COROS
+        // app, and it cannot be derived from heart rate, because RMSSD is
+        // defined over beat-to-beat intervals and averaged BPM has already
+        // thrown that away. So it is measured here instead — which also
+        // means it survives changing watch, or wearing none at all.
+        SectionHeading(R.string.ppg_section, SettingsSection.SLEEP, goals)
+        Text(
+            text = stringResource(R.string.ppg_explainer),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        TextButton(onClick = onOpenPpg) {
+            Text(stringResource(R.string.ppg_start))
+        }
+
         // --- Sleep rhythm (F5) ---
         val sleepSummary by viewModel.sleepSummary.collectAsState()
         SectionHeading(R.string.sleep_section, SettingsSection.SLEEP, goals)
@@ -714,6 +733,56 @@ fun SettingsScreen(
         ) {
             Text(stringResource(R.string.pulse_take))
         }
+
+        // --- Check-ins (EMA) ---
+        //
+        // The other half of "Labels" alongside the pulse above: a handful
+        // of taps a day rather than a fortnightly instrument. The count
+        // is stated plainly and never as a target — a skipped prompt is
+        // normal, not a shortfall, so nothing here is styled as a streak.
+        SectionHeading(R.string.ema_section, SettingsSection.PULSE, goals)
+        Text(
+            text = stringResource(R.string.ema_explainer),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        val emaEnabled by viewModel.emaEnabled.collectAsState()
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.ema_toggle),
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.weight(1f),
+            )
+            Switch(
+                checked = emaEnabled,
+                onCheckedChange = { enabled ->
+                    if (enabled) {
+                        permissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                    viewModel.setEmaEnabled(enabled)
+                },
+            )
+        }
+        val emaCount by viewModel.emaCount.collectAsState()
+        Text(
+            text = stringResource(R.string.ema_count, emaCount),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        Text(
+            text = stringResource(
+                if (emaCount < org.mindanchor.model.EmaSchedule.LABELS_BEFORE_TAPER) {
+                    R.string.ema_learning
+                } else {
+                    R.string.ema_settled
+                },
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
 
         // --- Your people and your plan ---
         Text(

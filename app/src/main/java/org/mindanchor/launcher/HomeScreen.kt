@@ -49,6 +49,7 @@ import org.mindanchor.friction.FrictionGate
 import org.mindanchor.friction.FrictionTone
 import org.mindanchor.friction.LoopPhase
 import org.mindanchor.settings.SettingsScreen
+import org.mindanchor.vitals.PpgScreen
 import org.mindanchor.support.SupportActivity
 import org.mindanchor.ui.CalmBackground
 import org.mindanchor.ui.SkyContent
@@ -56,7 +57,7 @@ import org.mindanchor.ui.rememberClockFormat
 import org.mindanchor.ui.rememberMinuteTick
 import java.time.format.DateTimeFormatter
 
-private enum class LauncherSurface { Home, Drawer, Settings }
+private enum class LauncherSurface { Home, Drawer, Settings, Ppg }
 
 /**
  * Root of the launcher UI. Three surfaces: the calm home (clock, greeting,
@@ -175,7 +176,16 @@ fun LauncherRoot(
                 hiddenApps = state.allApps.filter { it.isHidden },
                 onUnhide = { viewModel.setHidden(it, false) },
                 onBack = { surface = LauncherSurface.Home },
+                onOpenPpg = { surface = LauncherSurface.Ppg },
             )
+        }
+
+        // Its own surface rather than a section inside the settings scroll.
+        // The measurement holds the screen awake and runs the torch for a
+        // minute and a half; nesting that inside a screen somebody is
+        // scrolling through would mean starting it by accident.
+        LauncherSurface.Ppg -> Surface(modifier = Modifier.fillMaxSize()) {
+            PpgScreen(onBack = { surface = LauncherSurface.Settings })
         }
     }
 

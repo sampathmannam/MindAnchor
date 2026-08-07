@@ -11,6 +11,17 @@
         tools:ignore="ProtectedPermissions" />
 
     <!--
+        Fingertip PPG, and nothing else. HRV is the best physiological
+        signal available here and the watch does not release it, so it is
+        measured directly: finger over the lens, torch on, ~90 seconds.
+        No image is stored, shown, or leaves the frame loop — each frame is
+        reduced to a single average brightness number and discarded.
+    -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera.flash" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+
+    <!--
         Granted over adb, once, by someone who wants it — never requestable
         from inside the app, which is correct. It exists so the screen can
         be turned grey, the largest single effect in the digital-wellbeing
@@ -103,6 +114,23 @@
             android:configChanges="orientation|screenSize|keyboard|keyboardHidden" />
 
         <!--
+            The check-in prompt, opened from a notification that can arrive
+            from anywhere — another app's shade, the lock screen — never
+            only from this launcher. Same reasoning as the pause above: its
+            own taskAffinity so it does not join whatever task was already
+            open, and kept out of recents because answering two taps is a
+            moment, not a place to return to.
+        -->
+        <activity
+            android:name=".model.EmaActivity"
+            android:exported="false"
+            android:taskAffinity=".model.ema"
+            android:excludeFromRecents="true"
+            android:stateNotNeeded="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden" />
+
+        <!--
             Notices when a flagged app reaches the foreground, so the pause
             covers opens from notifications, recents and links rather than
             only taps on the home screen.
@@ -147,6 +175,15 @@
 
         <receiver
             android:name=".pulse.PulseReminderReceiver"
+            android:exported="false" />
+
+        <!--
+            Fires the day's check-in prompts and, once a day, recomputes
+            them — see EmaScheduler for why a single alarm re-arms the
+            rest rather than each one only scheduling itself.
+        -->
+        <receiver
+            android:name=".model.EmaAlarmReceiver"
             android:exported="false" />
 
         <!--
