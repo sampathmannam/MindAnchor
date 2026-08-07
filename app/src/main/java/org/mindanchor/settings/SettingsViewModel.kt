@@ -63,6 +63,27 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             .getSystemService(NotificationManager::class.java)
             ?.isNotificationPolicyAccessGranted == true
 
+    /**
+     * Whether the screen also goes grey through the quiet hours. Kept
+     * separate from sunset itself: a quiet phone and a colourless one are
+     * different wishes and neither should imply the other.
+     */
+    val grayscaleAtNight = sunsetPrefs.grayscaleAtNight
+
+    fun setGrayscaleAtNight(enabled: Boolean) {
+        viewModelScope.launch {
+            sunsetPrefs.setGrayscaleAtNight(enabled)
+            // Apply immediately if the quiet hours have already begun,
+            // rather than leaving the switch looking broken until 22:00.
+            val now = java.time.LocalTime.now()
+            val inWindow = now >= SunsetPrefs.START || now < SunsetPrefs.END
+            if (inWindow || !enabled) {
+                org.mindanchor.grayscale.Grayscale.set(getApplication(), enabled && inWindow)
+            }
+            SunsetController.onToggled(getApplication(), enabled || sunsetPrefs.isEnabled())
+        }
+    }
+
     fun setSunsetEnabled(enabled: Boolean) {
         viewModelScope.launch {
             sunsetPrefs.setEnabled(enabled)

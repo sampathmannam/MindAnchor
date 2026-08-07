@@ -11,6 +11,17 @@
         tools:ignore="ProtectedPermissions" />
 
     <!--
+        Granted over adb, once, by someone who wants it — never requestable
+        from inside the app, which is correct. It exists so the screen can
+        be turned grey, the largest single effect in the digital-wellbeing
+        literature that a phone can apply to itself. Without the grant every
+        path that uses it reports "not granted" and does nothing.
+    -->
+    <uses-permission
+        android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+
+    <!--
         Backup is off, deliberately and completely.
 
         This app holds a suicide safety plan, the phone numbers of the

@@ -106,11 +106,15 @@ object SunsetController {
         val appContext = context.applicationContext
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             val prefs = SunsetPrefs(appContext)
-            if (prefs.isEnabled()) {
-                when (action) {
-                    ACTION_START -> applyFilter(appContext, priorityOnly = true)
-                    ACTION_END -> applyFilter(appContext, priorityOnly = false)
-                }
+            // Quiet hours and colourless hours are independent switches, so
+            // each is checked on its own. Someone may want a phone that
+            // stops interrupting without one that stops being colourful.
+            val quietHours = prefs.isEnabled()
+            val greyNights = prefs.isGrayscaleAtNight()
+            if (quietHours || greyNights) {
+                val starting = action == ACTION_START
+                if (quietHours) applyFilter(appContext, priorityOnly = starting)
+                if (greyNights) org.mindanchor.grayscale.Grayscale.set(appContext, starting)
                 ensureScheduled(appContext)
             }
         }

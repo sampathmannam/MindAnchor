@@ -19,9 +19,26 @@ class SunsetPrefs(private val context: Context) {
 
     private val enabledKey = booleanPreferencesKey("sunset_enabled")
 
+    /**
+     * Whether the screen also goes grey through the quiet hours. Separate
+     * from [enabled] on purpose: someone may want a quiet phone without a
+     * colourless one, or the reverse, and neither should imply the other.
+     */
+    private val grayscaleKey = booleanPreferencesKey("sunset_grayscale")
+
     val enabled: Flow<Boolean> = context.dataStore.data.map { it[enabledKey] ?: false }
 
     suspend fun isEnabled(): Boolean = context.dataStore.data.first()[enabledKey] ?: false
+
+    val grayscaleAtNight: Flow<Boolean> =
+        context.dataStore.data.map { it[grayscaleKey] ?: false }
+
+    suspend fun isGrayscaleAtNight(): Boolean =
+        context.dataStore.data.first()[grayscaleKey] ?: false
+
+    suspend fun setGrayscaleAtNight(value: Boolean) {
+        context.dataStore.edit { it[grayscaleKey] = value }
+    }
 
     suspend fun setEnabled(value: Boolean) {
         context.dataStore.edit { it[enabledKey] = value }

@@ -36,10 +36,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
 import org.mindanchor.R
+import org.mindanchor.grayscale.Grayscale
 import org.mindanchor.launcher.DisplayApp
 import org.mindanchor.ui.NatureScene
 
@@ -407,6 +409,79 @@ fun SettingsScreen(
             },
         ) {
             Text(stringResource(R.string.support_open))
+        }
+
+        // --- Colour ---
+        //
+        // Needs a permission Android will not hand to an app from inside
+        // the app, which is correct. So the screen states plainly what to
+        // run, once, from a computer — and works fine forever if nobody
+        // ever does.
+        Text(
+            text = stringResource(R.string.grayscale_section),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
+        )
+        Text(
+            text = stringResource(R.string.grayscale_explainer),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        val grayscaleGranted = remember { Grayscale.isGranted(context) }
+        var grayscaleNow by remember { mutableStateOf(Grayscale.isOn(context)) }
+        val greyNights by viewModel.grayscaleAtNight.collectAsState(initial = false)
+
+        if (!grayscaleGranted) {
+            Text(
+                text = stringResource(R.string.grayscale_needs_grant),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            Text(
+                text = Grayscale.grantCommand(context.packageName),
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier.padding(vertical = 8.dp),
+            )
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.grayscale_now),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(
+                    checked = grayscaleNow,
+                    onCheckedChange = {
+                        Grayscale.set(context, it)
+                        grayscaleNow = Grayscale.isOn(context)
+                    },
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.grayscale_at_night),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(
+                    checked = greyNights,
+                    onCheckedChange = { viewModel.setGrayscaleAtNight(it) },
+                )
+            }
+            Text(
+                text = stringResource(R.string.grayscale_shares_a_switch),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
         // --- Keeping a copy ---
