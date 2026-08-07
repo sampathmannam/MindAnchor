@@ -293,6 +293,20 @@ class ReportStore(private val context: Context) {
      */
     val generatedDay: Flow<String?> = context.dataStore.data.map { it[generatedDayKey] }
 
+    private val coverageKey = stringPreferencesKey("coverage")
+
+    /**
+     * The per-signal coverage summary written beside each report —
+     * encoded by [CoverageLedger], decoded by whoever displays it. Null
+     * until the first build has run, which the display treats as its own
+     * honest state rather than as zero days everywhere.
+     */
+    val coverage: Flow<String?> = context.dataStore.data.map { it[coverageKey] }
+
+    suspend fun saveCoverage(encoded: String) {
+        context.dataStore.edit { it[coverageKey] = encoded }
+    }
+
     /**
      * Overwrites the single stored report. There is never more than one.
      *

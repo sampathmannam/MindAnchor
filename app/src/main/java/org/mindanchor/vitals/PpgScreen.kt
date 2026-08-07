@@ -30,7 +30,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 import org.mindanchor.R
+import org.mindanchor.report.Signal
 import kotlin.math.roundToInt
 
 /**
@@ -102,6 +104,18 @@ fun PpgScreen(
             val outcome = capture.start(lifecycleOwner)
             running = false
             finished = outcome
+            // The reading's whole purpose is to feed the nightly look —
+            // until this line existed it was shown once and discarded,
+            // and the report read HRV only from Health Connect, which
+            // this person's watch never writes. A storage failure is not
+            // worth disturbing a measurement that succeeded, so it fails
+            // silently; the coverage screen is where absence shows up.
+            (outcome as? PpgCaptureState.Done)?.hrv?.metrics?.let { metrics ->
+                runCatching {
+                    MeasuredStore(context.applicationContext)
+                        .record(LocalDate.now(), Signal.HRV.name, metrics.rmssdMillis)
+                }
+            }
         }
     }
 
@@ -130,6 +144,12 @@ fun PpgScreen(
             text = stringResource(R.string.ppg_how),
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(top = 12.dp),
+        )
+        Text(
+            text = stringResource(R.string.ppg_feeds),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp),
         )
 
         when {

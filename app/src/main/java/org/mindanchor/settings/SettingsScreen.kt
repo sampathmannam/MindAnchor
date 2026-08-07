@@ -52,6 +52,8 @@ import org.mindanchor.launcher.DisplayApp
 import org.mindanchor.narrate.ModelSlot
 import org.mindanchor.notifications.BatchSchedule
 import org.mindanchor.onboarding.Goal
+import org.mindanchor.report.MeasureSource
+import org.mindanchor.report.Signal
 import org.mindanchor.onboarding.GoalMap
 import org.mindanchor.onboarding.SettingsSection
 import org.mindanchor.ui.NatureScene
@@ -109,6 +111,38 @@ private fun TimeNudger(label: String, onEarlier: () -> Unit, onLater: () -> Unit
             Text(stringResource(R.string.time_later))
         }
     }
+}
+
+/** One probe row: the signal's name and what arrived, or an honest dash. */
+@Composable
+private fun ProbeLine(labelRes: Int, value: String?) {
+    Text(
+        text = stringResource(
+            R.string.probe_line,
+            stringResource(labelRes),
+            value ?: stringResource(R.string.probe_absent),
+        ),
+        style = MaterialTheme.typography.bodyMedium,
+        modifier = Modifier.padding(top = 4.dp),
+    )
+}
+
+private fun signalLabelRes(signal: Signal): Int = when (signal) {
+    Signal.HRV -> R.string.signal_hrv
+    Signal.RESTING_HEART_RATE -> R.string.signal_resting_hr
+    Signal.SLEEP_MINUTES -> R.string.signal_sleep_minutes
+    Signal.SLEEP_ONSET -> R.string.signal_sleep_onset
+    Signal.STEPS -> R.string.signal_steps
+    Signal.VALENCE -> R.string.signal_valence
+    Signal.AROUSAL -> R.string.signal_arousal
+}
+
+/** A null source — from a future version's file — reads as plain absence. */
+private fun sourceLabelRes(source: MeasureSource?): Int = when (source) {
+    MeasureSource.MEASURED_HERE -> R.string.source_measured
+    MeasureSource.WEARABLE -> R.string.source_wearable
+    MeasureSource.PHONE_INFERRED -> R.string.source_phone
+    null -> R.string.arriving_never
 }
 
 private fun Goal.labelRes(): Int = when (this) {
@@ -935,6 +969,30 @@ fun SettingsScreen(
             TextButton(onClick = onOpenReport) {
                 Text(stringResource(R.string.report_open))
             }
+
+            // When it last actually ran, and a way to run it right now.
+            // The nightly alarm is unattended and a silently stopped one
+            // is indistinguishable from a run of quiet nights; this line
+            // is the difference, and the button proves the whole pipeline
+            // on this phone in its first minute rather than trusting a
+            // 3am alarm to demonstrate it eventually.
+            val generatedDay by viewModel.reportGeneratedDay.collectAsState()
+            Text(
+                text = stringResource(
+                    R.string.report_last_built,
+                    generatedDay ?: stringResource(R.string.report_never_built),
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            val reportRunning by viewModel.reportRunning.collectAsState()
+            TextButton(enabled = !reportRunning, onClick = viewModel::runReportNow) {
+                Text(
+                    stringResource(
+                        if (reportRunning) R.string.report_running_now else R.string.report_run_now,
+                    ),
+                )
+            }
         }
 
         if (group == SettingsGroup.READING) {
@@ -1139,6 +1197,92 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+
+        if (group == SettingsGroup.MEASURING) {
+            // --- What is arriving (coverage and the wearable probe) ---
+            //
+            // Facts, not assumptions. The signal list was designed around
+            // what a wearable could deliver; what one actually delivers
+            // is only learnable by looking, and a signal silently absent
+            // for weeks is the failure this section exists to make
+            // impossible to miss.
+            SectionHeading(R.string.arriving_section, null, goals)
+            Text(
+                text = stringResource(R.string.arriving_explainer),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            val coverage by viewModel.coverage.collectAsState()
+            val entries = coverage
+            if (entries == null) {
+                Text(
+                    text = stringResource(R.string.arriving_not_yet),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            } else {
+                entries.forEach { entry ->
+                    Text(
+                        text = stringResource(
+                            R.string.arriving_line,
+                            stringResource(signalLabelRes(entry.signal)),
+                            entry.daysOnFile,
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                    Text(
+                        text = if (entry.lastDay == null) {
+                            stringResource(R.string.arriving_never)
+                        } else {
+                            stringResource(
+                                R.string.arriving_last,
+                                entry.lastDay,
+                                stringResource(sourceLabelRes(entry.lastSource)),
+                            )
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            val probing by viewModel.probing.collectAsState()
+            TextButton(enabled = !probing, onClick = viewModel::probeYesterday) {
+                Text(
+                    stringResource(
+                        if (probing) R.string.probe_checking else R.string.probe_button,
+                    ),
+                )
+            }
+            val probe by viewModel.probe.collectAsState()
+            probe?.let { vitals ->
+                Text(
+                    text = stringResource(R.string.probe_intro),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                // Spelled out field by field rather than looped, because
+                // each one formats differently and a bedtime shown as
+                // "1410" would defeat the purpose of a screen that exists
+                // to be read literally.
+                ProbeLine(R.string.signal_hrv, vitals.hrvRmssd?.let { "%.0f ms".format(it) })
+                ProbeLine(
+                    R.string.signal_resting_hr,
+                    vitals.restingHeartRate?.let { "%.0f bpm".format(it) },
+                )
+                ProbeLine(
+                    R.string.signal_sleep_minutes,
+                    vitals.sleepMinutes?.let { "$it min" },
+                )
+                ProbeLine(
+                    R.string.signal_sleep_onset,
+                    vitals.sleepOnset?.let { "%02d:%02d".format(it / 60, it % 60) },
+                )
+                ProbeLine(R.string.signal_steps, vitals.steps?.toString())
+            }
         }
 
         if (group == SettingsGroup.PLAN) {
