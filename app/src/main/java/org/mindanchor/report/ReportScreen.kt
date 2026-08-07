@@ -1,7 +1,9 @@
 package org.mindanchor.report
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
@@ -16,9 +18,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import kotlin.math.roundToLong
 import org.mindanchor.R
+import org.mindanchor.ui.Spacing
 
 /**
  * Renders the most recently stored [Report] — see [ReportScheduler] for how
@@ -48,7 +50,7 @@ fun ReportScreen(onBack: () -> Unit) {
             .fillMaxSize()
             .safeDrawingPadding()
             .verticalScroll(rememberScrollState())
-            .padding(24.dp),
+            .padding(Spacing.Edge),
     ) {
         TextButton(onClick = onBack) {
             Text(stringResource(R.string.action_back))
@@ -57,7 +59,7 @@ fun ReportScreen(onBack: () -> Unit) {
         Text(
             text = stringResource(R.string.report_section),
             style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(vertical = 16.dp),
+            modifier = Modifier.padding(vertical = Spacing.Comfortable),
         )
 
         // The paragraph a narrator wrote, shown above the sections it was
@@ -71,12 +73,12 @@ fun ReportScreen(onBack: () -> Unit) {
                 text = stringResource(R.string.report_generated_label),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 4.dp),
+                modifier = Modifier.padding(bottom = Spacing.Hair),
             )
             Text(
                 text = narration,
                 style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(bottom = 16.dp),
+                modifier = Modifier.padding(bottom = Spacing.Loose),
             )
         }
 
@@ -92,7 +94,7 @@ fun ReportScreen(onBack: () -> Unit) {
             Text(
                 text = stringResource(R.string.pattern_section),
                 style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(top = 8.dp, bottom = 8.dp),
+                modifier = Modifier.padding(top = Spacing.Tight, bottom = Spacing.Snug),
             )
             // forEach is inline, so stringResource still runs in the
             // composable body — see the notYetKnown comment below for why
@@ -107,14 +109,14 @@ fun ReportScreen(onBack: () -> Unit) {
                         stringResource(pattern.label.displayNameRes()),
                     ),
                     style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(bottom = 8.dp),
+                    modifier = Modifier.padding(bottom = Spacing.Snug),
                 )
             }
             Text(
                 text = stringResource(R.string.pattern_caveat),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 16.dp),
+                modifier = Modifier.padding(bottom = Spacing.Loose),
             )
         }
 
@@ -143,7 +145,7 @@ fun ReportScreen(onBack: () -> Unit) {
                 text = stringResource(R.string.report_still_learning, names.joinToString(", ")),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 16.dp),
+                modifier = Modifier.padding(top = Spacing.Loose),
             )
         }
 
@@ -151,7 +153,7 @@ fun ReportScreen(onBack: () -> Unit) {
             text = stringResource(R.string.report_disclaimer),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 24.dp),
+            modifier = Modifier.padding(top = Spacing.Section),
         )
     }
 }
@@ -178,17 +180,37 @@ private fun ReportSectionCard(section: ReportSection) {
         Direction.BELOW -> if (clock) R.string.report_earlier else R.string.report_below
     }
 
-    Column(modifier = Modifier.padding(top = 20.dp)) {
+    Column(modifier = Modifier.padding(top = Spacing.Loose)) {
         Text(
             text = stringResource(bodyRes, signalName, todayText, usualText),
             style = MaterialTheme.typography.bodyLarge,
         )
+        // The research sits inside its own quiet container, and the count
+        // above it does not.
+        //
+        // That is this screen's one real design decision, and it is the
+        // architecture made visible rather than decoration. The whole
+        // system rests on two separable claims — a count from this
+        // person's own history, and an explanation of what the thing
+        // counted is — with the join left to them. Rendered as an
+        // undifferentiated stack of grey text, as this was, the two read
+        // as one voice saying both, which is precisely the conflation
+        // ReportComposer refuses to make. Giving the quoted half a
+        // visible edge says "this part is not about you" without a word
+        // of copy having to claim it.
         section.passages.forEach { passage ->
             Text(
                 text = passage.text,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 8.dp),
+                modifier = Modifier
+                    .padding(top = Spacing.Snug)
+                    .fillMaxWidth()
+                    .background(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = MaterialTheme.shapes.small,
+                    )
+                    .padding(horizontal = Spacing.Comfortable, vertical = Spacing.Snug),
             )
         }
         if (section.passages.isEmpty()) {
@@ -196,14 +218,14 @@ private fun ReportSectionCard(section: ReportSection) {
                 text = stringResource(R.string.report_no_research),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
+                modifier = Modifier.padding(top = Spacing.Tight),
             )
         } else {
             Text(
                 text = stringResource(R.string.report_sources, section.sources.joinToString(" · ")),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
+                modifier = Modifier.padding(top = Spacing.Tight),
             )
         }
     }
