@@ -17,6 +17,7 @@ import org.junit.runner.RunWith
 import org.mindanchor.launcher.LauncherRoot
 import org.mindanchor.onboarding.OnboardingScreen
 import org.mindanchor.pulse.PulseScreen
+import org.mindanchor.report.ReportScreen
 import org.mindanchor.settings.SettingsScreen
 import org.mindanchor.support.SupportScreen
 import java.io.File
@@ -111,4 +112,18 @@ class ScreenshotTest {
             onBack = {},
         )
     }
+
+    /**
+     * The report, which had no shot until now — and is the one screen the
+     * whole system exists to produce.
+     *
+     * On a bare emulator nothing has ever been generated, so this catches
+     * the empty state rather than a full report. That is worth having on
+     * its own: "nothing yet" is what somebody sees for their first weeks,
+     * it is the state this app is least likely to have thought about, and
+     * a screen that looks broken when it is merely early would cost the
+     * person exactly the patience the design is asking them for.
+     */
+    @Test
+    fun report() = shoot("report") { ReportScreen(onBack = {}) }
 }
