@@ -46,7 +46,37 @@ object Grayscale {
     /** Secure setting: which correction. 0 is monochromacy. */
     private const val MODE = "accessibility_display_daltonizer"
 
-    private const val MONOCHROMACY = 0
+    private const val MONOCHROMACY = GrayscalePolicy.MONOCHROMACY
+
+    /**
+     * Where the person's own colour-correction settings are kept while
+     * grayscale has borrowed them.
+     *
+     * Plain SharedPreferences rather than DataStore, which this project
+     * uses everywhere else, for one reason: every function here is
+     * synchronous and is called from the sunset alarm as well as the
+     * settings screen. Making them suspend to reach a DataStore would push
+     * coroutine plumbing into an alarm receiver to store two integers.
+     */
+    private fun store(context: Context) =
+        context.getSharedPreferences("grayscale_restore", Context.MODE_PRIVATE)
+
+    private const val SAVED_ENABLED = "prior_enabled"
+    private const val SAVED_MODE = "prior_mode"
+
+    private fun remembered(context: Context): ColourState? = runCatching {
+        val prefs = store(context)
+        if (!prefs.contains(SAVED_MODE)) return null
+        ColourState(
+            enabled = prefs.getBoolean(SAVED_ENABLED, false),
+            mode = prefs.getInt(SAVED_MODE, MONOCHROMACY),
+        )
+    }.getOrNull()
+
+    private fun current(context: Context): ColourState = ColourState(
+        enabled = Settings.Secure.getInt(context.contentResolver, ENABLED, 0) == 1,
+        mode = Settings.Secure.getInt(context.contentResolver, MODE, MONOCHROMACY),
+    )
 
     fun isGranted(context: Context): Boolean =
         context.checkSelfPermission(android.Manifest.permission.WRITE_SECURE_SETTINGS) ==
@@ -60,16 +90,32 @@ object Grayscale {
     /**
      * Returns true if the screen ended up in the requested state.
      *
+     * Turning grayscale on saves whatever colour correction was configured
+     * first; turning it off puts that back rather than merely clearing the
+     * flag. See [GrayscalePolicy] for why that matters and to whom.
+     *
      * Never throws. A failure here must not take down a launcher — the
      * phone still has to open apps.
      */
     fun set(context: Context, on: Boolean): Boolean = runCatching {
         if (!isGranted(context)) return false
         if (on) {
+            GrayscalePolicy.stateToRemember(
+                current = current(context),
+                alreadyRemembered = remembered(context) != null,
+            )?.let { prior ->
+                store(context).edit()
+                    .putBoolean(SAVED_ENABLED, prior.enabled)
+                    .putInt(SAVED_MODE, prior.mode)
+                    .apply()
+            }
             Settings.Secure.putInt(context.contentResolver, MODE, MONOCHROMACY)
             Settings.Secure.putInt(context.contentResolver, ENABLED, 1)
         } else {
-            Settings.Secure.putInt(context.contentResolver, ENABLED, 0)
+            val restore = GrayscalePolicy.stateToRestore(remembered(context))
+            Settings.Secure.putInt(context.contentResolver, ENABLED, if (restore.enabled) 1 else 0)
+            Settings.Secure.putInt(context.contentResolver, MODE, restore.mode)
+            store(context).edit().clear().apply()
         }
         isOn(context) == on
     }.getOrDefault(false)

@@ -169,7 +169,7 @@
     <string name="grayscale_needs_grant">Android will not let an app turn this on by itself, which is the right rule. Run this once from a computer with the phone plugged in, and it sticks through reboots:</string>
     <string name="grayscale_now">Grey screen now</string>
     <string name="grayscale_at_night">Go grey through the quiet hours</string>
-    <string name="grayscale_shares_a_switch">This shares a switch with Android\&#39;s colour correction, so turning it off turns that off too. If you use colour correction for colour vision, leave this alone.</string>
+    <string name="grayscale_shares_a_switch">This borrows Android\&#39;s colour correction, so the two cannot both be on at once. Whatever correction you had set is put back when the grey screen goes off. If you rely on it during the day, you may still want to leave the night setting alone.</string>
     <string name="backup_section">Keep a copy</string>
     <string name="backup_explainer">Nothing here is backed up to the cloud, on purpose — so a reset or lost phone would take your plan and your people with it. Save a copy somewhere you trust, and bring it back whenever you need to.</string>
     <string name="backup_save">Save a copy…</string>
