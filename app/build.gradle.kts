@@ -58,9 +58,12 @@ android {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
             // AGP's default is to demand its own pinned CMake exactly;
-            // the runners carry 3.31 and 4.1 (probed, like the NDK), and
-            // the trailing + lets either satisfy this.
-            version = "3.31.0+"
+            // the trailing + accepts anything newer. 3.22.1 is what a
+            // stock Android Studio SDK ships, the CI runners carry 3.31
+            // and 4.1 (probed, like the NDK), and the vendored llama
+            // tree asks for far less than either — so this floor is the
+            // one every machine that builds this project actually clears.
+            version = "3.22.1+"
         }
     }
 
