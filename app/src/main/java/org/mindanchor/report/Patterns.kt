@@ -207,8 +207,14 @@ object PatternFinder {
      * Whether there is simply not enough paired history yet to have
      * looked.
      *
-     * Distinct from finding nothing, and reported differently. "Nothing
-     * stood out" from four days of data would be a lie of omission.
+     * Distinct from finding nothing, and reported differently:
+     * [org.mindanchor.report.ReportStore.StoredReport.patternsStillLearning]
+     * carries the answer to the screen, which says so in as many words.
+     * "Nothing stood out" from four days of data would be a lie of
+     * omission.
+     *
+     * Asked only when [find] returned nothing — a search that produced a
+     * pattern has self-evidently run.
      */
     fun stillLearning(
         signalsByDay: Map<Signal, Map<LocalDate, Double>>,

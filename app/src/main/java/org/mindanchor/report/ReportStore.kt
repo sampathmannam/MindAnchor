@@ -28,7 +28,21 @@ private val Context.dataStore by preferencesDataStore(name = "report")
  * rather than inside it, so a bare [Report] built anywhere else, in a
  * test or otherwise, should not have to know patterns exist at all.
  */
-data class StoredReport(val report: Report, val narration: String?, val patterns: List<Pattern> = emptyList())
+data class StoredReport(
+    val report: Report,
+    val narration: String?,
+    val patterns: List<Pattern> = emptyList(),
+    /**
+     * True when the pattern search had not yet accumulated enough paired
+     * days to run at all.
+     *
+     * Distinct from [patterns] being empty, and the distinction is the
+     * whole reason this field exists: "we looked across ninety days and
+     * found nothing" and "we have not started looking" are both an empty
+     * list, and only one of them is worth telling somebody.
+     */
+    val patternsStillLearning: Boolean = false,
+)
 
 /**
  * Turns a [StoredReport] into one line-oriented block of text and back.
@@ -82,6 +96,8 @@ object ReportLedger {
     private const val PATTERN_PREFIX = "$PATTERN\t"
     private const val SECTION_PREFIX = "$SECTION\t"
     private const val PASSAGE_PREFIX = "$PASSAGE\t"
+    private const val LEARNING = "LEARNING"
+    private const val LEARNING_PREFIX = "$LEARNING\t"
 
     fun encode(stored: StoredReport): String {
         val report = stored.report
@@ -100,6 +116,10 @@ object ReportLedger {
         // one short paragraph should not produce newlines anyway; this is
         // the guarantee rather than the hope.
         stored.narration?.let { lines += "$NARRATION\t${flatten(it)}" }
+        // Written only when true, so its absence is the ordinary reading
+        // and every report written before this line existed decodes to
+        // false — which is what those reports meant.
+        if (stored.patternsStillLearning) lines += "$LEARNING\t1"
         // Immediately after NARRATION and before the first SECTION, for
         // the same reason NARRATION sits where it does — see the class
         // KDoc.
@@ -153,6 +173,7 @@ object ReportLedger {
         var pendingObservation: Observation? = null
         var pendingPassages = mutableListOf<Passage>()
         var narration: String? = null
+        var stillLearning = false
         var sawSection = false
 
         fun flush() {
@@ -174,6 +195,10 @@ object ReportLedger {
                 // not this format's business either.
                 line.startsWith(PATTERN_PREFIX) && !sawSection -> {
                     decodePattern(line.removePrefix(PATTERN_PREFIX))?.let { patterns += it }
+                }
+                // Same placement guard as NARRATION and PATTERN.
+                line.startsWith(LEARNING_PREFIX) && !sawSection -> {
+                    stillLearning = line.removePrefix(LEARNING_PREFIX).trim() == "1"
                 }
                 line.startsWith(SECTION_PREFIX) -> {
                     sawSection = true
@@ -197,6 +222,7 @@ object ReportLedger {
             report = Report(day = day, sections = sections, notYetKnown = notYetKnown),
             narration = narration,
             patterns = patterns,
+            patternsStillLearning = stillLearning,
         )
     }
 
@@ -325,9 +351,18 @@ class ReportStore(private val context: Context) {
      * history — ordinarily empty, for the same reason a strong link is
      * rare by design; see that object's KDoc.
      */
-    suspend fun save(report: Report, narration: String?, patterns: List<Pattern>, generatedDay: String) {
+    suspend fun save(
+        report: Report,
+        narration: String?,
+        patterns: List<Pattern>,
+        generatedDay: String,
+        patternsStillLearning: Boolean = false,
+    ) {
         context.dataStore.edit { prefs ->
-            prefs[reportKey] = ReportLedger.encode(StoredReport(report, narration, patterns))
+            prefs[reportKey] =
+                ReportLedger.encode(
+                    StoredReport(report, narration, patterns, patternsStillLearning),
+                )
             prefs[generatedDayKey] = generatedDay
         }
     }

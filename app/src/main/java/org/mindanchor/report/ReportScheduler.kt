@@ -337,25 +337,36 @@ object ReportScheduler {
         // A failure here — LinkFinder's permutation test throwing on some
         // unexpected shape of data, say — is no different from finding
         // nothing: the report still stands on its own without it.
+        val signalsByDay = Signal.entries.associateWith { signal ->
+            windowDates.mapNotNull { date ->
+                sourcedByDate[date]?.get(signal)?.let { date to it.value }
+            }.toMap()
+        }
+        val labelsByDay = labelsByDay(windowDates, momentsByDay)
         val patterns = runCatching {
             PatternFinder.find(
-                signalsByDay = Signal.entries.associateWith { signal ->
-                    windowDates.mapNotNull { date ->
-                        sourcedByDate[date]?.get(signal)?.let { date to it.value }
-                    }.toMap()
-                },
-                labelsByDay = labelsByDay(windowDates, momentsByDay),
+                signalsByDay = signalsByDay,
+                labelsByDay = labelsByDay,
                 days = patternDates,
                 todaysSignals = today,
                 seed = reportDay.toEpochDay(),
             )
         }.getOrDefault(emptyList())
+        // Whether the search could run at all, which is not the same
+        // question as whether it found anything — see PatternFinder's own
+        // KDoc, which says so and until now had nobody asking. Defaulting
+        // to false on failure keeps the screen quiet rather than claiming
+        // to still be learning when the truth is unknown.
+        val patternsStillLearning = patterns.isEmpty() && runCatching {
+            PatternFinder.stillLearning(signalsByDay, labelsByDay, patternDates)
+        }.getOrDefault(false)
         val store = ReportStore(context)
         store.save(
             report = report,
             narration = narration?.text,
             patterns = patterns,
             generatedDay = LocalDate.now(zone).toString(),
+            patternsStillLearning = patternsStillLearning,
         )
         store.saveCoverage(CoverageLedger.encode(coverage))
         store.saveFacts(FactsLedger.encode(sourcedByDate.getValue(reportDay)))

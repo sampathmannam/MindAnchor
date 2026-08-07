@@ -41,6 +41,34 @@ class ReportStoreTest {
     }
 
     @Test
+    fun `the still-learning flag survives a round trip`() {
+        val learning = StoredReport(
+            Report(day = "2026-08-06", sections = emptyList(), notYetKnown = emptyList()),
+            narration = null,
+            patternsStillLearning = true,
+        )
+        assertEquals(learning, ReportLedger.decode(ReportLedger.encode(learning)))
+    }
+
+    @Test
+    fun `a report written before the flag existed decodes as not still learning`() {
+        // Every report already on a phone was written without a LEARNING
+        // line. Reading those as "still learning" would put a sentence
+        // about not having looked yet under a search that had run.
+        val old = "REPORT\t2026-08-06\t"
+        assertEquals(false, ReportLedger.decode(old)?.patternsStillLearning)
+    }
+
+    @Test
+    fun `the flag is only written when it is true`() {
+        val quiet = StoredReport(
+            Report(day = "2026-08-06", sections = emptyList(), notYetKnown = emptyList()),
+            narration = null,
+        )
+        assertEquals(false, ReportLedger.encode(quiet).contains("LEARNING"))
+    }
+
+    @Test
     fun `empty storage decodes to no report rather than a phantom one`() {
         assertNull(ReportLedger.decode(""))
     }
