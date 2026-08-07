@@ -210,8 +210,12 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
+                // Resolved through map, which is inline, so stringResource
+                // still runs in the composable body. joinToString is not
+                // inline, and calling it from that lambda does not compile.
+                val named = goals.map { stringResource(it.labelRes()) }
                 Text(
-                    text = goals.joinToString(" · ") { stringResource(it.labelRes()) },
+                    text = named.joinToString(" · "),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
