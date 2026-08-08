@@ -882,7 +882,7 @@ A new file, `app/src/main/java/org/mindanchor/goinglight/SourceUidResolver.kt`, 
 
 The round 2 follow-up is posted on PR #19 (`120af44`) and PR #20 (`9ba5308`).
 
-## 15. Item M — per-app session-length data layer (v0.20.1 round 4)
+## 15. Item M — per-app session-length data layer + UI (v0.20.1 round 4)
 
 Item M is the last remaining "follow-up" from the 13-item senior-architect review (§10). The F3 time-box buttons are hardcoded to `[5L, 10L, 20L]` for every app; a user who wants "always 3 minutes for Instagram" or "always 30 minutes for email" has no per-app override.
 
@@ -898,10 +898,21 @@ The brief (`docs/research/22-per-app-session-length-ui.md`) is the evidence-anch
 - **`PerAppSessionLengthStore`**: tab-separated codec, same shape as `IfThenPlanStore`. Sorted-by-package for diff stability; silently skips malformed lines and clamps out-of-range minutes. The codec is *dumb* — validation is the caller's job.
 - **`FrictionPrefs.perAppSessionLength` Flow + `recordPerAppSessionLength` / `clearPerAppSessionLength` suspend methods.** Stored under the `per_app_session_length` DataStore key.
 - **`SealedCodecs.perAppSessionLength`** on work/codec-hmac: HMAC-wrapped version with codecId `per_app_session_length`, mirroring the other codecs' integrity layer.
+- **FrictionGate UI** (commit `c0bb150`):
+  - When a stored default exists for the package, the matching 5/10/20 button is highlighted (soft background + SemiBold text), and a one-line "Like last time — N min" affordance is shown above the row.
+  - When no default exists (first reach per app), a "Learn this for next time" toggle is shown beneath the time-box row, on by default. The launcher records the choice iff the toggle is on at the moment of the tap.
+  - The "open untimed" button does NOT invoke `onTimeBoxPicked`. The "no timer" choice is not a length to learn.
+  - `GateContext` now carries `packageName` and `perAppSessionLength`, populated by `LauncherViewModel.gateFor`.
+  - `LauncherViewModel.recordPerAppSessionLength` is the new method.
+  - All FrictionGate and IntentionPrompt params have defaults, so existing tests and call sites compile unchanged.
+- **Strings (clinical-review-gated)**:
+  - `per_app_session_length_learn_label`: "Learn this for next time"
+  - `per_app_session_length_last_time_label`: "Like last time — %1$d min"
+  - Both strings are in `strings.xml`; the `FrictionGate.kt` KDoc carries the `@wording-reviewed` tag. The clinical-review gate (item B+K) flags any change to either.
 
-### What does *not* ship
+### What does *not* ship (in this round)
 
-- **The UI.** The "Like last time?" highlight on the time-box button row is deferred until a clinical-review-approved wording exists. The data layer is harmless on its own; the friction gate has a new Flow to read.
+- **A "forget" or "change default" affordance.** Once a default is stored, the "Learn this" toggle is gone. To change the stored default, the user picks a different time-box (the choice is NOT auto-recorded on subsequent reaches). The brief explicitly limits the v0.20.1 round 4 UI to "no new screen, no settings page, no onboarding flow." A forget/change affordance is a v0.20.2 follow-up.
 - **Per-app daily caps** — see brief §3.
 - **"Recommended length" prompts** — the launcher does not invent a length.
 - **A separate "session length" config screen** — the friction gate *is* the config surface; the user sets the default by picking a time-box.
@@ -909,19 +920,22 @@ The brief (`docs/research/22-per-app-session-length-ui.md`) is the evidence-anch
 ### Verification
 
 - **28/28** `PerAppSessionLengthTest` cases Python-mirror-verified (round-trip, malformed, out-of-range, blank-key, edge cases).
-- All 28 tests include the `withDefault` fallback, the `record` clamp, the `forget` no-op, the `encode/decode` round-trip, the encode defensive clamp, the decode skip-malformed, the decode clamp-out-of-range, the FALLBACK_MINUTES / MIN_MINUTES / MAX_MINUTES constants.
+- **25/25** UI flow cases Python-mirror-verified (first reach, second reach, toggle on/off, untimed, blank package, multiple apps, changing default).
 - `SealedCodecs` reuses the existing 17/17 IntegritySealedCodecTest cases (the integrity layer is uniform across codecs).
+- `strings.xml` parses without duplicates (357 total; 2 new).
 - Brace/paren balance clean on all new and modified files.
+- Accessibility: the "Learn this" row uses `Modifier.toggleable` with `role = Role.Checkbox` (the same pattern as `OnboardingScreen`). 48dp minimum height; the whole row is the tap target. The highlighted button has a custom `contentDescription`: "Open [app] for [N] minutes, like last time."
 
 ### Worktrees / commits
 
 - `work/going-light-vpn` commit `003ae68` — data layer + plaintext FrictionPrefs.
+- `work/going-light-vpn` commit `c0bb150` — FrictionGate + IntentionPrompt + GateContext + LauncherViewModel + strings.xml.
 - `work/codec-hmac` commit `fdb5e05` — SealedCodecs wrapper + sealed FrictionPrefs.
 - `docs/research/22-per-app-session-length-ui.md` — the brief, on both branches via the going-light-vpn commit.
 
 ### PR comments
 
-The round 4 follow-up is posted on PR #19 (`003ae68`) and PR #20 (`fdb5e05`).
+The round 4 follow-up is posted on PR #19 (`003ae68`, `c0bb150`) and PR #20 (`fdb5e05`).
 
 ## 16. Total v0.20.1 release status
 
@@ -931,7 +945,7 @@ The v0.20.1 release is the audit's full SOTA implementation. Cumulative work acr
 - **CodeRabbit audit (round 1, 18 inline comments)**: all 18 addressed (§13).
 - **CodeRabbit audit (round 2, ~6 follow-up)**: all 6 addressed (§13).
 - **CodeRabbit audit (round 3, parseIpv4 CRITICAL)**: addressed (§14) — the real `/proc/net/tcp` source-UID resolver.
-- **Item M (per-app session-length)**: data layer + sealed codec shipped (§15); UI deferred behind clinical-review gate.
+- **Item M (per-app session-length)**: data layer + sealed codec + UI + strings all shipped (§15).
 
 **17 PRs in flight on the project owner's side:**
 
