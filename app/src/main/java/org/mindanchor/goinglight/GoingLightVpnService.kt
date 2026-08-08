@@ -152,13 +152,13 @@ class GoingLightVpnService : VpnService() {
      */
     private fun parsePacket(buf: ByteBuffer): Packet {
         if (buf.remaining() < 20) {
-            return Packet(0, Packet.Protocol.ICMP, InetAddress.getByName("0.0.0.0"), 0)
+            return Packet(Packet.UID_UNRESOLVED, Packet.Protocol.ICMP, InetAddress.getByName("0.0.0.0"), 0)
         }
         val version = (buf.get(0).toInt() shr 4) and 0x0F
         return when (version) {
             4 -> parseIpv4(buf)
             6 -> parseIpv6(buf)
-            else -> Packet(0, Packet.Protocol.ICMP, InetAddress.getByName("0.0.0.0"), 0)
+            else -> Packet(Packet.UID_UNRESOLVED, Packet.Protocol.ICMP, InetAddress.getByName("0.0.0.0"), 0)
         }
     }
 
@@ -181,13 +181,14 @@ class GoingLightVpnService : VpnService() {
             buf.position(pos)
             p
         } else 0
-        // Stand-in for UID: 0. The real implementation
-        // maintains a (source_ip, source_port) -> uid table.
-        // The PacketForwarder handles 0 as "unknown app
-        // UID" and applies the conservative DROP rule, so
-        // the safe failure mode is "drop everything we
-        // can't positively identify as a system UID."
-        return Packet(0, protocol, destAddr, destPort)
+        // The (source_ip, source_port) -> uid table is
+        // not implemented in v1.1. The VpnService
+        // represents every unattributed packet as
+        // [Packet.UID_UNRESOLVED], which the
+        // PacketForwarder fail-closes to DROP. The safe
+        // default is "drop what we can't positively
+        // identify."
+        return Packet(Packet.UID_UNRESOLVED, protocol, destAddr, destPort)
     }
 
     private fun parseIpv6(buf: ByteBuffer): Packet {
@@ -209,7 +210,7 @@ class GoingLightVpnService : VpnService() {
             buf.position(pos)
             p
         } else 0
-        return Packet(0, protocol, destAddr, destPort)
+        return Packet(Packet.UID_UNRESOLVED, protocol, destAddr, destPort)
     }
 
     override fun onRevoke() {
@@ -220,6 +221,39 @@ class GoingLightVpnService : VpnService() {
     override fun onDestroy() {
         stop()
         super.onDestroy()
+    }
+
+    /**
+     * Handle the start/stop intents the
+     * [GoingLightScheduler] sends. ACTION_START opens
+     * the VPN; ACTION_STOP tears it down and stops the
+     * service. GoingLightScheduler.disable uses
+     * ACTION_STOP so disabling the schedule during an
+     * active window immediately stops the VPN (CodeRabbit
+     * audit 2026-08-08: the previous behavior cancelled
+     * only the alarm, leaving the VPN running until the
+     * next transition).
+     */
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            ACTION_START -> {
+                if (!isRunning) {
+                    val started = start()
+                    if (!started) {
+                        stopForeground(true)
+                        stopSelf()
+                        return START_NOT_STICKY
+                    }
+                }
+            }
+            ACTION_STOP -> {
+                stop()
+                stopForeground(true)
+                stopSelf()
+                return START_NOT_STICKY
+            }
+        }
+        return START_STICKY
     }
 
     companion object {

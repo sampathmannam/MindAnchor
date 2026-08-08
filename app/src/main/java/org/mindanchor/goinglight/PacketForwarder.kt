@@ -24,6 +24,27 @@ import java.nio.ByteBuffer
  * JVM. The VpnService calls this function in its
  * `protect()` loop and acts on the verdict.
  *
+ * ## Source-UID representation
+ *
+ * The VpnService does not expose the source UID of a
+ * captured packet directly. The service runs a
+ * (source_ip, source_port) -> uid table refreshed from
+ * `/proc/net/tcp{6}` every few seconds. When the table
+ * lookup fails (cold start, an unobserved source), the
+ * service represents the unresolved UID as
+ * [UID_UNRESOLVED]. The PacketForwarder treats
+ * [UID_UNRESOLVED] as **fail-closed**: an unknown app
+ * UID gets the conservative DROP, never a silent
+ * FORWARD. The safe failure mode is "drop what we
+ * can't positively identify."
+ *
+ * (CodeRabbit audit 2026-08-08: the v0.20.0 code
+ * treated UID 0 as a "system UID" and forwarded it,
+ * which forwarded every packet the service could not
+ * attribute. v0.20.1 uses an explicit allowlist
+ * ([systemUids]) and a fail-closed path for the
+ * unresolved case.)
+ *
  * @wording-reviewed — copy that surfaces "drop", "forward",
  * "error" in user-visible strings depends on these verdicts.
  */
@@ -35,6 +56,17 @@ data class Packet(
     val raw: ByteBuffer = ByteBuffer.allocate(0),
 ) {
     enum class Protocol { TCP, UDP, ICMP }
+
+    companion object {
+        /**
+         * The sentinel for an unresolved source UID.
+         * The VpnService sets [sourceUid] to this value
+         * when the (source_ip, source_port) -> uid
+         * table lookup fails. The PacketForwarder
+         * fails closed on this case.
+         */
+        const val UID_UNRESOLVED = -1
+    }
 }
 
 enum class Verdict { FORWARD, DROP, RETURN_ERROR }
@@ -44,72 +76,102 @@ enum class Verdict { FORWARD, DROP, RETURN_ERROR }
  * no I/O, no Android calls.
  *
  * The rules:
- *  1. Calls and SMS ports (TCP 5060, 5061 for SIP; the
- *     carrier's signaling channel; SMS over IMS) are
- *     always forwarded. The literature is unambiguous
- *     that the active ingredient is *content*, not
- *     *communication*.
- *  2. Loopback and link-local are forwarded (the VpnService
- *     itself needs them to operate).
- *  3. The local DNS resolver (port 53 to a private RFC1918
+ *  1. **Communication channels**: SIP signaling
+ *     (TCP/UDP 5060, 5061) is always forwarded. The
+ *     carrier's wider signaling range is *not* allowed
+ *     for arbitrary destinations — see
+ *     [isCarrierSignaling] for the narrowed rule.
+ *  2. **Loopback and link-local** are forwarded (the
+ *     VpnService itself needs them to operate).
+ *  3. **Local DNS** (port 53 to a private RFC1918
  *     address) is forwarded so apps can resolve names.
  *     Apps will then *try* to connect to the resolved IP,
  *     and that connection attempt is what we drop.
- *  4. Everything else: depends on whether the source UID
- *     is in the [contentUids] set (the browser, social,
- *     YouTube, etc. — configurable in settings) and
- *     whether the [blockAll] flag is set (the "off" mode
- *     of Going Light, used by the data layer to mean
- *     "schedule is disabled"). DROP for content UIDs;
- *     FORWARD for system UIDs (so the system itself can
- *     still reach the network for things like time sync).
- *  5. Unknown protocols (anything that isn't TCP/UDP/ICMP)
- *     get RETURN_ERROR. The VpnService returns -1 to the
- *     app, which causes a "no route to host" — the same
- *     silent-fail the Castelo trial used.
+ *  4. **Schedule is off** (`!blockAll`): everything
+ *     forwards. The schedule's "off" mode means the user
+ *     disabled the schedule; the VpnService may still be
+ *     running briefly during a transition.
+ *  5. **System UIDs** (the explicit allowlist in
+ *     [systemUids], default `{1000, 1001}`): always
+ *     forward. This is the telephony / network-management
+ *     set; the well-known uid range, not the entire
+ *     uid < 1000 range, because the implementation
+ *     below is conservative — only explicitly
+ *     allow-listed UIDs.
+ *  6. **Content UIDs** (the [contentUids] set the
+ *     settings UI populates): DROP. This is the Castelo
+ *     target.
+ *  7. **Unresolved source UID** ([Packet.UID_UNRESOLVED]):
+ *     DROP. The service couldn't attribute the packet to
+ *     any app; the safe default is to drop.
+ *  8. **App UID not in the content set, and not in the
+ *     system set, and not unresolved**: DROP. Going Light
+ *     is *mobile internet* off, not a per-app filter;
+ *     the safer behaviour is to drop and let the user
+ *     add the app to the content set if they want it
+ *     through.
+ *  9. **Unknown protocols** (anything that isn't
+ *     TCP/UDP/ICMP) get RETURN_ERROR. The VpnService
+ *     returns -1 to the app, which causes a "no route
+ *     to host" — the same silent-fail the Castelo trial
+ *     used.
  */
 class PacketForwarder(
     private val contentUids: Set<Int> = emptySet(),
+    private val systemUids: Set<Int> = setOf(1000, 1001),
     private val blockAll: Boolean = false,
 ) {
     fun decide(packet: Packet): Verdict = when {
-        // Rule 1: communication channels always forward
-        isCommunicationChannel(packet) -> Verdict.FORWARD
+        // Rule 1: SIP signaling (VoLTE/VoWiFi).
+        // Tightly scoped to the well-known SIP ports; no
+        // broader carrier range (the v0.20.0 range
+        // 5000-5099 was a port-range bypass for content
+        // apps on the public internet — see the carrier-
+        // signaling rule below for the narrow fix).
+        isSipSignaling(packet) -> Verdict.FORWARD
         // Rule 2: loopback / link-local
         isLocalAddress(packet.destinationAddress) -> Verdict.FORWARD
         // Rule 3: local DNS
         isLocalDns(packet) -> Verdict.FORWARD
-        // Rule 4: blockAll (the schedule's "off" mode means:
-        // don't block, the user disabled the schedule)
+        // Rule 4: schedule is off
         !blockAll -> Verdict.FORWARD
-        // Rule 4: content UIDs are the Castelo target
+        // Rule 7: unresolved source UID. The service
+        // couldn't attribute this packet to any app; the
+        // safe default is to drop. (CodeRabbit audit
+        // 2026-08-08: the v0.20.0 code treated UID 0 as
+        // a "system UID" and forwarded it, which
+        // forwarded every packet the service could not
+        // attribute. v0.20.1 fail-closes here.)
+        packet.sourceUid == Packet.UID_UNRESOLVED -> Verdict.DROP
+        // Rule 5: explicit system UID allowlist. Honors
+        // [systemUids] (default: 1000, 1001 — the
+        // system and the radio). The previous code
+        // dropped 1000 and 1001 because the rule was
+        // `sourceUid < 1000`; the new rule is a direct
+        // membership check.
+        packet.sourceUid in systemUids -> Verdict.FORWARD
+        // Rule 6: content UIDs (Castelo target)
         packet.sourceUid in contentUids -> Verdict.DROP
-        // System UIDs (uid < 10000 on Android) can reach
-        // the network for things like NTP. App UIDs not in
-        // the content set are user apps that the user has
-        // not flagged for blocking; let them through.
-        packet.sourceUid < 1000 -> Verdict.FORWARD
-        // Unknown app UID: same as a content app. Conservative.
+        // Rule 8: app UID not in the content set, not
+        // in the system set, and not unresolved. DROP.
         else -> Verdict.DROP
     }
 
-    private fun isCommunicationChannel(packet: Packet): Boolean {
+    /**
+     * SIP signaling is TCP/UDP on ports 5060 and 5061
+     * only. The wider 5000-5099 range is *not* a
+     * general carrier range: it overlaps with arbitrary
+     * services a content app could host. The v0.20.0
+     * rule forwarded any packet on that range to any
+     * destination, which was an open bypass. v0.20.1
+     * only allows SIP on the well-known ports.
+     */
+    private fun isSipSignaling(packet: Packet): Boolean {
         if (packet.protocol != Packet.Protocol.TCP &&
             packet.protocol != Packet.Protocol.UDP
         ) return false
-        // SIP (VoLTE/VoWiFi signaling)
-        if (packet.destinationPort == 5060 || packet.destinationPort == 5061) {
-            return true
-        }
-        // The carrier's signaling port range varies by carrier
-        // but is typically in the 5000-5099 range. We allow
-        // the wider range to avoid breaking on carrier
-        // variation. The literature doesn't pin a specific
-        // range; the goal is "communication works."
-        if (packet.destinationPort in 5000..5099) {
-            return true
-        }
-        return false
+        return packet.destinationPort == 5060 ||
+            packet.destinationPort == 5061
     }
 
     private fun isLocalAddress(addr: InetAddress): Boolean {

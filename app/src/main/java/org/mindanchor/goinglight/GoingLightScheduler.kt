@@ -136,6 +136,16 @@ class GoingLightScheduler : BroadcastReceiver() {
             CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
                 prefs.setGoingLightSchedule(GoingLightSchedule(enabled = false))
             }
+            // Stop the active VPN. The user just disabled
+            // the schedule; an in-flight VpnService must
+            // not keep blocking content until the next
+            // alarm. The ACTION_STOP handler in the service
+            // closes the VPN interface and calls
+            // stopSelf().
+            val stopIntent = Intent(context, GoingLightVpnService::class.java).apply {
+                action = GoingLightVpnService.ACTION_STOP
+            }
+            context.startService(stopIntent)
             val alarmIntent = Intent(context, GoingLightScheduler::class.java)
             val pi = PendingIntent.getBroadcast(
                 context, 0, alarmIntent,
