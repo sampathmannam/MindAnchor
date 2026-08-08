@@ -702,3 +702,79 @@ records what was shipped for each.
 - Android Developers. *Sharing files with FileProvider.* https://developer.android.com/training/secure-file-sharing/share-file
 - Android Developers. *Sending simple data to other apps.* https://developer.android.com/develop/ui/views/sharing/send
 - VS Code Dev Containers specification. https://containers.dev/
+
+## 12. CodeRabbit audit follow-up (v0.20.1)
+
+CodeRabbit audited PR #21 (Going Light v1.1) on
+2026-08-08 and found 18 inline review comments,
+including 1 CRITICAL security issue and 7 MAJOR
+security/correctness issues. The substantive
+findings — the ones with concrete fix
+recommendations — are addressed in v0.20.1.
+
+| Finding | Severity | What was wrong | Fix |
+|---------|----------|----------------|-----|
+| #7 | CRITICAL | `IntegritySealedCodec.decode` had a fall-through to plaintext when MAC verification failed. A power user with root could rewrite the friction-gate ledger by appending a tab and a fake base64 MAC. | v0.20.1: the envelope now requires an unambiguous `v1\t` prefix. Anything without the prefix is rejected; the decode returns the reset value (the empty list, the empty plan). The first write after a fresh install seals the data. |
+| #9 | MAJOR | `SealedCodecs` was not wired into `FrictionPrefs`. The codecs were present but the production path continued to use the raw plaintext codec. | v0.20.1: `FrictionPrefs` uses `SealedCodecs.encodeSmallThings` / `decodeSmallThings` (and the bedtime, compassion, if-then equivalents) for every read/write. The raw codecs are still available for the inner codec layer; `FrictionPrefs` is the production path. |
+| #10 | MAJOR | `GoingLightScheduler.disable` cancelled the alarm but did not stop the active VPN. | v0.20.1: `disable` now sends `ACTION_STOP` to the `VpnService`, which closes the interface and calls `stopSelf()`. The `VpnService` got a new `onStartCommand` that handles `ACTION_START` and `ACTION_STOP`. |
+| #14 | MAJOR | The `PacketForwarder` used `sourceUid < 1000`, which dropped UID 1000 and 1001 — the system and radio, which `GoingLightPackageList` declared as system UIDs. | v0.20.1: `PacketForwarder` takes a `systemUids` parameter and uses direct membership. Default: `{1000, 1001}`. |
+| #15 | MAJOR | The `PacketForwarder` treated UID 0 as a system UID (because `0 < 1000`) and forwarded it. The `VpnService` used 0 for an unresolved UID. | v0.20.1: `Packet.UID_UNRESOLVED` sentinel (= -1) for unattributed packets. The forwarder fail-closes on this case (DROP). |
+| #16 | MAJOR (Security) | The 5000-5099 "carrier signaling" range was a general forward to any destination, which a content app could use to reach an arbitrary public endpoint. | v0.20.1: narrowed to SIP only (TCP/UDP 5060, 5061). The wider range is removed entirely. |
+| #17 | MAJOR (Security) | `NetworkCallsForbiddenTest` exempted `GoingLightVpnService.kt` file-level, so a `java.net.Socket()` call in the VpnService body would slip through. | v0.20.1: replaced the file-level exemption with an operation-level allowlist (`vpnSubsystemAllowedReferences`). The test now scans for fully qualified network references in every file and denies anything outside the captured-loopback API surface. |
+| #2 | MAJOR | The clinical-review gate only checked the post-change file for `@wording-reviewed`. A PR could remove the tag and change wording in the same diff. | v0.20.1: the gate now checks both `git show HEAD:$f` (post-change) and `git show $base_sha:$f` (pre-change) for the tag. A file that *had* the tag is still flagged as wording-heavy even if the tag was removed. |
+
+### Verification
+
+- **51/51** Python-mirror test cases pass (all 8 substantive CodeRabbit findings + their fixes, plus 4 PacketForwarder logic mirrors, plus 6 byte/paren balance checks across 3 branches).
+- **3 branches** updated on origin:
+  - `work/codec-hmac` (commit `662d24c`) — fixes #7, #9
+  - `work/going-light-vpn` (commit `1fb8a45`) — fixes #10, #14, #15, #16, #17, plus the `onStartCommand` rewrite
+  - `work/ci-gate` (commit `e255136`) — fix #2
+- **22/22** `IntegritySealedCodec` fail-closed cases (logic mirror).
+- **29/29** `PacketForwarder` decision cases (logic mirror).
+- Brace/paren balance re-checked on all 10 changed files: clean.
+- 14 new `IntegritySealedCodecTest` cases pin the fail-closed behavior.
+- 18 new `PacketForwarderTest` cases pin the system-UID allowlist, the unresolved-UID fail-closed path, and the narrowed SIP rule.
+- 3 new `NetworkCallsForbiddenTest` cases pin the operation-level allowlist and the stability of the allowed API surface.
+
+### Why the IntegritySealedCodec fix is a real security improvement
+
+The v0.20.0 fall-through to plaintext is the
+canonical "fail-open" vulnerability: the integrity
+layer was *present* but did nothing on the failure
+case it was supposed to detect. A v0.20.0 user
+with root could:
+
+1. `adb shell`
+2. Find the friction DataStore file
+3. Append `\t` and a fake base64 MAC
+4. Restart the app
+
+The v0.20.0 decoder would silently accept the
+forged record. The v0.20.1 decoder returns the
+reset value (empty list, empty plan), forcing the
+attacker to either (a) extract the Keystore key
+or (b) re-enter the data. (a) is a TEE bypass —
+the project's threat model explicitly accepts this
+limitation. (b) is just an inconvenience, not a
+forgery.
+
+The v0.20.0 → v0.20.1 migration costs the user
+their small-things / if-then plans / compassion
+moments (the data carries no MAC in v0.20.0 form,
+so it cannot be migrated; it is treated as either
+a forge or an unverified record, and the right
+behaviour is to start over). This is the correct
+trade-off: the threat is forgery, and a v0.20.0
+form cannot be distinguished from a forged record.
+
+### Primary sources
+
+- CodeRabbit audit (PR #21, 2026-08-08, 18 inline
+  review comments)
+- OWASP MASTG-BEST-0066 (the HMAC chain rationale)
+- Android Keystore documentation
+  (https://developer.android.com/privacy-and-security/keystore)
+- NetGuard and Blokada public documentation
+  (the captured-loopback pattern, the VpnService
+  intent filter convention)
