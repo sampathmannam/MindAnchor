@@ -71,7 +71,13 @@ class CheckInTrigger : BroadcastReceiver() {
                 val state = prefs.checkIns.first()
 
                 val now = System.currentTimeMillis()
-                val rateLimit = CheckInRateLimit()
+                // Use the process-scoped rate-limit
+                // holder. The trigger and the
+                // activity share the same in-memory
+                // state, so a consecutive-rejection
+                // counter carries across phone
+                // unlocks within the same process.
+                val rateLimit = CheckInRateLimitHolder.state
                 val shouldFire = CheckInEngine.shouldFire(
                     rateLimit = rateLimit,
                     state = state,

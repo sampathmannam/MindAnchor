@@ -21,13 +21,17 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -87,12 +91,50 @@ fun NoteScreen(
     var editorBody by remember { mutableStateOf("") }
     var newNoteDraft by remember { mutableStateOf("") }
 
+    // The composer's focus requester. The
+    // "directly" affordance: the user lands on the
+    // notes screen and the keyboard is already up.
+    // The capture pattern fails if the user has
+    // to tap the field before they can type.
+    val composerFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        if (notes.notes.isEmpty() && editingNoteId == null) {
+            // Only auto-focus on the empty state.
+            // If the user is returning to a screen
+            // with notes, don't steal focus from
+            // the list view.
+            composerFocus.requestFocus()
+        }
+    }
+
     val sorted = NoteStore.sortedForList(notes.notes)
+
+    // Back handler: if the user is mid-edit on a
+    // note, back exits edit mode (and saves the
+    // in-flight edit). Otherwise back falls through
+    // to the activity's onBackPressedDispatcher
+    // callback, which calls finish().
+    BackHandler(enabled = editingNoteId != null) {
+        val id = editingNoteId
+        if (id != null) {
+            onEdit(id, editorBody)
+            editingNoteId = null
+            editorBody = ""
+        }
+    }
 
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             TopAppBar(
                 title = { Text(stringResource(R.string.note_new)) },
+                navigationIcon = {
+                    IconButton(onClick = onClose) {
+                        Text(
+                            text = "←",
+                            style = MaterialTheme.typography.titleLarge,
+                        )
+                    }
+                },
             )
 
             // The new-note composer. Always visible
@@ -109,7 +151,8 @@ fun NoteScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .heightIn(min = 80.dp),
+                    .heightIn(min = 80.dp)
+                    .focusRequester(composerFocus),
                 placeholder = { Text(stringResource(R.string.note_body_hint)) },
                 keyboardOptions = KeyboardOptions(
                     capitalization = KeyboardCapitalization.Sentences,

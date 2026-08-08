@@ -206,6 +206,21 @@ fun LauncherRoot(
                     reportCameFrom = LauncherSurface.Home
                     surface = LauncherSurface.Report
                 },
+                onOpenNotes = {
+                    // v0.20.1 round 5: route to the
+                    // notes activity. runCatching
+                    // because a misconfigured
+                    // manifest is the easiest way to
+                    // ship a broken entry point, and
+                    // the cost of catching is one
+                    // try-frame, not a UX failure.
+                    runCatching {
+                        val notesIntent = android.content.Intent(
+                            context, org.mindanchor.model.NoteActivity::class.java,
+                        )
+                        context.startActivity(notesIntent)
+                    }
+                },
             )
         }
 
@@ -482,6 +497,14 @@ private fun HomeSurface(
     /** Shown only when last night's report actually has something in it. */
     hasReport: Boolean = false,
     onOpenReport: () -> Unit = {},
+    /**
+     * v0.20.1 round 5: route to [org.mindanchor.model.NoteActivity].
+     * Notes are a one-tap home-screen affordance for the
+     * "I want to remember this" capture pattern (brief §A).
+     * TopEnd so it does not collide with TopStart (Support)
+     * or BottomStart (Digest) or BottomEnd (Settings).
+     */
+    onOpenNotes: () -> Unit = {},
 ) {
     val now = rememberMinuteTick()
     val clockFormat = rememberClockFormat()
@@ -631,6 +654,24 @@ private fun HomeSurface(
         ) {
             Text(
                 text = stringResource(R.string.support_shortcut),
+                style = MaterialTheme.typography.labelMedium,
+                color = sky.textSecondary,
+            )
+        }
+
+        // v0.20.1 round 5: notes entry point. TopEnd
+        // so it does not collide with TopStart
+        // (Support), BottomStart (Digest), or
+        // BottomEnd (Settings). One-tap, no
+        // scrolling. The brief: "I want to remember
+        // this" — the entry must be reachable the
+        // moment the user thinks it.
+        TextButton(
+            onClick = onOpenNotes,
+            modifier = Modifier.align(Alignment.TopEnd),
+        ) {
+            Text(
+                text = stringResource(R.string.notes_shortcut),
                 style = MaterialTheme.typography.labelMedium,
                 color = sky.textSecondary,
             )

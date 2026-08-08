@@ -2,6 +2,7 @@ package org.mindanchor.model
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.addCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.collectAsState
@@ -43,9 +44,38 @@ import org.mindanchor.ui.MindAnchorTheme
  */
 class NoteActivity : ComponentActivity() {
 
+    /**
+     * Monotonic counter for note ids. Two notes
+     * saved in the same wall-clock millisecond
+     * would otherwise collide (the brief
+     * acknowledged the risk; the fix is cheap).
+     * The counter is in-memory and process-local;
+     * a process restart resets it, and the new ids
+     * are still higher than the old (Long is wide
+     * enough that overflow is not a real concern
+     * for a human-scale note collection).
+     */
+    private val idCounter = java.util.concurrent.atomic.AtomicLong(
+        System.currentTimeMillis(),
+    )
+
+    private fun nextId(): Long = idCounter.incrementAndGet()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Hook the system back button to close the
+        // activity. Compose's TopAppBar has its own
+        // back button via the navigationIcon slot,
+        // but the system back gesture / button needs
+        // an explicit handler to dismiss the
+        // activity. Without this the user has to use
+        // the in-app back button, which is a
+        // discoverability failure.
+        onBackPressedDispatcher.addCallback(this) {
+            finish()
+        }
 
         val prefs = NotesPrefs(applicationContext)
 
@@ -56,15 +86,15 @@ class NoteActivity : ComponentActivity() {
                     notes = state,
                     onAdd = { body ->
                         // Auto-save on add. The id is
-                        // wall-clock millis; the
-                        // collision risk for a single
-                        // human typing in one second
-                        // is effectively zero.
+                        // a monotonic counter so two
+                        // notes saved in the same
+                        // millisecond do not collide
+                        // (brief §A5).
                         val now = System.currentTimeMillis()
                         lifecycleScope.launch {
                             prefs.add(
                                 Note(
-                                    id = now,
+                                    id = nextId(),
                                     body = body,
                                     createdAt = now,
                                     updatedAt = now,

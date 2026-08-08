@@ -8,7 +8,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.addCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import org.mindanchor.data.CheckInPrefs
 import org.mindanchor.ui.MindAnchorTheme
@@ -89,12 +88,24 @@ class CheckInActivity : ComponentActivity() {
         }
 
         val prefs = CheckInPrefs(applicationContext)
-        val rateLimit = MutableStateFlow(CheckInRateLimit())
+
+        // Use the process-scoped rate-limit holder
+        // (CheckInRateLimitHolder). The trigger and
+        // the activity share the same in-memory
+        // state, so a consecutive-rejection counter
+        // carries across phone unlocks within the
+        // same process. On process death the holder
+        // is fresh (transient by design, brief §B6).
+        var rateLimitValue = CheckInRateLimitHolder.state
 
         // Capture the day boundary at the moment
         // the activity is created, in the device's
         // local time zone. The engine uses this for
-        // its rate-limit state.
+        // its rate-limit state. The first call to
+        // rolloverIfNeeded with an UNINITIALISED
+        // day sets the boundary and clears the daily
+        // counters; the holder might already have a
+        // boundary from earlier today.
         val zone = ZoneId.systemDefault()
         val nowMillis = System.currentTimeMillis()
         val dayStart = java.time.Instant.ofEpochMilli(nowMillis)
@@ -103,7 +114,10 @@ class CheckInActivity : ComponentActivity() {
             .atStartOfDay(zone)
             .toInstant()
             .toEpochMilli()
-        rateLimit.value = CheckInRateLimit(dayStartMillis = dayStart)
+        if (rateLimitValue.dayStartMillis == CheckInRateLimit.UNINITIALISED_DAY) {
+            rateLimitValue = rateLimitValue.copy(dayStartMillis = dayStart)
+            CheckInRateLimitHolder.state = rateLimitValue
+        }
 
         // Reject-tracking. A "rejection" is a back-
         // press that does not result in a save. We
@@ -121,8 +135,8 @@ class CheckInActivity : ComponentActivity() {
         // just a simple back button to reject").
         onBackPressedDispatcher.addCallback(this) {
             if (!saved) {
-                rateLimit.value = CheckInEngine.recordRejection(
-                    rateLimit = rateLimit.value,
+                CheckInRateLimitHolder.state = CheckInEngine.recordRejection(
+                    rateLimit = CheckInRateLimitHolder.state,
                     nowMillis = System.currentTimeMillis(),
                 )
             }
@@ -154,12 +168,12 @@ class CheckInActivity : ComponentActivity() {
                         // state here is just for the
                         // engine's day-window count.
                         val (newRl, _) = CheckInEngine.recordAcceptance(
-                            rateLimit = rateLimit.value,
+                            rateLimit = CheckInRateLimitHolder.state,
                             state = CheckInState(),
                             checkIn = checkIn,
                             nowMillis = now,
                         )
-                        rateLimit.value = newRl
+                        CheckInRateLimitHolder.state = newRl
                         lifecycleScope.launch {
                             runCatching { prefs.add(checkIn) }
                         }
