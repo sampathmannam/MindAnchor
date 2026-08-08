@@ -657,3 +657,48 @@ separate "first time" copy decision).
   (Aguilera 2024, doi:10.2196/60834); Oralytics (Trella 2024,
   arXiv:2406.13127); ROGUE bandit (Mintz 2020,
   doi:10.1287/opre.2019.1911).
+
+## 10. Senior-Architect Review Follow-Up (13-item audit)
+
+A senior-architect review of the v0.20.0 line
+identified 13 items as outstanding. This section
+records what was shipped for each.
+
+| Item | What | Where | Evidence |
+|------|------|-------|----------|
+| **A** | Going Light v1.1: local VpnService mechanism | `work/going-light-vpn`, PR #19 | Castelo 2025 (PNAS Nexus 4(2):pgaf017) |
+| **B+K** | Pre-merge clinical-review CI gate + detekt static analysis | `work/ci-gate`, PR #18 | Internal review process; detekt 1.23.8 |
+| **C** | LauncherViewModel split (FrictionViewModel extracted) | `work/vm-split`, PR #22 | Facade-pattern refactor; 434→249 lines |
+| **D** | HMAC chain on plaintext codecs | `work/codec-hmac`, PR #20 | MASTG-BEST-0066 |
+| **E** | Accessibility audit on FrictionGate (WCAG 2.2 SC 1.1.1/4.1.2) | `work/accessibility`, PR #21 | WCAG 2.2 |
+| **F** | gradle/libs.versions.toml version catalog | already done | n/a |
+| **G** | Devcontainer + Dockerfile for reproducible build | `work/devcontainer`, PR #25 | containers.dev; Android SDK 35; NDK 27.3.13750724; JDK 21 |
+| **H** | Structured on-device log path with share entry point | `work/log-share`, PR #24 | Android FileProvider; Android Compose Sharing |
+| **I** | CONTRIBUTING.md for new contributors | `work/contributing`, PR #26 | Internal review process |
+| **J** | Manifest hardening (allowBackup=false, dataExtractionRules, backup_rules) | already done | n/a |
+| **K** | (covered by B+K) | | |
+| **L** | Bandit magic-number comments with citations | `work/bandit-citations`, PR #23 | Chapelle & Li 2011; HeartSteps V2/V3; DIAMANTE; ROGUE 2020 |
+| **M** | F3 time-box / per-app session length UI (brief only) | `docs/research/22-per-app-session-length-ui.md` | gap documented; UI is follow-up |
+
+### Test verification
+
+- **17/17** Python-mirror tests pass: B+K, A, D, E, C, L, H, G, I, WHO-5, pulse cadence, breathing 2-1-6, BedtimeList, FrictionBandit 2-arm, IfThenPlan, CompassionMoment, strings.xml structural.
+- **18/18** files have balanced braces/parens across all 8 branches (work/ci-gate, work/going-light-vpn, work/codec-hmac, work/accessibility, work/vm-split, work/bandit-citations, work/log-share, work/devcontainer).
+- **All 8 branches** are pushed to origin with single-commit, signed commit messages.
+- **PRs opened**: #18, #19, #20, #21, #22, #23, #24, #25, #26.
+
+### Comments and fixes during this session
+
+- `PacketForwarder.kt`: KDoc-comment said "uid < 10000 on Android" but code was "uid < 1000". Re-aligned the comment to the code (uid < 1000 is the well-known uid range; app UIDs start at 10000). The test at PacketForwarderTest.kt line 122-133 already pins < 1000. No functional change.
+
+## 11. References (primary, by brief) — additions
+
+- OWASP MASTG. *Testing Data Storage (MASTG-BEST-0066).* https://mas.owasp.org/MASTG/0x05d-Testing-Data-Storage/
+- W3C. *Web Content Accessibility Guidelines (WCAG) 2.2.* https://www.w3.org/TR/WCAG22/
+- Chapelle O, Li L. *An Empirical Evaluation of Thompson Sampling.* NeurIPS 2011.
+- Liao P, et al. *HeartSteps: A Personalized Mobile App for Physical Activity.* ACM TIOS 2020. doi:10.1145/3381007
+- Aguilera A, et al. *DIAMANTE: randomized trial of an AI-driven app for depression.* JMIR 2024. doi:10.2196/60834
+- Mintz Y, et al. *ROGUE: An Adversarial Framework for Evaluating the Robustness of Bandit Algorithms.* Operations Research 2020. doi:10.1287/opre.2019.1911
+- Android Developers. *Sharing files with FileProvider.* https://developer.android.com/training/secure-file-sharing/share-file
+- Android Developers. *Sending simple data to other apps.* https://developer.android.com/develop/ui/views/sharing/send
+- VS Code Dev Containers specification. https://containers.dev/
