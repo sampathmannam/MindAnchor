@@ -1,5 +1,11 @@
 package org.mindanchor.friction
 
+import org.mindanchor.model.CheckIn
+import org.mindanchor.model.CheckInState
+import org.mindanchor.model.CheckInStore
+import org.mindanchor.model.Note
+import org.mindanchor.model.NotesState
+import org.mindanchor.model.NoteStore
 import org.mindanchor.sleep.BedtimeList
 
 /**
@@ -296,4 +302,88 @@ object SealedCodecs {
      */
     fun encodePerAppSessionLength(value: PerAppSessionLength): String =
         perAppSessionLength.encode(PerAppSessionLengthStore.encode(value))
+
+    /**
+     * The sealed notes codec. codecId is
+     * "notes". v0.20.1 round 5.
+     *
+     * Threat model: a motivated user with root
+     * could rewrite the on-disk notes and either
+     * impersonate a note the user did not write or
+     * delete a note the user did write. The seal
+     * makes the on-disk form tamper-evident; a
+     * forged note (or a deleted note) fails the
+     * MAC and falls back to the empty state. The
+     * user re-enters the note (capture pattern
+     * survives, history does not).
+     */
+    val notes: IntegritySealedCodec = IntegritySealedCodec(
+        inner = object : IntegritySealedCodec.Codec<String> {
+            override fun encode(value: String): String = value
+            override fun decode(encoded: String): String = encoded
+        },
+        codecId = "notes",
+        keyProvider = { keyProvider() ?: throw IllegalStateException("Keystore unavailable") },
+        resetValue = NoteStore.encode(emptyList()),
+    )
+
+    /**
+     * Helper: decode the on-disk string for notes
+     * via the sealed codec, returning the empty
+     * state on any failure.
+     */
+    fun decodeNotes(raw: String): NotesState =
+        try {
+            NotesState(NoteStore.decode(notes.decode(raw)))
+        } catch (e: Exception) {
+            NotesState()
+        }
+
+    /**
+     * Helper: encode a notes state via the sealed
+     * codec.
+     */
+    fun encodeNotes(value: NotesState): String =
+        notes.encode(NoteStore.encode(value.notes))
+
+    /**
+     * The sealed check-ins codec. codecId is
+     * "checkins". v0.20.1 round 5.
+     *
+     * The threat model is identical to notes: a
+     * motivated user with root could rewrite the
+     * accepted check-ins. The seal makes the
+     * on-disk form tamper-evident; a forged or
+     * deleted record fails the MAC and falls back
+     * to the empty state. The next legitimate
+     * check-in is the first sealed record.
+     */
+    val checkIns: IntegritySealedCodec = IntegritySealedCodec(
+        inner = object : IntegritySealedCodec.Codec<String> {
+            override fun encode(value: String): String = value
+            override fun decode(encoded: String): String = encoded
+        },
+        codecId = "checkins",
+        keyProvider = { keyProvider() ?: throw IllegalStateException("Keystore unavailable") },
+        resetValue = CheckInStore.encode(emptyList()),
+    )
+
+    /**
+     * Helper: decode the on-disk string for
+     * check-ins via the sealed codec, returning
+     * the empty state on any failure.
+     */
+    fun decodeCheckIns(raw: String): CheckInState =
+        try {
+            CheckInState(CheckInStore.decode(checkIns.decode(raw)))
+        } catch (e: Exception) {
+            CheckInState()
+        }
+
+    /**
+     * Helper: encode a check-in state via the
+     * sealed codec.
+     */
+    fun encodeCheckIns(value: CheckInState): String =
+        checkIns.encode(CheckInStore.encode(value.checkIns))
 }
