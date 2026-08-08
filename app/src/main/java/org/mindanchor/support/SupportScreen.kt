@@ -60,6 +60,18 @@ fun SupportScreen(
     var editing by remember { mutableStateOf(false) }
     var dialFailure by remember { mutableStateOf<String?>(null) }
 
+    // "Get help" is reached through the support screen so the home-screen
+    // surface stays one calm icon ("support") and not a red banner.
+    // R1 of `docs/CLINICAL_REVIEW.md` records the deliberate absence of a
+    // hardcoded crisis line; `docs/research/14` reviewed the primary
+    // safety literature (Stanley & Brown 2012 SPI Step 5; WHO mhGAP 2023;
+    // SAMHSA 988; APA Digital Mental Health 101; Dwyer 2025 *Psychiatr
+    // Serv* 76:867–871; NHS Design Patterns for Mental Health) and
+    // concluded the R1 decision was *not defensible* against that
+    // literature. The R1 surface — a calm, country-aware, opt-in
+    // "Get help" sheet — is the evidence-respecting fix.
+    var showGetHelp by remember { mutableStateOf(false) }
+
     // A crisis button must never fail silently. Swallowing the exception
     // leaves someone staring at a screen that did nothing while believing
     // they placed a call, so a failure has to say so and hand back the
@@ -72,6 +84,11 @@ fun SupportScreen(
             )
         }.isSuccess
         dialFailure = if (opened) null else number
+    }
+
+    if (showGetHelp) {
+        GetHelpSheet(onClose = { showGetHelp = false })
+        return
     }
 
     Surface(modifier = Modifier.fillMaxSize()) {
@@ -96,6 +113,40 @@ fun SupportScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+
+            // --- Get help now: country-aware, one tap, off by default ---
+            //
+            // This is the entry point for the R1 fix documented in
+            // docs/research/14. The wording is "Get help now", not
+            // "Crisis" or "Emergency" — a verb, not a label, per the
+            // Samaritans / Wysa / NOCD / Headspace pattern.
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                ),
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = stringResource(R.string.get_help_entry_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                        modifier = Modifier.semantics { heading() },
+                    )
+                    Text(
+                        text = stringResource(R.string.get_help_entry_body),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                    TextButton(onClick = { showGetHelp = true }) {
+                        Text(
+                            stringResource(R.string.get_help_entry_action),
+                            color = MaterialTheme.colorScheme.onTertiaryContainer,
+                        )
+                    }
+                }
+            }
 
             // --- Reach someone, first and without scrolling ---
             Card(

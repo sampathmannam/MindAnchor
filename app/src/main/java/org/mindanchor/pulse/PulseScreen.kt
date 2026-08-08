@@ -205,18 +205,42 @@ fun PulseScreen(
                     }
                 }
             } else {
+                val score = savedScore ?: 0
+                val band = WhoFive.band(score)
+                val context = LocalContext.current
+
+                // The number is shown alongside a plain-language band,
+                // and the band drives the wording. Wording per
+                // `docs/research/13`: never bare; never "you may be
+                // depressed"; never diagnostic; never directive without
+                // a path. The screen-positive trigger fires for both
+                // the score (≤ 50) and any single item 0 or 1, the way
+                // the WHO 1998 DepCare document says it should.
                 Text(
-                    text = stringResource(R.string.pulse_result, savedScore ?: 0),
+                    text = stringResource(R.string.pulse_result, score),
                     style = MaterialTheme.typography.headlineMedium,
                     modifier = Modifier.padding(vertical = 16.dp),
                 )
-                if ((savedScore ?: 100) <= 50) {
-                    Text(
-                        text = stringResource(R.string.pulse_low_note),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    val context = LocalContext.current
+                Text(
+                    text = stringResource(
+                        when (band) {
+                            WhoFive.Band.OKAY -> R.string.pulse_band_okay
+                            WhoFive.Band.LOW -> R.string.pulse_band_low
+                            WhoFive.Band.VERY_LOW -> R.string.pulse_band_very_low
+                            WhoFive.Band.INCOMPLETE -> R.string.pulse_band_incomplete
+                        },
+                    ),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = stringResource(R.string.pulse_after_disclaimer),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+
+                if (band == WhoFive.Band.LOW || band == WhoFive.Band.VERY_LOW) {
                     TextButton(
                         onClick = {
                             runCatching {
@@ -228,6 +252,7 @@ fun PulseScreen(
                                 )
                             }
                         },
+                        modifier = Modifier.padding(top = 8.dp),
                     ) {
                         Text(stringResource(R.string.pulse_open_support))
                     }
@@ -243,6 +268,14 @@ fun PulseScreen(
                 // Newest first, which is the order the DAO returns, so the
                 // reading each entry is compared against is the next one
                 // down the list.
+                //
+                // The change between two readings is *only* shown when it
+                // crosses the WHO 1998 meaningful-change threshold
+                // (10 points, MEANINGFUL_CHANGE in WhoFive). Sub-threshold
+                // shifts are common day-to-day mood variance; the brief
+                // (`docs/research/13`) is explicit that framing noise as
+                // a trend is a documented harm (DISCOVER RCT, Lancet
+                // Digital Health 2024).
                 history.forEachIndexed { index, result ->
                     val date = Instant.ofEpochMilli(result.takenAt)
                         .atZone(ZoneId.systemDefault()).toLocalDate()
@@ -253,13 +286,21 @@ fun PulseScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(vertical = 2.dp),
                     )
-                    signedChange(result.score, history.getOrNull(index + 1)?.score)?.let { change ->
-                        Text(
-                            text = stringResource(R.string.pulse_history_change, change),
+                    val previous = history.getOrNull(index + 1)?.score
+                    when (WhoFive.change(result.score, previous)) {
+                        WhoFive.Change.MEANINGFUL_UP -> Text(
+                            text = stringResource(R.string.pulse_history_up),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(start = 16.dp, bottom = 6.dp),
                         )
+                        WhoFive.Change.MEANINGFUL_DOWN -> Text(
+                            text = stringResource(R.string.pulse_history_down),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 16.dp, bottom = 6.dp),
+                        )
+                        null -> Unit
                     }
                 }
             }
