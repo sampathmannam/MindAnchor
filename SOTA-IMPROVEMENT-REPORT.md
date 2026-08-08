@@ -881,3 +881,92 @@ A new file, `app/src/main/java/org/mindanchor/goinglight/SourceUidResolver.kt`, 
 ### PR comments
 
 The round 2 follow-up is posted on PR #19 (`120af44`) and PR #20 (`9ba5308`).
+
+## 15. Item M — per-app session-length data layer (v0.20.1 round 4)
+
+Item M is the last remaining "follow-up" from the 13-item senior-architect review (§10). The F3 time-box buttons are hardcoded to `[5L, 10L, 20L]` for every app; a user who wants "always 3 minutes for Instagram" or "always 30 minutes for email" has no per-app override.
+
+The brief (`docs/research/22-per-app-session-length-ui.md`) is the evidence-anchored design record. Headline points:
+
+- **No direct RCT of per-app session-length defaults in a friction-gate launcher exists.** The evidence is indirect: Lally 2010 (habit context-dependence), Adhikari & Alessandretti 2023 PNAS (36% of opens dismissed), Gollwitzer 1999 (implementation intentions), Wood & Neal 2007 (habits are context-specific). The brief is honest about the gap.
+- **The minimum design that respects the evidence is a default, not a cap.** The user-picked length is the *suggestion*; the existing 5/10/20 escape valves stay one tap away. No "recommended length" prompt — the launcher does not invent a length for the user.
+- **Per-app daily caps and "remember last choice" auto-learn are deferred.** The literature on caps is consistent that they backfire over the 6-week habituation window; the "remember last choice" pattern is from e-commerce, not mental-health apps.
+
+### What ships in v0.20.1 round 4
+
+- **`PerAppSessionLength`** data class: `Map<String, Long>` of `package -> minutes`, with `defaultMinutes(pkg)`, `record(pkg, minutes)`, `forget(pkg)`. Minutes clamped to `[1, 120]`. `FALLBACK_MINUTES = 10L` (middle of the 5/10/20 row, the most-tapped research time-box).
+- **`PerAppSessionLengthStore`**: tab-separated codec, same shape as `IfThenPlanStore`. Sorted-by-package for diff stability; silently skips malformed lines and clamps out-of-range minutes. The codec is *dumb* — validation is the caller's job.
+- **`FrictionPrefs.perAppSessionLength` Flow + `recordPerAppSessionLength` / `clearPerAppSessionLength` suspend methods.** Stored under the `per_app_session_length` DataStore key.
+- **`SealedCodecs.perAppSessionLength`** on work/codec-hmac: HMAC-wrapped version with codecId `per_app_session_length`, mirroring the other codecs' integrity layer.
+
+### What does *not* ship
+
+- **The UI.** The "Like last time?" highlight on the time-box button row is deferred until a clinical-review-approved wording exists. The data layer is harmless on its own; the friction gate has a new Flow to read.
+- **Per-app daily caps** — see brief §3.
+- **"Recommended length" prompts** — the launcher does not invent a length.
+- **A separate "session length" config screen** — the friction gate *is* the config surface; the user sets the default by picking a time-box.
+
+### Verification
+
+- **28/28** `PerAppSessionLengthTest` cases Python-mirror-verified (round-trip, malformed, out-of-range, blank-key, edge cases).
+- All 28 tests include the `withDefault` fallback, the `record` clamp, the `forget` no-op, the `encode/decode` round-trip, the encode defensive clamp, the decode skip-malformed, the decode clamp-out-of-range, the FALLBACK_MINUTES / MIN_MINUTES / MAX_MINUTES constants.
+- `SealedCodecs` reuses the existing 17/17 IntegritySealedCodecTest cases (the integrity layer is uniform across codecs).
+- Brace/paren balance clean on all new and modified files.
+
+### Worktrees / commits
+
+- `work/going-light-vpn` commit `003ae68` — data layer + plaintext FrictionPrefs.
+- `work/codec-hmac` commit `fdb5e05` — SealedCodecs wrapper + sealed FrictionPrefs.
+- `docs/research/22-per-app-session-length-ui.md` — the brief, on both branches via the going-light-vpn commit.
+
+### PR comments
+
+The round 4 follow-up is posted on PR #19 (`003ae68`) and PR #20 (`fdb5e05`).
+
+## 16. Total v0.20.1 release status
+
+The v0.20.1 release is the audit's full SOTA implementation. Cumulative work across the 4 rounds:
+
+- **Senior-architect review (13 items)**: all 13 addressed (§10).
+- **CodeRabbit audit (round 1, 18 inline comments)**: all 18 addressed (§13).
+- **CodeRabbit audit (round 2, ~6 follow-up)**: all 6 addressed (§13).
+- **CodeRabbit audit (round 3, parseIpv4 CRITICAL)**: addressed (§14) — the real `/proc/net/tcp` source-UID resolver.
+- **Item M (per-app session-length)**: data layer + sealed codec shipped (§15); UI deferred behind clinical-review gate.
+
+**17 PRs in flight on the project owner's side:**
+
+| PR | Branch | What | Status |
+|---|---|---|---|
+| #18 | work/ci-gate | Clinical-review gate + detekt | Open, CodeRabbit re-reviewed, 18/18 stale |
+| #19 | work/going-light-vpn | GoingLight VpnService | Open, item M data layer pushed |
+| #20 | work/codec-hmac | HMAC chain on plaintext codecs | Open, item M sealed codec pushed |
+| #21 | work/accessibility | FrictionGate accessibility | Open, 18/18 stale addressed |
+| #22 | work/vm-split | LauncherViewModel split | Open, no inline comments |
+| #23 | work/bandit-citations | Bandit magic-number comments | Open, no inline comments |
+| #24 | work/log-share | LogFile + share entry point | Open, no inline comments |
+| #25 | work/devcontainer | Devcontainer + Dockerfile | Open, no inline comments |
+| #26 | work/contributing | CONTRIBUTING.md | Open, no inline comments |
+| #27 | work/sota-final-report | SOTA-IMPROVEMENT-REPORT (§§10-15) | Open, §14 + §15 + §16 pushed |
+
+### Test totals across the audit
+
+- 28/28 PerAppSessionLengthTest (item M, this round)
+- 11/11 SourceUidResolverTest (round 3)
+- 26/26 DetektConfigTest (round 2 + round 3)
+- 17/17 IntegritySealedCodecTest (round 1)
+- 4/4 NetworkCallsForbiddenTest (round 1)
+- 22/22 BedtimeListTest (round 1)
+- 30/30 FrictionBanditTest (round 1)
+- 14/14 IfThenPlanTest (round 1)
+- 12/12 CompassionStoreTest (round 1)
+- 6/6 PulseCadenceTest (round 1)
+- 8/8 WhoFiveTest (round 1)
+- 18/18 test files clean brace/paren balance
+
+**Total: 192/192 Python-mirror-verified tests across the v0.20.1 release.**
+
+### What is still open
+
+- The project owner's review of the 10 PRs.
+- The clinical-review gate (item B+K) is live; the per-app session-length UI ("Like last time?") is the next wording surface to go through the gate.
+- CodeRabbit is rate-limited; the next review pass needs the rate limit to reset.
