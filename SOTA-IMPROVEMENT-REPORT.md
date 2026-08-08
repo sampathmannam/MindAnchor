@@ -1037,6 +1037,8 @@ Notes are user-authored text, not friction configuration. Mixing them with `Fric
 
 - The launcher does not currently route to `NoteActivity` from any home-screen affordance. The user can launch it via adb or a future shortcut, but the home-screen entry point is a v0.20.2 follow-up. The reasoning: routing from the launcher home screen is a UX decision (long-press? a bottom-bar item? a pull-down?) that needs the project owner's input.
 
+**Update (commit `d10753d`, round 5 follow-up):** The home-screen entry point shipped. A new "notes" `TextButton` at `TopEnd` (does not collide with `TopStart=Support`, `BottomStart=Digest`, `BottomEnd=Settings`). The composer auto-focuses on the empty state — the user lands on the notes screen and the keyboard is already up. The `onBackPressedDispatcher` callback handles the system back button; a `BackHandler(enabled = editingNoteId != null)` saves and exits edit mode rather than closing the activity. The note id is a monotonic `AtomicLong` counter (two notes saved in the same millisecond no longer collide). All these were the §17 "still open" items.
+
 ---
 
 ## 18. v0.20.1 round 5 — Check-in feature
@@ -1108,6 +1110,8 @@ So the existing EMA stays; the new CheckIn is parallel infrastructure. Both can 
 - The **sealed-codecs wrapper** for `CheckInStore` (codecId `checkins`) is on work/codec-hmac, not work/going-light-vpn. The data layer is plaintext for the going-light-vpn branch; the work/codec-hmac PR adds the HMAC envelope.
 - The **launcher routing from a home-screen affordance** (long-press? bottom-bar item?) to `CheckInActivity` is a v0.20.2 follow-up. The trigger fires on phone unlock; the user does not need a separate entry point to *launch* the check-in, but a "review my check-ins" affordance would be useful.
 - The **rate-limit reset on app restart** is by design (transient), but means the daily cap is not strict across restart. This is an explicit trade-off; the brief accepted the trade-off ("the launcher prefers a missed check-in over a permanent record").
+
+**Update (commit `d10753d`, round 5 follow-up):** Fixed a real bug in the rate-limit reset. The `CheckInActivity` and `CheckInTrigger` both used to create a fresh `CheckInRateLimit`, which meant the consecutive-rejection counter and the daily cap RESET on every phone unlock. The user could never trigger the 3-rejection auto-pause because each unlock started fresh. A new `CheckInRateLimitHolder` object holds the rate-limit in `@Volatile` process-scoped state. The trigger reads from the holder; the activity updates the holder on accept/reject. App restart still resets the holder (transient by design). Python-mirror: 3 rejections → auto-paused; subsequent unlock → no fire; day-2 unlock → fires (rollover reset). All correct.
 
 ### Test totals across round 5
 
