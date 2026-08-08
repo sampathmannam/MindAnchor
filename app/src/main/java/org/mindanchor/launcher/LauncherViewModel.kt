@@ -21,6 +21,8 @@ import org.mindanchor.friction.SessionManager
 import org.mindanchor.friction.SmallThings
 import org.mindanchor.friction.LoopPhase
 import org.mindanchor.friction.OpenLoop
+import org.mindanchor.sleep.BedtimeList
+import org.mindanchor.sleep.BedtimePhase
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.delay
 import java.time.LocalDate
@@ -91,6 +93,38 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
         LoopPhase.NONE to null,
+    )
+
+    /**
+     * The bedtime to-do list — see [org.mindanchor.sleep.BedtimeList].
+     *
+     * Same shape as [openLoop] above: a tuple of (phase, items) so
+     * the home screen can render either prompt with one card. The
+     * minute-tick is joined to the same source the openLoop uses
+     * so both cards re-evaluate at the same minute boundary —
+     * important when crossing into or out of the quiet hours, when
+     * one card may need to appear and the other to disappear
+     * simultaneously.
+     */
+    val bedtimeList: StateFlow<Triple<BedtimePhase, List<String>, String?>> = combine(
+        frictionPrefs.bedtimeList,
+        frictionPrefs.bedtimeListDay,
+        minuteTick,
+    ) { items, day, _ ->
+        Triple(
+            BedtimeList.phase(
+                quietHours = sunsetPrefs.isQuietHour(),
+                items = items,
+                writtenDay = day,
+                today = LocalDate.now(),
+            ),
+            items,
+            day,
+        )
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        Triple(BedtimePhase.NONE, emptyList(), null),
     )
 
     val uiState: StateFlow<LauncherUiState> =
@@ -191,6 +225,22 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun clearOpenLoop() {
         viewModelScope.launch { frictionPrefs.clearOpenLoop() }
+    }
+
+    /**
+     * Persist the bedtime list for tonight. Each non-blank item is
+     * stored on its own line, capped at [BedtimeList.MAX_ITEMS]
+     * (the cap is on the *decode* side, so a corrupted file cannot
+     * produce an overflowing list). The day is stamped so the
+     * morning "return" prompt fires only for last night.
+     */
+    fun saveBedtimeList(items: List<String>) {
+        viewModelScope.launch { frictionPrefs.setBedtimeList(items) }
+    }
+
+    /** Hands the list back, then clears it — the Scullin loop. */
+    fun clearBedtimeList() {
+        viewModelScope.launch { frictionPrefs.clearBedtimeList() }
     }
 
     /**

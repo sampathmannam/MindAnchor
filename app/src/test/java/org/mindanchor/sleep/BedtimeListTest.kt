@@ -5,6 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.LocalDate
 
 /**
  * `docs/research/15` named the Scullin 2018 bedtime to-do list as the
@@ -21,6 +22,13 @@ import org.junit.Test
  * noticing.
  */
 class BedtimeListTest {
+
+    /**
+     * A fixed test day for the phase-logic cases. The exact date
+     * does not matter; what matters is that the same `day` is
+     * used across all calls in a single test.
+     */
+    private val day = LocalDate.of(2026, 8, 8)
 
     @Test
     fun `a specific item with verb and time token is recognised`() {
@@ -111,5 +119,127 @@ class BedtimeListTest {
         // not an item that wakes somebody up.
         assertTrue(BedtimeList.decode("").isEmpty())
         assertTrue(BedtimeList.decode("\n\n\n").isEmpty())
+    }
+
+    @Test
+    fun `phase is NONE outside the quiet hours when no list has been written`() {
+        // No items, no need to surface anything. The home screen
+        // is silent most of the time — surfacing an empty card
+        // would teach a person to expect a card and stop reading
+        // it, which is the failure mode the OpenLoop card and
+        // the BedtimeList card were both designed against.
+        assertEquals(
+            BedtimePhase.NONE,
+            BedtimeList.phase(
+                quietHours = false,
+                items = emptyList(),
+                writtenDay = null,
+                today = day,
+            ),
+        )
+    }
+
+    @Test
+    fun `phase is CAPTURE in the quiet hours when no list has been written`() {
+        // The wind-down moment, no list yet, the prompt fires
+        // once. This is the place where the Scullin effect is
+        // documented (write it down, the Zeigarnik loop closes,
+        // sleep onset comes faster).
+        assertEquals(
+            BedtimePhase.CAPTURE,
+            BedtimeList.phase(
+                quietHours = true,
+                items = emptyList(),
+                writtenDay = null,
+                today = day,
+            ),
+        )
+    }
+
+    @Test
+    fun `phase is NONE in the quiet hours when a list has already been written`() {
+        // A list already written does not get re-asked for. The
+        // morning is when it gets handed back. Re-prompting at
+        // night would be nagging.
+        assertEquals(
+            BedtimePhase.NONE,
+            BedtimeList.phase(
+                quietHours = true,
+                items = listOf("call Mom at 6"),
+                writtenDay = day.toString(),
+                today = day,
+            ),
+        )
+    }
+
+    @Test
+    fun `phase is RETURN outside the quiet hours for a list from last night`() {
+        // The morning after: the list gets handed back, then
+        // cleared. This is the "hand it back the morning after"
+        // rule from docs/research/07 §4, applied to the bedtime
+        // list.
+        assertEquals(
+            BedtimePhase.RETURN,
+            BedtimeList.phase(
+                quietHours = false,
+                items = listOf("call Mom at 6"),
+                writtenDay = day.minusDays(1).toString(),
+                today = day,
+            ),
+        )
+    }
+
+    @Test
+    fun `phase is RETURN for a list written earlier the same day`() {
+        // Someone who took the prompt at 22:00 and is reading
+        // the home screen at 08:00 the next morning has a list
+        // dated today (well, technically yesterday relative to
+        // local time depending on midnight). The frame is
+        // "this morning" not "the calendar's today" — both
+        // count.
+        assertEquals(
+            BedtimePhase.RETURN,
+            BedtimeList.phase(
+                quietHours = false,
+                items = listOf("call Mom at 6"),
+                writtenDay = day.toString(),
+                today = day,
+            ),
+        )
+    }
+
+    @Test
+    fun `phase is NONE for a list older than yesterday`() {
+        // A list from two days ago is not a bedtime list, it is
+        // clutter. Showing it is being reminded of something
+        // already let go. The exact rule from OpenLoop.phase
+        // applied to the bedtime list.
+        assertEquals(
+            BedtimePhase.NONE,
+            BedtimeList.phase(
+                quietHours = false,
+                items = listOf("call Mom at 6"),
+                writtenDay = day.minusDays(2).toString(),
+                today = day,
+            ),
+        )
+    }
+
+    @Test
+    fun `phase treats unparseable stored day as NONE, not as a phantom return`() {
+        // A corrupted file with a bad date is the same as no
+        // file: the home screen stays silent. A silent failure
+        // here is the only safe failure — surfacing a list
+        // whose date cannot be read would be a
+        // "when did I write this?" question no one can answer.
+        assertEquals(
+            BedtimePhase.NONE,
+            BedtimeList.phase(
+                quietHours = false,
+                items = listOf("call Mom at 6"),
+                writtenDay = "not-a-date",
+                today = day,
+            ),
+        )
     }
 }

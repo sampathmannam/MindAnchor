@@ -107,6 +107,23 @@
     <string name="loop_save">Put it down</string>
     <string name="loop_return">You left this for yourself last night:</string>
     <string name="loop_clear">Done with it</string>
+
+    <!--
+        Bedtime to-do list — Scullin et al. 2018, J Exp Psychol Gen
+        147(1):139–146, doi:10.1037/xge0000374. See docs/research/15
+        §2. Wording per the brief: brief, optional, *specific* (the
+        active ingredient); not a task list; never grows into one.
+        The save button is "put it down" not "save" or "done" — the
+        user is parking the thought for the morning, not crossing it
+        off.
+    -->
+    <string name="bedtime_capture">Anything for tomorrow? Write it down now — specific things, not vague ones. Your phone can hold them until morning.</string>
+    <string name="bedtime_capture_hint">e.g. call Mom at 6, email the report by Tuesday</string>
+    <string name="bedtime_add_line">Add line</string>
+    <string name="bedtime_save">Put it down</string>
+    <string name="bedtime_return_intro">You left this for yourself last night:</string>
+    <string name="bedtime_clear">Done with it</string>
+    <string name="bedtime_specificity_nudge">A specific time or day makes this work better than a vague list.</string>
     <string name="stale_section">Pauses worth a look</string>
     <string name="stale_explainer">These are ones you have gone through every time. That might mean the pause has become scenery, or it might mean it is quietly doing its job and you genuinely wanted to go in. Only you know which. Nothing changes unless you change it.</string>
     <string name="stale_line">%1$s — shown %2$d times, and you went in every time.</string>

@@ -13,6 +13,7 @@ import org.mindanchor.friction.GateLedger
 import org.mindanchor.friction.GateTally
 import org.mindanchor.friction.OpenLoop
 import org.mindanchor.friction.SmallThings
+import org.mindanchor.sleep.BedtimeList
 import java.time.LocalDate
 
 private val Context.dataStore by preferencesDataStore(name = "friction")
@@ -135,6 +136,56 @@ class FrictionPrefs(private val context: Context) {
         context.dataStore.edit {
             it.remove(loopNoteKey)
             it.remove(loopDayKey)
+        }
+    }
+
+    private val bedtimeItemsKey = stringPreferencesKey("bedtime_list_items")
+    private val bedtimeDayKey = stringPreferencesKey("bedtime_list_day")
+
+    /**
+     * The bedtime to-do list — see [org.mindanchor.sleep.BedtimeList].
+     *
+     * Like [openLoopNote] above, this is *one-night* data. Stored as a
+     * newline-separated string for parity with the existing
+     * [SmallThings] / [OpenLoop] pattern (one DataStore key per
+     * concept, no JSON, no migration). Decoded with
+     * [BedtimeList.decode] on the way in; the cap is on the *output*
+     * so a corrupted or hand-edited file cannot produce an
+     * overflowing list.
+     *
+     * The brief is explicit: **not a task list, must never grow into
+     * one** (Scullin 2018 — see docs/research/15 §2). A list from a
+     * previous night is handed back in the morning and then cleared
+     * the next time the prompt fires.
+     */
+    val bedtimeList: Flow<List<String>> =
+        context.dataStore.data.map { BedtimeList.decode(it[bedtimeItemsKey].orEmpty()) }
+
+    val bedtimeListDay: Flow<String?> =
+        context.dataStore.data.map { it[bedtimeDayKey] }
+
+    suspend fun setBedtimeList(
+        items: List<String>,
+        today: LocalDate = LocalDate.now(),
+    ) {
+        // One bedtime list per night. Empty input clears the store
+        // outright so a stale entry from three days ago never gets
+        // handed back as if it were today's.
+        val cleaned = items.mapNotNull { BedtimeList.cleanLine(it) }
+        if (cleaned.isEmpty()) {
+            clearBedtimeList()
+            return
+        }
+        context.dataStore.edit {
+            it[bedtimeItemsKey] = BedtimeList.encode(cleaned)
+            it[bedtimeDayKey] = today.toString()
+        }
+    }
+
+    suspend fun clearBedtimeList() {
+        context.dataStore.edit {
+            it.remove(bedtimeItemsKey)
+            it.remove(bedtimeDayKey)
         }
     }
 

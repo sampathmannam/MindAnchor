@@ -1,5 +1,29 @@
 package org.mindanchor.sleep
 
+import java.time.LocalDate
+
+/**
+ * What the home screen should say about tonight's list, given the
+ * clock and what is stored.
+ *
+ * Mirrors the shape of [org.mindanchor.friction.LoopPhase] on
+ * purpose: the OpenLoop (single line, Zeigarnik) and the
+ * BedtimeList (1–5 specific items, Scullin) are two
+ * evidence-backed mechanisms for closing open cognitive loops at
+ * night, and a home screen that always has *something* to say
+ * is one people stop reading. Both are silent most of the time.
+ */
+enum class BedtimePhase {
+    /** In the quiet hours, with nothing written down: offer to take a list. */
+    CAPTURE,
+
+    /** Out of the quiet hours, with a list from last night: hand it back. */
+    RETURN,
+
+    /** Say nothing. */
+    NONE,
+}
+
 /**
  * The bedtime to-do list — Scullin-style.
  *
@@ -173,4 +197,48 @@ object BedtimeList {
             .filter { it.isNotEmpty() }
             .take(MAX_ITEMS)
             .toList()
+
+    /**
+     * What the home screen should say, given the clock and what
+     * is stored.
+     *
+     * Same shape as [org.mindanchor.friction.OpenLoop.phase]:
+     *  - In the quiet hours, the prompt is **capture** (offer
+     *    to take the list) only when nothing is stored.
+     *  - Outside the quiet hours, the prompt is **return** (hand
+     *    the list back from this morning) when a list was written
+     *    last night.
+     *  - A list older than yesterday is *not* a bedtime list, it
+     *    is clutter, and being shown it is being reminded of
+     *    something already let go. The phase is NONE.
+     *
+     * Distinct from [org.mindanchor.friction.OpenLoop.phase] on
+     * one point: the bedtime list *captures* whether there is
+     * actually anything to take. An empty stored list is
+     * equivalent to no list — calling code does not have to
+     * branch on "is the list empty" separately.
+     */
+    fun phase(
+        quietHours: Boolean,
+        items: List<String>,
+        writtenDay: String?,
+        today: LocalDate,
+    ): BedtimePhase {
+        val hasItems = items.isNotEmpty()
+        if (quietHours) {
+            // In the quiet hours: only prompt to capture if there's
+            // nothing on file. A list already written does not need
+            // to be re-asked for — the morning is when it gets
+            // handed back.
+            return if (hasItems) BedtimePhase.NONE else BedtimePhase.CAPTURE
+        }
+        if (!hasItems) return BedtimePhase.NONE
+        val day = writtenDay?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+            ?: return BedtimePhase.NONE
+        // A list from last night, or earlier today before the
+        // quiet hours ended. Anything older is clutter and gets
+        // nothing.
+        return if (day == today || day == today.minusDays(1)) BedtimePhase.RETURN
+        else BedtimePhase.NONE
+    }
 }

@@ -30,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -50,6 +51,8 @@ import org.mindanchor.digest.DigestActivity
 import org.mindanchor.friction.FrictionGate
 import org.mindanchor.friction.FrictionTone
 import org.mindanchor.friction.LoopPhase
+import org.mindanchor.sleep.BedtimeList
+import org.mindanchor.sleep.BedtimePhase
 import org.mindanchor.report.ReportScreen
 import org.mindanchor.report.ReportStore
 import org.mindanchor.settings.SettingsScreen
@@ -76,6 +79,7 @@ fun LauncherRoot(
 ) {
     val state by viewModel.uiState.collectAsState()
     val openLoop by viewModel.openLoop.collectAsState()
+    val bedtimeList by viewModel.bedtimeList.collectAsState()
     var surface by remember { mutableStateOf(LauncherSurface.Home) }
     var actionsFor by remember { mutableStateOf<DisplayApp?>(null) }
     var gateFor by remember { mutableStateOf<DisplayApp?>(null) }
@@ -177,6 +181,10 @@ fun LauncherRoot(
                 loopNote = openLoop.second,
                 onLoopSave = viewModel::saveOpenLoop,
                 onLoopClear = viewModel::clearOpenLoop,
+                bedtimePhase = bedtimeList.first,
+                bedtimeItems = bedtimeList.second,
+                onBedtimeSave = viewModel::saveBedtimeList,
+                onBedtimeClear = viewModel::clearBedtimeList,
                 hasReport = hasReport,
                 onOpenReport = {
                     reportCameFrom = LauncherSurface.Home
@@ -306,6 +314,137 @@ private fun OpenLoopCard(
     }
 }
 
+/**
+ * The bedtime to-do list — see [org.mindanchor.sleep.BedtimeList].
+ *
+ * Deliberately silent most of the time, exactly like the
+ * [OpenLoopCard] sibling above. Appears once in the quiet hours to
+ * take a 1–5 line list (with a specificity nudge, per Scullin
+ * 2018 — the active ingredient is the *specific* item, not the
+ * list shape), and once the next morning to hand it back. A home
+ * screen that always has something to say is one people stop
+ * reading.
+ *
+ * Distinct from the OpenLoop card on three points:
+ *  - Multiple lines (1–5), not a single line.
+ *  - The first line of the prompt is a *specificity nudge* — a
+ *    heuristic in the data layer ([org.mindanchor.sleep.BedtimeList.isSpecific])
+ *    marks a line as specific or not, and a vague list is
+ *    encouraged to be re-written in more concrete terms before
+ *    being put down.
+ *  - The save button is "Put it down", not "Save" or "Done" — the
+ *    user is parking the thought for the morning, not crossing
+ *    it off.
+ */
+@Composable
+private fun BedtimeListCard(
+    sky: SkyContent,
+    phase: BedtimePhase,
+    items: List<String>,
+    onSave: (List<String>) -> Unit,
+    onClear: () -> Unit,
+) {
+    when (phase) {
+        BedtimePhase.NONE -> Unit
+
+        BedtimePhase.CAPTURE -> {
+            // Up to BedtimeList.MAX_ITEMS draft lines. Each is a
+            // pair of (current value, setter) so the user can
+            // add lines, edit them, or remove the last one. A
+            // single text field per line is the deliberately
+            // simple shape — a multi-line text box would invite
+            // the "task list" failure mode the brief explicitly
+            // rules out.
+            val drafts = remember {
+                mutableStateListOf<String>().apply { add("") }
+            }
+
+            // Specificity nudge: shown when the user has at
+            // least one non-empty draft and at least one of
+            // those drafts is *not* specific per the heuristic.
+            // The nudge is a one-line hint, not a validation
+            // gate — the user is allowed to save a vague list;
+            // they are simply told the heuristic exists.
+            val hasAny = drafts.any { it.isNotBlank() }
+            val hasVague = hasAny && drafts.any {
+                BedtimeList.cleanLine(it)?.let { line -> !BedtimeList.isSpecific(line) } ?: true
+            }
+
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text = stringResource(R.string.bedtime_capture),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = sky.textSecondary,
+                    textAlign = TextAlign.Center,
+                )
+                drafts.forEachIndexed { index, value ->
+                    OutlinedTextField(
+                        value = value,
+                        onValueChange = { drafts[index] = it },
+                        singleLine = true,
+                        placeholder = {
+                            Text(stringResource(R.string.bedtime_capture_hint))
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    )
+                }
+                if (drafts.size < BedtimeList.MAX_ITEMS) {
+                    TextButton(onClick = { drafts.add("") }) {
+                        Text(
+                            stringResource(R.string.bedtime_add_line),
+                            color = sky.textSecondary,
+                        )
+                    }
+                }
+                if (hasVague) {
+                    Text(
+                        text = stringResource(R.string.bedtime_specificity_nudge),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = sky.textSecondary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+                TextButton(
+                    onClick = { onSave(drafts.toList()) },
+                    enabled = drafts.any { it.isNotBlank() },
+                ) {
+                    Text(stringResource(R.string.bedtime_save), color = sky.textPrimary)
+                }
+            }
+        }
+
+        BedtimePhase.RETURN -> Column(
+            modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = stringResource(R.string.bedtime_return_intro),
+                style = MaterialTheme.typography.bodySmall,
+                color = sky.textSecondary,
+                textAlign = TextAlign.Center,
+            )
+            items.forEach { line ->
+                Text(
+                    text = line,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = sky.textPrimary,
+                    textAlign = TextAlign.Center,
+                )
+            }
+            TextButton(onClick = onClear) {
+                Text(
+                    stringResource(R.string.bedtime_clear),
+                    color = sky.textSecondary,
+                )
+            }
+        }
+    }
+}
+
 // combinedClickable, for the long-press on a favourite.
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -320,6 +459,10 @@ private fun HomeSurface(
     loopNote: String? = null,
     onLoopSave: (String) -> Unit = {},
     onLoopClear: () -> Unit = {},
+    bedtimePhase: BedtimePhase = BedtimePhase.NONE,
+    bedtimeItems: List<String> = emptyList(),
+    onBedtimeSave: (List<String>) -> Unit = {},
+    onBedtimeClear: () -> Unit = {},
     /** Shown only when last night's report actually has something in it. */
     hasReport: Boolean = false,
     onOpenReport: () -> Unit = {},
@@ -370,6 +513,21 @@ private fun HomeSurface(
                 note = loopNote,
                 onSave = onLoopSave,
                 onClear = onLoopClear,
+            )
+
+            // Sibling card to OpenLoopCard above. Same idiom (silent
+            // most of the time, fires once in the quiet hours, once
+            // in the morning), different mechanism (Scullin 2018:
+            // a specific bedtime list, not a single open loop).
+            // The two coexist; the brief is explicit that the
+            // bedtime list is *not* a replacement for the open loop,
+            // they close different kinds of unfinished work.
+            BedtimeListCard(
+                sky = sky,
+                phase = bedtimePhase,
+                items = bedtimeItems,
+                onSave = onBedtimeSave,
+                onClear = onBedtimeClear,
             )
 
             // One quiet line, and only when there is genuinely something

@@ -163,7 +163,7 @@ validate.
   pins the cycle length (3–10s), the inhale/sip/exhale ratios,
   the phase boundaries, and the no-gap-no-overlap invariant.
 
-### 2.5 — Bedtime to-do list heuristic (Scullin 2018)
+### 2.5 — Bedtime to-do list (Scullin 2018) — full surface shipped
 
 - **Finding.** `docs/research/15` (the SOTA feature-gaps brief)
   named the Scullin 2018 bedtime to-do list as the highest-ROI
@@ -178,21 +178,33 @@ validate.
 - **Gap.** No bedtime-list prompt exists. `OpenLoop.kt` is a
   related but distinct *single* Zeigarnik open-loop for the 1am
   scroll — kept deliberately.
-- **Change.** New `BedtimeList.kt` with a `MAX_ITEMS = 5` cap,
-  a per-line `MAX_LINE_LENGTH = 140`, a `cleanLine()` that
-  follows the existing `OpenLoop.clean()` pattern, and a
-  conservative `isSpecific()` heuristic: a line is specific when
-  it's ≥12 characters, contains a verb-stem from a 60-token
-  list, *and* contains a time-or-day token (day-of-week, AM/PM,
-  "before/after/at/by/until", day-of-month 1–31). Scullin 2018
-  named *specificity* as the active ingredient; the heuristic is
-  the floor the project's "evidence or it doesn't ship" rule
-  can stand on. The UI surface (sunset-triggered prompt) is
-  intentionally left for a follow-up — the heuristic is the
-  module that had to exist first.
+- **Change.** A new `BedtimeList` data layer + a new
+  `BedtimeListCard` composable on the home screen, both shipped
+  in one pass. The data layer holds the `MAX_ITEMS = 5` cap,
+  the per-line `MAX_LINE_LENGTH = 140`, the `cleanLine()`
+  follow-the-OpenLoop pattern, the conservative `isSpecific()`
+  heuristic (≥12 chars + verb-stem + time/day token — Scullin
+  2018's active ingredient), and a new `phase()` pure function
+  that returns `CAPTURE` / `RETURN` / `NONE` for the home
+  screen to render. The home-screen card follows the same
+  idiom as the existing `OpenLoopCard`: silent most of the
+  time, fires once in the quiet hours (capture), fires once the
+  next morning (return), no badge, no permanent entry point. A
+  *specificity nudge* line is shown in capture mode when at
+  least one of the user's draft lines is vague — the nudge is
+  a hint, not a validation gate, and the user is still allowed
+  to save a vague list (the heuristic is documented as a
+  *floor*, the brief's "evidence or it doesn't ship" rule).
+  Save button is "Put it down" not "Save" or "Done" — the
+  user is parking the thought for the morning, not crossing
+  it off.
 - **Validate.** `app/src/test/java/org/mindanchor/sleep/BedtimeListTest.kt`
-  pins the heuristic's *signs* (length, verb, time anchor) and
-  is Python-mirror-verified.
+  pins the heuristic (15 cases), the encode/decode round-trip
+  and cap, the `cleanLine` rules, and now 7 `phase()` cases
+  (silent outside quiet hours, capture when nothing on file,
+  silent when a list already exists, return for yesterday,
+  return for today, silent for older lists, silent on
+  unparseable dates). 32 assertions, Python-mirror-verified.
 
 ### 2.6 — Six research briefs in `docs/research/`
 
@@ -235,7 +247,7 @@ were written.
 | 2 | WHO-5 score presentation, 3-band, MCID-gated | **shipped** | docs/research/13 |
 | 3 | Pulse cadence taper, 7→10→14, response-conditioned | **shipped** | docs/research/11 |
 | 4 | Physiological-sigh breathing (Balban 2023) | **shipped** | docs/research/12 |
-| 5 | Bedtime to-do list heuristic (Scullin 2018) | **shipped (heuristic only)** | docs/research/15 |
+| 5 | Bedtime to-do list (Scullin 2018) — data + home card | **shipped** | docs/research/15 |
 | 6 | SOTA feature-gaps brief | **shipped** | docs/research/15 |
 | 7 | Pulse cadence brief | **shipped** | docs/research/11 |
 | 8 | Breathing protocols brief | **shipped** | docs/research/12 |
@@ -263,7 +275,7 @@ rejected) are:
 - `pulse_band_*` strings (3-band WHO-5 wording)
 - `pulse_after_disclaimer` (the SDT/person-first guard)
 - `breath_sip` ("…and in again" — the new phase label)
-- `BedtimeList` UI strings (TBD; surface not shipped yet)
+- `bedtime_*` strings (the Scullin 2018 prompt)
 
 These need to be in the next `docs/CLINICAL_REVIEW.md` revision
 *before* the PR is merged. The design record now lives in the
