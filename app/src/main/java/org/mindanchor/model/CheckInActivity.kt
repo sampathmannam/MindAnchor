@@ -185,7 +185,23 @@ class CheckInActivity : ComponentActivity() {
                             nowMillis = now,
                         )
                         CheckInRateLimitHolder.state = newRl
-                        lifecycleScope.launch {
+                        // Both prefs.add and
+                        // EmaScheduler.disable run
+                        // in an application-scoped
+                        // coroutine. lifecycleScope
+                        // would be cancelled by
+                        // finish() before either
+                        // reaches DataStore +
+                        // AlarmManager. The user
+                        // already saw "thanks" via
+                        // the rate-limit bump; the
+                        // persistence is the part
+                        // that must complete.
+                        val appScope = kotlinx.coroutines.CoroutineScope(
+                            kotlinx.coroutines.SupervisorJob() +
+                                kotlinx.coroutines.Dispatchers.IO,
+                        )
+                        appScope.launch {
                             runCatching { prefs.add(checkIn) }
                             // v0.20.1 round 5 follow-up:
                             // the first time the user
