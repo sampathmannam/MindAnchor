@@ -18,6 +18,7 @@ import org.mindanchor.friction.GoingLightSchedule
 import org.mindanchor.friction.IfThenPlan
 import org.mindanchor.friction.IfThenPlanStore
 import org.mindanchor.friction.OpenLoop
+import org.mindanchor.friction.PerAppSessionLength
 import org.mindanchor.friction.SealedCodecs
 import org.mindanchor.friction.SmallThings
 import org.mindanchor.sleep.BedtimeList
@@ -336,6 +337,54 @@ class FrictionPrefs(private val context: Context) {
             val all = SealedCodecs.decodeIfThenPlans(prefs[ifThenPlansKey].orEmpty()).toMutableMap()
             all.remove(packageName)
             prefs[ifThenPlansKey] = SealedCodecs.encodeIfThenPlans(all)
+        }
+    }
+
+    private val perAppSessionLengthKey = stringPreferencesKey("per_app_session_length")
+
+    /**
+     * The per-app *time-box* default — see
+     * [org.mindanchor.friction.PerAppSessionLength]. A user
+     * who picks "Open for 10 minutes" for Instagram can
+     * have that choice remembered for the next reach.
+     *
+     * Persisted through
+     * [SealedCodecs.encodePerAppSessionLength] /
+     * [SealedCodecs.decodePerAppSessionLength]
+     * (HMAC-SHA256 tag).
+     *
+     * Evidence: `docs/research/22`. Lally 2010,
+     * Adhikari 2023, Gollwitzer 1999, Wood & Neal 2007.
+     */
+    val perAppSessionLength: Flow<PerAppSessionLength> =
+        context.dataStore.data.map {
+            SealedCodecs.decodePerAppSessionLength(it[perAppSessionLengthKey].orEmpty())
+        }
+
+    /**
+     * Record a per-app time-box choice. The minutes are
+     * clamped to `[1, 120]` by [PerAppSessionLength.record].
+     * A blank package name is a no-op.
+     */
+    suspend fun recordPerAppSessionLength(packageName: String, minutes: Long) {
+        if (packageName.isBlank()) return
+        context.dataStore.edit { prefs ->
+            val current = SealedCodecs.decodePerAppSessionLength(prefs[perAppSessionLengthKey].orEmpty())
+            val next = current.record(packageName, minutes)
+            prefs[perAppSessionLengthKey] = SealedCodecs.encodePerAppSessionLength(next)
+        }
+    }
+
+    /**
+     * Forget a per-app time-box choice. A blank or
+     * non-existent package name is a no-op.
+     */
+    suspend fun clearPerAppSessionLength(packageName: String) {
+        if (packageName.isBlank()) return
+        context.dataStore.edit { prefs ->
+            val current = SealedCodecs.decodePerAppSessionLength(prefs[perAppSessionLengthKey].orEmpty())
+            val next = current.forget(packageName)
+            prefs[perAppSessionLengthKey] = SealedCodecs.encodePerAppSessionLength(next)
         }
     }
 

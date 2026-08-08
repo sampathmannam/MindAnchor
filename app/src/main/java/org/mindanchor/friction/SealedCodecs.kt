@@ -253,4 +253,47 @@ object SealedCodecs {
      */
     fun encodeIfThenPlans(value: Map<String, IfThenPlan>): String =
         ifThenPlans.encode(IfThenPlanStore.encode(value))
+
+    /**
+     * The sealed per-app session-length codec. codecId
+     * is "per_app_session_length".
+     *
+     * v0.20.1 round 4 (item M): the data layer is in
+     * [PerAppSessionLength]. The integrity layer
+     * closes the same threat as the other codecs — a
+     * motivated user with root can rewrite the per-app
+     * time-box map and prime the user toward a longer
+     * or shorter default for a specific app, with the
+     * gate silently applying the change. Sealing the
+     * data ensures the on-disk form cannot be tampered
+     * with without invalidating the MAC.
+     */
+    val perAppSessionLength: IntegritySealedCodec = IntegritySealedCodec(
+        inner = object : IntegritySealedCodec.Codec<String> {
+            override fun encode(value: String): String = value
+            override fun decode(encoded: String): String = encoded
+        },
+        codecId = "per_app_session_length",
+        keyProvider = { keyProvider() ?: throw IllegalStateException("Keystore unavailable") },
+        resetValue = PerAppSessionLengthStore.encode(PerAppSessionLength()),
+    )
+
+    /**
+     * Helper: decode the on-disk string for per-app
+     * session length via the sealed codec, returning
+     * the empty state on any failure.
+     */
+    fun decodePerAppSessionLength(raw: String): PerAppSessionLength =
+        try {
+            PerAppSessionLengthStore.decode(perAppSessionLength.decode(raw))
+        } catch (e: Exception) {
+            PerAppSessionLength()
+        }
+
+    /**
+     * Helper: encode a per-app session length state
+     * via the sealed codec.
+     */
+    fun encodePerAppSessionLength(value: PerAppSessionLength): String =
+        perAppSessionLength.encode(PerAppSessionLengthStore.encode(value))
 }
