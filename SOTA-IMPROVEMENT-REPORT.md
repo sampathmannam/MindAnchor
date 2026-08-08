@@ -1168,6 +1168,26 @@ Audited the actual repo state (not memory) and found five real gaps:
 
 **Cumulative across the v0.20.1 release: 360 + 18 = 378/378 Python-mirror-verified scenarios.**
 
+### Round 5 follow-up 4 — EmaActivity coordination + GoingLight placeholder (commit `077261b`)
+
+The two remaining gaps, both fixed.
+
+**EmaActivity coordination (Gap 1):**
+- The new check-in (phone-unlock) and the old scheduled EMA (notification) were independent. The user could get two check-in prompts in the same day.
+- Fix: new `EmaScheduler.disable(context)` suspend function. Sets `MomentStore.setEnabled(false)` AND calls `clearAll()` (cancels rearm + MAX_SLOTS prompt pendings + the EMA notification).
+- Wired: `CheckInActivity.onSave` now calls `EmaScheduler.disable(applicationContext)` after the first successful save. The first time the user accepts a check-in through the new flow, the old scheduled-EMA is permanently disabled.
+- Historical Moment data is preserved on disk. The user can re-enable the old EMA via `MomentStore.setEnabled(true)` if they want both — but the default is the new check-in, and the old EMA is opt-back-in.
+- Python-mirror: 5/5 scenarios (disable flips enabled + clears alarms, handles missing alarm manager, doesn't touch history, first-time disable works, is idempotent).
+
+**GoingLight placeholder (Gap 2):**
+- The data layer (`FrictionPrefs.goingLightSchedule`) and the VpnService are wired, but there is no UI to enable Going Light. The first-time copy is clinical-review-gated; without that approval, the enable surface is unsafe to ship.
+- Fix: a neutral settings entry in Settings → Phone group. Section heading "Going Light" + explainer (describes the feature, not the first-time experience) + "Available in v0.20.2." line.
+- The actual enable surface and first-time copy ship in v0.20.2 with the clinical review pass.
+- `SettingsScreen.kt`: 3 new Text composables (heading + explainer + coming-soon).
+- `strings.xml`: 3 new strings, all neutral wording.
+
+**Cumulative across the v0.20.1 release: 378 + 5 = 383/383 Python-mirror-verified scenarios.**
+
 ---
 
 ## 19. References (primary, by brief) — round 5 additions
