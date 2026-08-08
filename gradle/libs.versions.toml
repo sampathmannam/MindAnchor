@@ -17,6 +17,13 @@ junit = "4.13.2"
 androidxTestJunit = "1.2.1"
 androidxTestRunner = "1.6.2"
 androidxTestCore = "1.6.1"
+# detekt 1.23.8 is the last 1.x line release; built against
+# Kotlin 2.0.21 (matches this project) and AGP 8.8.x (the
+# project's 8.7.3 is one minor behind, which the detekt
+# compatibility table confirms is still supported). 2.x
+# requires Kotlin 2.4 and is not on the project's roadmap
+# until Kotlin itself moves.
+detekt = "1.23.8"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -54,3 +61,7 @@ kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+# detekt 1.23.8 — the rules-config file lives at
+# config/detekt/detekt.yml; the baseline is at
+# config/detekt/baseline.xml. See docs/research/17.
+detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
