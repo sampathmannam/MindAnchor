@@ -1039,6 +1039,8 @@ Notes are user-authored text, not friction configuration. Mixing them with `Fric
 
 **Update (commit `d10753d`, round 5 follow-up):** The home-screen entry point shipped. A new "notes" `TextButton` at `TopEnd` (does not collide with `TopStart=Support`, `BottomStart=Digest`, `BottomEnd=Settings`). The composer auto-focuses on the empty state — the user lands on the notes screen and the keyboard is already up. The `onBackPressedDispatcher` callback handles the system back button; a `BackHandler(enabled = editingNoteId != null)` saves and exits edit mode rather than closing the activity. The note id is a monotonic `AtomicLong` counter (two notes saved in the same millisecond no longer collide). All these were the §17 "still open" items.
 
+**Update (commit `2554750`, round 5 follow-up 2):** No new notes gaps.
+
 ---
 
 ## 18. v0.20.1 round 5 — Check-in feature
@@ -1113,6 +1115,8 @@ So the existing EMA stays; the new CheckIn is parallel infrastructure. Both can 
 
 **Update (commit `d10753d`, round 5 follow-up):** Fixed a real bug in the rate-limit reset. The `CheckInActivity` and `CheckInTrigger` both used to create a fresh `CheckInRateLimit`, which meant the consecutive-rejection counter and the daily cap RESET on every phone unlock. The user could never trigger the 3-rejection auto-pause because each unlock started fresh. A new `CheckInRateLimitHolder` object holds the rate-limit in `@Volatile` process-scoped state. The trigger reads from the holder; the activity updates the holder on accept/reject. App restart still resets the holder (transient by design). Python-mirror: 3 rejections → auto-paused; subsequent unlock → no fire; day-2 unlock → fires (rollover reset). All correct.
 
+**Update (commit `2554750`, round 5 follow-up 2):** The "review my check-ins" affordance shipped. `CheckInHistoryActivity` (full-screen, taskAffinity `.model.checkin.history`, `excludeFromRecents=false` for resumability) and `CheckInHistoryScreen` (append-only list, oldest at top, single line per check-in: date, time, rating, reflection). No edit, no delete — past ratings are past. Home screen "history" `TextButton` at `TopEnd` below "notes". Strings: `check_in_history_title = "Check-ins"`, `check_in_history_empty`, `check_in_history_shortcut = "history"`. The view is NOT clinical-review-gated (the launcher is rendering the user's own data with no interpretation); an *interpretation* layer (averages, trends) would be.
+
 ### Test totals across round 5
 
 - 18/18 NoteTest (round 5)
@@ -1121,6 +1125,22 @@ So the existing EMA stays; the new CheckIn is parallel infrastructure. Both can 
 - 91/91 Python-mirror-verified (Note 33 + CheckIn 58)
 
 **Total cumulative across the v0.20.1 release: 192 + 45 = 237/237 Python-mirror-verified tests.**
+
+### Test totals across round 5 follow-up 1 (commit `d10753d`)
+
+- 5/5 holder scenarios (3 rejections → auto-pause; subsequent unlock → no fire; day-2 unlock → fires; reset)
+- 100/100 monotonic id counter uniqueness
+- All new files brace/paren-balanced
+
+### Test totals across round 5 follow-up 2 (commit `2554750`)
+
+- 7/7 per-app session-length forget flow (record → forget → fall back to FALLBACK_MINUTES, idempotent, blank-pkg no-op, multi-app)
+- 8/8 check-in history data flow (sort order, empty state, reflection optional, rating range)
+- 3/3 manifest activity attribute checks (CheckInHistoryActivity, NoteActivity, CheckInActivity)
+- All new files brace/paren-balanced
+- All new files NetworkCallsForbiddenTest-clean
+
+**Cumulative across the v0.20.1 release: 237 + 105 + 18 = 360/360 Python-mirror-verified scenarios.**
 
 ---
 
