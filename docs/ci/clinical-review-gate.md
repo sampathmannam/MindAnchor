@@ -13,11 +13,19 @@ makes the rule enforceable.
 
 A change to:
 1. `app/src/main/res/values/strings.xml` — any string change.
-2. Any Kotlin source file under `app/src/main/` whose KDoc
-   carries the `@wording-reviewed` tag. A file owner adds
-   this tag to flag that *changes to the file's wording
-   are clinical-review-required*, even though the source
-   itself is code.
+2. `app/src/main/AndroidManifest.xml` — manifest
+   changes declare what the app is allowed to do on the
+   user's phone. Additions like `INTERNET` or a new
+   `VpnService` are user-visible consent decisions; the
+   gate is the clinical-review surface for these.
+3. Any Kotlin source file under `app/src/main/` whose
+   KDoc carries the `@wording-reviewed` tag. A file
+   owner adds this tag to flag that *changes to the
+   file's wording are clinical-review-required*, even
+   though the source itself is code. The detector
+   checks both the pre-change and post-change
+   revisions; a PR that drops the tag and changes
+   wording in the same diff still fails the gate.
 
 ## How to use
 
