@@ -52,6 +52,15 @@ class GoingLightVpnService : VpnService() {
      */
     private lateinit var forwarder: PacketForwarder
 
+    /**
+     * The source-UID resolver. v0.20.1 round 2 (CodeRabbit
+     * #12): the v0.20.0 implementation used UID 0 for
+     * every packet, which the forwarder treated as a
+     * system UID and forwarded. v0.20.1 round 2 uses a
+     * real resolver that reads /proc/net/tcp{6}.
+     */
+    private val sourceUidResolver = SourceUidResolver()
+
     fun setForwarder(f: PacketForwarder) {
         forwarder = f
     }
@@ -190,13 +199,19 @@ class GoingLightVpnService : VpnService() {
      * protocol, destination address, and destination port.
      * Returns a [Packet] for [PacketForwarder.decide].
      *
-     * Real UID extraction requires the /proc/net/tcp
-     * lookup keyed on the source port; the VpnService API
-     * doesn't expose it directly. The implementation here
-     * reads the source IP from the IP header and uses it
-     * as a stand-in. A full implementation would maintain
-     * a (source_ip, source_port) -> uid table refreshed
-     * every few seconds from /proc/net/tcp{6}.
+     * v0.20.1 round 2 (CodeRabbit #12): the source UID
+     * is resolved via [SourceUidResolver], which reads
+     * /proc/net/tcp{6} and matches the packet's
+     * (source_ip, source_port) to the UID of the app
+     * that opened the source socket. The VpnService API
+     * does not expose the source UID directly; reading
+     * the /proc/net/tcp table is the standard pattern
+     * (NetGuard, Blokada).
+     *
+     * Returns UID [Packet.UID_UNRESOLVED] (= -1) when
+     * the source is not in the table or the file is
+     * unreadable. The forwarder fail-closes on
+     * UID_UNRESOLVED to DROP.
      */
     private fun parsePacket(buf: ByteBuffer): Packet {
         if (buf.remaining() < 20) {
@@ -218,25 +233,33 @@ class GoingLightVpnService : VpnService() {
             1 -> Packet.Protocol.ICMP
             else -> Packet.Protocol.ICMP
         }
+        val src = ByteArray(4)
+        buf.position(12)
+        buf.get(src)
         val dst = ByteArray(4)
         buf.position(16)
         buf.get(dst)
+        val srcAddr = InetAddress.getByAddress(src)
         val destAddr = InetAddress.getByAddress(dst)
-        val destPort = if (protocol == Packet.Protocol.TCP || protocol == Packet.Protocol.UDP) {
+        val (srcPort, destPort) = if (protocol == Packet.Protocol.TCP || protocol == Packet.Protocol.UDP) {
             val pos = buf.position()
             buf.position(pos + 2)
-            val p = (buf.get().toInt() and 0xFF) shl 8 or (buf.get().toInt() and 0xFF)
+            val srcP = (buf.get().toInt() and 0xFF) shl 8 or (buf.get().toInt() and 0xFF)
+            val dstP = (buf.get().toInt() and 0xFF) shl 8 or (buf.get().toInt() and 0xFF)
             buf.position(pos)
-            p
-        } else 0
-        // The (source_ip, source_port) -> uid table is
-        // not implemented in v1.1. The VpnService
-        // represents every unattributed packet as
-        // [Packet.UID_UNRESOLVED], which the
-        // PacketForwarder fail-closes to DROP. The safe
-        // default is "drop what we can't positively
-        // identify."
-        return Packet(Packet.UID_UNRESOLVED, protocol, destAddr, destPort)
+            srcP to dstP
+        } else 0 to 0
+        // v0.20.1 round 2 (CodeRabbit #12): use the
+        // real /proc/net/tcp resolver. The packet is
+        // attributed to the UID of the application
+        // that opened the source socket. If the
+        // resolver cannot attribute the packet
+        // (cold start, the socket is in TIME_WAIT,
+        // etc.), the result is
+        // [Packet.UID_UNRESOLVED] and the forwarder
+        // fail-closes to DROP.
+        val uid = sourceUidResolver.resolve(srcAddr, srcPort)
+        return Packet(uid, protocol, destAddr, destPort)
     }
 
     private fun parseIpv6(buf: ByteBuffer): Packet {
@@ -247,18 +270,25 @@ class GoingLightVpnService : VpnService() {
             58 -> Packet.Protocol.ICMP
             else -> Packet.Protocol.ICMP
         }
+        val src = ByteArray(16)
+        buf.position(8)
+        buf.get(src)
         val dst = ByteArray(16)
         buf.position(24)
         buf.get(dst)
+        val srcAddr = InetAddress.getByAddress(src)
         val destAddr = InetAddress.getByAddress(dst)
-        val destPort = if (protocol == Packet.Protocol.TCP || protocol == Packet.Protocol.UDP) {
+        val (srcPort, destPort) = if (protocol == Packet.Protocol.TCP || protocol == Packet.Protocol.UDP) {
             val pos = buf.position()
             buf.position(pos + 2)
-            val p = (buf.get().toInt() and 0xFF) shl 8 or (buf.get().toInt() and 0xFF)
+            val srcP = (buf.get().toInt() and 0xFF) shl 8 or (buf.get().toInt() and 0xFF)
+            val dstP = (buf.get().toInt() and 0xFF) shl 8 or (buf.get().toInt() and 0xFF)
             buf.position(pos)
-            p
-        } else 0
-        return Packet(Packet.UID_UNRESOLVED, protocol, destAddr, destPort)
+            srcP to dstP
+        } else 0 to 0
+        // v0.20.1 round 2: same /proc/net/tcp6 resolver.
+        val uid = sourceUidResolver.resolve(srcAddr, srcPort)
+        return Packet(uid, protocol, destAddr, destPort)
     }
 
     override fun onRevoke() {
