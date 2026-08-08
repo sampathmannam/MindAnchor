@@ -185,33 +185,36 @@ class CheckInActivity : ComponentActivity() {
                             nowMillis = now,
                         )
                         CheckInRateLimitHolder.state = newRl
-                        // prefs.add: in lifecycleScope.
-                        // A failure here costs this
-                        // one check-in (acceptable);
-                        // the activity finishing
-                        // mid-write is a known
-                        // trade-off.
-                        lifecycleScope.launch {
-                            runCatching { prefs.add(checkIn) }
-                        }
-                        // EmaScheduler.disable: in
-                        // an application-scoped
-                        // coroutine. The activity
-                        // finishes immediately, and
-                        // the disable must reach
-                        // DataStore + AlarmManager
-                        // even if the activity is
-                        // destroyed before the
-                        // disable runs. lifecycleScope
+                        // Both prefs.add and
+                        // EmaScheduler.disable run
+                        // in an application-scoped
+                        // coroutine. lifecycleScope
                         // would be cancelled by
-                        // finish() before the
-                        // disable reaches the
-                        // AlarmManager.
+                        // finish() before either
+                        // reaches DataStore +
+                        // AlarmManager. The user
+                        // already saw "thanks" via
+                        // the rate-limit bump; the
+                        // persistence is the part
+                        // that must complete.
                         val appScope = kotlinx.coroutines.CoroutineScope(
                             kotlinx.coroutines.SupervisorJob() +
                                 kotlinx.coroutines.Dispatchers.IO,
                         )
                         appScope.launch {
+                            runCatching { prefs.add(checkIn) }
+                            // v0.20.1 round 5 follow-up:
+                            // the first time the user
+                            // accepts a check-in
+                            // through the new flow,
+                            // disable the old
+                            // scheduled-EMA feature
+                            // so the user never
+                            // receives a second
+                            // check-in notification
+                            // in the same day. The
+                            // historical data is
+                            // preserved on disk.
                             runCatching {
                                 EmaScheduler.disable(applicationContext)
                             }
