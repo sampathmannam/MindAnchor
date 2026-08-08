@@ -49,14 +49,24 @@ time. Any byte flip fails the read.
 
 1. `IntegritySealedCodec.kt` — a wrapper that takes any
    `encode(): String` / `decode(String): T` codec and
-   adds a keyed-MAC layer. The MAC is the last line of
-   the encoded form, separated by a tab.
+   adds a keyed-MAC layer. The MAC is the last tab-
+   separated field of the encoded form.
 
-   Format: `<encoded-payload>\t<base64-mac>`
+   Format: `v1\t<codecId>\t<encoded-payload>\t<base64-mac>`
+   - `v1` is the envelope version sentinel. v0.20.1+
+     rejects any envelope without this prefix; a
+     v0.20.0 form on disk is treated as a forgery.
+   - `codecId` identifies the codec (small-things,
+     bedtime, compassion, if-then, gate-tallies). The
+     MAC authenticates `codecId:encoded-payload`, so a
+     valid sealed value from one preference cannot be
+     replayed into another (CodeRabbit audit
+     2026-08-08, item #5).
    - `encoded-payload` is the codec's existing plaintext
      output, unchanged.
-   - `base64-mac` is the HMAC-SHA256 of the payload
-     using the Keystore-backed key.
+   - `base64-mac` is the HMAC-SHA256 of
+     `codecId:encoded-payload` using the Keystore-backed
+     key.
 
 2. `KeystoreHmacKey.kt` — generates and retrieves the
    single HMAC key from the Android Keystore. Key alias
@@ -85,12 +95,26 @@ time. Any byte flip fails the read.
    "wrong-key" case (verifying that a different Keystore
    key rejects the same payload).
 
-5. `Migration safety`: existing v0.20.0 DataStore entries
-   are read once, re-encoded with the MAC, and written
-   back. The wrapped `decode()` accepts both the
-   "plaintext" and "plaintext + MAC" forms; a future
-   write always emits the MAC form. This means a user
-   upgrading from v0.20.0 to v0.21 does not lose data.
+5. `Migration behavior`: v0.20.0 DataStore entries
+   are *not* read. A v0.20.0 form on disk has no
+   integrity tag and no envelope version; the
+   integrity layer's `decode()` returns the reset
+   value (an empty list, an empty plan). The first
+   write after the upgrade produces a sealed record.
+   The user experiences this as "my small-things are
+   gone" — the data is unrecoverable from a v0.20.0
+   form because the v0.20.0 form had no integrity
+   tag. This is the correct trade-off: the threat is
+   forgery, and a v0.20.0 form cannot be
+   distinguished from a forged record.
+
+   The alternative — a v0.20.0 → v0.20.1 migration
+   that accepts the plaintext on read — was the
+   v0.20.0 behavior. It was a vulnerability: a
+   power user with root could rewrite the
+   friction-gate ledger and silence the gate.
+   v0.20.1 is fail-closed by design
+   (CodeRabbit audit 2026-08-08, item #19).
 
 ## What this PR does NOT ship
 
@@ -123,15 +147,13 @@ time. Any byte flip fails the read.
   but possible after a failed OTA) will see all v0.20.0
   data reset to empty on first launch. The integrity
   layer returns the empty/reset value on any read where
-  the envelope marker is missing, the MAC fails to
-  verify, or the base64 MAC part is malformed. The user
-  loses their small-things / if-then plans /
-  compassion moments but not their core friction-gate
-  progress (the per-app tally is in GateLedger, which
-  the v0.20.0 form remains readable — the integrity
-  layer is layered on top, not the underlying codec
-  path). The data loss is bounded and recoverable on
-  the next write.
+  the `v1` prefix is missing, the codecId does not
+  match, the MAC fails to verify, or the base64 MAC
+  part is malformed. The user loses their small-
+  things / if-then plans / compassion moments / gate
+  tallies; the data loss is bounded and recoverable
+  on the next write (the user re-enters their lists
+  and the gate tallies restart at zero).
 - The Keystore key is per-app-install. An uninstall +
   reinstall loses the key, which means v0.20.1+ data
   is unreadable after a reinstall. v0.20.1 is
