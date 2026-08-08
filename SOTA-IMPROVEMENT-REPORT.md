@@ -415,6 +415,17 @@ cd MindAnchor
 ./gradlew assembleDebug
 ```
 
+If the sandbox does not have GitHub credentials, the same
+8 commits are also available as `git am`-able patches:
+
+```
+git clone https://github.com/sampathmannam/MindAnchor.git
+cd MindAnchor
+git checkout 4c73398       # Release 0.19.0
+git am /path/to/0001-*.patch /path/to/0002-*.patch ... 0008-*.patch
+./gradlew test
+```
+
 CI is the project's only compiled build environment
 (`docs/research/09` §8 — no Android SDK, no NDK in this
 environment, dl.google.com blocked). Every pure function in
