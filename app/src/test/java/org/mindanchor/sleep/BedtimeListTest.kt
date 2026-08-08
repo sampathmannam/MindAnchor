@@ -242,4 +242,44 @@ class BedtimeListTest {
             ),
         )
     }
+
+    @Test
+    fun `phase is CAPTURE in quiet hours when a stale list is on file from days ago`() {
+        // A list written three nights ago and never returned
+        // is clutter. Treating its mere presence as
+        // "already on file" would silence the capture prompt
+        // forever — the only escape would be the user
+        // manually clearing it from the RETURN card, which
+        // they have no reason to open because the RETURN
+        // card never appears either. The fix is to treat a
+        // list older than last night the same as no list at
+        // all: a fresh capture prompt fires in the quiet
+        // hours, the same as it would for a first-time user.
+        assertEquals(
+            BedtimePhase.CAPTURE,
+            BedtimeList.phase(
+                quietHours = true,
+                items = listOf("call Mom at 6"),
+                writtenDay = day.minusDays(3).toString(),
+                today = day,
+            ),
+        )
+    }
+
+    @Test
+    fun `phase is CAPTURE in quiet hours when the stored day is unparseable`() {
+        // Same trap as the stale-day case: a corrupted file
+        // must not silence the capture prompt. The user gets
+        // asked again; if the new write succeeds, the bad
+        // date is overwritten with a parseable one.
+        assertEquals(
+            BedtimePhase.CAPTURE,
+            BedtimeList.phase(
+                quietHours = true,
+                items = listOf("call Mom at 6"),
+                writtenDay = "not-a-date",
+                today = day,
+            ),
+        )
+    }
 }

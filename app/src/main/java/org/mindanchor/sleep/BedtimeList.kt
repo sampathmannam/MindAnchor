@@ -224,21 +224,24 @@ object BedtimeList {
         writtenDay: String?,
         today: LocalDate,
     ): BedtimePhase {
-        val hasItems = items.isNotEmpty()
-        if (quietHours) {
-            // In the quiet hours: only prompt to capture if there's
-            // nothing on file. A list already written does not need
-            // to be re-asked for — the morning is when it gets
-            // handed back.
-            return if (hasItems) BedtimePhase.NONE else BedtimePhase.CAPTURE
-        }
-        if (!hasItems) return BedtimePhase.NONE
+        // A list is only "on file" while it is from tonight
+        // or last night. Anything older is clutter, and
+        // treating it as on file would silence the capture
+        // prompt forever — the trap a stale list creates is
+        // a prompt that never fires again until the user
+        // manually clears it, which is a worse outcome than
+        // asking twice. An unparseable stored day is the
+        // same trap; treat it as clutter too.
         val day = writtenDay?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
-            ?: return BedtimePhase.NONE
-        // A list from last night, or earlier today before the
-        // quiet hours ended. Anything older is clutter and gets
-        // nothing.
-        return if (day == today || day == today.minusDays(1)) BedtimePhase.RETURN
-        else BedtimePhase.NONE
+        val fresh = items.isNotEmpty() && day != null &&
+            (day == today || day == today.minusDays(1))
+        if (quietHours) {
+            // In the quiet hours: only prompt to capture if
+            // there is nothing on file. A fresh list does not
+            // need to be re-asked for — the morning is when it
+            // gets handed back.
+            return if (fresh) BedtimePhase.NONE else BedtimePhase.CAPTURE
+        }
+        return if (fresh) BedtimePhase.RETURN else BedtimePhase.NONE
     }
 }

@@ -112,14 +112,24 @@ data class GoingLightSchedule(
         if (!enabled || activeDays.isEmpty()) return null
         if (isActiveAt(now)) {
             // We are inside the window; the next transition
-            // is the end of this window.
-            return now.date.atTime(endTime)
+            // is the end of this window. For an overnight
+            // window (endTime <= startTime), the end is on
+            // the *next* day — but only when we are in the
+            // same-day leg of the window (after startTime on
+            // an active day). The overnight tail (already
+            // past midnight) is on the next calendar date
+            // already, so endTime there is *today*, not
+            // tomorrow.
+            val inSameDayLeg = !now.time.isBefore(startTime) &&
+                endTime.isBefore(startTime)  // overnight
+            val endDate = if (inSameDayLeg) now.date.plusDays(1) else now.date
+            return LocalDateTime(endDate, endTime)
         }
         // Search forward up to 7 days for the next active start.
         for (offset in 0L..7L) {
             val candidate = now.date.plusDays(offset)
             if (candidate.dayOfWeek in activeDays) {
-                val start = candidate.atTime(startTime)
+                val start = LocalDateTime(candidate, startTime)
                 if (start.isAfter(now)) return start
             }
         }
@@ -132,5 +142,16 @@ data class GoingLightSchedule(
  * import `java.time.LocalDateTime` everywhere. The
  * implementation will hold a `Clock` and read `LocalDateTime.now()`
  * at every gate event.
+ *
+ * Implements [Comparable] so the schedule can use a
+ * single ordering operation; [java.time.LocalDateTime.isAfter]
+ * is unavailable on the local type, so [isAfter] is provided
+ * here.
  */
-data class LocalDateTime(val date: LocalDate, val time: LocalTime)
+data class LocalDateTime(val date: LocalDate, val time: LocalTime) : Comparable<LocalDateTime> {
+    override fun compareTo(other: LocalDateTime): Int {
+        val d = date.compareTo(other.date)
+        return if (d != 0) d else time.compareTo(other.time)
+    }
+    fun isAfter(other: LocalDateTime): Boolean = this > other
+}

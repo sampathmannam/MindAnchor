@@ -215,7 +215,13 @@ object FrictionBandit {
             ArmChoice.BRIEF -> state.copy(brief = update(state.brief, reward))
         }
 
-    private fun update(arm: Arm, reward: Boolean): Arm =
+    /**
+     * Bayesian update of a single arm. `internal` so the
+     * unit tests in `FrictionBanditTest` can call it
+     * directly to exercise the per-arm path; production
+     * code goes through [observe].
+     */
+    internal fun update(arm: Arm, reward: Boolean): Arm =
         if (reward) arm.copy(alpha = arm.alpha + 1) else arm.copy(beta = arm.beta + 1)
 
     /**
