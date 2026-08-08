@@ -20,6 +20,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.mindanchor.R
@@ -81,7 +83,12 @@ fun CheckInHistoryScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.check_in_history_title)) },
                 navigationIcon = {
-                    IconButton(onClick = onClose) {
+                    IconButton(
+                        onClick = onClose,
+                        modifier = Modifier.semantics {
+                            contentDescription = "Back to launcher"
+                        },
+                    ) {
                         Text(
                             text = "←",
                             style = MaterialTheme.typography.titleLarge,
