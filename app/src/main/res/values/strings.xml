@@ -479,6 +479,22 @@
     <string name="about_text">MindAnchor is an open-source, research-backed launcher. It has no accounts, no server and no analytics — your data never leaves this phone. It is a wellness tool, not a medical device, and it is no substitute for talking to someone.</string>
 
     <!--
+        v0.20.1 round 5 follow-up: Going Light
+        settings entry. The toggle itself is a
+        placeholder (the feature ships in v0.20.2
+        with proper clinical review of the
+        first-time copy). The strings below are
+        neutral and do not require clinical
+        review; the *first-time copy* the user
+        sees when they enable Going Light is
+        clinical-review-gated and ships in the
+        v0.20.2 follow-up.
+    -->
+    <string name="going_light_section">Going Light</string>
+    <string name="going_light_explainer">Blocks chosen apps during a time window you set. The first time you turn it on, your phone will need a one-time VPN permission.</string>
+    <string name="going_light_coming_soon">Available in v0.20.2.</string>
+
+    <!--
         v0.20.1 round 5: notes + check-in. The
         check-in prompt and rating anchors are
         launcher-authored wording and are clinical-
