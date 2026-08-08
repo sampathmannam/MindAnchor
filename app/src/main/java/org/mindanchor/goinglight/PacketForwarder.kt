@@ -178,8 +178,15 @@ class PacketForwarder(
         return addr.isLoopbackAddress ||
             addr.isLinkLocalAddress ||
             addr.isAnyLocalAddress ||
-            // RFC1918 private ranges
-            isRfc1918(addr)
+            // RFC1918 (IPv4) and ULA (IPv6 fc00::/7)
+            isRfc1918(addr) || isUla(addr)
+    }
+
+    private fun isUla(addr: InetAddress): Boolean {
+        val b = addr.address
+        if (b.size != 16) return false
+        // ULA: fc00::/7 (the top 7 bits are 1111 110)
+        return (b[0].toInt() and 0xFE) == 0xFC
     }
 
     private fun isRfc1918(addr: InetAddress): Boolean {
