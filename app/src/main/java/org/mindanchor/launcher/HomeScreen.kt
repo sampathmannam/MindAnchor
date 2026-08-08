@@ -149,6 +149,26 @@ fun LauncherRoot(
                 smallThing = resolved.smallThing,
                 ifThenPlan = resolved.ifThenPlan,
                 compassionMoment = resolved.compassionMoment,
+                perAppSessionLength = resolved.perAppSessionLength,
+                packageName = resolved.packageName,
+                // v0.20.1 round 4 (item M): the per-app
+                // session-length "Learn this for next time"
+                // toggle. The gate invokes this callback
+                // only when the toggle is on at the moment
+                // of the tap. The launcher records the
+                // choice via FrictionPrefs and the change
+                // is picked up on the next reach.
+                onTimeBoxPicked = { pkg, minutes ->
+                    viewModel.recordPerAppSessionLength(pkg, minutes)
+                },
+                // v0.20.1 round 5 follow-up: forget the
+                // per-app default. The launcher clears the
+                // map entry and the next reach will show
+                // the "Learn this for next time" toggle
+                // again, as if the user had never picked.
+                onForgetDefault = { pkg ->
+                    viewModel.clearPerAppSessionLength(pkg)
+                },
                 // Taking the small thing is leaving, not entering. It
                 // counts as backing out for the same reason "never mind"
                 // does: the person met the pause and did not go in.
@@ -193,6 +213,34 @@ fun LauncherRoot(
                 onOpenReport = {
                     reportCameFrom = LauncherSurface.Home
                     surface = LauncherSurface.Report
+                },
+                onOpenNotes = {
+                    // v0.20.1 round 5: route to the
+                    // notes activity. runCatching
+                    // because a misconfigured
+                    // manifest is the easiest way to
+                    // ship a broken entry point, and
+                    // the cost of catching is one
+                    // try-frame, not a UX failure.
+                    runCatching {
+                        val notesIntent = android.content.Intent(
+                            context, org.mindanchor.model.NoteActivity::class.java,
+                        )
+                        context.startActivity(notesIntent)
+                    }
+                },
+                onOpenCheckInHistory = {
+                    // v0.20.1 round 5 follow-up:
+                    // route to the check-in history.
+                    // Same runCatching pattern as the
+                    // notes entry — defensive against
+                    // a misconfigured manifest.
+                    runCatching {
+                        val historyIntent = android.content.Intent(
+                            context, org.mindanchor.model.CheckInHistoryActivity::class.java,
+                        )
+                        context.startActivity(historyIntent)
+                    }
                 },
             )
         }
@@ -470,6 +518,26 @@ private fun HomeSurface(
     /** Shown only when last night's report actually has something in it. */
     hasReport: Boolean = false,
     onOpenReport: () -> Unit = {},
+    /**
+     * v0.20.1 round 5: route to [org.mindanchor.model.NoteActivity].
+     * Notes are a one-tap home-screen affordance for the
+     * "I want to remember this" capture pattern (brief §A).
+     * TopEnd so it does not collide with TopStart (Support)
+     * or BottomStart (Digest) or BottomEnd (Settings).
+     */
+    onOpenNotes: () -> Unit = {},
+    /**
+     * v0.20.1 round 5 follow-up: route to
+     * [org.mindanchor.model.CheckInHistoryActivity].
+     * The history is a read-only list of past
+     * check-ins; the *write* side is the
+     * phone-unlock trigger, the *read* side is
+     * the home-screen affordance. Same pattern
+     * as the notes (capture) — separate the write
+     * and read surfaces so neither clutters the
+     * other.
+     */
+    onOpenCheckInHistory: () -> Unit = {},
 ) {
     val now = rememberMinuteTick()
     val clockFormat = rememberClockFormat()
@@ -622,6 +690,40 @@ private fun HomeSurface(
                 style = MaterialTheme.typography.labelMedium,
                 color = sky.textSecondary,
             )
+        }
+
+        // v0.20.1 round 5: notes + check-in history
+        // entry points. TopEnd, so neither collides
+        // with TopStart (Support), BottomStart
+        // (Digest), or BottomEnd (Settings). One-tap,
+        // no scrolling. The brief: "I want to
+        // remember this" — the entry must be
+        // reachable the moment the user thinks it.
+        // Two stacked buttons (notes on top, history
+        // below) keep the home screen uncluttered
+        // without forcing the user into a menu.
+        Column(
+            modifier = Modifier.align(Alignment.TopEnd),
+            horizontalAlignment = Alignment.End,
+        ) {
+            TextButton(
+                onClick = onOpenNotes,
+            ) {
+                Text(
+                    text = stringResource(R.string.notes_shortcut),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = sky.textSecondary,
+                )
+            }
+            TextButton(
+                onClick = onOpenCheckInHistory,
+            ) {
+                Text(
+                    text = stringResource(R.string.check_in_history_shortcut),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = sky.textSecondary,
+                )
+            }
         }
 
         TextButton(
