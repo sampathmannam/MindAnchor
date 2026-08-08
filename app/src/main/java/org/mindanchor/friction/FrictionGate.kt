@@ -54,6 +54,20 @@ fun FrictionGate(
      */
     smallThing: String? = null,
     onSmallThingTaken: () -> Unit = {},
+    /**
+     * The user's pre-written if-then plan for this app, or null. When
+     * present, the intention prompt is pre-filled with the user's
+     * own words — the Gollwitzer 1999 implementation-intention
+     * structure, which the SOTA brief (docs/research/15 §8) calls
+     * the cheapest anti-habituation fix.
+     */
+    ifThenPlan: IfThenPlan? = null,
+    /**
+     * One of the user's own self-compassion phrases for this reach,
+     * or null. Rotated by [CompassionStore.rotate] so the same
+     * phrase does not become wallpaper.
+     */
+    compassionMoment: String? = null,
 ) {
     // The breath is skipped entirely below FULL rather than shortened.
     // A hurried version of a calming ritual is not calming.
@@ -85,6 +99,8 @@ fun FrictionGate(
                 onNeverMind = onNeverMind,
                 smallThing = smallThing,
                 onSmallThingTaken = onSmallThingTaken,
+                ifThenPlan = ifThenPlan,
+                compassionMoment = compassionMoment,
             )
         }
     }
@@ -135,13 +151,13 @@ private fun Feather(
     }
 }
 
-private const val BREATH_MILLIS = 6_000
+private const val BREATH_MILLIS = BreathingProtocol.CYCLE_MILLIS
 
 @Composable
 private fun BreathingPause(sky: SkyContent, onFinished: () -> Unit, onNeverMind: () -> Unit) {
     val haptics = LocalHapticFeedback.current
     val context = LocalContext.current
-    var phaseIn by remember { mutableStateOf(true) }
+    var phase by remember { mutableStateOf(BreathingProtocol.Phase.INHALE) }
 
     // Users who have asked the system to remove animations get the same
     // pause, the same haptics and the same wording — just no pulsing circle.
@@ -156,21 +172,55 @@ private fun BreathingPause(sky: SkyContent, onFinished: () -> Unit, onNeverMind:
     // A single finite breath, not an endless loop. An infinite transition
     // here kept animating behind the intention prompt long after the breath
     // was over — burning frames, and leaving the UI permanently non-idle.
+    //
+    // The protocol is the physiological sigh (Balban et al. 2023,
+    // Cell Reports Medicine 4(1):100895): a 2s nasal inhale, a 1s
+    // "sip" inhale to fully reinflate the alveoli, then a 6s slow
+    // mouth exhale. The double-inhale is what makes it a sigh; the
+    // long exhale is the active ingredient for parasympathetic
+    // drive (Bernardi 2018, J Physiol 596(8):1449–1464). See
+    // BreathingProtocol for the citations.
     val scale = remember { Animatable(1f) }
     LaunchedEffect(Unit) {
+        // First haptic on inhale start. The user feels the breath
+        // before they have to do anything.
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-        val half = (BREATH_MILLIS / 2)
         if (animationsEnabled) {
-            scale.animateTo(1.6f, tween(half, easing = FastOutSlowInEasing))
+            scale.animateTo(1.6f, tween(
+                durationMillis = BreathingProtocol.INHALE_MILLIS.toInt(),
+                easing = FastOutSlowInEasing,
+            ))
         } else {
-            delay(half.toLong())
+            delay(BreathingProtocol.INHALE_MILLIS)
         }
-        phaseIn = false
+
+        // The "sip" — a second, smaller inhale on top of the first.
+        // This is the alveolar reinflation that distinguishes a
+        // physiological sigh from an ordinary breath. The second
+        // haptic marks the transition.
+        phase = BreathingProtocol.Phase.SIP
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         if (animationsEnabled) {
-            scale.animateTo(1f, tween(half, easing = FastOutSlowInEasing))
+            scale.animateTo(1.8f, tween(
+                durationMillis = BreathingProtocol.SIP_MILLIS.toInt(),
+                easing = FastOutSlowInEasing,
+            ))
         } else {
-            delay(half.toLong())
+            delay(BreathingProtocol.SIP_MILLIS)
+        }
+
+        // The slow exhale — the active ingredient. The circle
+        // shrinks back over six seconds, twice as long as the
+        // inhale, which is the parasympathetic-drive lever.
+        phase = BreathingProtocol.Phase.EXHALE
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        if (animationsEnabled) {
+            scale.animateTo(1f, tween(
+                durationMillis = BreathingProtocol.EXHALE_MILLIS.toInt(),
+                easing = FastOutSlowInEasing,
+            ))
+        } else {
+            delay(BreathingProtocol.EXHALE_MILLIS)
         }
         onFinished()
     }
@@ -193,7 +243,11 @@ private fun BreathingPause(sky: SkyContent, onFinished: () -> Unit, onNeverMind:
             )
             Text(
                 text = stringResource(
-                    if (phaseIn) R.string.breath_in else R.string.breath_out,
+                    when (phase) {
+                        BreathingProtocol.Phase.INHALE -> R.string.breath_in
+                        BreathingProtocol.Phase.SIP -> R.string.breath_sip
+                        BreathingProtocol.Phase.EXHALE -> R.string.breath_out
+                    },
                 ),
                 style = MaterialTheme.typography.titleLarge,
                 color = sky.textSecondary,
@@ -216,6 +270,20 @@ private fun IntentionPrompt(
     onNeverMind: () -> Unit,
     smallThing: String? = null,
     onSmallThingTaken: () -> Unit = {},
+    /**
+     * The user's pre-written if-then plan for this app. When
+     * present, the prompt is pre-filled with the user's own
+     * words — the user-chosen plan is *additional* to the
+     * existing time-box buttons, not a replacement. The way
+     * in stays exactly where it was.
+     */
+    ifThenPlan: IfThenPlan? = null,
+    /**
+     * The user's rotated self-compassion moment for this
+     * reach. One line, beneath the if-then plan if both are
+     * present.
+     */
+    compassionMoment: String? = null,
 ) {
     Box(modifier = Modifier.fillMaxSize().padding(32.dp)) {
         Column(
@@ -233,6 +301,27 @@ private fun IntentionPrompt(
                 style = MaterialTheme.typography.bodyMedium,
                 color = sky.textSecondary,
             )
+
+            // The user's own if-then plan, pre-filled into the
+            // prompt. Shown only when a complete plan is on
+            // file for this app (cue + action both filled). The
+            // existing 5/10/20 time-box buttons and the "open
+            // untimed" button are still right below, so the
+            // user-chosen defaultMinutes from the plan is the
+            // *suggestion* but the existing escape valves are
+            // still one tap away.
+            if (ifThenPlan != null) {
+                Text(
+                    text = stringResource(
+                        R.string.intention_plan_label,
+                        ifThenPlan.cue,
+                        ifThenPlan.action,
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = sky.textPrimary,
+                )
+            }
+
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(5L, 10L, 20L).forEach { minutes ->
                     TextButton(onClick = { onOpen(minutes) }) {
@@ -261,6 +350,24 @@ private fun IntentionPrompt(
                 TextButton(onClick = onSmallThingTaken) {
                     Text(smallThing, color = sky.textPrimary)
                 }
+            }
+
+            // The user's rotated self-compassion moment. One
+            // line, optional, only shown when the user has
+            // authored at least one. The brief is explicit
+            // (docs/research/15 §3) that the prompt is the
+            // user's own words, not a launcher opinion.
+            if (compassionMoment != null) {
+                Text(
+                    text = stringResource(R.string.compassion_moment_label),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = sky.textSecondary,
+                )
+                Text(
+                    text = compassionMoment,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = sky.textPrimary,
+                )
             }
         }
         TextButton(

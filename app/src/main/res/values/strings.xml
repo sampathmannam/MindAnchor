@@ -37,6 +37,7 @@
     <string name="action_remove_pause">Remove the pause</string>
 
     <string name="breath_in">Breathe in…</string>
+    <string name="breath_sip">…and in again</string>
     <string name="breath_out">…and out</string>
     <string name="never_mind">never mind</string>
     <string name="friction_feather">You\&#39;ve opened %1$s a few times just now.</string>
@@ -101,11 +102,42 @@
     <string name="small_things_add">Add</string>
     <string name="small_things_remove">Remove</string>
     <string name="small_thing_prompt">Or, one of yours:</string>
+    <!--
+        Per-app if-then plan (Gollwitzer 1999) — the user's own
+        words, pre-filled into the intention prompt when a plan
+        is on file. Brief is one line: "If I'm about to X, then I
+        will Y." The user-chosen cue and action go inside the
+        quotes; the time-box buttons stay where they were.
+    -->
+    <string name="intention_plan_label">Your plan: “If I’m about to %1$s, then I’ll %2$s.”</string>
+    <!--
+        Self-compassion micro-moment (Neff 2003) — the user's
+        own phrase, rotated to avoid habituation. The launcher
+        never authors these; the user does, in settings.
+    -->
+    <string name="compassion_moment_label">For you, right now:</string>
     <string name="loop_capture">Anything still open? Put it down here and pick it up in the morning.</string>
     <string name="loop_capture_hint">The one thing on your mind</string>
     <string name="loop_save">Put it down</string>
     <string name="loop_return">You left this for yourself last night:</string>
     <string name="loop_clear">Done with it</string>
+
+    <!--
+        Bedtime to-do list — Scullin et al. 2018, J Exp Psychol Gen
+        147(1):139–146, doi:10.1037/xge0000374. See docs/research/15
+        §2. Wording per the brief: brief, optional, *specific* (the
+        active ingredient); not a task list; never grows into one.
+        The save button is "put it down" not "save" or "done" — the
+        user is parking the thought for the morning, not crossing it
+        off.
+    -->
+    <string name="bedtime_capture">Anything for tomorrow? Write it down now — specific things, not vague ones. Your phone can hold them until morning.</string>
+    <string name="bedtime_capture_hint">e.g. call Mom at 6, email the report by Tuesday</string>
+    <string name="bedtime_add_line">Add line</string>
+    <string name="bedtime_save">Put it down</string>
+    <string name="bedtime_return_intro">You left this for yourself last night:</string>
+    <string name="bedtime_clear">Done with it</string>
+    <string name="bedtime_specificity_nudge">A specific time or day makes this work better than a vague list.</string>
     <string name="stale_section">Pauses worth a look</string>
     <string name="stale_explainer">These are ones you have gone through every time. That might mean the pause has become scenery, or it might mean it is quietly doing its job and you genuinely wanted to go in. Only you know which. Nothing changes unless you change it.</string>
     <string name="stale_line">%1$s — shown %2$d times, and you went in every time.</string>
@@ -325,8 +357,20 @@
     <string name="pulse_scale_hint">0 = at no time · 5 = all of the time</string>
     <string name="pulse_save">Save</string>
     <string name="pulse_result">Your score: %1$d/100</string>
+    <!-- The legacy "scores in this range" line is retained for callers
+         that import it directly. The presentation in PulseScreen now
+         uses one of the band_* lines below; the wording in each is
+         per docs/research/13 (Topp 2015; WHO 1998; Parker 2020 JMIR
+         mHealth lived-experience findings). -->
     <string name="pulse_low_note">Scores in this range are common when things are heavy. Your people and your plan are one tap from the home screen whenever you want them.</string>
     <string name="pulse_open_support">Open support</string>
+    <string name="pulse_band_okay">In the higher range. The WHO-5 is not a diagnosis — it is a check-in on the last two weeks. Trends over time are more useful than any single number.</string>
+    <string name="pulse_band_low">In the lower range — the kind of result that often shows up under a lot of stress or strain. Not a diagnosis, and it does not mean anything is wrong with you. Your people and your plan are one tap away whenever you want them. If this has been going on for a couple of weeks or more, talking to a GP can be a useful next step.</string>
+    <string name="pulse_band_very_low">In the lowest range the WHO describes — the level of well-being often seen in people who are going through a really hard time. The WHO-5 is not a diagnosis; only a clinician can make that call. Given how much you are carrying, it might be worth talking to someone you trust or a GP. Your people are one tap away.</string>
+    <string name="pulse_band_incomplete">A few items are unanswered. Save only when you have answered all five.</string>
+    <string name="pulse_after_disclaimer">MindAnchor is a wellness tool, not a clinical service. A low reading does not mean you are unwell.</string>
+    <string name="pulse_history_up">A meaningful lift from the one before.</string>
+    <string name="pulse_history_down">A meaningful drop from the one before.</string>
     <string name="pulse_history">History</string>
     <!--
         The history was a bare list of ISO dates and scores, which made a

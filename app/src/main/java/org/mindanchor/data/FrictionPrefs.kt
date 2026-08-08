@@ -8,12 +8,21 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import org.mindanchor.friction.CompassionMoment
+import org.mindanchor.friction.CompassionStore
 import org.mindanchor.friction.ExtensionLedger
+import org.mindanchor.friction.FrictionBandit
 import org.mindanchor.friction.GateLedger
 import org.mindanchor.friction.GateTally
+import org.mindanchor.friction.GoingLightSchedule
+import org.mindanchor.friction.IfThenPlan
+import org.mindanchor.friction.IfThenPlanStore
 import org.mindanchor.friction.OpenLoop
 import org.mindanchor.friction.SmallThings
+import org.mindanchor.sleep.BedtimeList
+import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.LocalTime
 
 private val Context.dataStore by preferencesDataStore(name = "friction")
 
@@ -138,6 +147,56 @@ class FrictionPrefs(private val context: Context) {
         }
     }
 
+    private val bedtimeItemsKey = stringPreferencesKey("bedtime_list_items")
+    private val bedtimeDayKey = stringPreferencesKey("bedtime_list_day")
+
+    /**
+     * The bedtime to-do list — see [org.mindanchor.sleep.BedtimeList].
+     *
+     * Like [openLoopNote] above, this is *one-night* data. Stored as a
+     * newline-separated string for parity with the existing
+     * [SmallThings] / [OpenLoop] pattern (one DataStore key per
+     * concept, no JSON, no migration). Decoded with
+     * [BedtimeList.decode] on the way in; the cap is on the *output*
+     * so a corrupted or hand-edited file cannot produce an
+     * overflowing list.
+     *
+     * The brief is explicit: **not a task list, must never grow into
+     * one** (Scullin 2018 — see docs/research/15 §2). A list from a
+     * previous night is handed back in the morning and then cleared
+     * the next time the prompt fires.
+     */
+    val bedtimeList: Flow<List<String>> =
+        context.dataStore.data.map { BedtimeList.decode(it[bedtimeItemsKey].orEmpty()) }
+
+    val bedtimeListDay: Flow<String?> =
+        context.dataStore.data.map { it[bedtimeDayKey] }
+
+    suspend fun setBedtimeList(
+        items: List<String>,
+        today: LocalDate = LocalDate.now(),
+    ) {
+        // One bedtime list per night. Empty input clears the store
+        // outright so a stale entry from three days ago never gets
+        // handed back as if it were today's.
+        val cleaned = items.mapNotNull { BedtimeList.cleanLine(it) }
+        if (cleaned.isEmpty()) {
+            clearBedtimeList()
+            return
+        }
+        context.dataStore.edit {
+            it[bedtimeItemsKey] = BedtimeList.encode(cleaned)
+            it[bedtimeDayKey] = today.toString()
+        }
+    }
+
+    suspend fun clearBedtimeList() {
+        context.dataStore.edit {
+            it.remove(bedtimeItemsKey)
+            it.remove(bedtimeDayKey)
+        }
+    }
+
     private val ledgerTallyKey = stringPreferencesKey("gate_tallies")
 
     /**
@@ -184,6 +243,148 @@ class FrictionPrefs(private val context: Context) {
             count = ExtensionLedger.count(updated, packageName, today)
         }
         return count
+    }
+
+    private val banditKey = stringPreferencesKey("friction_bandit_state")
+
+    /**
+     * The v1.2 adaptive-friction policy state — see
+     * [org.mindanchor.friction.FrictionBandit]. Persisted as a
+     * tab-separated pair of `(alpha, beta)` per arm so the data
+     * store stays text-only, in keeping with the
+     * [GateLedger.encode] / [OpenLoop.encode] pattern.
+     */
+    val banditState: Flow<FrictionBandit.BanditState> =
+        context.dataStore.data.map { decodeBandit(it[banditKey].orEmpty()) }
+
+    suspend fun saveBanditState(state: FrictionBandit.BanditState) {
+        context.dataStore.edit { it[banditKey] = encodeBandit(state) }
+    }
+
+    private fun encodeBandit(state: FrictionBandit.BanditState): String =
+        "${state.full.alpha}\t${state.full.beta}\t${state.brief.alpha}\t${state.brief.beta}"
+
+    private fun decodeBandit(raw: String): FrictionBandit.BanditState {
+        if (raw.isBlank()) return FrictionBandit.BanditState()
+        val parts = raw.split('\t')
+        if (parts.size < 4) return FrictionBandit.BanditState()
+        val (fa, fb, ba, bb) = parts
+        val fullAlpha = fa.toDoubleOrNull() ?: return FrictionBandit.BanditState()
+        val fullBeta = fb.toDoubleOrNull() ?: return FrictionBandit.BanditState()
+        val briefAlpha = ba.toDoubleOrNull() ?: return FrictionBandit.BanditState()
+        val briefBeta = bb.toDoubleOrNull() ?: return FrictionBandit.BanditState()
+        return FrictionBandit.BanditState(
+            full = FrictionBandit.Arm(alpha = fullAlpha, beta = fullBeta),
+            brief = FrictionBandit.Arm(alpha = briefAlpha, beta = briefBeta),
+        )
+    }
+
+    private val ifThenPlansKey = stringPreferencesKey("if_then_plans")
+
+    /**
+     * Per-app Gollwitzer if-then plans — see
+     * [org.mindanchor.friction.IfThenPlan]. Stored as a
+     * tab-separated `package<TAB>cue<TAB>action<TAB>minutes`
+     * per line, following the same text-only pattern as
+     * [GateLedger.encode] / [IfThenPlanStore.encode].
+     *
+     * A plan is per-app, optional, and may be incomplete
+     * (cue filled, action empty, or vice versa). The friction
+     * gate pre-fills the intention prompt with a complete
+     * plan and falls back to the generic prompt when no plan
+     * is on file.
+     */
+    val ifThenPlans: Flow<Map<String, IfThenPlan>> =
+        context.dataStore.data.map { IfThenPlanStore.decode(it[ifThenPlansKey].orEmpty()) }
+
+    suspend fun setIfThenPlan(packageName: String, plan: IfThenPlan) {
+        context.dataStore.edit { prefs ->
+            val all = IfThenPlanStore.decode(prefs[ifThenPlansKey].orEmpty()).toMutableMap()
+            if (plan.cue.isBlank() && plan.action.isBlank() && plan.defaultMinutes == null) {
+                all.remove(packageName)
+            } else {
+                all[packageName] = plan
+            }
+            prefs[ifThenPlansKey] = IfThenPlanStore.encode(all)
+        }
+    }
+
+    suspend fun clearIfThenPlan(packageName: String) {
+        context.dataStore.edit { prefs ->
+            val all = IfThenPlanStore.decode(prefs[ifThenPlansKey].orEmpty()).toMutableMap()
+            all.remove(packageName)
+            prefs[ifThenPlansKey] = IfThenPlanStore.encode(all)
+        }
+    }
+
+    private val compassionKey = stringPreferencesKey("compassion_moments")
+
+    /**
+     * The user's own set of self-compassion phrases — see
+     * [org.mindanchor.friction.CompassionMoment]. Stored as
+     * one phrase per line, following the [SmallThings.encode]
+     * / [OpenLoop.encode] pattern.
+     */
+    val compassionMoments: Flow<List<CompassionMoment>> =
+        context.dataStore.data.map { CompassionStore.decode(it[compassionKey].orEmpty()) }
+
+    suspend fun setCompassionMoments(moments: List<CompassionMoment>) {
+        context.dataStore.edit { it[compassionKey] = CompassionStore.encode(moments) }
+    }
+
+    private val goingLightKey = stringPreferencesKey("going_light_schedule")
+
+    /**
+     * The "Going Light" v1.1 schedule — see
+     * [org.mindanchor.friction.GoingLightSchedule]. The
+     * actual blocking mechanism (VpnService or
+     * AccessibilityService) is a separate commit that
+     * reads this flow; the data layer is the part that
+     * ships now.
+     */
+    val goingLightSchedule: Flow<GoingLightSchedule> =
+        context.dataStore.data.map { decodeGoingLight(it[goingLightKey].orEmpty()) }
+
+    suspend fun setGoingLightSchedule(schedule: GoingLightSchedule) {
+        context.dataStore.edit { it[goingLightKey] = encodeGoingLight(schedule) }
+    }
+
+    /**
+     * Encodes the schedule as 8 tab-separated fields: enabled
+     * (0/1), then 7 day-of-week booleans (Mon..Sun), then
+     * start-minute-of-day, then end-minute-of-day. The
+     * day-of-week set is encoded as 7 booleans for
+     * human-readability on inspection; everything else is
+     * integer-valued for cheap equality checks.
+     */
+    private fun encodeGoingLight(s: GoingLightSchedule): String {
+        val dayBooleans = (1..7).joinToString("\t") { dow ->
+            if (DayOfWeek.of(dow) in s.activeDays) "1" else "0"
+        }
+        return listOf(
+            if (s.enabled) "1" else "0",
+            dayBooleans,
+            s.startTime.hour * 60 + s.startTime.minute,
+            s.endTime.hour * 60 + s.endTime.minute,
+        ).joinToString("\t")
+    }
+
+    private fun decodeGoingLight(raw: String): GoingLightSchedule {
+        if (raw.isBlank()) return GoingLightSchedule()
+        val parts = raw.split('\t')
+        if (parts.size < 10) return GoingLightSchedule()
+        val enabled = parts[0] == "1"
+        val days = (1..7).mapNotNull { dow ->
+            if (parts[dow] == "1") DayOfWeek.of(dow) else null
+        }.toSet()
+        val startMin = parts[8].toIntOrNull() ?: return GoingLightSchedule()
+        val endMin = parts[9].toIntOrNull() ?: return GoingLightSchedule()
+        return GoingLightSchedule(
+            enabled = enabled,
+            activeDays = days,
+            startTime = LocalTime.of(startMin / 60, startMin % 60),
+            endTime = LocalTime.of(endMin / 60, endMin % 60),
+        )
     }
 
     suspend fun extensionsToday(packageName: String, today: String): Int =
