@@ -120,6 +120,17 @@ fun FrictionGate(
      * no timer," not a length to learn).
      */
     onTimeBoxPicked: (packageName: String, minutes: Long) -> Unit = { _, _ -> },
+    /**
+     * v0.20.1 round 5 follow-up: invoked when the
+     * user asks to forget the per-app default. The
+     * launcher calls `FrictionPrefs.clearPerAppSessionLength`
+     * on this. The callback is only invoked when a
+     * default exists; the affordance is hidden
+     * otherwise. The launcher never shows a "Forget"
+     * affordance on the first reach per app — there
+     * is nothing to forget.
+     */
+    onForgetDefault: (packageName: String) -> Unit = { _ -> },
 ) {
     // The breath is skipped entirely below FULL rather than shortened.
     // A hurried version of a calming ritual is not calming.
@@ -365,6 +376,13 @@ private fun IntentionPrompt(
      * tap. Not invoked for the "open untimed" button.
      */
     onTimeBoxPicked: (packageName: String, minutes: Long) -> Unit = { _, _ -> },
+    /**
+     * v0.20.1 round 5 follow-up: invoked when the
+     * user asks to forget the per-app default. Shown
+     * only when a default exists. See the docstring
+     * on the parent [FrictionGate] for the lifecycle.
+     */
+    onForgetDefault: (packageName: String) -> Unit = { _ -> },
 ) {
     // v0.20.1 round 4: the per-app default. Read it
     // once at compose time so the highlight, the
@@ -442,6 +460,26 @@ private fun IntentionPrompt(
                     style = MaterialTheme.typography.bodySmall,
                     color = sky.textSecondary,
                 )
+                // v0.20.1 round 5 follow-up: a
+                // one-tap way to forget the default.
+                // Shown only when a default exists
+                // (so the user never sees "Forget"
+                // before anything is stored). The
+                // affordance is a small text button
+                // — the user must be able to read
+                // the line above, not just a single
+                // x-out icon. The wording is
+                // clinical-review-gated; the strings
+                // entry is per_app_session_length_forget_label.
+                TextButton(
+                    onClick = { onForgetDefault(packageName) },
+                ) {
+                    Text(
+                        text = stringResource(R.string.per_app_session_length_forget_label),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = sky.textSecondary,
+                    )
+                }
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -161,6 +161,14 @@ fun LauncherRoot(
                 onTimeBoxPicked = { pkg, minutes ->
                     viewModel.recordPerAppSessionLength(pkg, minutes)
                 },
+                // v0.20.1 round 5 follow-up: forget the
+                // per-app default. The launcher clears the
+                // map entry and the next reach will show
+                // the "Learn this for next time" toggle
+                // again, as if the user had never picked.
+                onForgetDefault = { pkg ->
+                    viewModel.clearPerAppSessionLength(pkg)
+                },
                 // Taking the small thing is leaving, not entering. It
                 // counts as backing out for the same reason "never mind"
                 // does: the person met the pause and did not go in.
@@ -219,6 +227,19 @@ fun LauncherRoot(
                             context, org.mindanchor.model.NoteActivity::class.java,
                         )
                         context.startActivity(notesIntent)
+                    }
+                },
+                onOpenCheckInHistory = {
+                    // v0.20.1 round 5 follow-up:
+                    // route to the check-in history.
+                    // Same runCatching pattern as the
+                    // notes entry — defensive against
+                    // a misconfigured manifest.
+                    runCatching {
+                        val historyIntent = android.content.Intent(
+                            context, org.mindanchor.model.CheckInHistoryActivity::class.java,
+                        )
+                        context.startActivity(historyIntent)
                     }
                 },
             )
@@ -505,6 +526,18 @@ private fun HomeSurface(
      * or BottomStart (Digest) or BottomEnd (Settings).
      */
     onOpenNotes: () -> Unit = {},
+    /**
+     * v0.20.1 round 5 follow-up: route to
+     * [org.mindanchor.model.CheckInHistoryActivity].
+     * The history is a read-only list of past
+     * check-ins; the *write* side is the
+     * phone-unlock trigger, the *read* side is
+     * the home-screen affordance. Same pattern
+     * as the notes (capture) — separate the write
+     * and read surfaces so neither clutters the
+     * other.
+     */
+    onOpenCheckInHistory: () -> Unit = {},
 ) {
     val now = rememberMinuteTick()
     val clockFormat = rememberClockFormat()
@@ -659,22 +692,38 @@ private fun HomeSurface(
             )
         }
 
-        // v0.20.1 round 5: notes entry point. TopEnd
-        // so it does not collide with TopStart
-        // (Support), BottomStart (Digest), or
-        // BottomEnd (Settings). One-tap, no
-        // scrolling. The brief: "I want to remember
-        // this" — the entry must be reachable the
-        // moment the user thinks it.
-        TextButton(
-            onClick = onOpenNotes,
+        // v0.20.1 round 5: notes + check-in history
+        // entry points. TopEnd, so neither collides
+        // with TopStart (Support), BottomStart
+        // (Digest), or BottomEnd (Settings). One-tap,
+        // no scrolling. The brief: "I want to
+        // remember this" — the entry must be
+        // reachable the moment the user thinks it.
+        // Two stacked buttons (notes on top, history
+        // below) keep the home screen uncluttered
+        // without forcing the user into a menu.
+        Column(
             modifier = Modifier.align(Alignment.TopEnd),
+            horizontalAlignment = Alignment.End,
         ) {
-            Text(
-                text = stringResource(R.string.notes_shortcut),
-                style = MaterialTheme.typography.labelMedium,
-                color = sky.textSecondary,
-            )
+            TextButton(
+                onClick = onOpenNotes,
+            ) {
+                Text(
+                    text = stringResource(R.string.notes_shortcut),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = sky.textSecondary,
+                )
+            }
+            TextButton(
+                onClick = onOpenCheckInHistory,
+            ) {
+                Text(
+                    text = stringResource(R.string.check_in_history_shortcut),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = sky.textSecondary,
+                )
+            }
         }
 
         TextButton(

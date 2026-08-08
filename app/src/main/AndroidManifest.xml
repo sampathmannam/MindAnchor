@@ -225,6 +225,25 @@
             android:configChanges="orientation|screenSize|keyboard|keyboardHidden" />
 
         <!--
+            v0.20.1 round 5 follow-up: the
+            check-in history activity. Read-only
+            list of past check-ins. NOT
+            clinical-review-gated: the screen
+            renders the user's own data with no
+            interpretation (no averages, no
+            trends, no judgements — the
+            *view* is not clinical, only an
+            interpretation layer would be).
+        -->
+        <activity
+            android:name=".model.CheckInHistoryActivity"
+            android:exported="false"
+            android:taskAffinity=".model.checkin.history"
+            android:excludeFromRecents="false"
+            android:stateNotNeeded="true"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden" />
+
+        <!--
             Notices when a flagged app reaches the foreground, so the pause
             covers opens from notifications, recents and links rather than
             only taps on the home screen.

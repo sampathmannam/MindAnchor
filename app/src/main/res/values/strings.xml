@@ -67,6 +67,7 @@
     -->
     <string name="per_app_session_length_learn_label">Learn this for next time</string>
     <string name="per_app_session_length_last_time_label">Like last time — %1$d min</string>
+    <string name="per_app_session_length_forget_label">Forget this default</string>
 
     <string name="session_channel_name">Session timers</string>
     <string name="session_over_title">Your time in %1$s is up</string>
@@ -494,6 +495,10 @@
     <string name="check_in_reflection_label">A line or two, if you like</string>
     <string name="check_in_reflection_placeholder">What stuck with you today?</string>
     <string name="check_in_save">Save</string>
+    <string name="check_in_history_title">Check-ins</string>
+    <string name="check_in_history_empty">No check-ins yet. They appear here as you complete them.</string>
+    <string name="check_in_history_shortcut">history</string>
+    <string name="check_in_manual_shortcut">check in</string>
     <string name="note_title_hint">Title (optional)</string>
     <string name="note_body_hint">Start writing…</string>
     <string name="note_new">New note</string>

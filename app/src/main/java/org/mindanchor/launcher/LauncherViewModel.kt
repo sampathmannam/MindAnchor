@@ -434,6 +434,29 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     /**
+     * v0.20.1 round 5 follow-up: forget the per-app
+     * default. The user reached the gate, saw "Like
+     * last time — N min", and decided that default
+     * is no longer what they want. The launcher
+     * clears the map entry; the next reach shows
+     * the "Learn this for next time" toggle again
+     * as if the user had never picked.
+     *
+     * Defensive: blank package name is a no-op. A
+     * blank package would otherwise clear the entire
+     * map (PerAppSessionLength.forget on an empty
+     * string is a no-op too, but the gate never
+     * passes a blank package; this is a belt-and-
+     * braces check).
+     */
+    fun clearPerAppSessionLength(packageName: String) {
+        if (packageName.isBlank()) return
+        viewModelScope.launch {
+            frictionPrefs.clearPerAppSessionLength(packageName)
+        }
+    }
+
+    /**
      * Launch after the friction gate; [minutes] null means no session timer.
      * The timer is armed only if the app actually started — otherwise a
      * failed launch would leave a phantom session ringing later.
