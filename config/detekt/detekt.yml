@@ -27,13 +27,15 @@
 #
 # Adding a new rule: prefer the minimum needed, tune the threshold,
 # and pin the rationale in a comment here.
-
-build:
-  # Generated and vendored code is excluded from analysis.
-  excludes:
-    - '**/build/**'
-    - '**/generated/**'
-    - '**/llama/**'  # vendored inference engine, not our code
+#
+# v0.20.1 (CodeRabbit audit 2026-08-08): removed
+# `build.excludes`. In detekt 1.23.8, `build:` is not
+# a valid top-level config key; the warning was a
+# config-validation noise. The vendored-source
+# exclusions are now applied at the Gradle level
+# (build.gradle.kts) so both the standard `detekt`
+# task and the `detektBaseline` task use the same
+# exclusion list. See build.gradle.kts.
 
 config:
   validation: true

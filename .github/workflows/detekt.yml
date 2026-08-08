@@ -6,6 +6,17 @@
 #   ./gradlew detektBaseline
 # only as a deliberate cleanup pass.
 #
+# v0.20.1 hardening (CodeRabbit audit 2026-08-08):
+#   - persist-credentials: false on actions/checkout
+#     (zizmor [artipacked] warning).
+#   - detekt's SARIF and HTML reports are written under
+#     each Gradle module's build/reports/detekt/. The
+#     v0.20.0 workflow looked for the reports at the
+#     root path, which the per-module build layout
+#     does not produce. v0.20.1 globs every module's
+#     SARIF and HTML reports and merges the SARIF
+#     files for the upload-sarif step.
+#
 # Branch protection: the detekt job name "detekt" must be
 # added to the required status checks on the main branch.
 
@@ -28,6 +39,11 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # v0.20.1: persist-credentials: false.
+          # zizmor [artipacked] warning.
+          persist-credentials: false
 
       - uses: actions/setup-java@v4
         with:
@@ -39,19 +55,55 @@ jobs:
       - name: Generate SARIF report
         run: ./gradlew detekt --continue
 
+      - name: List detekt reports
+        if: always()
+        run: |
+          set -euo pipefail
+          shopt -s globstar nullglob
+          echo "--- detekt.sarif files ---"
+          ls -la **/build/reports/detekt/detekt.sarif 2>/dev/null || echo "(no SARIF files)"
+          echo "--- detekt.html files ---"
+          ls -la **/build/reports/detekt/detekt.html 2>/dev/null || echo "(no HTML files)"
+
+      - name: Merge per-module detekt SARIF
+        if: always()
+        run: |
+          set -euo pipefail
+          # v0.20.1: detekt writes a separate SARIF
+          # file per Gradle module under each module's
+          # build/reports/detekt/ directory. The
+          # upload-sarif step expects a single SARIF
+          # file. We merge them with a small Python
+          # script (sarif-cli is not pre-installed on
+          # ubuntu-latest).
+          mkdir -p merged-reports
+          shopt -s globstar nullglob
+          files=(**/build/reports/detekt/detekt.sarif)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::No detekt.sarif files found under **/build/reports/detekt/."
+            echo "::error::Was ./gradlew detekt run? Are there any modules with detekt applied?"
+            exit 1
+          fi
+          echo "Found ${#files[@]} detekt SARIF file(s):"
+          printf '  - %s\n' "${files[@]}"
+          python3 .github/scripts/merge-sarif.py merged-reports/detekt.sarif "${files[@]}"
+
       - name: Upload SARIF to code scanning
         if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: build/reports/detekt/detekt.sarif
+          # v0.20.1: the merged file, not the root path.
+          sarif_file: merged-reports/detekt.sarif
           category: detekt
 
-      - name: Upload HTML report
+      - name: Upload HTML reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: detekt-report
-          path: build/reports/detekt/detekt.html
+          # v0.20.1: every module's HTML report.
+          path: |
+            **/build/reports/detekt/detekt.html
           if-no-files-found: warn
 
       - name: Fail on any detekt finding

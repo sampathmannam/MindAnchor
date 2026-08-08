@@ -4,6 +4,14 @@
 // Applied at root so the detekt command exists for
 // `./gradlew detekt`; the per-module configuration (source set,
 // type resolution) lives in app/build.gradle.kts.
+//
+// v0.20.1 (CodeRabbit audit 2026-08-08): the vendored-source
+// exclusion list ('**/build/**', '**/generated/**',
+// '**/llama/**') is now applied to BOTH the standard `Detekt`
+// task and the `DetektCreateBaselineTask`. The v0.20.0
+// configuration only applied the exclusion to `Detekt`, so
+// regenerating the baseline would scan the vendored engine
+// and add thousands of findings to baseline.xml.
 plugins {
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.kotlin.android) apply false
@@ -11,6 +19,17 @@ plugins {
     alias(libs.plugins.ksp) apply false
     alias(libs.plugins.detekt) apply false
 }
+
+// The vendored-source exclusion list. Centralized so the
+// standard Detekt task and the DetektCreateBaselineTask
+// use the same list. The list is a property because
+// detekt's `exclude()` calls take varargs and the same
+// arguments apply to both task types.
+val detektExcludes = arrayOf(
+    "**/build/**",
+    "**/generated/**",
+    "**/llama/**",  // vendored inference engine, not our code
+)
 
 subprojects {
     apply(plugin = "io.gitlab.arturbosch.detekt")
@@ -23,6 +42,11 @@ subprojects {
         baseline = file("$rootDir/config/detekt/baseline.xml")
     }
 
+    // v0.20.1: apply the same exclusion list to the
+    // standard Detekt task AND the baseline task. The
+    // v0.20.0 config only applied to Detekt, so
+    // regenerating the baseline would scan the
+    // vendored engine and add thousands of findings.
     tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
         reports {
             html.required.set(true)
@@ -30,6 +54,9 @@ subprojects {
             sarif.required.set(true)
             txt.required.set(false)
         }
-        exclude("**/build/**", "**/generated/**", "**/llama/**")
+        exclude(*detektExcludes)
+    }
+    tasks.withType<io.gitlab.arturbosch.detekt.DetektCreateBaselineTask>().configureEach {
+        exclude(*detektExcludes)
     }
 }

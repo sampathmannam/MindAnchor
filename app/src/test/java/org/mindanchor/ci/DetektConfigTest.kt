@@ -42,10 +42,52 @@ class DetektConfigTest {
 
     @Test
     fun `the detekt config excludes vendored code`() {
+        // v0.20.1 (CodeRabbit #18): the vendored-source
+        // exclusion is now applied at the Gradle level
+        // (build.gradle.kts), not the detekt config. The
+        // detekt config's `build:` block is not a valid
+        // top-level key in detekt 1.23.8 and was emitting
+        // a config-validation warning.
+        val gradle = fileAt("build.gradle.kts").readText()
+        assertTrue(
+            "Vendored code (e.g. llama) must be excluded from detekt in " +
+                "build.gradle.kts. The detekt.yml 'build:' key is not a " +
+                "valid top-level key in detekt 1.23.8.",
+            gradle.contains("llama"),
+        )
+        // The exclusion list must apply to BOTH the
+        // standard Detekt task and the
+        // DetektCreateBaselineTask. The v0.20.0
+        // configuration only applied to Detekt, so
+        // regenerating the baseline would scan the
+        // vendored engine.
+        assertTrue(
+            "build.gradle.kts must apply the exclusion list to the " +
+                "DetektCreateBaselineTask too, so baseline generation " +
+                "matches normal detekt runs.",
+            gradle.contains("DetektCreateBaselineTask"),
+        )
+        for (ex in listOf("**/build/**", "**/generated/**", "**/llama/**")) {
+            assertTrue(
+                "build.gradle.kts must declare the exclusion $ex " +
+                    "as a centralized list (detektExcludes).",
+                gradle.contains("\"$ex\""),
+            )
+        }
+    }
+
+    @Test
+    fun `the detekt config does not use the unsupported build excludes key`() {
+        // v0.20.1 (CodeRabbit #18): the detekt config
+        // had a `build.excludes` block which is not a
+        // valid top-level key in detekt 1.23.8. The
+        // block was emitting a config-validation warning.
         val content = fileAt("config/detekt/detekt.yml").readText()
         assertTrue(
-            "Vendored code (e.g. llama) must be excluded from detekt.",
-            content.contains("llama"),
+            "config/detekt/detekt.yml must not declare `build:` — it is not " +
+                "a valid top-level key in detekt 1.23.8. The vendored-source " +
+                "exclusions now live in build.gradle.kts.",
+            !content.contains("^build:".toRegex(RegexOption.MULTILINE)),
         )
     }
 
