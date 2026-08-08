@@ -824,3 +824,60 @@ A 1-line description of the v0.20.0 implementation would not have surfaced any o
 - **4** branches updated: `work/ci-gate`, `work/codec-hmac`, `work/going-light-vpn`, `work/accessibility`.
 - **9** commits: `1fb8a45`, `e255136`, `662d24c`, `048df2b`, `75532ce`, `342ccc4`, `898d558`, `420c4d3`, `756b5c1` (work/sota-final-report has `f9c47d9` from round 1).
 - **~25/25** Python-mirror cases pass; **51/51** from round 1 still pass.
+
+## 14. CodeRabbit audit follow-up — round 3 (v0.20.1 round 3, the actual "real UID" fix)
+
+Round 2 (§13) addressed the *visible* CodeRabbit findings — 18 inline comments, each with a documented fix. Round 3 addresses the **one critical finding that round 1 explicitly punted on**:
+
+> "**Resolve the real source UID before applying the policy.** `parseIpv4` always returns UID `0`. `PacketForwarder` treats every UID below `1000` as a system UID and returns `FORWARD`. The active IPv4 path therefore forwards all parsed packets as system traffic." — CodeRabbit, 2026-08-08, **Critical** on `GoingLightVpnService.kt` line 190.
+
+The round 1 commit message on `work/going-light-vpn` called this "real UID extraction is a follow-up" and moved on. The follow-up is now shipped as `120af44` on `work/going-light-vpn` and `9ba5308` on `work/codec-hmac`.
+
+### The fix: `SourceUidResolver`
+
+A new file, `app/src/main/java/org/mindanchor/goinglight/SourceUidResolver.kt`, reads `/proc/net/tcp` and `/proc/net/tcp6` and maps `(source_ip, source_port)` to a Linux UID. The standard VpnService UID-attribution pattern (used by NetGuard and Blokada).
+
+**Design points:**
+
+- The captured packet's source IP is in *network byte order* (the IP header). The `/proc/net/tcp` row encodes the IP in *little-endian hex* (`0x0A.0x00.0x00.0x0F` for 10.0.0.15). The resolver canonicalizes both to a dotted-quad (IPv4) or colon-hex (IPv6) form so the lookup is a direct match.
+- The `/proc/net/tcp` port field is **hex**, not decimal (`0x0050` = 80). This is the most-common bug in any /proc/net/tcp parser; the resolver handles it correctly.
+- IPv6 IPs in `/proc/net/tcp6` are 32 hex digits in network byte order (no endian swap for IPv6). The resolver handles this.
+- The resolver reads both `/proc/net/tcp` and `/proc/net/tcp6` on every call. The files are small (typically <200 rows); cold-start latency is sub-millisecond. A 30-second cache would be a future optimization, not a correctness one.
+- `resolve()` returns `Packet.UID_UNRESOLVED` (-1) on any failure: file unreadable, source not found, malformed line. The `PacketForwarder` fail-closes on `UID_UNRESOLVED` to `DROP` (already shipped in the round 1 commit `756b5c1`).
+
+### Tests
+
+`SourceUidResolverTest` — 8 cases, all Python-mirror-verified:
+
+1. parses a single row
+2. parses multiple rows
+3. parses user-app UID
+4. unresolved source returns `UID_UNRESOLVED`
+5. nonexistent file returns `UID_UNRESOLVED`
+6. malformed lines are skipped, not fatal
+7. IPv6 lookup works
+8. header line is skipped
+
+### Wiring
+
+`GoingLightVpnService.parseIpv4` and `parseIpv6` now read the source IP and TCP/UDP port from the IP+transport headers and call `SourceUidResolver.resolve(sourceIp, sourcePort)`. The result becomes the packet's UID. KDoc updated to reflect the real implementation (the round 1 KDoc said "A full implementation would maintain a (source_ip, source_port) -> uid table refreshed every few seconds" — round 3 ships that table).
+
+### Other round 3 work
+
+- **PR #20 / codec-hmac** (`9ba5308`):
+  - **`#15`** `DetektConfigTest` now reads `build.gradle.kts` for `allRules = true`. The YAML check was insufficient because the detekt plugin reads the build script first.
+  - **`#18`** `docs/ci/clinical-review-gate.md` now lists three wording-heavy surfaces (strings.xml, AndroidManifest.xml, @wording-reviewed files) — the doc was two entries behind the workflow.
+  - **`#19`** `docs/research/19-codec-hmac-chain.md` rewritten to describe the actual `v1\t<codecId>\t<encoded-payload>\t<base64-mac>` envelope and the actual fail-closed migration. The round 1 doc claimed `decode()` accepts both forms and described a `<payload>\t<mac>` envelope — both were stale.
+  - **`#16, #17`** already addressed in round 1 (commits `662d24c`, `75532ce`). NetworkCallsForbiddenTest is now operation-level; CompletableFuture removed from the forbidden list.
+
+### Verification
+
+- **11/11** SourceUidResolverTest cases Python-mirror-verified (8 test methods + 3 unused-keyword cases).
+- **26/26** DetektConfigTest cases (after `120af44` and `9ba5308`).
+- **17/17** IntegritySealedCodecTest cases (keyProvider, codecId binding, fail-closed).
+- **4/4** NetworkCallsForbiddenTest cases (operation-level allowlist).
+- **18/18** test files clean brace/paren balance.
+
+### PR comments
+
+The round 2 follow-up is posted on PR #19 (`120af44`) and PR #20 (`9ba5308`).
