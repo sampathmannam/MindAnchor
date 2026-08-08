@@ -62,17 +62,24 @@ jobs:
             exit 0
           fi
 
-          # Touched a @wording-reviewed file? Check the diff for
-          # any *.kt under app/src that mentions the tag in
-          # either side of the change. The tag lives in KDoc
-          # and is preserved across rewrites, so checking the
-          # file head (post-change) is sufficient.
+          # Touched a @wording-reviewed file? Check both
+          # the post-change and pre-change revisions. A
+          # PR can remove the tag and change wording in
+          # the same diff; the v0.20.0 detector only
+          # checked the post-change side and the build
+          # would let a re-tag slip through. v0.20.1
+          # checks both base and head.
           touched_kt=$(git diff --name-only "$base_sha" "$head_sha" \
               | grep -E '^app/src/main/.*\.kt$' || true)
           for f in $touched_kt; do
             if git show "HEAD:$f" 2>/dev/null | grep -q '@wording-reviewed'; then
               echo "wording_heavy=true" >> "$GITHUB_OUTPUT"
-              echo "Reason: $f carries the @wording-reviewed tag." >> "$GITHUB_OUTPUT"
+              echo "Reason: $f carries the @wording-reviewed tag in the post-change revision." >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            if git show "$base_sha:$f" 2>/dev/null | grep -q '@wording-reviewed'; then
+              echo "wording_heavy=true" >> "$GITHUB_OUTPUT"
+              echo "Reason: $f carried the @wording-reviewed tag in the pre-change revision." >> "$GITHUB_OUTPUT"
               exit 0
             fi
           done
