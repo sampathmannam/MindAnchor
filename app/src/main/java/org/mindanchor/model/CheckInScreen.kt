@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -105,8 +106,20 @@ fun CheckInScreen(
      */
     saving: Boolean = false,
 ) {
-    var rating by remember { mutableStateOf<Int?>(null) }
-    var reflection by remember { mutableStateOf("") }
+    // v0.20.1 round 5 follow-up: rememberSaveable
+    // so the rating + reflection survive a
+    // configuration change. The activity is
+    // stateNotNeeded in the manifest, so a
+    // rotation kills the activity and recreates
+    // it; remember (the default) starts fresh.
+    // The reflection can be a long free-text
+    // entry; losing it on rotation is a real
+    // UX bug. rememberSaveable persists the
+    // value across config changes (and the
+    // activity's onSaveInstanceState / Bundle
+    // restoration handles the rest).
+    var rating by rememberSaveable { mutableStateOf<Int?>(null) }
+    var reflection by rememberSaveable { mutableStateOf("") }
 
     Surface(modifier = Modifier.fillMaxSize()) {
         Box(
