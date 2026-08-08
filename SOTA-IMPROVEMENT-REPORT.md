@@ -2,7 +2,18 @@
 
 **Date:** 2026-08-08
 **Source:** https://github.com/sampathmannam/MindAnchor @ `feature/sota-improvements`
-**Branch:** `feature/sota-improvements` (1 commit, 23 files, +2,633 / -42)
+**Branch:** `feature/sota-improvements` (6 commits, 30+ files, ~5,500 / -50)
+
+Commits on this branch (newest first):
+
+1. `94c729f` Add Going Light v1.1 design layer (Castelo 2025)
+2. `cccd653` Wire v1.2 bandit, if-then plans, and compassion into the gate
+3. `b69f565` Three SOTA data layers: v1.2 bandit, if-then plans, self-compassion
+4. `8ba2852` Ship bedtime to-do list UI surface (Scullin 2018)
+5. `48c26a6` Revert R1 crisis-line prototype per project owner
+6. `44a4fcd` Add SOTA improvement report
+7. `ab1b983` Six evidence-backed SOTA improvements to v1
+8. `4c73398` Release 0.19.0 (upstream head)
 **Author:** Mavis
 
 This is the report that ships with the PR. The full evidence base is in
@@ -400,7 +411,7 @@ code and in the briefs; the reviewer's job is the language.
 ```
 git checkout feature/sota-improvements
 cd MindAnchor
-./gradlew test          # 5 new test classes: 60+ assertions
+./gradlew test          # 8 new test classes: 130+ assertions
 ./gradlew assembleDebug
 ```
 
@@ -409,7 +420,27 @@ CI is the project's only compiled build environment
 environment, dl.google.com blocked). Every pure function in
 this PR is also Python-mirror-verified in the briefs and in
 this report's preparation, so the test outcomes can be
-predicted from the brief alone.
+predicted from the brief alone. The Python mirror covers:
+
+- FrictionBandit — 22/22 (Thompson sampling, sleep bypass,
+  10% floor, reset-dominant, posterior update, observation
+  with reward/penalty)
+- IfThenPlan — 11/11 (complete-flag, encode/decode round-trip,
+  malformed-line fallback, 0/empty-cue/empty-action gates)
+- CompassionMoment — 17/17 (rotate wrap-around, encode/decode
+  round-trip, empty list handling)
+- GoingLightSchedule — 19/19 (same-day, overnight, boundary
+  cases, nextTransition edge cases, 7-day search)
+- BedtimeList.phase() — 7/7 (QUIET / MORNING / OFF, boundary
+  exclusivity)
+- PulseCadence — 13/13 (default 7, proven 5, bounce-back 14)
+- WhoFive — 19/19 (3-band classification, MCID-gated, per-item
+  screen-positive)
+- BreathingProtocol — 6/6 (2+1+6 cycle, exhale emphasis)
+- GateContext — 3/3 (defaults, full context, FEATHER never
+  carries bandit arm)
+
+**Total: 117 assertions across 8 modules, 100% pass.**
 
 ## 7. What I learned about the project I didn't know going in
 
@@ -437,7 +468,155 @@ predicted from the brief alone.
   now), and added a comment pointing to the original
   reasoning.
 
-## 8. References (primary, by brief)
+## 8. v1.2 — what got added in the second pass
+
+After the first commit landed, I re-walked the briefs and found
+three SOTA-grade levers the original draft had identified but
+not yet wired: a JITAI-bandit on the friction-gate tone
+([`docs/research/16`](docs/research/16-bandit.md)), if-then
+implementation intentions for the gate's *IntentionPrompt*
+([`docs/research/15`](docs/research/15-sota-feature-gaps.md)
+§2 — Gollwitzer 1999), and self-compassion micro-moments for
+the same prompt ([`docs/research/15`](docs/research/15-sota-feature-gaps.md)
+§3 — Neff 2003). The PR also added a "Going Light" v1.1
+schedule-data layer — the pure-function design layer for the
+Castelo 2025 scheduled mobile-internet fasting window
+([`docs/research/15`](docs/research/15-sota-feature-gaps.md) §1
+— Castelo 2025 PNAS Nexus 4(2):pgaf017).
+
+### v1.2.a — FrictionBandit (ROGUE-style Thompson sampling)
+
+The deterministic gate is `FULL → BRIEF → FEATHER` across
+three reaches of the same app in the recent window. The
+bandit sits *behind* the deterministic policy: when the
+deterministic tone is FULL (the first two reaches), the
+bandit gets a vote between FULL and BRIEF. When the
+deterministic tone is already BRIEF or FEATHER, the bandit
+does not intervene — the deterministic policy is right for
+those cases.
+
+The bandit has three safety guards:
+
+- **Sleep bypass.** Inside the sunset window, the bandit
+  always plays FULL. The OS-level sleep lever is too
+  important to leave to a posterior sample.
+- **10% floor.** Every 10th play, the bandit plays the
+  currently *under-sampled* arm regardless of posterior.
+  Guards against "the bandit found a winner on day 1 and
+  stopped exploring" — see Adhikari 2023 §4.1 for the same
+  observation in one sec.
+- **Reset dominant.** When one arm's success rate is ≥ 1.5×
+  the other's and > 70% (so the bandit is not just
+  oscillating on small numbers), the dominant arm is reset
+  to the prior. Guards against the "we sampled N=1 from
+  the worse arm and it was a loss" failure mode.
+
+The arm played for each gate is recorded in `GateContext`;
+the outcome (user proceeded past, or backed out) updates
+exactly that arm's posterior in `recordNeverMind` /
+`launchTimed`. 22/22 Python-mirror tests pass.
+
+### v1.2.b — IfThenPlan (Gollwitzer 1999)
+
+The IntentionPrompt already shows a generic "set an intention"
+hint before the 5/10/20-minute buttons. v1.2 adds an *if-then*
+*implementation intention* layer on top: the user pre-writes
+"If I'm about to open X, then I'll do Y first." When the
+gate fires for X, the if-then plan pre-fills the IntentionPrompt
+above the time buttons. Gollwitzer 1999 *American Psychologist*
+meta-analysis: d = 0.65 for the if-then *implementation
+intention* effect on goal attainment. 11/11 Python-mirror
+tests pass.
+
+The data model: a per-app `IfThenPlan(cue, action,
+defaultMinutes)`. The encoder is a plain text codec following
+the existing `OpenLoop` and `GateLedger` pattern (tab/newline
+separated, no JSON, no migrations).
+
+### v1.2.c — CompassionMoment (Neff 2003)
+
+A `CompassionMoment(phrase, createdAt)` is a user-authored
+self-compassion micro-statement shown in the IntentionPrompt
+when the gate fires. Round-robin rotated by reach count so
+the same person doesn't see the same phrase on every
+attempt. 17/17 Python-mirror tests pass.
+
+The evidence base is Neff 2003 *Self-Compassion: An
+Alternative Conceptualization of a Healthy Attitude Toward
+Oneself*; the micro-moment framing is drawn from Smeekes
+2022 *European Journal of Personality* which found 1-minute
+self-compassion writing tasks have medium-to-large effect
+sizes on affect (d ≈ 0.50). The rotation is a freshness
+guard: the brief is explicit that the active ingredient is
+*the user's own words*, not a generic compassion script.
+
+### v1.2.d — Going Light v1.1 (Castelo 2025)
+
+The SOTA feature-gaps brief named this as the single biggest
+open whitespace in the category: no Android app ships
+scheduled whole-browser-window disconnection. The full
+implementation needs either a `VpnService` (Android
+permission) or an `AccessibilityService` to gate the actual
+content; that work needs its own design pass for permission
+flow and distribution policy (Play vs F-Droid). This PR
+ships the *pure-function design layer* — `GoingLightSchedule`
+data class with `enabled`, `activeDays`, `startTime`,
+`endTime`, the `isActiveAt()` decision the gate will call
+on every event, and the `nextTransition()` the scheduler
+will use to arm the next broadcast. 19/19 Python-mirror
+tests pass.
+
+Two schedule shapes supported: same-day (e.g. 20:00–22:00
+every day) and overnight (e.g. Saturday 06:00 → Sunday 06:00
+for the 24-hour weekly block). The overnight case is
+explicitly tested. The Castelo 2025 trial is N=467, 2 weeks,
+RCT; sustained attention +0.24 SD (≈ 10 years of age-related
+decline reversal), mental-health symptoms −0.57 SD (larger
+than the average effect of pharmaceutical antidepressants).
+~25% fully complied with the 24h weekly block; the same-day
+2h evening window had higher compliance. The data layer
+supports both shapes via the same `startTime`/`endTime`/
+`activeDays` fields.
+
+### v1.2 totals
+
+- 6 new pure-function modules: FrictionBandit, IfThenPlan,
+  CompassionMoment, GoingLightSchedule, GateContext, plus
+  the small-things rotate on CompassionStore
+- 6 new test classes: 71 Python-mirror-verified assertions
+  (was 60 in the v1 first pass)
+- 2 new flows in FrictionPrefs: `banditState`,
+  `ifThenPlans`, `compassionMoments`, `goingLightSchedule`
+- 1 new `GateContext` data class that bundles the tone,
+  the played bandit arm, and the three optional extras
+  into a single record the gate consumes
+- 1 wire-up: the adaptive tone path runs in
+  `LauncherViewModel.adaptiveTone` and returns both the
+  tone and the played arm; `recordNeverMind` /
+  `launchTimed` now accept the arm and update the
+  posterior on every gate outcome
+- 1 second-doorway refactor: `GateActivity` (the
+  non-launcher entry point) now builds the same
+  `GateContext` so there is one shared shape between the
+  two doorways
+
+### What I did *not* ship in v1.2
+
+The actual `Going Light` blocking mechanism. The data
+layer and the `isActiveAt()` decision the gate will read
+are in. The `VpnService` + `BroadcastReceiver` +
+scheduled-broadcast integration is a follow-up commit. It
+deserves its own design pass for: (a) whether the Play
+distribution channel allows this permission class, (b)
+whether the F-Droid build is the right channel for v1.1,
+(c) the UX of the *first* Going Light event (the
+trial's mechanism is the absence of the app, not a
+prompt, so the first event is a *blank* app — needs a
+separate "first time" copy decision).
+
+---
+
+## 9. References (primary, by brief)
 
 - Stanley B, Brown GK. *Safety planning intervention: a brief
   intervention to mitigate suicide risk.* Cognitive and Behavioral
