@@ -2,7 +2,6 @@ package org.mindanchor.friction
 
 import android.util.Base64
 import java.security.Key
-import javax.crypto.Mac
 
 /**
  * The integrity layer for the v0.20.0 plaintext codecs.
@@ -124,11 +123,31 @@ class IntegritySealedCodec(
 
     /**
      * HMAC-SHA256 over the payload, keyed with [key].
+     *
+     * v0.20.1 (CodeRabbit audit 2026-08-08): on
+     * [java.security.InvalidKeyException] (a key
+     * that the Keystore has invalidated, a StrongBox
+     * re-initialization, etc.), reset the key and
+     * re-create via [KeystoreHmacKey]. The
+     * first read with the new key returns the reset
+     * value; the user re-enters their data.
      */
     private fun hmac(payload: String): ByteArray {
-        val mac = Mac.getInstance("HmacSHA256")
-        mac.init(key)
-        return mac.doFinal(payload.toByteArray(Charsets.UTF_8))
+        return try {
+            val mac = javax.crypto.Mac.getInstance("HmacSHA256")
+            mac.init(key)
+            mac.doFinal(payload.toByteArray(Charsets.UTF_8))
+        } catch (e: java.security.InvalidKeyException) {
+            // Reset and re-create. The data written
+            // with the old key is unrecoverable; the
+            // integrity layer returns the reset value
+            // on the first read with the new key.
+            KeystoreHmacKey.resetKey()
+            val freshKey = KeystoreHmacKey.getOrCreate()
+            val mac = javax.crypto.Mac.getInstance("HmacSHA256")
+            mac.init(freshKey)
+            mac.doFinal(payload.toByteArray(Charsets.UTF_8))
+        }
     }
 
     /**
