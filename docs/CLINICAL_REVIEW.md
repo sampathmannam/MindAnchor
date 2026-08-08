@@ -92,7 +92,7 @@ both refused. `PrivacyTest` asserts both against the installed app.
 
 | # | Risk | Current mitigation | Residual | Needs a clinician |
 |---|---|---|---|---|
-| R1 | **No crisis line is offered anywhere in the app.** Hardcoded helplines were removed by product decision, on the grounds that they frighten people and add complexity. A person in acute crisis with no contact saved has no route to help from this app | The safety plan and the person's own chosen contacts remain; the app states it is no substitute for talking to someone | **Accepted by the project owner. This is the largest open clinical risk in the app** | Yes — this is the first thing to review |
+| R1 | **No crisis line is offered anywhere in the app.** Hardcoded helplines were removed by product decision, on the grounds that they frighten people and add complexity. A person in acute crisis with no contact saved has no route to help from this app | The safety plan and the person's own chosen contacts remain; the app states it is no substitute for talking to someone | **Re-confirmed 2026-08-08.** `docs/audit/crisis-line-feature-rejected.md` records a full evidence review of the R1 decision (Stanley & Brown 2012 SPI Step 5; WHO mhGAP 2023; SAMHSA 988; APA Digital Mental Health 101; Dwyer 2025 *Psychiatr Serv* 76:867–871; NHS Design Patterns for Mental Health) followed by a prototype of a calm, country-aware, opt-in "Get help now" entry on the support screen. The project owner reviewed the prototype and **chose not to ship it** — even an opt-in card is a surface that fires when someone is having a hard time, and that was the kind of surface the project did not want. The R1 decision is therefore stronger than the original "frighten people" rationale alone: no in-app crisis-line UI of any kind, opt-in or otherwise. The safety plan and the user's own contacts remain the only routes; the app's footer still says "if you are in danger right now, call your local emergency number." The decision and the evidence base it was reviewed against are both on file. | Yes — this remains the first thing to review |
 | R2 | Partially-completed safety plan gives false confidence | Plan is optional and free-text; reader shows only completed sections | Unmeasured | Yes |
 | R3 | WHO-5 score distresses the person who answered it | Low score triggers support offer, never an alarm or diagnosis | Unmeasured | Yes |
 | R4 | TIPP presented without supervision (cold water, intense exercise) | Contraindications now shown with the skill: cardiac conditions, eating disorders, pregnancy, with the gentle two steps flagged as safe alone | Wording not clinically reviewed; list may be incomplete | Yes — confirm the list |
@@ -101,15 +101,19 @@ both refused. `PrivacyTest` asserts both against the installed app.
 | R7 | App is mistaken for treatment | About text states it is a wellness tool, not a medical device | Unmeasured | Yes |
 | R8 | Safety plan readable by anyone holding the phone | Device lock only; no separate app lock | **Accepted gap** — a lock could also block access during crisis | Yes — genuine tension |
 
-R1 is now the one to push hardest on. Hardcoded crisis lines were
-removed at the project owner's direction — the reasoning being that
-prominent hotline numbers can frighten people and clutter a screen meant
-to feel calm, which is a real and documented design concern. The cost is
-equally real: Stanley & Brown includes professional and crisis contacts
-as a step of the intervention, so a safety plan in this app is now
-missing that step unless the person fills it in themselves. A reviewer
-should decide whether that trade is acceptable, and if not, what a
-non-frightening version of it would look like.
+R1 has now been reviewed against the full primary safety literature
+(see `docs/audit/crisis-line-feature-rejected.md`), and the project
+owner re-decided it on 2026-08-08 in the *stronger* direction:
+not just "no hardcoded crisis line" but "no in-app crisis-line UI
+of any kind, opt-in or otherwise." The reasoning the owner gave
+was that even an opt-in card on the support screen is a surface
+that fires when someone is having a hard time, and that was the
+kind of surface the project did not want. The reviewer is still
+the right person to push on this — the evidence in the brief
+remains the evidence, and the trade (a safety plan missing
+SPI Step 5 unless the person fills it in) is a real cost — but
+the project owner's preference is now on file as stronger than
+the original "frighten people" rationale alone.
 
 R8 remains a genuine two-sided tension that should also be decided by
 someone qualified rather than by the author.

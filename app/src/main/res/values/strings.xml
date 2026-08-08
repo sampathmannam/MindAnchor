@@ -364,27 +364,6 @@
     <string name="support_no_contacts">No one added yet. You can add the people you\'d actually call, below.</string>
     <string name="support_footer">MindAnchor is a wellness tool, not a treatment, and not a medical device. If you are in danger right now, call your local emergency number.</string>
 
-    <!--
-        Get help sheet. See docs/research/14. The wording is intentional:
-        a verb on the action, not a noun on the state, and "If you're in
-        crisis, you're not alone" rather than "Are you in crisis?" — the
-        Samaritans / Wysa / NOCD / Headspace consensus pattern.
-    -->
-    <string name="get_help_entry_title">Get help now</string>
-    <string name="get_help_entry_body">If you are in crisis, you are not alone. Reach a person, day or night, in this country or anywhere.</string>
-    <string name="get_help_entry_action">Get help</string>
-    <string name="get_help_title">If you are in crisis, you are not alone.</string>
-    <string name="get_help_subtitle">Reach a person, day or night. MindAnchor is a wellness tool, not a crisis service — these lines are.</string>
-    <string name="get_help_call_label">Call</string>
-    <string name="get_help_text_label">Text</string>
-    <string name="get_help_call_or_text_label">Call or text</string>
-    <string name="get_help_web_label">Open in browser</string>
-    <string name="get_help_action">Open</string>
-    <string name="get_help_anywhere_title">Anywhere else</string>
-    <string name="get_help_anywhere_body">For lines in 130+ countries, see the IASP / ThroughLine directory — verified daily by clinicians.</string>
-    <string name="get_help_iasp_link">Open findahelpline.com</string>
-    <string name="get_help_footer">If you are in immediate danger, contact your local emergency number. The list above is reviewed on every release; the IASP link is verified daily.</string>
-
     <string name="skills_section">For right now</string>
     <string name="skills_intro">Three skills from dialectical behaviour therapy, the treatment with the strongest evidence for getting through emotional crises. They are for riding out the next few minutes — nothing more is being asked of you.</string>
     <string name="skill_stop_title">STOP</string>

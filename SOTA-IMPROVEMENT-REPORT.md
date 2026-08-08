@@ -36,14 +36,14 @@ Each item follows the same shape: research finding (with citation) →
 gap in current code (with file:line) → concrete change → how to
 validate.
 
-### 2.1 — Country-aware crisis-line sheet (the R1 fix)
+### 2.1 — Country-aware crisis-line sheet (the R1 fix) — **rejected by project owner, not shipped**
 
-- **Finding.** `docs/research/14` reviewed the primary safety
-  literature: Stanley & Brown 2012 *Safety Planning Intervention*
-  Step 5 hard-codes a 24/7 professional contact; WHO mhGAP 2023
-  restates the standard verbatim; SAMHSA, NHS Design Patterns for
-  Mental Health, and APA Digital Mental Health 101 all require a
-  working crisis-line number; Dwyer et al. 2025 (*Psychiatric
+- **Finding.** `docs/research/14` (now `docs/audit/crisis-line-feature-rejected.md`)
+  reviewed the primary safety literature: Stanley & Brown 2012 *Safety
+  Planning Intervention* Step 5 hard-codes a 24/7 professional contact;
+  WHO mhGAP 2023 restates the standard verbatim; SAMHSA, NHS Design
+  Patterns for Mental Health, and APA Digital Mental Health 101 all
+  require a working crisis-line number; Dwyer et al. 2025 (*Psychiatric
   Services* 76:867–871) audited 302 US mental-health apps and found
   **only 15% referred users to 988**, with **14 apps holding
   >3.5M combined downloads containing broken hotlines**. The
@@ -51,23 +51,30 @@ validate.
   in the safety literature — WHO 2023 *Reporting on Suicide* and
   the Hong Kong CSRP both ask for **prominent** helpline display
   and caution only against prominent display of the *suicide story*.
-- **Gap.** `docs/CLINICAL_REVIEW.md` R1; `app/src/main/java/org/mindanchor/support/SupportScreen.kt:0` has
-  no crisis-line UI; the README explicitly says hardcoded lines
-  were removed by product decision.
-- **Change.** New `CrisisLine` data class + `CrisisLines.ALL` bundle
-  (15 lines, 12 countries, all cited) + `DeviceCountry` (prefers
-  network, falls back to locale) + `GetHelpSheet` (calm, single
-  verb-button, country-aware, falls back to IASP via
-  findahelpline.com) + a "Get help now" entry card at the top of
-  the existing support screen, *before* the user's own contacts.
-  Wording per the Samaritans / Wysa / NOCD / Headspace / Calm /
-  Woebot consensus: "Get help" (verb), "If you're in crisis, you're
-  not alone" (Samaritans-pattern), no red, no banner, no first-launch
-  pop-up.
-- **Validate.** `app/src/test/java/org/mindanchor/support/CrisisLinesTest.kt`
-  pins the audit log: every line names a country, a name, a number,
-  a source; every iso is two lowercase letters; every source has a
-  https URL; the bundled US line is 988; the UK line is 116 123.
+- **Gap.** `docs/CLINICAL_REVIEW.md` R1; the support screen has no
+  crisis-line UI; the README explicitly says hardcoded lines were
+  removed by product decision.
+- **Prototype built and then rejected.** A calm, country-aware,
+  opt-in "Get help now" entry was prototyped and committed — the
+  `CrisisLine` data class, `DeviceCountry` resolver, `GetHelpSheet`
+  composable, the support-screen entry card, the `get_help_*` strings,
+  and a `CrisisLinesTest` pinning the audit log. The project owner
+  reviewed the change and **chose not to ship it**, on the reasoning
+  that even an opt-in card is a surface that fires when someone is
+  having a hard time, and that was the kind of surface the project
+  did not want. The code and the test were removed in the same
+  commit; the audit brief was moved from `docs/research/` to
+  `docs/audit/` and the R1 row in `docs/CLINICAL_REVIEW.md` was
+  updated to record the re-decision. The brief's evidence is not
+  invalidated by the decision — it is the decision the evidence
+  was reviewed against, and the reviewer's standing recommendation
+  remains valid.
+- **What this changes in the v1 scope.** R1 is now stronger than
+  the original "frighten people" rationale alone: no in-app
+  crisis-line UI of any kind, opt-in or otherwise. The safety plan
+  and the user's own contacts remain the only in-app routes; the
+  app's footer still says "if you are in danger right now, call
+  your local emergency number."
 
 ### 2.2 — WHO-5 score presentation (clinical review R3)
 
@@ -224,7 +231,7 @@ were written.
 
 | # | Item | Status | Source |
 |---|------|--------|--------|
-| 1 | Country-aware crisis line sheet (R1 fix) | **shipped** | docs/research/14 |
+| 1 | Country-aware crisis line sheet (R1 fix) | **prototype reviewed, rejected by project owner** | docs/audit/crisis-line-feature-rejected.md |
 | 2 | WHO-5 score presentation, 3-band, MCID-gated | **shipped** | docs/research/13 |
 | 3 | Pulse cadence taper, 7→10→14, response-conditioned | **shipped** | docs/research/11 |
 | 4 | Physiological-sigh breathing (Balban 2023) | **shipped** | docs/research/12 |
@@ -233,7 +240,7 @@ were written.
 | 7 | Pulse cadence brief | **shipped** | docs/research/11 |
 | 8 | Breathing protocols brief | **shipped** | docs/research/12 |
 | 9 | WHO-5 score presentation brief | **shipped** | docs/research/13 |
-| 10 | Crisis-line brief | **shipped** | docs/research/14 |
+| 10 | Crisis-line audit brief (R1 evidence) | **shipped as audit record** | docs/audit/crisis-line-feature-rejected.md |
 | 11 | Adaptive-friction bandit brief | **shipped (design only)** | docs/research/16 |
 | 12 | v1.2 bandit implementation (per docs/research/16) | **next** | this PR |
 | 13 | Bedtime-list UI surface (sunset-triggered prompt) | **next** | this PR |
@@ -243,16 +250,16 @@ were written.
 | 17 | Sleep-window-locked deep DND | **planned** | docs/research/15 §6 |
 | 18 | Per-app if-then implementation-intention builder (Gollwitzer 1999) | **planned** | docs/research/15 §8 |
 | 19 | Health Connect adaptive-friction input (time-of-day, sleep duration) | **planned** | docs/research/15 §7, docs/research/16 |
-| 20 | Clinical review of new wording (R1 fix, WHO-5 bands, bedtime) | **must precede merge** | docs/CLINICAL_REVIEW.md |
+| 20 | Clinical review of new wording (WHO-5 bands, bedtime) | **must precede merge** | docs/CLINICAL_REVIEW.md |
 
 ## 5. What blocks merge
 
 The project's `docs/PLAN.md` and `docs/CLINICAL_REVIEW.md` make
 clinical review a *must-have* for the wording in `Deviation`,
-`ReportScreen`, `Patterns`, and the settings copy. The five new
-words-heavy surfaces I added are:
+`ReportScreen`, `Patterns`, and the settings copy. The four
+new word-heavy surfaces that remain (after the R1 prototype was
+rejected) are:
 
-- `get_help_*` strings (calm, country-aware crisis line sheet)
 - `pulse_band_*` strings (3-band WHO-5 wording)
 - `pulse_after_disclaimer` (the SDT/person-first guard)
 - `breath_sip` ("…and in again" — the new phase label)
@@ -261,17 +268,6 @@ words-heavy surfaces I added are:
 These need to be in the next `docs/CLINICAL_REVIEW.md` revision
 *before* the PR is merged. The design record now lives in the
 code and in the briefs; the reviewer's job is the language.
-
-The new module also adds a `RECEIVE_SENSITIVE_NOTIFICATIONS`
-*risk* signal: a phone in a country not in the bundled list
-falls back to IASP via `findahelpline.com`. That fallback
-currently does an `ACTION_DIAL` on a `https://` URI, which
-needs the `INTERNET` permission, which the app does not have
-and has explicitly refused to take. The fallback needs to be
-*copy + open-in-browser intent*, not dial — a one-line fix
-in `GetHelpSheet.kt:dial()`. I left the code as-is so the
-clinical reviewer can comment on the wording first, but the
-fix is a follow-up.
 
 ## 6. How to verify
 

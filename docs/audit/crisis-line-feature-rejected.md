@@ -1,5 +1,18 @@
 # Should MindAnchor ship a crisis line? — An evidence brief
 
+> **Status (2026-08-08): NOT IMPLEMENTED.** The brief's recommendation was prototyped and the
+> code was committed (the `CrisisLine` / `DeviceCountry` / `GetHelpSheet` modules,
+> `CrisisLinesTest`, and the support-screen entry card) but the project owner reviewed
+> the change and **chose not to ship it**. The reasoning was that even an opt-in entry
+> card is a surface that fires when someone is having a hard time, and that was the
+> kind of surface the project did not want. The R1 decision in
+> `docs/CLINICAL_REVIEW.md` has been re-confirmed and is now stronger than before:
+> not only "the project owner prefers no hardcoded crisis line" but "the project owner
+> prefers no in-app crisis-line UI at all." The brief is kept in `docs/audit/` rather
+> than `docs/research/` so the design record of the decision is on file, alongside the
+> evidence base that was reviewed before the decision was made. The brief's evidence is
+> not invalidated by the decision — it is the decision the evidence was reviewed against.
+
 **Subject:** MindAnchor (open-source Android mental-health launcher). R1 in `docs/CLINICAL_REVIEW.md` documents the project's deliberate decision to ship **no hardcoded crisis line**, on the rationale that "prominent hotline numbers can frighten people and clutter a screen meant to feel calm."
 
 **Conclusion up front:** The current decision is **not defensible against the primary safety literature**, but the project owner's underlying instinct (a calm, non-clinical-looking surface) is. The evidence-respecting fix is **not** a red banner, and it is **not** zero crisis-line access — it is a single, persistent, well-named, country-aware "Get help now" affordance that is one tap from any screen, written in the same calm register as the rest of the app, and which only surfaces local, verified numbers at the moment of need.
