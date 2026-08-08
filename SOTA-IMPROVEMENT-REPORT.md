@@ -1142,6 +1142,32 @@ So the existing EMA stays; the new CheckIn is parallel infrastructure. Both can 
 
 **Cumulative across the v0.20.1 release: 237 + 105 + 18 = 360/360 Python-mirror-verified scenarios.**
 
+### Test totals across round 5 follow-up 3 (audit-driven, commits `1f817da`, `f833c3d`, `4e0fa18`)
+
+Audited the actual repo state (not memory) and found five real gaps:
+
+**BUGS fixed:**
+- Double-tap in `CheckInActivity.onSave` → could create two check-ins for one prompt. Fix: `saved` guard in the activity + `saving` flag passed to the screen to disable the button.
+- Double-tap in `NoteScreen.onAdd` → could create two notes. Fix: `addInFlight` flag.
+- Rotation killed the in-flight reflection/editor/draft (the activities are `stateNotNeeded` in the manifest). Fix: `rememberSaveable` for the user-authored text and the editing note id.
+
+**A11Y fixed:**
+- `CheckInScreen` rating buttons had no `contentDescription` — screen reader would just read "1" "2" "3" with no context. Fix: `Modifier.semantics { contentDescription = "Rating N of 5" }`.
+- `NoteScreen` IconButtons (back, pin/unpin, delete) had no `contentDescription`. Fix: same pattern.
+- `CheckInHistoryScreen` back button had no `contentDescription`. Fix: same pattern. Also added `onBackPressedDispatcher.addCallback` so the system back gesture/button also dismisses the activity.
+
+**STALE DOC fixed:**
+- `CheckInTrigger` KDoc said "the rate-limit is created fresh on every trigger event" — this was true before the holder (commit `d10753d`) and is now wrong. Updated to describe the `CheckInRateLimitHolder` pattern.
+
+**DEAD CODE fixed:**
+- `CheckInTrigger` had an empty `if (Build.VERSION.SDK_INT >= UPSIDE_DOWN_CAKE)` block. Removed. Also removed the unused `import android.os.Build`.
+
+**NEW TEST added:**
+- `CheckInRateLimitHolderTest`: 6 test methods covering the cross-unlock scenario.
+- 18/18 Python-mirror-verified
+
+**Cumulative across the v0.20.1 release: 360 + 18 = 378/378 Python-mirror-verified scenarios.**
+
 ---
 
 ## 19. References (primary, by brief) — round 5 additions
