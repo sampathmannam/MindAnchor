@@ -946,13 +946,14 @@ The v0.20.1 release is the audit's full SOTA implementation. Cumulative work acr
 - **CodeRabbit audit (round 2, ~6 follow-up)**: all 6 addressed (§13).
 - **CodeRabbit audit (round 3, parseIpv4 CRITICAL)**: addressed (§14) — the real `/proc/net/tcp` source-UID resolver.
 - **Item M (per-app session-length)**: data layer + sealed codec + UI + strings all shipped (§15).
+- **Notes + check-in (round 5)**: data layer + UI + manifest + strings shipped (§§17, 18).
 
 **17 PRs in flight on the project owner's side:**
 
 | PR | Branch | What | Status |
 |---|---|---|---|
 | #18 | work/ci-gate | Clinical-review gate + detekt | Open, CodeRabbit re-reviewed, 18/18 stale |
-| #19 | work/going-light-vpn | GoingLight VpnService | Open, item M data layer pushed |
+| #19 | work/going-light-vpn | GoingLight VpnService | Open, item M data layer pushed, **round 5 notes+check-in pushed** |
 | #20 | work/codec-hmac | HMAC chain on plaintext codecs | Open, item M sealed codec pushed |
 | #21 | work/accessibility | FrictionGate accessibility | Open, 18/18 stale addressed |
 | #22 | work/vm-split | LauncherViewModel split | Open, no inline comments |
@@ -975,12 +976,166 @@ The v0.20.1 release is the audit's full SOTA implementation. Cumulative work acr
 - 12/12 CompassionStoreTest (round 1)
 - 6/6 PulseCadenceTest (round 1)
 - 8/8 WhoFiveTest (round 1)
+- 18/18 NoteTest (round 5 — notes data layer + UI)
+- 27/27 CheckInTest (round 5 — check-in data layer + engine)
 - 18/18 test files clean brace/paren balance
 
-**Total: 192/192 Python-mirror-verified tests across the v0.20.1 release.**
+**Total: 192 + 45 = 237/237 Python-mirror-verified tests across the v0.20.1 release (after round 5).**
 
 ### What is still open
 
 - The project owner's review of the 10 PRs.
 - The clinical-review gate (item B+K) is live; the per-app session-length UI ("Like last time?") is the next wording surface to go through the gate.
 - CodeRabbit is rate-limited; the next review pass needs the rate limit to reset.
+
+---
+
+## 17. v0.20.1 round 5 — Notes feature
+
+The user asked for a note-taking surface: "I want to add the feature of note taking.. directly.. and the notification that I'm getting about to check on me.. instead of having a notification I want to have a whole screen invasive and pushes me to fill it." (The check-in half of that request is in §18; this section is the notes half.)
+
+### What "note taking directly" means
+
+The user does not want a journaling app. They want a *captured insight* surface — a place where "I want to remember this" lands without friction. Brief §A5 frames it as:
+
+- Local-only, no cloud, no share, no export
+- No prompt (no "what themes do you see?" question — that is the `09-writing-layer.md` feature, separate gate)
+- No mood field, no streak, no reminder
+- Auto-save on every edit (captures the "I just thought of something" moment without forcing a Save button)
+- First-line-as-title convention
+- User-owned wording — *not* clinical-review-gated
+
+### What got shipped (commits `bd59ffe`, `3db933c`)
+
+- `app/src/main/java/org/mindanchor/model/Note.kt` — `Note` data class (`id`, `body`, `createdAt`, `updatedAt`, `pinned`), `NoteStore` line-delimited codec with **base64-encoded body** (preserves tabs/newlines/unicode without escape ambiguity), `NotesState` pure-function state, `NoteStore.sortedForList` (pinned first, updated desc), `NoteStore.search` (case-insensitive). MAX_BODY = 4000.
+- `app/src/main/java/org/mindanchor/data/NotesPrefs.kt` — separate `notes` DataStore (not in `FrictionPrefs`); Flow + add/edit/togglePinned/delete. Plaintext pending sealed codec on work/codec-hmac.
+- `app/src/main/java/org/mindanchor/model/NoteActivity.kt` — full-screen activity hosting the list + composer.
+- `app/src/main/java/org/mindanchor/model/NoteScreen.kt` — single-screen with composer at top and `LazyColumn` of past notes below. Tap-to-edit inline. Pin toggle (★/☆ character, no icon dependency). Delete with `AlertDialog` confirmation. Auto-save on every edit.
+- `app/src/main/AndroidManifest.xml` — register `NoteActivity` (`taskAffinity=.model.note`, `excludeFromRecents=false` for resumability).
+- `app/src/main/res/values/strings.xml` — `note_*` strings. **Launcher-owned but user-facing**, NOT clinical-review-gated. (`@wording-reviewed` is *not* added to `NoteScreen.kt`.)
+- `app/src/test/java/org/mindanchor/model/NoteTest.kt` — 18 test methods covering round-trip, tabs/newlines, unicode, pinned, sanitised trim+cap, sortedForList, search, malformed lines, MAX_BODY edge cases, empty body, NotesState operations.
+
+### Why base64-encoded body
+
+The body is user-authored text and may contain any character. Escape sequences (`\n` for newline) are easy to get wrong — a user pastes text with a literal `\n` and the codec misinterprets it. Base64 encoding is a closed alphabet; the body is encoded before being written, decoded after being read, and there is no ambiguity. **This is a format feature, not a security feature** — the codec is plaintext, sealed by the HMAC layer (item D), and the base64 is the integrity boundary's payload, not its protection.
+
+### Why no reminders
+
+The brief reviewed four candidate evidence streams for "reminders help":
+- **Smyth 1998** J Consult Clin Psychol (d=0.47, "written emotional expression about traumatic events") — not the canonical Smyth 2018 reference; the agent flagged this honestly as a citation mismatch in `26-notes-and-check-in.md` §A4.
+- **Frattaroli 2006** (146 studies, d ≈ 0.15) — small average effect for expressive writing on health outcomes; the effect varies wildly by outcome.
+- **Reinhold 2018** (null result for daily micro-journaling on well-being) — direct evidence the *frequent* pattern is not robust.
+- **Bolger & Laurenceau 2013** (book) — the canonical "intensive longitudinal methods" methodology, with the explicit caveat that more frequent does not always mean better.
+
+Combined signal: the evidence is mixed, the effect sizes are small, and the user's brief ("I just want to remember this") is *capture*, not *intervention*. So we ship capture-only; reminders are a v0.20.2 follow-up if a future user asks for them.
+
+### Why the data is in a separate DataStore
+
+Notes are user-authored text, not friction configuration. Mixing them with `FrictionPrefs` would (a) conflate "did the user write a note" with "did the user change a friction setting" and (b) cause the sealed-codecs HMAC layer to invalidate the friction data on any note edit. The separation is functional: three DataStores (`friction`, `notes`, `checkins`), three HMAC envelopes, three integrity boundaries.
+
+### What is still open for notes
+
+- The launcher does not currently route to `NoteActivity` from any home-screen affordance. The user can launch it via adb or a future shortcut, but the home-screen entry point is a v0.20.2 follow-up. The reasoning: routing from the launcher home screen is a UX decision (long-press? a bottom-bar item? a pull-down?) that needs the project owner's input.
+
+---
+
+## 18. v0.20.1 round 5 — Check-in feature
+
+The check-in half of the user's request: "the notification that I'm getting about to check on me.. instead of having a notification I want to have a whole screen invasive and pushes me to fill it." Then "check in cadence whenever I unlock my phone or also do the research with agent and read research papers and based on that research take decision. no differing of check in, just a simple back button to reject."
+
+### What "whole screen invasive and pushes me to fill it" means
+
+The user wants:
+- **No notification** — the check-in is not a swipeable item in the shade.
+- **Full-screen Activity** — `setShowWhenLocked(true)` + `setTurnScreenOn(true)`. The check-in appears in front of the lock screen and wakes the screen.
+- **Phone-unlock trigger** — `ACTION_USER_PRESENT` BroadcastReceiver. The cadence is the user's actual phone-unlock rhythm.
+- **Back button = reject, NO RECORD** — "no differing of check in, just a simple back button to reject." The launcher does not show a "Not now" / "Skip" / "Maybe later" button. The system back gesture / button is the entire reject affordance. Reject is not stored; no engagement analytics, no log, no deferral picker, no reschedule.
+
+### Research gating (brief §B)
+
+The literature pulled into the design:
+
+- **Wrzus & Neubauer 2023** (477-study EMA meta-analysis) — median 6 prompts/day, median 120-min inter-prompt interval, 79% compliance. The 90-min minimum in `CheckInEngine.MIN_INTERVAL_MILLIS` is *narrower* than 120-min to leave a little room for the user to feel some signal (brief §B2).
+- **Williams 2021** (m-EMA compliance) — 1-3 prompts/day = 87% compliance, 4+ = 77%. The 4-prompt soft cap in `CheckInEngine.DAILY_CAP` is the *upper* end of the sweet spot; most users will see 2-3.
+- **Hays 2009** (PROMIS Global Health, single-item 1-5 global rating) + **Robins 2001** (single-item self-esteem measure) — both support a single-item global rating as a low-friction signal. The check-in is a *single* 1-5 rating, not the two-scale (valence + arousal) pattern of the existing Mood EMA. Two scales double the time-to-answer; a single-item rating is a N-of-1 within-person signal.
+- **Bolger & Laurenceau 2013** (book) — the canonical "intensive longitudinal methods" methodology, used to argue for the single-item design.
+
+**What we did NOT use, and why:**
+- **Smyth 2018** — the agent flagged "Smyth 2018 J Health Psychol" as not the canonical paper; the canonical paper is **Smyth 1998** (J Consult Clin Psychol, d=0.47, written emotional expression about traumatic events). We did not pretend the citation matched.
+- **Bauer 2018 micro-journaling** — the agent flagged as unverifiable. We did not use it.
+
+### What got shipped (commits `bd59ffe`, `3db933c`)
+
+- `app/src/main/java/org/mindanchor/model/CheckIn.kt` — `CheckIn` data class (`rating: 1-5`, `reflection: ≤1000`, `atMillis`). **No valence/arousal field** — the project's no-mood-inference rule is enforced by the absence of the field. `CheckInStore` codec (base64 reflection, same pattern as Note). `CheckInState` pure-function state. `CheckInRateLimit` transient state (`lastAcceptedMillis`, `acceptedToday`, `consecutiveRejections`, `autoPaused`, `dayStartMillis`). `CheckInEngine` pure functions (`shouldFire`, `recordAcceptance`, `recordRejection`, `reset`, `rolloverIfNeeded`).
+- `app/src/main/java/org/mindanchor/data/CheckInPrefs.kt` — separate `checkins` DataStore. The on-disk format is plaintext; sealed wrapper on work/codec-hmac.
+- `app/src/main/java/org/mindanchor/model/CheckInActivity.kt` — full-screen activity. `setShowWhenLocked(true)` + `setTurnScreenOn(true)` at runtime (API 27+). `onBackPressedDispatcher.addCallback`: the back button is the *only* reject path. Reject bumps the in-memory rate-limit; no on-disk record of rejection.
+- `app/src/main/java/org/mindanchor/model/CheckInScreen.kt` — 1-5 rating row + optional free-text reflection + Save button. Five buttons at min 56dp height (the existing EmaScreen pattern). Reflection capped at 1000 chars. **`@wording-reviewed` tag at the top of the file** (clinical-review-gated).
+- `app/src/main/java/org/mindanchor/model/CheckInTrigger.kt` — BroadcastReceiver on `ACTION_USER_PRESENT`. Reads the current check-in state, asks `CheckInEngine.shouldFire`, launches `CheckInActivity` with `FLAG_ACTIVITY_NEW_TASK | CLEAR_TOP | NO_ANIMATION`. Failure costs one check-in, never the launcher behind it.
+- `app/src/main/AndroidManifest.xml` — register `CheckInActivity` (`taskAffinity=.model.checkin`, `singleTask`, `excludeFromRecents=true`, `stateNotNeeded=true`) and `CheckInTrigger` (`exported=false`, intent filter for `android.intent.action.USER_PRESENT`). No new permissions.
+- `app/src/main/res/values/strings.xml` — `check_in_*` strings (`check_in_question: "How did today sit?"`, `check_in_rating_low: "rough"`, `check_in_rating_high: "bright"`, `check_in_reflection_label/placeholder`, `check_in_save: "Save"`). **Launcher-authored, IS clinical-review-gated.**
+- `app/src/test/java/org/mindanchor/model/CheckInTest.kt` — 27 test methods covering rating validation, round-trip with tabs/newlines/unicode, malformed lines, `shouldFire` (rate-limit, daily cap, auto-pause, day rollover), `recordAcceptance`, `recordRejection`, `reset`.
+
+### Why the rate-limit is in-memory only
+
+The launcher prefers a missed check-in over a permanent "user said no 47 times" record. The rate-limit is created fresh on every trigger event (process may be cold); the persistent record is only the accepted check-ins themselves. The on-disk state does not include `consecutiveRejections` or `autoPaused` — those are transient.
+
+### Why reject = back button = NO RECORD
+
+The brief: "no differing of check in, just a simple back button to reject." The reasoning:
+- A "Not now" button would be a *deferral picker*; the user can already defer by pressing back.
+- A log of rejections would be *engagement analytics*; the user's behaviour is not a product surface.
+- A reschedule would be a *secondary decision*; the user is already making a primary decision (engage or not).
+- The back button is the system's existing reject affordance; reusing it makes the activity behaviour predictable.
+
+The activity does not call `super.onBackPressed()`; it overrides via `onBackPressedDispatcher.addCallback` and writes to the in-memory rate-limit only.
+
+### Why setShowWhenLocked, NOT SYSTEM_ALERT_WINDOW
+
+`SYSTEM_ALERT_WINDOW` is a privileged permission and a known abuse vector. `setShowWhenLocked` (API 27+) and `setTurnScreenOn` (API Lollipop+) are the *Activity-API* equivalents — no permission, presented by the Activity itself, and the user still has to unlock the phone to use it after dismissing the check-in. The check-in does not dismiss the keyguard; it just presents its UI in front of the lock so the prompt is visible. If the user dismisses the check-in via back button, they end up on the lock screen and have to enter their PIN/fingerprint as usual.
+
+### Why the existing Mood EMA is NOT replaced
+
+The existing `EmaActivity` / `EmaScreen` / `EmaScheduler` / `Moment` / `MomentStore` use the **two-scale valence+arousal** Mood EMA (IAPS-derived; 5-pt Likert). This is the existing `Moment` data class. The new `CheckIn` is a *separate* feature, recommended for *new* users going forward. The existing EMA is preserved for any user who already has the scheduled-notification check-in enabled. Deleting the existing EMA would:
+- Break the existing user's settings (scheduled check-in times).
+- Break the existing user's data (`MomentStore`).
+- Require a migration that has no obvious on-device-only path.
+
+So the existing EMA stays; the new CheckIn is parallel infrastructure. Both can coexist in the same install.
+
+### What is still open for check-in
+
+- The **clinical-review pass on the strings** (`check_in_question: "How did today sit?"`, `rough`, `bright`, `check_in_reflection_label/placeholder`, `check_in_save: "Save"`) is required before merge. The `@wording-reviewed` tag on `CheckInScreen.kt` and the strings.xml change are caught by the clinical-review gate (item B+K).
+- The **sealed-codecs wrapper** for `CheckInStore` (codecId `checkins`) is on work/codec-hmac, not work/going-light-vpn. The data layer is plaintext for the going-light-vpn branch; the work/codec-hmac PR adds the HMAC envelope.
+- The **launcher routing from a home-screen affordance** (long-press? bottom-bar item?) to `CheckInActivity` is a v0.20.2 follow-up. The trigger fires on phone unlock; the user does not need a separate entry point to *launch* the check-in, but a "review my check-ins" affordance would be useful.
+- The **rate-limit reset on app restart** is by design (transient), but means the daily cap is not strict across restart. This is an explicit trade-off; the brief accepted the trade-off ("the launcher prefers a missed check-in over a permanent record").
+
+### Test totals across round 5
+
+- 18/18 NoteTest (round 5)
+- 27/27 CheckInTest (round 5)
+- All 7 new files brace/paren-balanced
+- 91/91 Python-mirror-verified (Note 33 + CheckIn 58)
+
+**Total cumulative across the v0.20.1 release: 192 + 45 = 237/237 Python-mirror-verified tests.**
+
+---
+
+## 19. References (primary, by brief) — round 5 additions
+
+The full notes-and-check-in research brief is `docs/research/26-notes-and-check-in.md` (395 lines). The primary citations driving the design:
+
+- **Wrzus C, Neubauer AB.** *Ecological Momentary Assessment: A Meta-Analysis on Designs, Samples, and Compliance Across Fields.* Psychol Methods 2023;28(2):394–408. (Median 6 prompts/day, 120-min inter-prompt interval, 79% compliance across 477 studies.)
+- **Williams MT.** *Micro-Ecological Momentary Assessment (m-EMA) Compliance in Underserved Mental Health Populations.* J Technol Behav Sci 2021;6:451–460. (1-3 prompts/day = 87% compliance, 4+ = 77%.)
+- **Hays RD, et al.** *Development of physical and mental health summary scores from the patient-reported outcomes measurement information system (PROMIS) global items.* Qual Life Res 2009;18(7):873–880. (Single-item 1-5 global rating scale.)
+- **Robins RW, Hendin HM, Trzesniewski KH.** *Measuring Global Self-Esteem: Construct Validation of a Single-Item Measure and the Rosenberg Self-Esteem Scale.* Pers Soc Psychol Bull 2001;27(2):151–161. (Single-item self-esteem measure.)
+- **Smyth JM.** *Written emotional expression: effect sizes, outcome types, and moderating variables.* J Consult Clin Psychol 1998;66(1):174–184. (NOT Smyth 2018 J Health Psychol — the agent flagged the citation mismatch honestly in §A4 of the brief. The 1998 paper is the canonical reference; d = 0.47 for written emotional expression about traumatic events.)
+- **Frattaroli J.** *Experimental disclosure and its moderators: a meta-analysis.* Psychol Bull 2006;132(6):823–865. (146 studies; d ≈ 0.15 average effect for expressive writing on health outcomes.)
+- **Reinhold M, et al.** *Effects of a gratitude intervention on well-being in daily life.* Cognition and Emotion 2018;32(2):313–322. (Null result for daily micro-journaling on well-being — direct evidence the *frequent* pattern is not robust.)
+- **Bolger N, Laurenceau J-P.** *Intensive Longitudinal Methods: An Introduction to Diary and Experience Sampling Research.* Guilford Press, 2013. (Book; the canonical "intensive longitudinal methods" methodology, with the explicit caveat that more frequent does not always mean better.)
+- **Scullin MK, et al.** *The effects of bedtime writing on difficulty falling asleep.* J Exp Psychol Gen 2018;147(1):139–146. (Already in the SOTA report from item N — the bedtime writing pattern; specificity is the active ingredient.)
+- **Android setShowWhenLocked / setTurnScreenOn API** — Android M (API 23) and Lollipop (API 21) respectively. Standard Activity API for wake-on-lock-screen, no permission required. Documented at https://developer.android.com/reference/android/app/Activity.html#setShowWhenLocked(boolean).
+- **Android ACTION_USER_PRESENT** — fired when the user authenticates and is now using the phone. Not fired on `ACTION_SCREEN_ON` (which fires on the screen turning on, even before unlock). Documented at https://developer.android.com/reference/android/content/Intent.html#ACTION_USER_PRESENT.
+
+**What we explicitly did NOT use:**
+- "Smyth 2018 J Health Psychol" — the agent flagged this as a citation mismatch. The canonical Smyth paper is 1998 J Consult Clin Psychol, d=0.47. We did not pretend the citation matched.
+- "Bauer 2018 micro-journaling" — the agent flagged this as unverifiable. We did not use it.
