@@ -187,6 +187,21 @@ class CheckInActivity : ComponentActivity() {
                         CheckInRateLimitHolder.state = newRl
                         lifecycleScope.launch {
                             runCatching { prefs.add(checkIn) }
+                            // v0.20.1 round 5 follow-up:
+                            // the first time the user
+                            // accepts a check-in
+                            // through the new flow,
+                            // disable the old
+                            // scheduled-EMA feature
+                            // so the user never
+                            // receives a second
+                            // check-in notification
+                            // in the same day. The
+                            // historical data is
+                            // preserved on disk.
+                            runCatching {
+                                EmaScheduler.disable(applicationContext)
+                            }
                         }
                         finish()
                     },

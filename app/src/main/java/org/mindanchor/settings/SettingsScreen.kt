@@ -1610,6 +1610,44 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 32.dp),
             )
+
+            // v0.20.1 round 5 follow-up: Going Light
+            // settings entry. The data layer
+            // (FrictionPrefs.goingLightSchedule) is
+            // already wired and the VpnService is
+            // implemented; the *enabling* surface
+            // and the *first-time copy* are pending
+            // the v0.20.2 follow-up (the first-time
+            // copy is clinical-review-gated per the
+            // B+K gate, and the OS-level VPN
+            // permission dialog is a one-time
+            // consent the user must see in context).
+            //
+            // What ships in v0.20.1 round 5: a
+            // neutral section heading + explainer
+            // that tells the user the feature
+            // exists and that the *enabling* is on
+            // the way. The string is not
+            // clinical-review-gated wording; it
+            // describes what the feature will do,
+            // not how it will be presented to the
+            // user the first time they turn it on.
+            Text(
+                text = stringResource(R.string.going_light_section),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
+            )
+            Text(
+                text = stringResource(R.string.going_light_explainer),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = stringResource(R.string.going_light_coming_soon),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
     }
 }

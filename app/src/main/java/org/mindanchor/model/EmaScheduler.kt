@@ -82,6 +82,42 @@ object EmaScheduler {
         runCatching { arm(context) }
     }
 
+    /**
+     * v0.20.1 round 5 follow-up: disable the
+     * scheduled-EMA feature entirely. Sets
+     * [MomentStore.setEnabled] to false (so
+     * [ensureScheduled] will be a no-op the next
+     * time it is called) and cancels every
+     * pending alarm + notification.
+     *
+     * The historical [Moment] data is *not*
+     * touched. The user can still see their past
+     * check-ins in any future read surface, and
+     * re-enabling the feature is a single
+     * [MomentStore.setEnabled] call away (the
+     * settings path that does not exist yet is
+     * the v0.20.2 follow-up).
+     *
+     * The call site is [CheckInActivity.onSave]:
+     * the first time the user accepts a check-in
+     * through the new phone-unlock flow, the old
+     * scheduled-EMA flow is disabled so the user
+     * never receives a *second* check-in
+     * notification in the same day.
+     *
+     * Never throws. A denied exact-alarm
+     * permission or a missing AlarmManager is a
+     * reason to disable silently, not crash.
+     */
+    suspend fun disable(context: Context) {
+        runCatching {
+            val appContext = context.applicationContext
+            val alarmManager = appContext.getSystemService(AlarmManager::class.java) ?: return@runCatching
+            MomentStore(appContext).setEnabled(false)
+            clearAll(appContext, alarmManager)
+        }
+    }
+
     private suspend fun arm(context: Context) {
         val appContext = context.applicationContext
         val alarmManager = appContext.getSystemService(AlarmManager::class.java) ?: return
