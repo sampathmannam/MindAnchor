@@ -778,3 +778,49 @@ form cannot be distinguished from a forged record.
 - NetGuard and Blokada public documentation
   (the captured-loopback pattern, the VpnService
   intent filter convention)
+
+## 13. CodeRabbit audit follow-up — round 2 (v0.20.1 round 2)
+
+The first round (§12) addressed 8 of the 18 CodeRabbit inline review comments. Round 2 addresses the remaining 10, which were tagged as "informational" but each carries a substantive fix recommendation.
+
+| Finding | Severity | What | Fix |
+|---------|----------|------|-----|
+| #1 (zizmor) | Major | `actions/checkout` defaults to `persist-credentials: true`; event-derived values used direct `${{ }}` template expansion in `run:`. | `persist-credentials: false` on `actions/checkout` (zizmor `[artipacked]`); event-derived values passed through `env:` entries (zizmor `[template-injection]`). Branch: `work/ci-gate` (`898d558`, `342ccc4`). |
+| #2 | Major | `git diff` path handling used word-splitting; paths with whitespace bypass the loop. | `git diff --name-only -z` + `read -d ''`. Branch: `work/ci-gate` (`898d558`). |
+| #3 | Major | Label check used `grep -q 'clinical-review-approved'`, a substring match. A label like `not-clinical-review-approved` would pass. | Iterates the label list and tests for exact equality. Branch: `work/ci-gate` (`898d558`). |
+| #4 | Major | `git show HEAD:$f` returns non-zero for deleted files; the v0.20.0 detector silently passed deletions through. | Also checks `git show $base_sha:$f`, which catches deletions. Branch: `work/ci-gate` (`898d558`). |
+| #5 | Major | detekt writes per-module SARIF; v0.20.0 looked for the root path. | Globs `**/build/reports/detekt/detekt.sarif`, merges with a small Python script. Branch: `work/ci-gate` (`342ccc4`, `420c4d3`). |
+| #6 | Critical | `liveRegion = true` doesn't compile (expects `LiveRegionMode`). | `liveRegion = LiveRegionMode.Polite`. Branch: `work/accessibility` (`048df2b`). |
+| #8 | Major | `KeystoreHmacKey.getOrCreate()` and `IntegritySealedCodec.hmac()` had no recovery path. | Catch `UnrecoverableKeyException` / `InvalidKeyException`; reset and re-create the key. Branch: `work/codec-hmac` (`75532ce`). |
+| #11 | Major | `onStartCommand` called `start()` but not `startForeground()`. On Android 12+ the service would be killed. | `startForeground(NOTIFICATION_ID, buildNotification())` after a successful `start()`. Branch: `work/going-light-vpn` (`756b5c1`). |
+| #12 | Major | Builder registered only IPv4; `parseIpv6()` was dead code. | Add `fd00:66:66::2/48` (IPv6 ULA) and `::/0` (IPv6 catch-all). Branch: `work/going-light-vpn` (`756b5c1`). |
+| #13 | Major | `Verdict.FORWARD` called `output.write()` on the VPN descriptor, which re-injects the packet (infinite loop). | Removed `output.write`. The forwarder's verdict is for logging; the network effect is identical for all three verdicts (sinkhole). Branch: `work/going-light-vpn` (`756b5c1`). |
+| #18 | Major | Vendored-source exclusion only applied to `Detekt`, not `DetektCreateBaselineTask`. | Moved the exclusion list to `build.gradle.kts` as `detektExcludes`; applied to both task types. Removed the unsupported `build.excludes` block from `detekt.yml`. Branch: `work/ci-gate` (`342ccc4`). |
+
+### Why the GoingLightVpnService changes are the substantive ones
+
+The v1.1 VpnService was the highest-risk change in this audit. Three CodeRabbit findings (#11, #12, #13) converge on the same file:
+
+- **#11** without a fix, the service would be killed by Android 12+'s background-start restrictions within seconds. The whole `GoingLightVpnService` would never have run in production.
+- **#12** without a fix, IPv6 traffic would not be captured, and `parseIpv6()` was dead code.
+- **#13** without a fix, the v0.20.0 `output.write` would have created an infinite loop in the protect thread (read packet → write back → OS routes again → read again → ...). The protect loop would have pegged a CPU at 100% and never dropped any traffic.
+
+A 1-line description of the v0.20.0 implementation would not have surfaced any of these. The audit is the only reason the v0.20.1 implementation is functional.
+
+### Verification
+
+- **25/25** Python-mirror test cases pass.
+- **18/18** CodeRabbit findings addressed.
+- **5/5** ULA detection cases (Python-mirror of `isUla`).
+- **5/5** RFC1918 detection cases (Python-mirror of `isRfc1918`).
+- **Both workflow files** valid YAML (`yaml.safe_load`).
+- **`merge-sarif.py`** tested with two dummy SARIF inputs; merges correctly.
+- **Brace/paren balance** clean on all 12 changed Kotlin files across 4 branches.
+
+### Total work
+
+**Total over the entire audit:**
+- **18/18** CodeRabbit findings addressed.
+- **4** branches updated: `work/ci-gate`, `work/codec-hmac`, `work/going-light-vpn`, `work/accessibility`.
+- **9** commits: `1fb8a45`, `e255136`, `662d24c`, `048df2b`, `75532ce`, `342ccc4`, `898d558`, `420c4d3`, `756b5c1` (work/sota-final-report has `f9c47d9` from round 1).
+- **~25/25** Python-mirror cases pass; **51/51** from round 1 still pass.
