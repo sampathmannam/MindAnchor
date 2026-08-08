@@ -214,18 +214,27 @@ class FrictionPrefs(private val context: Context) {
      *
      * Two integers and a date per app. Nothing about when, nothing about
      * what was done inside the app, nothing that could reconstruct a day.
+     *
+     * Persisted through [SealedCodecs.encodeGateTallies] /
+     * [SealedCodecs.decodeGateTallies] (HMAC-SHA256 tag).
+     * CodeRabbit audit #20 (2026-08-08): the v0.20.1
+     * round 1 documentation claimed GateLedger was
+     * wrapped, but the production path still used the
+     * raw plaintext codec. v0.20.1 round 2 wires the
+     * gate-tally codec and uses it for every
+     * read/write of the gate-tally data.
      */
     val gateTallies: Flow<Map<String, GateTally>> =
-        context.dataStore.data.map { GateLedger.decode(it[ledgerTallyKey].orEmpty()) }
+        context.dataStore.data.map { SealedCodecs.decodeGateTallies(it[ledgerTallyKey].orEmpty()) }
 
     private suspend fun editTally(
         packageName: String,
         block: (GateTally) -> GateTally,
     ) {
         context.dataStore.edit { prefs ->
-            val all = GateLedger.decode(prefs[ledgerTallyKey].orEmpty()).toMutableMap()
+            val all = SealedCodecs.decodeGateTallies(prefs[ledgerTallyKey].orEmpty()).toMutableMap()
             all[packageName] = block(all[packageName] ?: GateTally())
-            prefs[ledgerTallyKey] = GateLedger.encode(all)
+            prefs[ledgerTallyKey] = SealedCodecs.encodeGateTallies(all)
         }
     }
 

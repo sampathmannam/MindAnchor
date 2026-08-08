@@ -2,6 +2,7 @@ package org.mindanchor.friction
 
 import android.util.Base64
 import java.security.Key
+import javax.crypto.Mac
 
 /**
  * The integrity layer for the v0.20.0 plaintext codecs.
@@ -14,22 +15,49 @@ import java.security.Key
  * silence the gate, which is the exact mechanism the
  * project exists to provide.
  *
- * The fix is an HMAC-SHA256 tag over the encoded payload,
- * keyed with a non-exportable key in the Android Keystore.
- * Any byte flip fails the read. The format is
+ * The fix is an HMAC-SHA256 tag over the encoded payload
+ * plus a stable [codecId], keyed with a non-exportable
+ * key in the Android Keystore. Any byte flip fails the
+ * read. The format is
  *
- *     v1\t<payload>\t<base64-mac>
+ *     v1\t<codecId>\t<payload>\t<base64-mac>
  *
  * The `v1` envelope marker is unambiguous: a sealed
  * record always starts with the literal `v1\t`. A v0.20.0
- * plaintext form (no envelope marker) is *not* accepted on
- * read; the first read after a fresh install returns the
- * codec's default (an empty list, an empty plan, etc.)
- * and the first write seals it. This is the v0.20.1
- * behavior — the migration fall-through that the v0.20.0
- * implementation had was a vulnerability (CodeRabbit
- * audit, 2026-08-08: a forged or corrupted record was
- * decoded as plaintext, defeating the integrity check).
+ * plaintext form (no envelope marker) is *not* accepted
+ * on read; the first read after a fresh install returns
+ * the codec's default (an empty list, an empty plan,
+ * etc.) and the first write seals it. This is the
+ * v0.20.1 behavior — the migration fall-through that
+ * the v0.20.0 implementation had was a vulnerability
+ * (CodeRabbit audit, 2026-08-08: a forged or corrupted
+ * record was decoded as plaintext, defeating the
+ * integrity check).
+ *
+ * The `codecId` field binds the MAC to the storage
+ * record. CodeRabbit audit #5 (2026-08-08): without
+ * the codecId, an attacker who can modify DataStore
+ * can copy a valid sealed value from one preference
+ * into another. The MAC would verify (the payload
+ * hasn't changed), but the target codec would then
+ * consume the substituted payload. The codecId
+ * makes the MAC context-dependent; a sealed value
+ * from codec A is invalid for codec B.
+ *
+ * ## Key provider (v0.20.1 round 2)
+ *
+ * CodeRabbit audit #4 (2026-08-08): the v0.20.1 round 1
+ * `hmac()` retained the invalid key after a recovery,
+ * and every later operation re-ran the recovery path
+ * (deleting the freshly generated key on each call).
+ * v0.20.1 round 2 replaces the captured [Key] with a
+ * [KeyProvider] — a function the codec calls each
+ * time it needs a key. The provider can recover
+ * (delete and re-create the key) without the codec
+ * having to know the recovery is happening; the
+ * codec just calls `provider()` and gets a fresh
+ * [Key]. The provider is the *only* place that
+ * knows about the Keystore.
  *
  * MASTG-BEST-0066 is the canonical reference:
  * "Storage integrity checks are bypassable if the
@@ -51,13 +79,26 @@ class IntegritySealedCodec(
      */
     private val inner: Codec<String>,
     /**
-     * The HMAC key. The production source is the
-     * Android Keystore (non-exportable); the test path
-     * uses a `SecretKeySpec` with a fixed 32-byte
-     * key. Either way the key is opaque to this class —
-     * we just hand it to `Mac.init()`.
+     * A stable identifier for the storage record. The
+     * MAC is computed over `codecId + ":" + payload`,
+     * so a sealed value from one codec cannot be
+     * replayed against another. Convention: the Friction
+     * DataStore key (e.g. "small_things",
+     * "if_then_plans"). The codecId is part of the
+     * public envelope format, so it is not a secret.
      */
-    private val key: Key,
+    private val codecId: String,
+    /**
+     * The key provider. v0.20.1 round 2: a function
+     * the codec calls each time it needs a [Key]. The
+     * provider owns the Keystore and the recovery path;
+     * the codec just asks for a key, computes the MAC,
+     * and proceeds. If the MAC verification fails, the
+     * codec does *not* call the provider to recover —
+     * a failed MAC means the payload was tampered, not
+     * that the key is bad.
+     */
+    private val keyProvider: () -> Key,
     /**
      * The reset value returned when a sealed record is
      * missing, malformed, or fails MAC verification. The
@@ -83,8 +124,31 @@ class IntegritySealedCodec(
 
     override fun encode(value: String): String {
         val payload = inner.encode(value)
-        val mac = hmac(payload)
-        return "$ENVELOPE\t$payload\t${Base64.encodeToString(mac, Base64.NO_WRAP)}"
+        val macInput = "$codecId:$payload"
+        val mac = try {
+            hmac(macInput)
+        } catch (e: Exception) {
+            // The keyProvider failed (e.g. Keystore
+            // unavailable). The integrity layer cannot
+            // seal the data; we throw and the caller
+            // (FrictionPrefs) catches and either logs
+            // and drops the write, or surfaces the error
+            // to the UI. The data is not persisted in
+            // an unencrypted form; the user's data is
+            // lost for this round, and the next write
+            // (with a recovered key) will succeed.
+            //
+            // v0.20.1 round 2: throwing is the only
+            // fail-closed option. The v0.20.1 round 1
+            // silently returned the inner.encode("") form
+            // (an empty string for the empty-list reset
+            // value), which would have been written to
+            // DataStore as unencrypted text. The user's
+            // data was lost AND the integrity promise
+            // was broken. Throwing is better.
+            throw e
+        }
+        return "$ENVELOPE\t$codecId\t$payload\t${Base64.encodeToString(mac, Base64.NO_WRAP)}"
     }
 
     override fun decode(encoded: String): String {
@@ -96,58 +160,69 @@ class IntegritySealedCodec(
         if (!encoded.startsWith(ENVELOPE_PREFIX)) {
             return resetValue
         }
-        // Strip the "v1\t" prefix and find the last
-        // tab separating the payload from the MAC.
+        // The envelope is "v1\t<codecId>\t<payload>\t<mac>".
+        // Strip the prefix and split into the three
+        // remaining fields. The codecId field must match
+        // this codec's codecId; otherwise the record is
+        // a replay from a different storage key.
         val body = encoded.substring(ENVELOPE_PREFIX.length)
-        val lastTab = body.lastIndexOf('\t')
+        val firstTab = body.indexOf('\t')
+        if (firstTab < 0) {
+            return resetValue
+        }
+        val envelopeCodecId = body.substring(0, firstTab)
+        if (envelopeCodecId != codecId) {
+            // Cross-codec replay attack: the MAC was
+            // computed for a different storage record.
+            // Return the reset value.
+            return resetValue
+        }
+        val rest = body.substring(firstTab + 1)
+        val lastTab = rest.lastIndexOf('\t')
         if (lastTab < 0) {
             return resetValue
         }
-        val payload = body.substring(0, lastTab)
-        val macPart = body.substring(lastTab + 1)
+        val payload = rest.substring(0, lastTab)
+        val macPart = rest.substring(lastTab + 1)
         // The MAC part is base64. If decoding fails or
         // the MAC doesn't verify, return the reset value.
-        // The whole point of the integrity layer is to
-        // detect forgery; a fall-through to plaintext
-        // would defeat the protection.
         val providedMac = try {
             Base64.decode(macPart, Base64.NO_WRAP)
         } catch (_: IllegalArgumentException) {
             return resetValue
         }
-        if (!constantTimeEquals(hmac(payload), providedMac)) {
+        // The MAC covers the codecId + the payload, so
+        // a tampered payload or a tampered codecId both
+        // fail the verification.
+        val provided = try {
+            constantTimeEquals(hmac("$codecId:$payload"), providedMac)
+        } catch (e: Exception) {
+            // The keyProvider failed during
+            // verification. Fail closed.
+            return resetValue
+        }
+        if (!provided) {
             return resetValue
         }
         return inner.decode(payload)
     }
 
     /**
-     * HMAC-SHA256 over the payload, keyed with [key].
+     * HMAC-SHA256 over the input, keyed with the
+     * current key from the [keyProvider].
      *
-     * v0.20.1 (CodeRabbit audit 2026-08-08): on
-     * [java.security.InvalidKeyException] (a key
-     * that the Keystore has invalidated, a StrongBox
-     * re-initialization, etc.), reset the key and
-     * re-create via [KeystoreHmacKey]. The
-     * first read with the new key returns the reset
-     * value; the user re-enters their data.
+     * v0.20.1 round 2: the provider is called on each
+     * MAC operation. The provider owns the recovery
+     * path; the codec does not retain the key. A
+     * provider that returns null (Keystore
+     * unavailable) is treated as a fail-closed: the
+     * caller catches and returns the reset value.
      */
-    private fun hmac(payload: String): ByteArray {
-        return try {
-            val mac = javax.crypto.Mac.getInstance("HmacSHA256")
-            mac.init(key)
-            mac.doFinal(payload.toByteArray(Charsets.UTF_8))
-        } catch (e: java.security.InvalidKeyException) {
-            // Reset and re-create. The data written
-            // with the old key is unrecoverable; the
-            // integrity layer returns the reset value
-            // on the first read with the new key.
-            KeystoreHmacKey.resetKey()
-            val freshKey = KeystoreHmacKey.getOrCreate()
-            val mac = javax.crypto.Mac.getInstance("HmacSHA256")
-            mac.init(freshKey)
-            mac.doFinal(payload.toByteArray(Charsets.UTF_8))
-        }
+    private fun hmac(input: String): ByteArray {
+        val key = keyProvider() ?: throw java.security.InvalidKeyException("keyProvider returned null")
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(key)
+        return mac.doFinal(input.toByteArray(Charsets.UTF_8))
     }
 
     /**

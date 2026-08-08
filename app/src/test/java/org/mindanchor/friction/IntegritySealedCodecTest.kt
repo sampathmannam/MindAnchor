@@ -23,7 +23,9 @@ import javax.crypto.spec.SecretKeySpec
  *
  * v0.20.1 (this version) requires an unambiguous
  * `v1\t` envelope marker. Any record without the marker
- * is rejected; any record with a wrong MAC is rejected.
+ * is rejected; any record with a wrong MAC is rejected;
+ * any record with the wrong codecId is rejected (the
+ * v0.20.1 round 2 fix for the cross-codec replay attack).
  * The reset value (an empty list, an empty plan) is
  * returned instead. The next write seals the data.
  *
@@ -47,6 +49,17 @@ class IntegritySealedCodecTest {
         override fun decode(encoded: String): String = encoded
     }
 
+    /**
+     * A second identity codec for the cross-codec replay
+     * test. Both codecs share the inner logic; the
+     * difference is the codecId. A sealed value from
+     * "alpha" must be rejected by the "beta" codec.
+     */
+    private val identityCodecBeta = object : IntegritySealedCodec.Codec<String> {
+        override fun encode(value: String): String = value
+        override fun decode(encoded: String): String = encoded
+    }
+
     private val key = SecretKeySpec(
         ByteArray(32) { it.toByte() },
         "HmacSHA256",
@@ -61,8 +74,25 @@ class IntegritySealedCodecTest {
      * value is empty. We use a non-empty sentinel here
      * for clarity.
      */
-    private fun newSealed(reset: String = "") =
-        IntegritySealedCodec(identityCodec, key, resetValue = reset)
+    private fun newSealed(
+        codecId: String = "alpha",
+        reset: String = "",
+        key: javax.crypto.spec.SecretKeySpec = this.key,
+    ) = IntegritySealedCodec(
+        inner = identityCodec,
+        codecId = codecId,
+        keyProvider = { key },
+        resetValue = reset,
+    )
+
+    private fun newSealedBeta(
+        reset: String = "",
+    ) = IntegritySealedCodec(
+        inner = identityCodecBeta,
+        codecId = "beta",
+        keyProvider = { key },
+        resetValue = reset,
+    )
 
     @Test
     fun `round-trip encode-decode preserves content`() {
@@ -74,18 +104,19 @@ class IntegritySealedCodecTest {
     }
 
     @Test
-    fun `encoded form is v1 envelope payload tab base64 mac`() {
-        val sealed = newSealed()
+    fun `encoded form is v1 envelope codecId payload base64 mac`() {
+        val sealed = newSealed(codecId = "alpha")
         val encoded = sealed.encode("hello")
-        // The envelope is "v1\t<payload>\t<base64-mac>".
+        // The envelope is "v1\t<codecId>\t<payload>\t<base64-mac>".
         val parts = encoded.split('\t')
-        // 3 parts: "v1", payload, base64 MAC.
-        assertEquals(3, parts.size)
+        // 4 parts: "v1", codecId, payload, base64 MAC.
+        assertEquals(4, parts.size)
         assertEquals("v1", parts[0])
+        assertEquals("alpha", parts[1])
         // The inner is identity, so payload is "hello".
-        assertEquals("hello", parts[1])
+        assertEquals("hello", parts[2])
         // The MAC is base64 of a 32-byte HMAC-SHA256 tag.
-        val mac = android.util.Base64.decode(parts[2], android.util.Base64.NO_WRAP)
+        val mac = android.util.Base64.decode(parts[3], android.util.Base64.NO_WRAP)
         assertEquals(32, mac.size)
     }
 
@@ -123,6 +154,25 @@ class IntegritySealedCodecTest {
     }
 
     @Test
+    fun `cross-codec replay attack is rejected`() {
+        // CodeRabbit audit #5: without the codecId
+        // binding, an attacker who can modify DataStore
+        // can copy a valid sealed value from one
+        // preference into another. v0.20.1 round 2
+        // includes the codecId in the MAC input, so a
+        // sealed value from "alpha" is invalid for
+        // "beta".
+        val sealedAlpha = newSealed(codecId = "alpha", reset = "RESET")
+        val sealedBeta = newSealedBeta(reset = "RESET")
+        val encodedAlpha = sealedAlpha.encode("hello")
+        // Attempt to replay the alpha-encoded record
+        // against the beta codec. The MAC was computed
+        // for "alpha:hello", not "beta:hello".
+        val decodedBeta = sealedBeta.decode(encodedAlpha)
+        assertEquals("RESET", decodedBeta)
+    }
+
+    @Test
     fun `empty-codec round-trip works`() {
         val sealed = newSealed()
         val encoded = sealed.encode("")
@@ -144,7 +194,12 @@ class IntegritySealedCodecTest {
             ByteArray(32) { (it + 1).toByte() },
             "HmacSHA256",
         )
-        val sealedB = IntegritySealedCodec(identityCodec, keyB, resetValue = "RESET")
+        val sealedB = IntegritySealedCodec(
+            inner = identityCodec,
+            codecId = "alpha",
+            keyProvider = { keyB },
+            resetValue = "RESET",
+        )
         val encoded = sealedA.encode("hello")
         val decoded = sealedB.decode(encoded)
         // MAC verification with the wrong key fails.
@@ -208,7 +263,11 @@ class IntegritySealedCodecTest {
     fun `empty string is a valid reset value (default)`() {
         // The default reset value is the empty string.
         // For the identity inner, "" decodes to "".
-        val sealed = IntegritySealedCodec(identityCodec, key)
+        val sealed = IntegritySealedCodec(
+            inner = identityCodec,
+            codecId = "alpha",
+            keyProvider = { key },
+        )
         assertEquals("", sealed.decode("not-an-envelope"))
         assertEquals("", sealed.decode(""))
     }
@@ -224,5 +283,91 @@ class IntegritySealedCodecTest {
         val macPart = encoded.substring(lastTab + 1)
         val mac = android.util.Base64.decode(macPart, android.util.Base64.NO_WRAP)
         assertEquals(32, mac.size)
+    }
+
+    @Test
+    fun `keyProvider is called on each operation`() {
+        // CodeRabbit audit #4: the v0.20.1 round 1
+        // retained an invalid key; the v0.20.1 round 2
+        // uses a keyProvider. Each MAC operation calls
+        // the provider fresh; the codec never holds the
+        // key.
+        var callCount = 0
+        val key = SecretKeySpec(
+            ByteArray(32) { it.toByte() },
+            "HmacSHA256",
+        )
+        val sealed = IntegritySealedCodec(
+            inner = identityCodec,
+            codecId = "alpha",
+            keyProvider = {
+                callCount++
+                key
+            },
+        )
+        val encoded = sealed.encode("hello")
+        sealed.decode(encoded)
+        // Two operations (encode + decode), each calls
+        // the provider twice (once for the MAC, once
+        // for the verification).
+        assertEquals(4, callCount)
+    }
+
+    @Test
+    fun `keyProvider returning null propagates as a fail-closed throw on encode`() {
+        // If the Keystore is unavailable, the provider
+        // returns null. The codec's MAC operation
+        // throws; encode() does not catch. The caller
+        // (FrictionPrefs / SealedCodecs helper) catches
+        // and either logs the error and drops the write,
+        // or surfaces it to the UI. The data is not
+        // persisted in an unencrypted form; the user's
+        // data is lost for this round.
+        val sealed = IntegritySealedCodec(
+            inner = identityCodec,
+            codecId = "alpha",
+            keyProvider = { null },
+        )
+        // encode() must throw — fail-closed.
+        try {
+            sealed.encode("hello")
+            assert(false) { "encode() should have thrown on a null keyProvider" }
+        } catch (e: Exception) {
+            // Expected: InvalidKeyException or any
+            // Exception is fine. The integrity layer
+            // does not silently fall through.
+        }
+    }
+
+    @Test
+    fun `keyProvider returning null on decode returns the reset value`() {
+        // The decode path wraps the hmac() call in
+        // try/catch. A null keyProvider during decode
+        // returns the reset value (fail-closed).
+        val sealed = IntegritySealedCodec(
+            inner = identityCodec,
+            codecId = "alpha",
+            keyProvider = { null },
+            resetValue = "RESET",
+        )
+        // First seal a record with a working key, then
+        // try to decode with a null key.
+        val goodKey = SecretKeySpec(
+            ByteArray(32) { it.toByte() },
+            "HmacSHA256",
+        )
+        val good = IntegritySealedCodec(
+            inner = identityCodec,
+            codecId = "alpha",
+            keyProvider = { goodKey },
+        )
+        val encoded = good.encode("hello")
+        // Now switch the codec to a null-provider and
+        // try to decode. The MAC verification will fail
+        // (or the keyProvider will return null and the
+        // verify path will catch); the result is the
+        // reset value.
+        val decoded = sealed.decode(encoded)
+        assertEquals("RESET", decoded)
     }
 }
