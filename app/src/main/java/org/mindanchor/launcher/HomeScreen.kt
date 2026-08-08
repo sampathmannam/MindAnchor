@@ -50,6 +50,7 @@ import org.mindanchor.R
 import org.mindanchor.digest.DigestActivity
 import org.mindanchor.friction.FrictionGate
 import org.mindanchor.friction.FrictionTone
+import org.mindanchor.friction.GateContext
 import org.mindanchor.friction.LoopPhase
 import org.mindanchor.sleep.BedtimeList
 import org.mindanchor.sleep.BedtimePhase
@@ -127,13 +128,14 @@ fun LauncherRoot(
     }
 
     gateFor?.let { app ->
-        // The tone depends on how recently this app was reached for, which
-        // is a disk read. Nothing is drawn until it resolves — showing the
-        // full breath and then swapping it for a lighter prompt would be
-        // worse than the brief blank the sky already covers.
-        var gate by remember(app) { mutableStateOf<Pair<FrictionTone, String?>?>(null) }
+        // The tone and the optional extras (small thing, if-then
+        // plan, compassion moment) all depend on disk reads. Nothing
+        // is drawn until they resolve — showing the full breath and
+        // then swapping it for a lighter prompt would be worse than
+        // the brief blank the sky already covers.
+        var gate by remember(app) { mutableStateOf<GateContext?>(null) }
         LaunchedEffect(app) { gate = viewModel.gateFor(app) }
-        val resolved = gate?.first
+        val resolved = gate
         if (resolved == null) {
             // Hold the sky. Falling through here would draw the home screen
             // for a frame between tapping an app and the pause appearing,
@@ -142,24 +144,26 @@ fun LauncherRoot(
             CalmBackground { }
         } else {
             FrictionGate(
-                tone = resolved,
+                tone = resolved.tone,
                 appLabel = app.label,
-                smallThing = gate?.second,
+                smallThing = resolved.smallThing,
+                ifThenPlan = resolved.ifThenPlan,
+                compassionMoment = resolved.compassionMoment,
                 // Taking the small thing is leaving, not entering. It
                 // counts as backing out for the same reason "never mind"
                 // does: the person met the pause and did not go in.
                 onSmallThingTaken = {
-                    viewModel.recordNeverMind(app)
+                    viewModel.recordNeverMind(app, resolved.banditArm)
                     gateFor = null
                     surface = LauncherSurface.Home
                 },
                 onOpen = { minutes ->
-                    viewModel.launchTimed(app, minutes)
+                    viewModel.launchTimed(app, minutes, resolved.banditArm)
                     gateFor = null
                     surface = LauncherSurface.Home
                 },
                 onNeverMind = {
-                    viewModel.recordNeverMind(app)
+                    viewModel.recordNeverMind(app, resolved.banditArm)
                     gateFor = null
                     surface = LauncherSurface.Home
                 },

@@ -54,6 +54,20 @@ fun FrictionGate(
      */
     smallThing: String? = null,
     onSmallThingTaken: () -> Unit = {},
+    /**
+     * The user's pre-written if-then plan for this app, or null. When
+     * present, the intention prompt is pre-filled with the user's
+     * own words — the Gollwitzer 1999 implementation-intention
+     * structure, which the SOTA brief (docs/research/15 §8) calls
+     * the cheapest anti-habituation fix.
+     */
+    ifThenPlan: IfThenPlan? = null,
+    /**
+     * One of the user's own self-compassion phrases for this reach,
+     * or null. Rotated by [CompassionStore.rotate] so the same
+     * phrase does not become wallpaper.
+     */
+    compassionMoment: String? = null,
 ) {
     // The breath is skipped entirely below FULL rather than shortened.
     // A hurried version of a calming ritual is not calming.
@@ -85,6 +99,8 @@ fun FrictionGate(
                 onNeverMind = onNeverMind,
                 smallThing = smallThing,
                 onSmallThingTaken = onSmallThingTaken,
+                ifThenPlan = ifThenPlan,
+                compassionMoment = compassionMoment,
             )
         }
     }
@@ -254,6 +270,20 @@ private fun IntentionPrompt(
     onNeverMind: () -> Unit,
     smallThing: String? = null,
     onSmallThingTaken: () -> Unit = {},
+    /**
+     * The user's pre-written if-then plan for this app. When
+     * present, the prompt is pre-filled with the user's own
+     * words — the user-chosen plan is *additional* to the
+     * existing time-box buttons, not a replacement. The way
+     * in stays exactly where it was.
+     */
+    ifThenPlan: IfThenPlan? = null,
+    /**
+     * The user's rotated self-compassion moment for this
+     * reach. One line, beneath the if-then plan if both are
+     * present.
+     */
+    compassionMoment: String? = null,
 ) {
     Box(modifier = Modifier.fillMaxSize().padding(32.dp)) {
         Column(
@@ -271,6 +301,27 @@ private fun IntentionPrompt(
                 style = MaterialTheme.typography.bodyMedium,
                 color = sky.textSecondary,
             )
+
+            // The user's own if-then plan, pre-filled into the
+            // prompt. Shown only when a complete plan is on
+            // file for this app (cue + action both filled). The
+            // existing 5/10/20 time-box buttons and the "open
+            // untimed" button are still right below, so the
+            // user-chosen defaultMinutes from the plan is the
+            // *suggestion* but the existing escape valves are
+            // still one tap away.
+            if (ifThenPlan != null) {
+                Text(
+                    text = stringResource(
+                        R.string.intention_plan_label,
+                        ifThenPlan.cue,
+                        ifThenPlan.action,
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = sky.textPrimary,
+                )
+            }
+
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(5L, 10L, 20L).forEach { minutes ->
                     TextButton(onClick = { onOpen(minutes) }) {
@@ -299,6 +350,24 @@ private fun IntentionPrompt(
                 TextButton(onClick = onSmallThingTaken) {
                     Text(smallThing, color = sky.textPrimary)
                 }
+            }
+
+            // The user's rotated self-compassion moment. One
+            // line, optional, only shown when the user has
+            // authored at least one. The brief is explicit
+            // (docs/research/15 §3) that the prompt is the
+            // user's own words, not a launcher opinion.
+            if (compassionMoment != null) {
+                Text(
+                    text = stringResource(R.string.compassion_moment_label),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = sky.textSecondary,
+                )
+                Text(
+                    text = compassionMoment,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = sky.textPrimary,
+                )
             }
         }
         TextButton(

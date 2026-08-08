@@ -8,6 +8,8 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import org.mindanchor.friction.CompassionMoment
+import org.mindanchor.friction.CompassionStore
 import org.mindanchor.friction.ExtensionLedger
 import org.mindanchor.friction.FrictionBandit
 import org.mindanchor.friction.GateLedger
@@ -310,6 +312,21 @@ class FrictionPrefs(private val context: Context) {
             all.remove(packageName)
             prefs[ifThenPlansKey] = IfThenPlanStore.encode(all)
         }
+    }
+
+    private val compassionKey = stringPreferencesKey("compassion_moments")
+
+    /**
+     * The user's own set of self-compassion phrases — see
+     * [org.mindanchor.friction.CompassionMoment]. Stored as
+     * one phrase per line, following the [SmallThings.encode]
+     * / [OpenLoop.encode] pattern.
+     */
+    val compassionMoments: Flow<List<CompassionMoment>> =
+        context.dataStore.data.map { CompassionStore.decode(it[compassionKey].orEmpty()) }
+
+    suspend fun setCompassionMoments(moments: List<CompassionMoment>) {
+        context.dataStore.edit { it[compassionKey] = CompassionStore.encode(moments) }
     }
 
     suspend fun extensionsToday(packageName: String, today: String): Int =

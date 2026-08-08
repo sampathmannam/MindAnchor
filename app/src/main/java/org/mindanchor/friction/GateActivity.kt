@@ -49,7 +49,7 @@ class GateActivity : ComponentActivity() {
 
         setContent {
             MindAnchorTheme {
-                var gate by remember { mutableStateOf<Pair<FrictionTone, String?>?>(null) }
+                var gate by remember { mutableStateOf<GateContext?>(null) }
                 LaunchedEffect(target) {
                     gate = withContext(Dispatchers.IO) {
                         val prior = prefs.recordReach(
@@ -63,11 +63,22 @@ class GateActivity : ComponentActivity() {
                             recentOpens = prior,
                             insideSleepWindow = quiet,
                         )
-                        tone to SmallThings.offer(
+                        val offer = SmallThings.offer(
                             things = prefs.smallThings.first(),
                             nthReach = prior,
                             tone = tone,
                             quietHours = quiet,
+                        )
+                        val plan = prefs.ifThenPlans.first()[target]?.takeIf { it.isComplete }
+                        val compassion = CompassionStore.rotate(
+                            prefs.compassionMoments.first(),
+                            prior,
+                        )?.phrase
+                        GateContext(
+                            tone = tone,
+                            smallThing = offer,
+                            ifThenPlan = plan,
+                            compassionMoment = compassion,
                         )
                     }
                 }
@@ -77,12 +88,15 @@ class GateActivity : ComponentActivity() {
                 // thing a formality that one gesture defeats.
                 BackHandler { goHome() }
 
-                when (val resolved = gate?.first) {
-                    null -> CalmBackground { }
+                val resolved = gate
+                when {
+                    resolved == null -> CalmBackground { }
                     else -> FrictionGate(
-                        tone = resolved,
+                        tone = resolved.tone,
                         appLabel = label,
-                        smallThing = gate?.second,
+                        smallThing = resolved.smallThing,
+                        ifThenPlan = resolved.ifThenPlan,
+                        compassionMoment = resolved.compassionMoment,
                         // Taking the small thing is leaving, not entering,
                         // and counts as backing out for the same reason
                         // "never mind" does.

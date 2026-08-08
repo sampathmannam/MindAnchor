@@ -102,6 +102,20 @@
     <string name="small_things_add">Add</string>
     <string name="small_things_remove">Remove</string>
     <string name="small_thing_prompt">Or, one of yours:</string>
+    <!--
+        Per-app if-then plan (Gollwitzer 1999) — the user's own
+        words, pre-filled into the intention prompt when a plan
+        is on file. Brief is one line: "If I'm about to X, then I
+        will Y." The user-chosen cue and action go inside the
+        quotes; the time-box buttons stay where they were.
+    -->
+    <string name="intention_plan_label">Your plan: “If I’m about to %1$s, then I’ll %2$s.”</string>
+    <!--
+        Self-compassion micro-moment (Neff 2003) — the user's
+        own phrase, rotated to avoid habituation. The launcher
+        never authors these; the user does, in settings.
+    -->
+    <string name="compassion_moment_label">For you, right now:</string>
     <string name="loop_capture">Anything still open? Put it down here and pick it up in the morning.</string>
     <string name="loop_capture_hint">The one thing on your mind</string>
     <string name="loop_save">Put it down</string>
