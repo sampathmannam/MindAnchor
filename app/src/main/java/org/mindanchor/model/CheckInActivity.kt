@@ -146,7 +146,18 @@ class CheckInActivity : ComponentActivity() {
         setContent {
             MindAnchorTheme {
                 CheckInScreen(
+                    saving = saved,
                     onSave = { rating, reflection ->
+                        // Guard against double-tap.
+                        // The Save button is enabled
+                        // only when a rating is
+                        // picked, but a fast double-
+                        // tap can fire onSave twice
+                        // before the activity finishes.
+                        // Without this guard the user
+                        // would end up with two
+                        // check-ins for one prompt.
+                        if (saved) return@CheckInScreen
                         saved = true
                         val now = System.currentTimeMillis()
                         val checkIn = CheckIn(

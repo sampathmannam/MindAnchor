@@ -2,6 +2,7 @@ package org.mindanchor.model
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.addCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.collectAsState
@@ -45,6 +46,16 @@ class CheckInHistoryActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // v0.20.1 round 5 follow-up: hook the
+        // system back button. The TopAppBar
+        // navigationIcon handles the in-app back,
+        // but the system back gesture / button
+        // needs an explicit handler. Same pattern
+        // as NoteActivity.
+        onBackPressedDispatcher.addCallback(this) {
+            finish()
+        }
 
         val prefs = CheckInPrefs(applicationContext)
 

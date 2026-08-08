@@ -3,7 +3,6 @@ package org.mindanchor.model
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -41,14 +40,20 @@ import org.mindanchor.data.CheckInPrefs
  * "should I fire right now?" — the engine
  * decides.
  *
- * ## Why the rate-limit is in-memory only
+ * ## Why a process-scoped rate-limit holder
  *
- * The launcher prefers a missed check-in over a
- * permanent "user said no 47 times" record.
- * The rate-limit is created fresh on every
- * trigger event (process may be cold); the
- * persistent record is only the accepted
- * check-ins themselves.
+ * v0.20.1 round 5 follow-up: the rate-limit is
+ * held in [CheckInRateLimitHolder] (an in-memory
+ * Kotlin `object`) so the consecutive-rejection
+ * counter and the daily cap persist across
+ * `ACTION_USER_PRESENT` events within the same
+ * process. Without the holder, every phone
+ * unlock would create a fresh `CheckInRateLimit`
+ * and the 3-rejection auto-pause could never
+ * trigger. App restart resets the holder; the
+ * brief accepted this trade-off ("the launcher
+ * prefers a missed check-in over a permanent
+ * record").
  *
  * ## Why we don't post a notification
  *
@@ -103,11 +108,6 @@ class CheckInTrigger : BroadcastReceiver() {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                 Intent.FLAG_ACTIVITY_CLEAR_TOP or
                 Intent.FLAG_ACTIVITY_NO_ANIMATION
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            // API 34+ recommends explicit task
-            // management; the activity itself is
-            // singleTask.
         }
         context.startActivity(activityIntent)
     }

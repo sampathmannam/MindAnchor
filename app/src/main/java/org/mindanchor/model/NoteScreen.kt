@@ -33,6 +33,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
@@ -90,6 +92,16 @@ fun NoteScreen(
     var pendingDeleteId by remember { mutableStateOf<Long?>(null) }
     var editorBody by remember { mutableStateOf("") }
     var newNoteDraft by remember { mutableStateOf("") }
+    // v0.20.1 round 5 follow-up: while a save is
+    // in flight (the onAdd callback has fired and
+    // is in the activity's coroutine), the Save
+    // button is disabled. Without this, a fast
+    // double-tap can add the same note twice.
+    // Defense in depth: the activity also guards
+    // by clearing `newNoteDraft` once onAdd has
+    // returned, but Compose state updates are not
+    // synchronous with the next recomposition.
+    var addInFlight by remember { mutableStateOf(false) }
 
     // The composer's focus requester. The
     // "directly" affordance: the user lands on the
@@ -128,7 +140,12 @@ fun NoteScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.note_new)) },
                 navigationIcon = {
-                    IconButton(onClick = onClose) {
+                    IconButton(
+                        onClick = onClose,
+                        modifier = Modifier.semantics {
+                            contentDescription = "Back to launcher"
+                        },
+                    ) {
                         Text(
                             text = "←",
                             style = MaterialTheme.typography.titleLarge,
@@ -173,12 +190,14 @@ fun NoteScreen(
             ) {
                 TextButton(
                     onClick = {
-                        if (newNoteDraft.isNotBlank()) {
+                        if (newNoteDraft.isNotBlank() && !addInFlight) {
+                            addInFlight = true
                             onAdd(newNoteDraft.trim().take(Note.MAX_BODY))
                             newNoteDraft = ""
+                            addInFlight = false
                         }
                     },
-                    enabled = newNoteDraft.isNotBlank(),
+                    enabled = newNoteDraft.isNotBlank() && !addInFlight,
                 ) {
                     Text(stringResource(R.string.action_save))
                 }
@@ -254,14 +273,28 @@ fun NoteScreen(
                                         modifier = Modifier.weight(1f),
                                     )
                                 }
-                                IconButton(onClick = { onTogglePinned(note.id) }) {
+                                IconButton(
+                                    onClick = { onTogglePinned(note.id) },
+                                    modifier = Modifier.semantics {
+                                        contentDescription = if (note.pinned) {
+                                            "Unpin this note"
+                                        } else {
+                                            "Pin this note"
+                                        }
+                                    },
+                                ) {
                                     Text(
                                         text = if (note.pinned) "★" else "☆",
                                         style = MaterialTheme.typography.titleLarge,
                                         fontWeight = if (note.pinned) FontWeight.Bold else FontWeight.Normal,
                                     )
                                 }
-                                IconButton(onClick = { pendingDeleteId = note.id }) {
+                                IconButton(
+                                    onClick = { pendingDeleteId = note.id },
+                                    modifier = Modifier.semantics {
+                                        contentDescription = "Delete this note"
+                                    },
+                                ) {
                                     Text(
                                         text = "×",
                                         style = MaterialTheme.typography.titleLarge,

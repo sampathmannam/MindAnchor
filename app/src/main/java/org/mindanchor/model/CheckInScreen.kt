@@ -27,6 +27,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import org.mindanchor.R
@@ -90,6 +92,18 @@ fun CheckInScreen(
      * the screen.
      */
     onSave: (rating: Int, reflection: String) -> Unit,
+    /**
+     * v0.20.1 round 5 follow-up: while the activity
+     * is in the middle of saving (after the user
+     * tapped Save, before the activity finishes),
+     * the Save button is disabled. Without this
+     * flag, a fast double-tap can fire onSave
+     * twice and create two check-ins for one
+     * prompt. The flag is a UI hint; the activity
+     * also guards with a `saved` boolean (defense
+     * in depth).
+     */
+    saving: Boolean = false,
 ) {
     var rating by remember { mutableStateOf<Int?>(null) }
     var reflection by remember { mutableStateOf("") }
@@ -122,7 +136,26 @@ fun CheckInScreen(
                             onClick = { rating = value },
                             modifier = Modifier
                                 .weight(1f)
-                                .heightIn(min = 56.dp),
+                                .heightIn(min = 56.dp)
+                                .semantics {
+                                    // v0.20.1 round 5
+                                    // follow-up: a screen
+                                    // reader otherwise
+                                    // just reads "1"
+                                    // "2" "3" with no
+                                    // context. The
+                                    // contentDescription
+                                    // anchors the number
+                                    // to the user-
+                                    // language labels
+                                    // (rough / ok /
+                                    // bright) so the
+                                    // button is
+                                    // meaningful
+                                    // without sight.
+                                    contentDescription =
+                                        "Rating $value of 5"
+                                },
                         ) {
                             Text(
                                 text = value.toString(),
@@ -179,7 +212,7 @@ fun CheckInScreen(
 
                 Button(
                     onClick = { onSave(rating!!, reflection) },
-                    enabled = rating != null,
+                    enabled = rating != null && !saving,
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 56.dp),
