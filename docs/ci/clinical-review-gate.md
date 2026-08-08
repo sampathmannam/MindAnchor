@@ -60,6 +60,40 @@ The gate enforces that the review *happened* (label
 applied), not that the review was *correct* (a property
 only the reviewer can attest to).
 
+## v0.20.1 hardening
+
+The CodeRabbit audit (2026-08-08) found a number of
+issues in the v0.20.0 workflow. The v0.20.1 workflow
+addresses each:
+
+- **`persist-credentials: false`** on `actions/checkout`.
+  The default behavior of `actions/checkout` is to leave
+  the GITHUB_TOKEN in `.git/config`, a documented
+  credential-persistence risk. zizmor `[artipacked]`
+  warning.
+- **Event-derived values through `env:` entries**, not
+  direct template expansion in `run:`. The v0.20.0
+  workflow used `${{ toJSON(...) }}` directly in a
+  shell command, a template-injection risk
+  (zizmor `[template-injection]` error).
+- **`-z` and `read -d ''`** for path handling. The
+  v0.20.0 workflow used a word-splitting loop, which
+  silently breaks on paths with whitespace.
+- **Both base and head** for the `@wording-reviewed`
+  check. A PR can remove the tag and change wording in
+  the same diff; the v0.20.0 detector only checked
+  HEAD and would let the re-tag slip through.
+- **Deleted files** are treated as "had the tag." A PR
+  that *deletes* a `@wording-reviewed` file is a wording
+  change (the wording the file carried is gone); the
+  v0.20.1 detector fails closed on the deletion.
+- **Exact label match**, not substring. A label like
+  `not-clinical-review-approved` or
+  `clinical-review-approved-and-stale` would have
+  matched the v0.20.0 `grep -q 'clinical-review-approved'`
+  check; v0.20.1 iterates the label list and tests
+  for exact equality.
+
 ## When to remove the gate
 
 The gate is here to stay. The day the project ships a
@@ -75,3 +109,8 @@ the bypass and its rationale, not to disable the gate.
 - "Quick Tip: Block Pull Request Merge using Labels,"
   Sequra Tech, 2025
 - detekt 1.23.8 documentation, https://detekt.dev/docs/gettingstarted/gradle
+- zizmor documentation,
+  https://woodruffw.github.io/zizmor/
+- GitHub Actions security hardening,
+  https://docs.github.com/en/actions/concepts/security/script-injections
+- CodeRabbit audit on PR #21, 2026-08-08

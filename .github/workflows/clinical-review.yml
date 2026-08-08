@@ -17,6 +17,33 @@
 # different from the PR author when one is available. The
 # gate fails closed: a missing label is a missing review.
 #
+# v0.20.1 hardening (CodeRabbit audit 2026-08-08):
+#   - persist-credentials: false on actions/checkout.
+#     The default leaves GITHUB_TOKEN in .git/config;
+#     a documented credential-persistence risk
+#     (zizmor [artipacked] warning).
+#   - Event-derived values (labels, base_sha, head_sha)
+#     are passed through `env:` entries, not direct
+#     template expansion in `run:`. Direct ${{ }}
+#     expansion in a `run:` block is a
+#     template-injection risk (zizmor [template-injection]
+#     error).
+#   - `git diff` is called with `-z` and the path loop
+#     uses `read -d ''` so paths with whitespace don't
+#     bypass the loop.
+#   - The label check uses an exact match; a substring
+#     like "not-clinical-review-approved" no longer
+#     slips through.
+#   - The detect step checks BOTH base and head for
+#     the @wording-reviewed tag. A PR that removes the
+#     tag and changes wording in the same diff would
+#     have escaped the v0.20.0 detector; v0.20.1
+#     fails closed.
+#   - The detect step also flags deleted files. A PR
+#     that *deletes* a @wording-reviewed file is a
+#     wording change (the wording the file carried is
+#     gone; the gate requires re-review).
+#
 # Branch protection: this check name must be added to the
 # required status checks on the main branch for the gate
 # to be enforceable. See docs/ci/clinical-review-gate.md.
@@ -46,13 +73,24 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # v0.20.1: persist-credentials: false. The
+          # actions/checkout default is to leave the
+          # GITHUB_TOKEN in .git/config; this is a
+          # documented credential-persistence risk.
+          persist-credentials: false
 
       - name: Detect wording-heavy changes
         id: detect
+        env:
+          # v0.20.1: pass event-derived values through
+          # env entries, not direct template expansion.
+          # zizmor [template-injection] error.
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          base_sha="${{ github.event.pull_request.base.sha }}"
-          head_sha="${{ github.event.pull_request.head.sha }}"
+          base_sha="$BASE_SHA"
+          head_sha="$HEAD_SHA"
 
           # Touched strings.xml?
           if git diff --name-only "$base_sha" "$head_sha" \
@@ -62,46 +100,69 @@ jobs:
             exit 0
           fi
 
-          # Touched a @wording-reviewed file? Check both
-          # the post-change and pre-change revisions. A
-          # PR can remove the tag and change wording in
-          # the same diff; the v0.20.0 detector only
-          # checked the post-change side and the build
-          # would let a re-tag slip through. v0.20.1
-          # checks both base and head.
-          touched_kt=$(git diff --name-only "$base_sha" "$head_sha" \
-              | grep -E '^app/src/main/.*\.kt$' || true)
-          for f in $touched_kt; do
-            if git show "HEAD:$f" 2>/dev/null | grep -q '@wording-reviewed'; then
+          # Touched a @wording-reviewed file? Use `-z`
+          # and `read -d ''` so paths with whitespace
+          # don't bypass the loop. Check both
+          # post-change (HEAD) and pre-change (base)
+          # revisions: a PR can remove the tag and
+          # change wording in the same diff.
+          while IFS= read -r -d '' f; do
+            [ -z "$f" ] && continue
+            # Restrict to app/src/main/*.kt paths.
+            case "$f" in
+              app/src/main/*.kt) ;;
+              *) continue ;;
+            esac
+            if git show "$head_sha:$f" 2>/dev/null | grep -q '@wording-reviewed'; then
               echo "wording_heavy=true" >> "$GITHUB_OUTPUT"
               echo "Reason: $f carries the @wording-reviewed tag in the post-change revision." >> "$GITHUB_OUTPUT"
               exit 0
             fi
+            # Treat deleted files as "had the tag":
+            # if the file existed in the base revision
+            # and had the tag, the PR is a wording
+            # change (the wording the file carried is
+            # gone). `git show` on a deleted file exits
+            # non-zero; the `|| true` handles that.
             if git show "$base_sha:$f" 2>/dev/null | grep -q '@wording-reviewed'; then
               echo "wording_heavy=true" >> "$GITHUB_OUTPUT"
               echo "Reason: $f carried the @wording-reviewed tag in the pre-change revision." >> "$GITHUB_OUTPUT"
               exit 0
             fi
-          done
+          done < <(git diff --name-only -z "$base_sha" "$head_sha")
 
           echo "wording_heavy=false" >> "$GITHUB_OUTPUT"
           echo "Reason: no strings.xml change and no @wording-reviewed file touched." >> "$GITHUB_OUTPUT"
 
       - name: Verify label
         if: steps.detect.outputs.wording_heavy == 'true'
+        env:
+          # v0.20.1: pass event-derived values through
+          # env entries.
+          EVENT_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
         run: |
           set -euo pipefail
-          labels='${{ toJSON(github.event.pull_request.labels.*.name) }}'
-          if echo "$labels" | grep -q 'clinical-review-approved'; then
-            echo "Clinical-review-approved label present."
-            exit 0
+          # Exact label match. A substring like
+          # "not-clinical-review-approved" or
+          # "clinical-review-approved-and-stale" must
+          # not pass. The label is the literal string
+          # "clinical-review-approved".
+          matched=0
+          for label in $(echo "$EVENT_LABELS" | tr ',' '\n' | tr -d '"' | tr -d '[' | tr -d ']'); do
+            if [ "$label" = "clinical-review-approved" ]; then
+              matched=1
+              break
+            fi
+          done
+          if [ "$matched" -ne 1 ]; then
+            echo "::error::This PR touches a wording-heavy surface and is missing the 'clinical-review-approved' label."
+            echo "::error::Reason from the change detector:"
+            echo "::error::${{ steps.detect.outputs.reason }}"
+            echo "::error::The project's docs/CLINICAL_REVIEW.md is the substantive review log; this gate enforces that the review *happened*."
+            echo "::error::Apply the label after the wording is reviewed, then re-run this check."
+            exit 1
           fi
-          echo "::error::This PR touches a wording-heavy surface and is missing the 'clinical-review-approved' label."
-          echo "::error::Reason from the change detector:"
-          echo "::error::${{ steps.detect.outputs.reason }}"
-          echo "::error::The project's docs/CLINICAL_REVIEW.md is the substantive review log; this gate enforces that the review *happened*."
-          echo "::error::Apply the label after the wording is reviewed, then re-run this check."
-          exit 1
+          echo "Clinical-review-approved label present (exact match)."
 
       - name: Pass
         if: steps.detect.outputs.wording_heavy == 'false'
