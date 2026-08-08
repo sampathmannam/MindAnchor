@@ -476,6 +476,34 @@
     <string name="backup_failed">Couldn\'t read or write that file. Nothing was changed.</string>
     <string name="about_text">MindAnchor is an open-source, research-backed launcher. It has no accounts, no server and no analytics — your data never leaves this phone. It is a wellness tool, not a medical device, and it is no substitute for talking to someone.</string>
 
+    <!--
+        v0.20.1 round 5: notes + check-in. The
+        check-in prompt and rating anchors are
+        launcher-authored wording and are clinical-
+        review-gated. The reflection placeholder is
+        clinical-review-gated too (it shapes how
+        users fill the field). @wording-reviewed
+        tag on CheckInScreen.kt; changes here must
+        be approved by a clinician before merge.
+        See docs/CLINICAL_REVIEW.md.
+    -->
+    <string name="check_in_question">How did today sit?</string>
+    <string name="check_in_rating_low">rough</string>
+    <string name="check_in_rating_high">bright</string>
+    <string name="check_in_reflection_label">A line or two, if you like</string>
+    <string name="check_in_reflection_placeholder">What stuck with you today?</string>
+    <string name="check_in_save">Save</string>
+    <string name="note_title_hint">Title (optional)</string>
+    <string name="note_body_hint">Start writing…</string>
+    <string name="note_new">New note</string>
+    <string name="note_list_empty">Nothing here yet. Tap + to start.</string>
+    <string name="note_pin">Pin</string>
+    <string name="note_unpin">Unpin</string>
+    <string name="note_delete">Delete</string>
+    <string name="note_delete_confirm">Delete this note?</string>
+    <string name="note_delete_yes">Delete</string>
+    <string name="note_delete_no">Keep</string>
+
     <string-array name="who5_items">
         <item>I have felt cheerful and in good spirits</item>
         <item>I have felt calm and relaxed</item>
