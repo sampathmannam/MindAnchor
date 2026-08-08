@@ -115,6 +115,25 @@ class GoingLightTest {
     }
 
     @Test
+    fun `nextTransition for an overnight window returns the end on the NEXT day, not today`() {
+        // Saturday 22:00 inside a 20:00->08:00 overnight window:
+        // the next transition is *Sunday* 08:00, not Saturday 08:00.
+        // CodeRabbit finding: the original code returned
+        // now.date.atTime(endTime), which for the same-day leg
+        // of an overnight window is in the past. The fix
+        // advances the end date by one day when endTime is at
+        // or before startTime.
+        val s = GoingLightSchedule(
+            enabled = true,
+            activeDays = setOf(DayOfWeek.SATURDAY),
+            startTime = LocalTime.of(20, 0),
+            endTime = LocalTime.of(8, 0),
+        )
+        val t = s.nextTransition(LocalDateTime(sat, LocalTime.of(22, 0)))
+        assertEquals(LocalDateTime(sun, LocalTime.of(8, 0)), t)
+    }
+
+    @Test
     fun `nextTransition returns the next start when the window is currently inactive`() {
         val s = GoingLightSchedule(
             enabled = true,

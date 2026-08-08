@@ -1,7 +1,6 @@
 package org.mindanchor.friction
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.random.Random
@@ -183,7 +182,7 @@ class FrictionBanditTest {
         val s1 = FrictionBandit.observe(s0, FrictionBandit.ArmChoice.FULL, reward = true)
         assertEquals(6.0, s1.full.alpha, 0.0001)
         assertEquals(5.0, s1.brief.alpha, 0.0001)
-        assertNotEquals(s0.brief.mean, s1.brief.mean) // should still equal
+        assertEquals(s0.brief.mean, s1.brief.mean, 0.0001) // BRIEF is untouched
         assertEquals(5.0, s1.brief.beta, 0.0001)
     }
 }
