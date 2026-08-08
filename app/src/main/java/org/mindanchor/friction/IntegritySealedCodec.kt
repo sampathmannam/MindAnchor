@@ -18,9 +18,19 @@ import javax.crypto.Mac
  * The fix is an HMAC-SHA256 tag over the encoded payload,
  * keyed with a non-exportable key in the Android Keystore.
  * Any byte flip fails the read. The format is
- * `<payload>\t<base64-mac>`; a v0.20.0 plaintext form
- * (no MAC) is still accepted for migration but always
- * re-encoded with the MAC on the next write.
+ *
+ *     v1\t<payload>\t<base64-mac>
+ *
+ * The `v1` envelope marker is unambiguous: a sealed
+ * record always starts with the literal `v1\t`. A v0.20.0
+ * plaintext form (no envelope marker) is *not* accepted on
+ * read; the first read after a fresh install returns the
+ * codec's default (an empty list, an empty plan, etc.)
+ * and the first write seals it. This is the v0.20.1
+ * behavior — the migration fall-through that the v0.20.0
+ * implementation had was a vulnerability (CodeRabbit
+ * audit, 2026-08-08: a forged or corrupted record was
+ * decoded as plaintext, defeating the integrity check).
  *
  * MASTG-BEST-0066 is the canonical reference:
  * "Storage integrity checks are bypassable if the
@@ -49,6 +59,15 @@ class IntegritySealedCodec(
      * we just hand it to `Mac.init()`.
      */
     private val key: Key,
+    /**
+     * The reset value returned when a sealed record is
+     * missing, malformed, or fails MAC verification. The
+     * inner codec knows the type (empty list, empty
+     * plan); this string is the inner codec's
+     * `encode("")` form — the encoder's "fresh install"
+     * value.
+     */
+    private val resetValue: String = "",
 ) : Codec<String> {
 
     /**
@@ -66,43 +85,41 @@ class IntegritySealedCodec(
     override fun encode(value: String): String {
         val payload = inner.encode(value)
         val mac = hmac(payload)
-        return "$payload\t${Base64.encodeToString(mac, Base64.NO_WRAP)}"
+        return "$ENVELOPE\t$payload\t${Base64.encodeToString(mac, Base64.NO_WRAP)}"
     }
 
     override fun decode(encoded: String): String {
-        val lastTab = encoded.lastIndexOf('\t')
-        // If there's no tab, treat as plaintext (the v0.20.0
-        // form, pre-integrity). Decode and return.
-        if (lastTab < 0) return inner.decode(encoded)
-        val payload = encoded.substring(0, lastTab)
-        val macPart = encoded.substring(lastTab + 1)
-        // Try the MACed form first. If the MAC doesn't
-        // verify, fall back to plaintext (the migration
-        // path; the data is corrupted or forged, so we
-        // return the empty default).
-        return try {
-            val providedMac = Base64.decode(macPart, Base64.NO_WRAP)
-            if (constantTimeEquals(hmac(payload), providedMac)) {
-                inner.decode(payload)
-            } else {
-                // MAC failure: try the inner codec on the
-                // whole encoded string as plaintext. This
-                // is the migration path.
-                try {
-                    inner.decode(encoded)
-                } catch (_: Exception) {
-                    // Genuine corruption: return empty.
-                    inner.decode("")
-                }
-            }
-        } catch (_: IllegalArgumentException) {
-            // MAC part wasn't base64 — plaintext migration.
-            try {
-                inner.decode(encoded)
-            } catch (_: Exception) {
-                inner.decode("")
-            }
+        // The envelope marker is required. Anything else
+        // is a v0.20.0 plaintext form, a forge, or a
+        // corruption. The first read on a fresh install
+        // and any tampered record both land here. The
+        // result is the reset value.
+        if (!encoded.startsWith(ENVELOPE_PREFIX)) {
+            return resetValue
         }
+        // Strip the "v1\t" prefix and find the last
+        // tab separating the payload from the MAC.
+        val body = encoded.substring(ENVELOPE_PREFIX.length)
+        val lastTab = body.lastIndexOf('\t')
+        if (lastTab < 0) {
+            return resetValue
+        }
+        val payload = body.substring(0, lastTab)
+        val macPart = body.substring(lastTab + 1)
+        // The MAC part is base64. If decoding fails or
+        // the MAC doesn't verify, return the reset value.
+        // The whole point of the integrity layer is to
+        // detect forgery; a fall-through to plaintext
+        // would defeat the protection.
+        val providedMac = try {
+            Base64.decode(macPart, Base64.NO_WRAP)
+        } catch (_: IllegalArgumentException) {
+            return resetValue
+        }
+        if (!constantTimeEquals(hmac(payload), providedMac)) {
+            return resetValue
+        }
+        return inner.decode(payload)
     }
 
     /**
@@ -125,5 +142,11 @@ class IntegritySealedCodec(
             diff = diff or (a[i].toInt() xor b[i].toInt())
         }
         return diff == 0
+    }
+
+    private companion object {
+        /** The envelope marker. Anything else is rejected. */
+        const val ENVELOPE = "v1"
+        const val ENVELOPE_PREFIX = "v1\t"
     }
 }

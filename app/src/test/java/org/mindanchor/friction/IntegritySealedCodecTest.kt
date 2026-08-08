@@ -11,6 +11,22 @@ import javax.crypto.spec.SecretKeySpec
  * production path uses the Android Keystore; both go
  * through the same `Mac.init(Key)` API).
  *
+ * ## Security model
+ *
+ * v0.20.0 (the previous behavior) had a fall-through
+ * that decoded a forged or tampered record as plaintext
+ * on read. CodeRabbit flagged that as a CRITICAL
+ * security issue on 2026-08-08: a power user with root
+ * could rewrite the friction-gate ledger by simply
+ * appending a tab and a fake base64 MAC, and the decoder
+ * would silently accept the result.
+ *
+ * v0.20.1 (this version) requires an unambiguous
+ * `v1\t` envelope marker. Any record without the marker
+ * is rejected; any record with a wrong MAC is rejected.
+ * The reset value (an empty list, an empty plan) is
+ * returned instead. The next write seals the data.
+ *
  * @see docs/research/19 for the rationale and the
  * MASTG-BEST-0066 reference.
  */
@@ -36,7 +52,17 @@ class IntegritySealedCodecTest {
         "HmacSHA256",
     )
 
-    private fun newSealed() = IntegritySealedCodec(identityCodec, key)
+    /**
+     * The reset value is `RESET_MARKER` so we can
+     * distinguish "the inner codec produced this" from
+     * "the integrity layer returned the default because
+     * of a fail." For the identity inner codec, the
+     * inner's `encode("")` form is `""`, so the reset
+     * value is empty. We use a non-empty sentinel here
+     * for clarity.
+     */
+    private fun newSealed(reset: String = "") =
+        IntegritySealedCodec(identityCodec, key, resetValue = reset)
 
     @Test
     fun `round-trip encode-decode preserves content`() {
@@ -48,62 +74,52 @@ class IntegritySealedCodecTest {
     }
 
     @Test
-    fun `encoded form is the inner payload plus a tab plus a base64 mac`() {
+    fun `encoded form is v1 envelope payload tab base64 mac`() {
         val sealed = newSealed()
         val encoded = sealed.encode("hello")
+        // The envelope is "v1\t<payload>\t<base64-mac>".
         val parts = encoded.split('\t')
+        // 3 parts: "v1", payload, base64 MAC.
+        assertEquals(3, parts.size)
+        assertEquals("v1", parts[0])
         // The inner is identity, so payload is "hello".
+        assertEquals("hello", parts[1])
         // The MAC is base64 of a 32-byte HMAC-SHA256 tag.
-        assertEquals("hello", parts[0])
-        assertEquals(2, parts.size)
-        // Base64 of 32 bytes is 44 characters (no padding
-        // when the input length is not a multiple of 3;
-        // here it is a multiple, so 44 with one `=`).
-        val macPart = parts[1]
-        // Just verify it parses as base64 and is 32 raw bytes.
-        val mac = android.util.Base64.decode(macPart, android.util.Base64.NO_WRAP)
+        val mac = android.util.Base64.decode(parts[2], android.util.Base64.NO_WRAP)
         assertEquals(32, mac.size)
     }
 
     @Test
-    fun `byte-flip in payload fails verification and falls back to plaintext or empty`() {
-        val sealed = newSealed()
+    fun `byte-flip in payload fails verification and returns the reset value`() {
+        val sealed = newSealed(reset = "RESET")
         val encoded = sealed.encode("hello")
         // Flip the first byte of the payload.
         val flipped = encoded.replaceFirst("h", "H")
         val decoded = sealed.decode(flipped)
-        // The MAC will fail. The fallback tries the
-        // inner codec on the whole string as plaintext;
-        // the identity codec returns the flipped string
-        // verbatim. This is the "rebuild" behavior — the
-        // data is treated as untrusted and the next
-        // write replaces it with a fresh MAC.
-        assertEquals(flipped, decoded)
+        // The MAC will fail. v0.20.1 returns the reset
+        // value, not the flipped payload. This is the
+        // security fix.
+        assertEquals("RESET", decoded)
         assertNotEquals("hello", decoded)
     }
 
     @Test
-    fun `byte-flip in the MAC fails verification`() {
-        val sealed = newSealed()
+    fun `byte-flip in the MAC fails verification and returns the reset value`() {
+        val sealed = newSealed(reset = "RESET")
         val encoded = sealed.encode("hello")
-        // Find the MAC part and flip a byte in it.
         // The MAC base64 is 44 chars long (32 bytes).
         // Flipping the *first* character of the MAC
         // changes a high-entropy byte, which is the
-        // realistic forgery case. Flipping the last
-        // character may not change the decoded MAC
-        // because the trailing base64 chars carry
-        // padding-only bits.
+        // realistic forgery case.
         val lastTab = encoded.lastIndexOf('\t')
         val payload = encoded.substring(0, lastTab)
         val mac = encoded.substring(lastTab + 1)
         val flippedMac = (if (mac[0] == 'A') 'B' else 'A') + mac.substring(1)
         val forged = "$payload\t$flippedMac"
         val decoded = sealed.decode(forged)
-        // MAC verification fails; the fallback decodes
-        // the *whole* forged string as plaintext; the
-        // identity codec returns it verbatim.
-        assertEquals(forged, decoded)
+        // v0.20.1 returns the reset value, not the
+        // forged record.
+        assertEquals("RESET", decoded)
     }
 
     @Test
@@ -122,43 +138,54 @@ class IntegritySealedCodecTest {
     }
 
     @Test
-    fun `wrong-key verification fails`() {
-        val sealedA = newSealed()
+    fun `wrong-key verification fails and returns the reset value`() {
+        val sealedA = newSealed(reset = "RESET")
         val keyB = SecretKeySpec(
             ByteArray(32) { (it + 1).toByte() },
             "HmacSHA256",
         )
-        val sealedB = IntegritySealedCodec(identityCodec, keyB)
+        val sealedB = IntegritySealedCodec(identityCodec, keyB, resetValue = "RESET")
         val encoded = sealedA.encode("hello")
         val decoded = sealedB.decode(encoded)
-        // MAC verification with the wrong key fails;
-        // the fallback decodes the whole string as
-        // plaintext, which the identity codec returns
-        // verbatim. The forged form is the *whole*
-        // encoded string including the MAC, not the
-        // original payload.
-        assertEquals(encoded, decoded)
+        // MAC verification with the wrong key fails.
+        // v0.20.1 returns the reset value. The forged
+        // form is rejected, not decoded.
+        assertEquals("RESET", decoded)
         assertNotEquals("hello", decoded)
     }
 
     @Test
-    fun `migration path - plaintext input (no MAC) decodes via the inner codec`() {
-        val sealed = newSealed()
-        // A v0.20.0 plaintext form: no tab, no MAC.
+    fun `plaintext input without envelope is rejected and returns the reset value`() {
+        // v0.20.0 accepted a plaintext form on read for
+        // migration. v0.20.1 rejects it: a fresh install
+        // gets the reset value, and the first write
+        // produces a sealed record. This is the security
+        // hardening; the v0.20.0 fall-through was a
+        // vulnerability.
+        val sealed = newSealed(reset = "RESET")
         val plain = "hello"
-        assertEquals(plain, sealed.decode(plain))
+        assertEquals("RESET", sealed.decode(plain))
     }
 
     @Test
-    fun `migration path - re-encoding a plaintext input produces a MACed form`() {
-        val sealed = newSealed()
-        val encoded = sealed.encode("hello")
-        // Now decode the plaintext form and re-encode;
-        // the result is the MACed form.
-        val decoded = sealed.decode("hello")
-        val reEncoded = sealed.encode(decoded)
-        // Re-encoded should match the original MACed form.
-        assertEquals(encoded, reEncoded)
+    fun `plaintext input with v0_20_0 tab-mac form (no v1 prefix) is rejected`() {
+        // The v0.20.0 form was "<payload>\t<base64-mac>".
+        // v0.20.1 requires the "v1\t" prefix. A v0.20.0
+        // record is treated as a forge and rejected.
+        val sealed = newSealed(reset = "RESET")
+        val legacy = "hello\tAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        assertEquals("RESET", sealed.decode(legacy))
+    }
+
+    @Test
+    fun `re-encoding a reset value produces a sealed record that decodes to the reset`() {
+        val sealed = newSealed(reset = "RESET")
+        // After a rejected read, the next encode() seals
+        // the reset value. A subsequent read returns the
+        // reset value (the inner codec decodes "RESET"
+        // to "RESET" for the identity inner).
+        val encoded = sealed.encode(sealed.decode("not-an-envelope"))
+        assertEquals("RESET", sealed.decode(encoded))
     }
 
     @Test
@@ -175,5 +202,27 @@ class IntegritySealedCodecTest {
         val a = sealed.encode("hello")
         val b = sealed.encode("world")
         assertNotEquals(a, b)
+    }
+
+    @Test
+    fun `empty string is a valid reset value (default)`() {
+        // The default reset value is the empty string.
+        // For the identity inner, "" decodes to "".
+        val sealed = IntegritySealedCodec(identityCodec, key)
+        assertEquals("", sealed.decode("not-an-envelope"))
+        assertEquals("", sealed.decode(""))
+    }
+
+    @Test
+    fun `MAC tag length is 32 bytes (SHA-256 output)`() {
+        // The HMAC tag is the SHA-256 output. The
+        // constant is load-bearing for the integration
+        // with the KeystoreHmacKey.
+        val sealed = newSealed()
+        val encoded = sealed.encode("hello")
+        val lastTab = encoded.lastIndexOf('\t')
+        val macPart = encoded.substring(lastTab + 1)
+        val mac = android.util.Base64.decode(macPart, android.util.Base64.NO_WRAP)
+        assertEquals(32, mac.size)
     }
 }

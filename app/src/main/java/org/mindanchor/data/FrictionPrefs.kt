@@ -18,6 +18,7 @@ import org.mindanchor.friction.GoingLightSchedule
 import org.mindanchor.friction.IfThenPlan
 import org.mindanchor.friction.IfThenPlanStore
 import org.mindanchor.friction.OpenLoop
+import org.mindanchor.friction.SealedCodecs
 import org.mindanchor.friction.SmallThings
 import org.mindanchor.sleep.BedtimeList
 import java.time.DayOfWeek
@@ -105,21 +106,27 @@ class FrictionPrefs(private val context: Context) {
      * The small things the person said help them — see
      * [org.mindanchor.friction.SmallThings]. Their words only; nothing
      * here is ever seeded with suggestions.
+     *
+     * Persisted through [SealedCodecs.encodeSmallThings] /
+     * [SealedCodecs.decodeSmallThings] so the data carries
+     * an HMAC-SHA256 tag (Keystore-backed key). A v0.20.0
+     * plaintext form on disk is rejected on read; the
+     * first write seals the data.
      */
     val smallThings: Flow<List<String>> =
-        context.dataStore.data.map { SmallThings.decode(it[smallThingsKey].orEmpty()) }
+        context.dataStore.data.map { SealedCodecs.decodeSmallThings(it[smallThingsKey].orEmpty()) }
 
     suspend fun addSmallThing(thing: String) {
         context.dataStore.edit {
-            it[smallThingsKey] =
-                SmallThings.encode(SmallThings.add(SmallThings.decode(it[smallThingsKey].orEmpty()), thing))
+            val current = SealedCodecs.decodeSmallThings(it[smallThingsKey].orEmpty())
+            it[smallThingsKey] = SealedCodecs.encodeSmallThings(SmallThings.add(current, thing))
         }
     }
 
     suspend fun removeSmallThing(thing: String) {
         context.dataStore.edit {
-            it[smallThingsKey] =
-                SmallThings.encode(SmallThings.remove(SmallThings.decode(it[smallThingsKey].orEmpty()), thing))
+            val current = SealedCodecs.decodeSmallThings(it[smallThingsKey].orEmpty())
+            it[smallThingsKey] = SealedCodecs.encodeSmallThings(SmallThings.remove(current, thing))
         }
     }
 
@@ -165,9 +172,12 @@ class FrictionPrefs(private val context: Context) {
      * one** (Scullin 2018 — see docs/research/15 §2). A list from a
      * previous night is handed back in the morning and then cleared
      * the next time the prompt fires.
+     *
+     * Persisted through [SealedCodecs.encodeBedtimeList] /
+     * [SealedCodecs.decodeBedtimeList] (HMAC-SHA256 tag).
      */
     val bedtimeList: Flow<List<String>> =
-        context.dataStore.data.map { BedtimeList.decode(it[bedtimeItemsKey].orEmpty()) }
+        context.dataStore.data.map { SealedCodecs.decodeBedtimeList(it[bedtimeItemsKey].orEmpty()) }
 
     val bedtimeListDay: Flow<String?> =
         context.dataStore.data.map { it[bedtimeDayKey] }
@@ -185,7 +195,7 @@ class FrictionPrefs(private val context: Context) {
             return
         }
         context.dataStore.edit {
-            it[bedtimeItemsKey] = BedtimeList.encode(cleaned)
+            it[bedtimeItemsKey] = SealedCodecs.encodeBedtimeList(cleaned)
             it[bedtimeDayKey] = today.toString()
         }
     }
@@ -293,27 +303,30 @@ class FrictionPrefs(private val context: Context) {
      * gate pre-fills the intention prompt with a complete
      * plan and falls back to the generic prompt when no plan
      * is on file.
+     *
+     * Persisted through [SealedCodecs.encodeIfThenPlans] /
+     * [SealedCodecs.decodeIfThenPlans] (HMAC-SHA256 tag).
      */
     val ifThenPlans: Flow<Map<String, IfThenPlan>> =
-        context.dataStore.data.map { IfThenPlanStore.decode(it[ifThenPlansKey].orEmpty()) }
+        context.dataStore.data.map { SealedCodecs.decodeIfThenPlans(it[ifThenPlansKey].orEmpty()) }
 
     suspend fun setIfThenPlan(packageName: String, plan: IfThenPlan) {
         context.dataStore.edit { prefs ->
-            val all = IfThenPlanStore.decode(prefs[ifThenPlansKey].orEmpty()).toMutableMap()
+            val all = SealedCodecs.decodeIfThenPlans(prefs[ifThenPlansKey].orEmpty()).toMutableMap()
             if (plan.cue.isBlank() && plan.action.isBlank() && plan.defaultMinutes == null) {
                 all.remove(packageName)
             } else {
                 all[packageName] = plan
             }
-            prefs[ifThenPlansKey] = IfThenPlanStore.encode(all)
+            prefs[ifThenPlansKey] = SealedCodecs.encodeIfThenPlans(all)
         }
     }
 
     suspend fun clearIfThenPlan(packageName: String) {
         context.dataStore.edit { prefs ->
-            val all = IfThenPlanStore.decode(prefs[ifThenPlansKey].orEmpty()).toMutableMap()
+            val all = SealedCodecs.decodeIfThenPlans(prefs[ifThenPlansKey].orEmpty()).toMutableMap()
             all.remove(packageName)
-            prefs[ifThenPlansKey] = IfThenPlanStore.encode(all)
+            prefs[ifThenPlansKey] = SealedCodecs.encodeIfThenPlans(all)
         }
     }
 
@@ -324,12 +337,15 @@ class FrictionPrefs(private val context: Context) {
      * [org.mindanchor.friction.CompassionMoment]. Stored as
      * one phrase per line, following the [SmallThings.encode]
      * / [OpenLoop.encode] pattern.
+     *
+     * Persisted through [SealedCodecs.encodeCompassion] /
+     * [SealedCodecs.decodeCompassion] (HMAC-SHA256 tag).
      */
     val compassionMoments: Flow<List<CompassionMoment>> =
-        context.dataStore.data.map { CompassionStore.decode(it[compassionKey].orEmpty()) }
+        context.dataStore.data.map { SealedCodecs.decodeCompassion(it[compassionKey].orEmpty()) }
 
     suspend fun setCompassionMoments(moments: List<CompassionMoment>) {
-        context.dataStore.edit { it[compassionKey] = CompassionStore.encode(moments) }
+        context.dataStore.edit { it[compassionKey] = SealedCodecs.encodeCompassion(moments) }
     }
 
     private val goingLightKey = stringPreferencesKey("going_light_schedule")
