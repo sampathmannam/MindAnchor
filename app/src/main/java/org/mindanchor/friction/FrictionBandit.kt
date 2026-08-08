@@ -65,7 +65,17 @@ import kotlin.random.Random
  */
 object FrictionBandit {
 
-    /** A prior of "I have no information yet" — uniform on [0, 1]. */
+    /**
+     * A prior of "I have no information yet" — uniform
+     * on [0, 1]. The Beta(1, 1) prior is the standard
+     * Thompson-sampling initialization for a
+     * Bernoulli reward (Chapelle & Li 2011, "An
+     * Empirical Evaluation of Thompson Sampling,"
+     * NeurIPS). The 1/1 prior means the bandit starts
+     * with no preference between FULL and BRIEF and
+     * learns the user's pattern from the first
+     * decision onward.
+     */
     const val PRIOR_ALPHA = 1.0
     const val PRIOR_BETA = 1.0
 
@@ -119,11 +129,35 @@ object FrictionBandit {
          * personal model: a user who has been bailing on the
          * gate recently is in a different state than a user
          * who has been clicking through.
+         *
+         * The 0.25/0.5/0.75 bucket boundaries are the
+         * HeartSteps V2 (Liao et al. 2020, doi:10.1145/
+         * 3381007) "recent engagement" quartiles. The 0.25
+         * step is the smallest bucket that gives a
+         * meaningful difference between "clicking through"
+         * and "backing out" without overfitting to small
+         * differences in the underlying rate.
          */
         val recentAbandonRateBucket: Int,
-        /** 0 = morning, 1 = afternoon, 2 = evening, 3 = night. */
+        /**
+         * 0 = morning (5am–11am), 1 = afternoon (12pm–4pm),
+         * 2 = evening (5pm–8pm), 3 = night (9pm–4am).
+         *
+         * The four-bucket quantization is from HeartSteps
+         * V3 (Liao et al. 2020, doi:10.1145/3381007) and
+         * DIAMANTE (Aguilera et al. 2024, doi:10.2196/
+         * 60834); the bins are wide enough to be stable
+         * across days but narrow enough to capture the
+         * morning-vs-evening engagement asymmetry the
+         * literature documents.
+         */
         val timeOfDayBucket: Int,
-        /** 0 = no, 1 = yes. */
+        /** 0 = no, 1 = yes. The deterministic policy wins
+         *  inside the sleep window (the 10% floor and the
+         *  sleep bypass in [choose]); the bandit does not
+         *  play in this case. This is the right call for
+         *  an OS-level sleep lever that should not be
+         *  subject to a posterior sample. */
         val insideSleepWindow: Int,
     ) {
         init {
@@ -236,6 +270,30 @@ object FrictionBandit {
      * the arm with the higher posterior mean is reset, so
      * the other arm's history is preserved and the bandit
      * does not have to relearn from scratch.
+     *
+     * The "dominant" threshold (`>=` rather than `>`) is
+     * intentional: a tie at the mean resets the FULL arm
+     * (the default-dominant arm in the if/else below) so
+     * that the bandit does not get stuck on a brief window
+     * of identical means. ROGUE 2020 (Mintz et al.,
+     * doi:10.1287/opre.2019.1911) recommends a 1.5x ratio
+     * between the dominant and dominated means for a
+     * similar reset rule; this implementation uses
+     * the simpler `>=` (i.e. any time FULL is at least as
+     * good as BRIEF, treat it as dominant) because the
+     * reset is conservative (only one arm at a time,
+     * the other arm's history preserved) and the prior
+     * returns within a small number of observations.
+     *
+     * The four-bucket abandon-rate mapping (0.25, 0.5,
+     * 0.75 thresholds) is the same quantization used in
+     * HeartSteps V2 (Liao et al. 2020,
+     * doi:10.1145/3381007) for the "recent engagement"
+     * context. The 0.25 step is the smallest bucket that
+     * gives a meaningful difference between "user has
+     * been clicking through" and "user has been
+     * backing out" without overfitting to small
+     * differences in the underlying rate.
      */
     fun resetDominant(state: BanditState): BanditState {
         val dominant = if (state.full.mean >= state.brief.mean) state.full else state.brief
