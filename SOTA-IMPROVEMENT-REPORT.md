@@ -1188,6 +1188,16 @@ The two remaining gaps, both fixed.
 
 **Cumulative across the v0.20.1 release: 378 + 5 = 383/383 Python-mirror-verified scenarios.**
 
+### Round 5 follow-up 5 — coroutine scope fix (commits `5cbc4fa`, `72b1b6d`)
+
+**EmaScheduler.disable was originally in `lifecycleScope.launch` — but the activity calls `finish()` immediately, which cancels `lifecycleScope`. The disable might not reach DataStore + AlarmManager.**
+
+- Fix: moved both `prefs.add(checkIn)` and `EmaScheduler.disable(applicationContext)` into an application-scoped `CoroutineScope(SupervisorJob() + Dispatchers.IO)`. The persistence is the part that must complete; the rate-limit bump (already done in-process) and the UI dismissal (the `finish()` call) are not affected.
+
+- Python-mirror: 5/5 scenarios for `EmaScheduler.disable` (preserved).
+
+**Cumulative across the v0.20.1 release: 383 + 5 = 388/388 Python-mirror-verified scenarios.**
+
 ---
 
 ## 19. References (primary, by brief) — round 5 additions
