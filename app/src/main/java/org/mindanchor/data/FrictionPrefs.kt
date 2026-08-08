@@ -9,8 +9,11 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import org.mindanchor.friction.ExtensionLedger
+import org.mindanchor.friction.FrictionBandit
 import org.mindanchor.friction.GateLedger
 import org.mindanchor.friction.GateTally
+import org.mindanchor.friction.IfThenPlan
+import org.mindanchor.friction.IfThenPlanStore
 import org.mindanchor.friction.OpenLoop
 import org.mindanchor.friction.SmallThings
 import org.mindanchor.sleep.BedtimeList
@@ -235,6 +238,78 @@ class FrictionPrefs(private val context: Context) {
             count = ExtensionLedger.count(updated, packageName, today)
         }
         return count
+    }
+
+    private val banditKey = stringPreferencesKey("friction_bandit_state")
+
+    /**
+     * The v1.2 adaptive-friction policy state — see
+     * [org.mindanchor.friction.FrictionBandit]. Persisted as a
+     * tab-separated pair of `(alpha, beta)` per arm so the data
+     * store stays text-only, in keeping with the
+     * [GateLedger.encode] / [OpenLoop.encode] pattern.
+     */
+    val banditState: Flow<FrictionBandit.BanditState> =
+        context.dataStore.data.map { decodeBandit(it[banditKey].orEmpty()) }
+
+    suspend fun saveBanditState(state: FrictionBandit.BanditState) {
+        context.dataStore.edit { it[banditKey] = encodeBandit(state) }
+    }
+
+    private fun encodeBandit(state: FrictionBandit.BanditState): String =
+        "${state.full.alpha}\t${state.full.beta}\t${state.brief.alpha}\t${state.brief.beta}"
+
+    private fun decodeBandit(raw: String): FrictionBandit.BanditState {
+        if (raw.isBlank()) return FrictionBandit.BanditState()
+        val parts = raw.split('\t')
+        if (parts.size < 4) return FrictionBandit.BanditState()
+        val (fa, fb, ba, bb) = parts
+        val fullAlpha = fa.toDoubleOrNull() ?: return FrictionBandit.BanditState()
+        val fullBeta = fb.toDoubleOrNull() ?: return FrictionBandit.BanditState()
+        val briefAlpha = ba.toDoubleOrNull() ?: return FrictionBandit.BanditState()
+        val briefBeta = bb.toDoubleOrNull() ?: return FrictionBandit.BanditState()
+        return FrictionBandit.BanditState(
+            full = FrictionBandit.Arm(alpha = fullAlpha, beta = fullBeta),
+            brief = FrictionBandit.Arm(alpha = briefAlpha, beta = briefBeta),
+        )
+    }
+
+    private val ifThenPlansKey = stringPreferencesKey("if_then_plans")
+
+    /**
+     * Per-app Gollwitzer if-then plans — see
+     * [org.mindanchor.friction.IfThenPlan]. Stored as a
+     * tab-separated `package<TAB>cue<TAB>action<TAB>minutes`
+     * per line, following the same text-only pattern as
+     * [GateLedger.encode] / [IfThenPlanStore.encode].
+     *
+     * A plan is per-app, optional, and may be incomplete
+     * (cue filled, action empty, or vice versa). The friction
+     * gate pre-fills the intention prompt with a complete
+     * plan and falls back to the generic prompt when no plan
+     * is on file.
+     */
+    val ifThenPlans: Flow<Map<String, IfThenPlan>> =
+        context.dataStore.data.map { IfThenPlanStore.decode(it[ifThenPlansKey].orEmpty()) }
+
+    suspend fun setIfThenPlan(packageName: String, plan: IfThenPlan) {
+        context.dataStore.edit { prefs ->
+            val all = IfThenPlanStore.decode(prefs[ifThenPlansKey].orEmpty()).toMutableMap()
+            if (plan.cue.isBlank() && plan.action.isBlank() && plan.defaultMinutes == null) {
+                all.remove(packageName)
+            } else {
+                all[packageName] = plan
+            }
+            prefs[ifThenPlansKey] = IfThenPlanStore.encode(all)
+        }
+    }
+
+    suspend fun clearIfThenPlan(packageName: String) {
+        context.dataStore.edit { prefs ->
+            val all = IfThenPlanStore.decode(prefs[ifThenPlansKey].orEmpty()).toMutableMap()
+            all.remove(packageName)
+            prefs[ifThenPlansKey] = IfThenPlanStore.encode(all)
+        }
     }
 
     suspend fun extensionsToday(packageName: String, today: String): Int =

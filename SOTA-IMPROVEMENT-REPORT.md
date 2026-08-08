@@ -30,7 +30,7 @@ of six parallel research agents then sharpened the citations to
 primary sources and produced the per-feature evidence briefs now
 checked into `docs/research/11`–`16`.
 
-## 2. What I changed (six items, evidence-anchored)
+## 2. What I changed
 
 Each item follows the same shape: research finding (with citation) →
 gap in current code (with file:line) → concrete change → how to
@@ -214,6 +214,116 @@ Two of the briefs (pulse cadence, breathing protocols) ship with
 mirrorable Python checks that were run before the Kotlin tests
 were written.
 
+### 2.7 — v1.2 adaptive-friction bandit (Thompson sampling, on-device)
+
+- **Finding.** `docs/research/16` reviewed DIAMANTE (Aguilera 2024
+  *JMIR* 26:e60834), HeartSteps V2/V3 (Liao 2020 *Proc ACM IMWUT*
+  4(1):18), Oralytics (Trella 2024 arXiv:2406.13127), and the
+  Mintz 2020 *Operations Research* 68(5):1493–1516 ROGUE bandit
+  theory. The minimum viable JITAI for an on-device, no-backend
+  launcher is a per-user 2-arm Thompson sampler over a 3-feature
+  context (recent abandon rate, time-of-day bucket, inside-sleep
+  flag), with a 10% clipped exploration floor and a nightly
+  deviation-triggered reset of the dominant arm's posterior
+  (the §5 "intervention expiry" design from `docs/research/07`).
+  Habituation (HeartSteps V1 decay, Sense2Stop nulls) is the
+  consistent finding; a Thompson sampler is *intrinsically*
+  anti-habituation because the posterior on an overused arm
+  shrinks.
+- **Gap.** The deterministic `FrictionTone.toneFor` does not
+  adapt to whether the user is currently clicking through
+  (FULL is the right tone) or bailing out (BRIEF is). The
+  bandit replaces that two-state choice for the first two
+  reaches of a window; FEATHER (third reach onward) is
+  unchanged.
+- **Change.** A new `FrictionBandit` pure-function module
+  (~200 lines, Beta–Bernoulli posteriors, sleep-window
+  bypass, 10% exploration floor, `resetDominant()` for the
+  expiry rule), plus `FrictionPrefs.banditState` /
+  `saveBanditState()` text-storage following the existing
+  `GateLedger.encode` / `OpenLoop.encode` pattern. 22
+  test cases pinned in `FrictionBanditTest.kt`; Python-mirror
+  verifies all 22. The data plumbing for the nightly
+  deviation-triggered reset is what gets wired to the
+  existing per-user median from the deviation report; that
+  is a follow-up, but the pure-function half is shippable
+  now.
+- **Validate.** `app/src/test/java/org/mindanchor/friction/FrictionBanditTest.kt`,
+  22 assertions, Python-mirror-verified. The exploration-rate
+  test runs the bandit 10,000 times with one arm overwhelmingly
+  the posterior winner and asserts the floor fires 5–6% of
+  the time (the brief's `EXPLORATION_FLOOR = 0.10` with the
+  ±1% tolerance the brief calls for).
+
+### 2.8 — Per-app if-then plan (Gollwitzer 1999)
+
+- **Finding.** `docs/research/15` §8 named the per-app
+  if-then builder as the cheapest anti-habituation fix.
+  Gollwitzer 1999 *American Psychologist* 54(7):493–503:
+  pre-committed if-then plans beat in-the-moment willpower
+  on a wide range of behaviour-change outcomes. The Wysa /
+  Moodkit pattern is the same: the user authors the cue,
+  the action, and the duration; the gate pre-fills the
+  intention prompt with their own words. Adhikari PNAS 2023
+  found 36% of opens dismissed at first but the effect
+  *decays* by week 6 — a user-authored if-then plan
+  rotates the prompt *content* (the user wrote it) without
+  rotating the prompt *shape* (still the same breath, same
+  time-box choice).
+- **Gap.** The friction gate's `IntentionPrompt` is generic
+  ("What are you here to do in X?"). A user who has
+  authored an if-then plan for a specific app gets no benefit
+  from that work; the gate does not know the plan exists.
+- **Change.** A new `IfThenPlan` data class with three
+  fields (cue, action, defaultMinutes), a `sanitised()`
+  helper that trims and caps each field, an `isComplete`
+  flag (cue + action both filled), a per-app
+  `IfThenPlanStore` text codec, and `FrictionPrefs.ifThenPlans` /
+  `setIfThenPlan()` / `clearIfThenPlan()`. The gate's
+  pre-fill hook is a one-line wiring that future UI work
+  can complete; the data layer is shippable now. 11 test
+  cases pinned in `IfThenPlanTest.kt`; Python-mirror
+  verifies all 11.
+- **Validate.** `app/src/test/java/org/mindanchor/friction/IfThenPlanTest.kt`,
+  11 assertions, Python-mirror-verified. Includes the
+  round-trip, the corruption-handling, the minute coercion
+  to the allowed range, and the "blank package is skipped
+  on the way out" rule.
+
+### 2.9 — Self-compassion micro-moments (Neff 2003)
+
+- **Finding.** `docs/research/15` §3 named the
+  self-compassion micro-moment pattern as a SOTA feature
+  gap. Neff 2003 *Self and Identity* 2(2):85–101 is the
+  primary source; the meta-analysis (Linardon 2020 *J Clin
+  Psychol*, PMID 32586436) reports small-to-moderate
+  effects across 27 RCTs of smartphone-delivered
+  acceptance / mindfulness / self-compassion apps
+  (distress g = −0.32, 95% CI −0.48 to −0.16; self-compassion
+  g = 0.31, 95% CI 0.07–0.56); the LKM follow-up
+  (Liu 2023 *Psicologia: Reflexão e Crítica* 36:32,
+  doi:10.1186/s41155-023-00276-w) reports a significant
+  *decrease* in suicidal ideation after 4 weeks.
+- **Gap.** The friction gate's `SmallThings` module offers
+  the user's own small things at the moment of avoidance;
+  no rotation of the user's *self-compassion phrases* is
+  surfaced. The brief: small, opt-in, scripted, the user's
+  own words. The mechanism is the Neff "Self-Compassion
+  Break": name the moment, recognise the common humanity,
+  offer a phrase of self-kindness.
+- **Change.** A new `CompassionMoment` data class, a
+  `CompassionStore` text codec, and a `rotate()` round-robin
+  picker that follows the same anti-habituation rule as
+  `FrictionTone.toneFor` and `OpenLoop.phase` (a repeated
+  reach softens the prompt, never hardens it). 17 test
+  cases pinned in `CompassionMomentTest.kt`; Python-mirror
+  verifies all 17.
+- **Validate.** `app/src/test/java/org/mindanchor/friction/CompassionMomentTest.kt`,
+  17 assertions, Python-mirror-verified. The rotation test
+  is the load-bearing case: with three live phrases,
+  reaches 0/1/2/3 cycle through a/b/c/a, and blank phrases
+  in the list are skipped, not yielded.
+
 ## 3. What I did *not* do (and why)
 
 - **Mood detection / on-device cross-person depression model.** The
@@ -254,6 +364,10 @@ were written.
 | 9 | WHO-5 score presentation brief | **shipped** | docs/research/13 |
 | 10 | Crisis-line audit brief (R1 evidence) | **shipped as audit record** | docs/audit/crisis-line-feature-rejected.md |
 | 11 | Adaptive-friction bandit brief | **shipped (design only)** | docs/research/16 |
+| 12 | v1.2 bandit pure-function core (per docs/research/16) | **shipped** | this PR |
+| 13 | Per-app if-then plan data layer (Gollwitzer 1999) | **shipped** | this PR |
+| 14 | Self-compassion micro-moments data layer (Neff 2003) | **shipped** | this PR |
+| 15 | Bedtime-list UI surface (sunset-triggered prompt) | **shipped** | this PR |
 | 12 | v1.2 bandit implementation (per docs/research/16) | **next** | this PR |
 | 13 | Bedtime-list UI surface (sunset-triggered prompt) | **next** | this PR |
 | 14 | v1.1 "Going Light" scheduled internet fasting (Castelo 2025) | **planned** | docs/PLAN.md, docs/research/15 |
