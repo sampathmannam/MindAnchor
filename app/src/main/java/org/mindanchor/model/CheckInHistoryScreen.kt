@@ -111,7 +111,21 @@ fun CheckInHistoryScreen(
                     )
                 }
             } else {
+                // v0.20.1 round 5 follow-up: scroll
+                // to the newest check-in on first
+                // open. The list is oldest-at-top
+                // (chronological diary pattern) but
+                // the user opens the screen to see
+                // what they just did, not the oldest
+                // entry from weeks ago.
+                val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+                androidx.compose.runtime.LaunchedEffect(sorted.size) {
+                    if (sorted.isNotEmpty()) {
+                        listState.scrollToItem(sorted.size - 1)
+                    }
+                }
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 16.dp),
