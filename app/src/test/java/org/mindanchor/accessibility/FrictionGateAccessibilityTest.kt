@@ -110,11 +110,16 @@ class FrictionGateAccessibilityTest {
         // The breath is a time-based animation. A
         // sighted user sees the circle grow and shrink;
         // a TalkBack user hears the phase text change
-        // as the liveRegion.
+        // as the liveRegion. Polite mode is the right
+        // choice: the user is *participating* in the
+        // breath, not listening to a status update.
+        // Assertive would interrupt whatever the user
+        // is reading.
         assertTrue(
-            "BreathingPause should declare a liveRegion semantic " +
-                "so the phase text change is announced.",
-            gate.contains("liveRegion = true"),
+            "BreathingPause should declare a liveRegion " +
+                "with LiveRegionMode.Polite so the phase text " +
+                "change is announced without interrupting.",
+            gate.contains("LiveRegionMode.Polite"),
         )
     }
 

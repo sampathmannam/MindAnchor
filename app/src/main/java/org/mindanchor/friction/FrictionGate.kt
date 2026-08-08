@@ -30,6 +30,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -272,7 +273,15 @@ private fun BreathingPause(sky: SkyContent, onFinished: () -> Unit, onNeverMind:
             // itself is a single accessibility node.
             .semantics(mergeDescendants = true) {
                 contentDescription = "A guided breath."
-                liveRegion = true
+                // LiveRegionMode.Polite: announce changes
+                // when the user's screen reader is idle.
+                // LiveRegionMode.Assertive would interrupt
+                // whatever the user is reading; the breath
+                // is a time-based animation that does not
+                // need to interrupt (the user is
+                // *participating* in the breath, not
+                // listening to a status update).
+                liveRegion = LiveRegionMode.Polite
             },
     ) {
         Column(
