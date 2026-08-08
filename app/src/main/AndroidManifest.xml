@@ -323,6 +323,26 @@
         <receiver
             android:name=".goinglight.GoingLightScheduler"
             android:exported="false" />
+
+        <!--
+            The FileProvider for the on-device log share
+            entry point (docs/research/24). Only the
+            cache/logs/ subdirectory is exposed; the rest
+            of the app's storage is unreachable via
+            content:// URIs. exported=false because the
+            provider is consumed via per-URI grants from
+            the same app, not via cross-app content
+            resolution.
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 
 </manifest>

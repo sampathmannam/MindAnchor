@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    FileProvider paths for the on-device log share
+    entry point (docs/research/24). Only the cache
+    subdirectory is exposed; the rest of the app's
+    storage is unreachable via content:// URIs.
+-->
+<paths>
+    <cache-path name="logs" path="logs/" />
+</paths>
