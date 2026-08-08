@@ -1,4 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    @wording-reviewed — AndroidManifest.xml is a wording-heavy
+    surface in the sense that it declares what the app *is*
+    allowed to do on the user's phone. Any change here —
+    adding permissions, declaring services, exposing
+    components — must be clinical-reviewed per the project
+    rule in docs/CLINICAL_REVIEW.md. The clinical-review
+    gate (/.github/workflows/clinical-review.yml) checks
+    for this sentinel at the top of the file; removing it
+    without a clinical-review pass is a gate failure.
+
+    Going Light v1.1 (docs/research/18) adds the
+    android.permission.INTERNET permission below, the
+    GoingLightVpnService service, and the GoingLightScheduler
+    BroadcastReceiver. The INTERNET permission is required
+    by the VpnService API to capture loopback traffic; the
+    promise that the app makes zero outbound calls is
+    enforced by NetworkCallsForbiddenTest, not by the
+    absence of the permission.
+-->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
@@ -28,6 +48,17 @@
     <uses-permission
         android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
+
+    <!--
+        Required by the VpnService API to capture loopback
+        traffic. The privacy promise — the app makes zero
+        outbound calls — is enforced by
+        NetworkCallsForbiddenTest, not by the absence of
+        the permission. The VpnService is local-only: it
+        never tunnels anywhere. See docs/research/18 and
+        the GoingLightVpnService KDoc.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <!--
         Fingertip PPG, and nothing else. HRV is the best physiological
@@ -255,6 +286,43 @@
                 <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
             </intent-filter>
         </receiver>
+
+        <!--
+            Going Light v1.1 (docs/research/18). The local
+            VpnService that drops mobile-internet traffic
+            during a Going Light window. The mechanism is
+            the NetGuard / Blokada pattern: the VpnService
+            captures loopback traffic only, decides
+            forward/drop per packet, and never tunnels
+            anywhere. The PacketForwarder (the decision
+            function) is the safety net; every per-packet
+            decision goes through a tested pure function.
+
+            The service is exported="false" because the only
+            caller is GoingLightScheduler (a same-app
+            BroadcastReceiver). The system grants the VPN
+            slot through prepare() at first-time UX, not
+            through an exported entry point.
+        -->
+        <service
+            android:name=".goinglight.GoingLightVpnService"
+            android:exported="false"
+            android:permission="android.permission.BIND_VPN_SERVICE">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+        </service>
+
+        <!--
+            The BroadcastReceiver that arms the next Going
+            Light transition. The launcher / settings calls
+            GoingLightScheduler.enable() to set the alarm;
+            the alarm fires this receiver, which starts or
+            stops the VpnService at the right moment.
+        -->
+        <receiver
+            android:name=".goinglight.GoingLightScheduler"
+            android:exported="false" />
     </application>
 
 </manifest>
