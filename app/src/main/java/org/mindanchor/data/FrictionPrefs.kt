@@ -14,12 +14,15 @@ import org.mindanchor.friction.ExtensionLedger
 import org.mindanchor.friction.FrictionBandit
 import org.mindanchor.friction.GateLedger
 import org.mindanchor.friction.GateTally
+import org.mindanchor.friction.GoingLightSchedule
 import org.mindanchor.friction.IfThenPlan
 import org.mindanchor.friction.IfThenPlanStore
 import org.mindanchor.friction.OpenLoop
 import org.mindanchor.friction.SmallThings
 import org.mindanchor.sleep.BedtimeList
+import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.LocalTime
 
 private val Context.dataStore by preferencesDataStore(name = "friction")
 
@@ -327,6 +330,61 @@ class FrictionPrefs(private val context: Context) {
 
     suspend fun setCompassionMoments(moments: List<CompassionMoment>) {
         context.dataStore.edit { it[compassionKey] = CompassionStore.encode(moments) }
+    }
+
+    private val goingLightKey = stringPreferencesKey("going_light_schedule")
+
+    /**
+     * The "Going Light" v1.1 schedule — see
+     * [org.mindanchor.friction.GoingLightSchedule]. The
+     * actual blocking mechanism (VpnService or
+     * AccessibilityService) is a separate commit that
+     * reads this flow; the data layer is the part that
+     * ships now.
+     */
+    val goingLightSchedule: Flow<GoingLightSchedule> =
+        context.dataStore.data.map { decodeGoingLight(it[goingLightKey].orEmpty()) }
+
+    suspend fun setGoingLightSchedule(schedule: GoingLightSchedule) {
+        context.dataStore.edit { it[goingLightKey] = encodeGoingLight(schedule) }
+    }
+
+    /**
+     * Encodes the schedule as 8 tab-separated fields: enabled
+     * (0/1), then 7 day-of-week booleans (Mon..Sun), then
+     * start-minute-of-day, then end-minute-of-day. The
+     * day-of-week set is encoded as 7 booleans for
+     * human-readability on inspection; everything else is
+     * integer-valued for cheap equality checks.
+     */
+    private fun encodeGoingLight(s: GoingLightSchedule): String {
+        val dayBooleans = (1..7).joinToString("\t") { dow ->
+            if (DayOfWeek.of(dow) in s.activeDays) "1" else "0"
+        }
+        return listOf(
+            if (s.enabled) "1" else "0",
+            dayBooleans,
+            s.startTime.hour * 60 + s.startTime.minute,
+            s.endTime.hour * 60 + s.endTime.minute,
+        ).joinToString("\t")
+    }
+
+    private fun decodeGoingLight(raw: String): GoingLightSchedule {
+        if (raw.isBlank()) return GoingLightSchedule()
+        val parts = raw.split('\t')
+        if (parts.size < 10) return GoingLightSchedule()
+        val enabled = parts[0] == "1"
+        val days = (1..7).mapNotNull { dow ->
+            if (parts[dow] == "1") DayOfWeek.of(dow) else null
+        }.toSet()
+        val startMin = parts[8].toIntOrNull() ?: return GoingLightSchedule()
+        val endMin = parts[9].toIntOrNull() ?: return GoingLightSchedule()
+        return GoingLightSchedule(
+            enabled = enabled,
+            activeDays = days,
+            startTime = LocalTime.of(startMin / 60, startMin % 60),
+            endTime = LocalTime.of(endMin / 60, endMin % 60),
+        )
     }
 
     suspend fun extensionsToday(packageName: String, today: String): Int =
