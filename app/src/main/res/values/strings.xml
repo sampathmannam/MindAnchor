@@ -47,6 +47,27 @@
     <string name="open_for_minutes">%1$d min</string>
     <string name="open_untimed">Open without a timer</string>
 
+    <!--
+        Item M: per-app session-length default. v0.20.1 round 4
+        (docs/research/22). The first time a user picks a time-box
+        for an app, the gate offers a "Learn this for next time"
+        toggle (on by default). On subsequent reaches, the matching
+        button is highlighted and a one-line "Like last time?"
+        affordance is shown. The user can still pick any of 5/10/20
+        or "open untimed" — the stored value is a default, not a
+        cap.
+
+        @wording-reviewed — these strings are the per-app
+        "Learn this for next time?" surface. Clinical-review-required
+        because they shape what a user believes the launcher is
+        doing with their time-box choice. The wording was chosen
+        to keep the user in control: "Learn" (not "Save" or
+        "Track"), "for next time" (not "for all time"), and the
+        toggle is on by default but is a one-tap escape.
+    -->
+    <string name="per_app_session_length_learn_label">Learn this for next time</string>
+    <string name="per_app_session_length_last_time_label">Like last time — %1$d min</string>
+
     <string name="session_channel_name">Session timers</string>
     <string name="session_over_title">Your time in %1$s is up</string>
     <string name="session_over_text">Done, or a little longer?</string>

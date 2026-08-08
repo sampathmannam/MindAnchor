@@ -9,9 +9,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -28,6 +33,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import org.mindanchor.R
@@ -39,6 +48,17 @@ import org.mindanchor.ui.SkyContent
  * guided breath, then "what are you here to do?" with a time-boxed choice.
  * "Never mind" is always available — the 36%-abandonment door is the whole
  * point, and leaving must never feel like failing.
+ *
+ * @wording-reviewed — the per-app session-length UI surface
+ * (item M, v0.20.1 round 4) is part of this Composable. The
+ * wording strings live in `strings.xml` under
+ * `per_app_session_length_learn_label` and
+ * `per_app_session_length_last_time_label`. The
+ * [onTimeBoxPicked] callback is invoked *after* the user
+ * picks a time-box; the launcher records the choice iff the
+ * "Learn this for next time" toggle is on (default: on).
+ * The "Like last time — N min" affordance is shown when a
+ * stored default exists for this app.
  */
 @Composable
 fun FrictionGate(
@@ -68,6 +88,38 @@ fun FrictionGate(
      * phrase does not become wallpaper.
      */
     compassionMoment: String? = null,
+    /**
+     * The user's per-app session-length map. v0.20.1 round 4
+     * (item M, docs/research/22). The gate looks up
+     * `perAppSessionLength.defaultMinutes(packageName)` and
+     * highlights the matching button in the 5/10/20 row.
+     * If the user has never picked a length for this app,
+     * the gate shows a "Learn this for next time" toggle
+     * (on by default) and records the choice iff the
+     * toggle is on at the moment of the tap. The default
+     * value (`FALLBACK_MINUTES = 10L`) is used when no
+     * map entry exists.
+     */
+    perAppSessionLength: PerAppSessionLength = PerAppSessionLength(),
+    /**
+     * The package name of the app the gate is interrupting.
+     * Used to look up the per-app default in
+     * [perAppSessionLength]. Empty string is treated as
+     * "no per-app default known"; the gate falls back to
+     * the 5/10/20 row with no highlight.
+     */
+    packageName: String = "",
+    /**
+     * Invoked when the user picks a time-box (one of 5, 10,
+     * 20). The launcher records the choice via
+     * `FrictionPrefs.recordPerAppSessionLength` iff the
+     * "Learn this for next time" toggle is on at the moment
+     * of the tap. The callback is *not* invoked for the
+     * "open untimed" button (no per-app length is recorded
+     * for an untimed open — the user's choice is "I want
+     * no timer," not a length to learn).
+     */
+    onTimeBoxPicked: (packageName: String, minutes: Long) -> Unit = { _, _ -> },
 ) {
     // The breath is skipped entirely below FULL rather than shortened.
     // A hurried version of a calming ritual is not calming.
@@ -101,6 +153,9 @@ fun FrictionGate(
                 onSmallThingTaken = onSmallThingTaken,
                 ifThenPlan = ifThenPlan,
                 compassionMoment = compassionMoment,
+                perAppSessionLength = perAppSessionLength,
+                packageName = packageName,
+                onTimeBoxPicked = onTimeBoxPicked,
             )
         }
     }
@@ -284,7 +339,58 @@ private fun IntentionPrompt(
      * present.
      */
     compassionMoment: String? = null,
+    /**
+     * The user's per-app session-length map. v0.20.1 round 4
+     * (item M). The IntentionPrompt uses
+     * `perAppSessionLength.defaultMinutes(packageName)` to
+     * decide which button to highlight. The default
+     * (`FALLBACK_MINUTES = 10L`) is returned when no entry
+     * exists; in that case the gate shows the "Learn this
+     * for next time" toggle so the user can record their
+     * first pick.
+     */
+    perAppSessionLength: PerAppSessionLength = PerAppSessionLength(),
+    /**
+     * The package name of the app the gate is interrupting.
+     * Used to look up the per-app default in
+     * [perAppSessionLength]. Empty string is treated as
+     * "no per-app default known"; the gate falls back to
+     * the 5/10/20 row with no highlight.
+     */
+    packageName: String = "",
+    /**
+     * Invoked when the user picks a time-box (5, 10, 20).
+     * The launcher records the choice iff the "Learn this
+     * for next time" toggle is on at the moment of the
+     * tap. Not invoked for the "open untimed" button.
+     */
+    onTimeBoxPicked: (packageName: String, minutes: Long) -> Unit = { _, _ -> },
 ) {
+    // v0.20.1 round 4: the per-app default. Read it
+    // once at compose time so the highlight, the
+    // "Like last time?" affordance, and the toggle's
+    // default value all agree.
+    val storedDefaultMinutes = remember(packageName, perAppSessionLength) {
+        perAppSessionLength.defaultMinutes(packageName)
+    }
+    // "Has a stored default for this app" is
+    // "the map has an explicit entry for it."
+    // A blank package name is treated as "no
+    // entry." The highlight only fires on a real
+    // stored choice.
+    val hasStoredDefault = remember(packageName, perAppSessionLength) {
+        packageName.isNotBlank() && perAppSessionLength.perAppMinutes.containsKey(packageName)
+    }
+    // The "Learn this for next time" toggle is on by
+    // default on the first reach per app. Once the
+    // user has recorded a choice, the toggle is gone
+    // (the highlight takes over). Local state is
+    // fine: the gate is not re-entered for the same
+    // app within a single reach.
+    var learnThisTime by remember(packageName, hasStoredDefault) {
+        mutableStateOf(!hasStoredDefault)
+    }
+
     Box(modifier = Modifier.fillMaxSize().padding(32.dp)) {
         Column(
             modifier = Modifier.align(Alignment.Center),
@@ -322,16 +428,104 @@ private fun IntentionPrompt(
                 )
             }
 
+            // v0.20.1 round 4 (item M): when a per-app
+            // default exists, show the "Like last time —
+            // N min" affordance above the time-box row.
+            // The wording is in strings.xml and is
+            // clinical-review-gated.
+            if (hasStoredDefault) {
+                Text(
+                    text = stringResource(
+                        R.string.per_app_session_length_last_time_label,
+                        storedDefaultMinutes,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = sky.textSecondary,
+                )
+            }
+
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(5L, 10L, 20L).forEach { minutes ->
-                    TextButton(onClick = { onOpen(minutes) }) {
+                    val isHighlighted = hasStoredDefault && minutes == storedDefaultMinutes
+                    // The highlight is a subtle background
+                    // change on the matching button. The
+                    // other two buttons stay exactly the
+                    // same; the user can still pick any of
+                    // 5, 10, 20, or "open untimed" with one
+                    // tap. The background color is the sky's
+                    // primary with a small alpha — visible
+                    // but not loud.
+                    TextButton(
+                        onClick = {
+                            if (learnThisTime) {
+                                onTimeBoxPicked(packageName, minutes)
+                            }
+                            onOpen(minutes)
+                        },
+                        modifier = if (isHighlighted) {
+                            Modifier
+                                .background(
+                                    color = sky.textPrimary.copy(alpha = 0.12f),
+                                    shape = RoundedCornerShape(8.dp),
+                                )
+                                .semantics {
+                                    contentDescription = "Open $appLabel for $minutes minutes, like last time."
+                                }
+                        } else {
+                            Modifier
+                        },
+                    ) {
+                        // Bold the highlighted button so the
+                        // suggestion is legible against the
+                        // soft background. The unhighlighted
+                        // buttons keep the regular weight —
+                        // a quiet visual hierarchy, not a
+                        // wall of bold.
                         Text(
-                            stringResource(R.string.open_for_minutes, minutes),
+                            text = stringResource(R.string.open_for_minutes, minutes),
                             color = sky.textPrimary,
+                            fontWeight = if (isHighlighted) {
+                                FontWeight.SemiBold
+                            } else {
+                                FontWeight.Normal
+                            },
                         )
                     }
                 }
             }
+
+            // v0.20.1 round 4 (item M): the "Learn this
+            // for next time" toggle. Shown only on the
+            // first reach per app (when no stored
+            // default exists). The toggle is on by
+            // default; the user can uncheck it before
+            // picking a time-box to opt out of the
+            // per-app learning. The whole row is the
+            // tap target, not just the checkbox.
+            if (!hasStoredDefault && packageName.isNotBlank()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .toggleable(
+                            value = learnThisTime,
+                            role = Role.Checkbox,
+                        ) { learnThisTime = !learnThisTime }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(
+                        checked = learnThisTime,
+                        onCheckedChange = null,
+                    )
+                    Text(
+                        text = stringResource(R.string.per_app_session_length_learn_label),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = sky.textSecondary,
+                    )
+                }
+            }
+
             TextButton(onClick = { onOpen(null) }) {
                 Text(stringResource(R.string.open_untimed), color = sky.textSecondary)
             }

@@ -149,6 +149,18 @@ fun LauncherRoot(
                 smallThing = resolved.smallThing,
                 ifThenPlan = resolved.ifThenPlan,
                 compassionMoment = resolved.compassionMoment,
+                perAppSessionLength = resolved.perAppSessionLength,
+                packageName = resolved.packageName,
+                // v0.20.1 round 4 (item M): the per-app
+                // session-length "Learn this for next time"
+                // toggle. The gate invokes this callback
+                // only when the toggle is on at the moment
+                // of the tap. The launcher records the
+                // choice via FrictionPrefs and the change
+                // is picked up on the next reach.
+                onTimeBoxPicked = { pkg, minutes ->
+                    viewModel.recordPerAppSessionLength(pkg, minutes)
+                },
                 // Taking the small thing is leaving, not entering. It
                 // counts as backing out for the same reason "never mind"
                 // does: the person met the pause and did not go in.
