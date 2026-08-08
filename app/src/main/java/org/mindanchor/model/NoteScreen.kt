@@ -27,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -88,10 +89,6 @@ fun NoteScreen(
     onDelete: (id: Long) -> Unit,
     onClose: () -> Unit,
 ) {
-    var editingNoteId by remember { mutableStateOf<Long?>(null) }
-    var pendingDeleteId by remember { mutableStateOf<Long?>(null) }
-    var editorBody by remember { mutableStateOf("") }
-    var newNoteDraft by remember { mutableStateOf("") }
     // v0.20.1 round 5 follow-up: while a save is
     // in flight (the onAdd callback has fired and
     // is in the activity's coroutine), the Save
@@ -101,7 +98,15 @@ fun NoteScreen(
     // by clearing `newNoteDraft` once onAdd has
     // returned, but Compose state updates are not
     // synchronous with the next recomposition.
+    // rememberSaveable: the in-flight draft body
+    // and the editor body survive a configuration
+    // change. The activity is stateNotNeeded in
+    // the manifest, so a rotation kills it; the
+    // draft would otherwise be lost.
     var addInFlight by remember { mutableStateOf(false) }
+    var editingNoteId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var editorBody by rememberSaveable { mutableStateOf("") }
+    var newNoteDraft by rememberSaveable { mutableStateOf("") }
 
     // The composer's focus requester. The
     // "directly" affordance: the user lands on the
