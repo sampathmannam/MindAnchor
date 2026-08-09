@@ -103,6 +103,21 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <!--
+        Required by the GoingLightVpnService when it
+        promotes itself to a foreground service so the OS
+        does not kill it under the Android 12+
+        background-start restrictions. The
+        foregroundServiceType="dataSync" declared on the
+        <service> element pairs with this permission; the
+        manifest must declare both. The VPN is local-only
+        (see the INTERNET block above) and never tunnels
+        anywhere, so the dataSync type is the closest
+        match: the service is processing loopback
+        packets, not syncing data to a remote endpoint.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
+    <!--
         Fingertip PPG, and nothing else. HRV is the best physiological
         signal available here and the watch does not release it, so it is
         measured directly: finger over the lens, torch on, ~90 seconds.
@@ -506,7 +521,8 @@
         <service
             android:name=".goinglight.GoingLightVpnService"
             android:exported="false"
-            android:permission="android.permission.BIND_VPN_SERVICE">
+            android:permission="android.permission.BIND_VPN_SERVICE"
+            android:foregroundServiceType="dataSync">
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>
