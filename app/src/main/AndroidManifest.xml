@@ -203,7 +203,7 @@
             android:excludeFromRecents="true"
             android:stateNotNeeded="true"
             android:launchMode="singleTask"
-            android:configChanges="orientation|screenSize|keyboard|keyboardHidden" />
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden|uiMode|density|fontScale|locale|smallestScreenSize|layoutDirection" />
 
         <!--
             v0.20.1 round 5: the notes activity.

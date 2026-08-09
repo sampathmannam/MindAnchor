@@ -1,6 +1,7 @@
 package org.mindanchor.model
 
 import java.time.Instant
+import java.util.Locale
 
 /**
  * A note the user wrote. Quick-capture, free-text, no fields
@@ -250,8 +251,17 @@ object NoteStore {
      */
     fun search(notes: List<Note>, query: String): List<Note> {
         if (query.isBlank()) return notes
-        val needle = query.trim().lowercase()
-        return notes.filter { it.body.lowercase().contains(needle) }
+        // v0.20.1 round 5 follow-up: lowercase with
+        // Locale.ROOT, not the default locale. The
+        // default locale is device-dependent: a Turkish
+        // device lowercases "I" to "ı" (dotless i),
+        // which silently breaks case-insensitive search
+        // for the user's English notes. Locale.ROOT is
+        // locale-independent and is the correct
+        // lowercase-folding for a non-localised substring
+        // match.
+        val needle = query.trim().lowercase(Locale.ROOT)
+        return notes.filter { it.body.lowercase(Locale.ROOT).contains(needle) }
     }
 }
 
