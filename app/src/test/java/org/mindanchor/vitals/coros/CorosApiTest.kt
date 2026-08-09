@@ -10,6 +10,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 
@@ -256,6 +257,28 @@ class CorosApiTest {
             runBlocking { api.fetchDashboard(testAuth) }
         }
         assertEquals(503, ex.httpCode)
+    }
+
+    @Test
+    fun `non-JSON 200 body surfaces as CorosApiException`() {
+        // A captive portal or proxy error page returns
+        // HTTP 200 with an HTML body. The api must
+        // translate that into a CorosApiException, not
+        // let the SerializationException bubble up —
+        // the worker catches CorosApiException but
+        // would not catch SerializationException, and
+        // the sync would fail without retry.
+        server.enqueue(
+            MockResponse().setBody("<html>captive portal</html>").setResponseCode(200),
+        )
+        runBlocking<Unit> {
+            try {
+                api.fetchDashboard(testAuth)
+                fail("expected CorosApiException")
+            } catch (e: CorosApiException) {
+                assertEquals("MALFORMED", e.corosResult)
+            }
+        }
     }
 
     @Test

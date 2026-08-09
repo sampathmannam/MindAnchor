@@ -233,12 +233,13 @@ dependencies {
     // force above is what makes it the real artifact rather than the
     // empty placeholder.
     compileOnly(libs.guava.listenablefuture)
-    // No WorkManager here, deliberately. It expressed the nightly
-    // report's "charging and idle" constraints in two lines, and it also
-    // merged ACCESS_NETWORK_STATE into the manifest, which PrivacyTest
-    // caught. A no-network app is the basis of the promise on the About
-    // screen, so the constraints are checked by hand instead — see
-    // ReportSchedule for the full reasoning.
+    // WorkManager is included solely for the COROS Training Hub
+    // side-channel's periodic 6h sync. The launcher itself is
+    // still a no-outbound-calls app: the no-network promise on
+    // the About screen is enforced by NetworkCallsForbiddenTest
+    // (see corosBridgeFiles carve-out for the opt-in path).
+    // The nightly report's "charging and idle" constraints are
+    // still checked by hand in ReportSchedule, not by WorkManager.
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)

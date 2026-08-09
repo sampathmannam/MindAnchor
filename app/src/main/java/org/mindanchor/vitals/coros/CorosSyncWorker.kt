@@ -157,9 +157,10 @@ class CorosSyncWorker(
          * Arms the periodic worker. Called from
          * [org.mindanchor.settings.SettingsViewModel]
          * when the user connects the bridge. The
-         * existing-work-replace policy means a second
-         * call after the first replaces the schedule,
-         * not stacks a second one.
+         * [ExistingPeriodicWorkPolicy.KEEP] policy
+         * means a second call is a no-op: an already
+         * running schedule is left alone. Use [cancel]
+         * to drop the schedule.
          */
         fun ensureScheduled(context: Context) {
             val request = PeriodicWorkRequestBuilder<CorosSyncWorker>(
@@ -189,10 +190,11 @@ class CorosSyncWorker(
 
         /**
          * Kicks an immediate one-shot sync. The unique
-         * work name + REPLACE policy means a second
-         * "Sync now" while the first is still running
-         * merges into the first — the user's intent is
-         * "sync now", not "sync twice as hard".
+         * work name + [ExistingWorkPolicy.REPLACE]
+         * policy means a second "Sync now" while the
+         * first is still running cancels the in-flight
+         * run and starts a fresh one — the user's
+         * intent is "sync now", not "sync twice as hard".
          */
         fun syncNow(context: Context) {
             val request = OneTimeWorkRequestBuilder<CorosSyncWorker>().build()

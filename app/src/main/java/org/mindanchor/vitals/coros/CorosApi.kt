@@ -2,6 +2,7 @@ package org.mindanchor.vitals.coros
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
@@ -92,7 +93,7 @@ class CorosApi(
                     httpCode = resp.code,
                 )
             }
-            val parsed = json.decodeFromString(CorosLoginResponse.serializer(), text)
+            val parsed = decodeResponse(text, CorosLoginResponse.serializer(), "login")
             if (parsed.result != "0000" || parsed.data == null) {
                 throw CorosApiException(
                     "Login failed: result=${parsed.result} ${parsed.message.orEmpty()}",
@@ -116,7 +117,7 @@ class CorosApi(
     suspend fun fetchDashboard(auth: CorosAuthPayload): List<CorosHrv> =
         withContext(Dispatchers.IO) {
             val text = authenticatedGet(auth, "dashboard/query")
-            val parsed = json.decodeFromString(CorosDashboardResponse.serializer(), text)
+            val parsed = decodeResponse(text, CorosDashboardResponse.serializer(), "dashboard")
             if (parsed.result != "0000") {
                 throw CorosApiException(
                     "dashboard failed: result=${parsed.result}",
@@ -154,7 +155,7 @@ class CorosApi(
     suspend fun fetchAnalyse(auth: CorosAuthPayload): List<CorosDaily> =
         withContext(Dispatchers.IO) {
             val text = authenticatedGet(auth, "analyse/query")
-            val parsed = json.decodeFromString(CorosAnalyseResponse.serializer(), text)
+            val parsed = decodeResponse(text, CorosAnalyseResponse.serializer(), "analyse")
             if (parsed.result != "0000") {
                 throw CorosApiException(
                     "analyse failed: result=${parsed.result}",
@@ -206,9 +207,10 @@ class CorosApi(
                     httpCode = resp.code,
                 )
             }
-            val parsed = json.decodeFromString(
-                CorosActivityListResponse.serializer(),
+            val parsed = decodeResponse(
                 text,
+                CorosActivityListResponse.serializer(),
+                "activities",
             )
             if (parsed.result != "0000") {
                 throw CorosApiException(
@@ -255,6 +257,30 @@ class CorosApi(
             }
             return text
         }
+    }
+
+    /**
+     * Decode a JSON response body into [T], translating a
+     * [SerializationException] (captive portal, proxy error
+     * page, truncated response) into a [CorosApiException] so
+     * the worker can retry on the next sync.
+     */
+    @Suppress("detekt.SwallowedException")
+    private fun <T> decodeResponse(
+        text: String,
+        serializer: kotlinx.serialization.KSerializer<T>,
+        endpoint: String,
+    ): T = try {
+        json.decodeFromString(serializer, text)
+    } catch (e: SerializationException) {
+        // A non-JSON or malformed body is a transient error
+        // — the server is reachable, the credentials are
+        // accepted, but the response is unexpected. The
+        // worker retries on the next periodic tick.
+        throw CorosApiException(
+            "Malformed response on $endpoint: ${e.message?.take(ERROR_BODY_PREVIEW_CHARS)}",
+            corosResult = "MALFORMED",
+        )
     }
 
     @kotlinx.serialization.Serializable

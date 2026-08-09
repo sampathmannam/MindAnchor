@@ -4,8 +4,10 @@ import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.builtins.ListSerializer
@@ -48,20 +50,20 @@ class CorosVitalSource(private val context: Context) {
      * The most recent successful sync, in epoch millis, or
      * null when the bridge has never synced on this device.
      */
-    val lastSyncEpochMs: Flow<Long?> = context.corosDataStore.data.map { it[lastSyncKey] }
+    val lastSyncEpochMs: Flow<Long?> = safeData().map { it[lastSyncKey] }
 
     /** The cached nightly HRV, oldest first. Empty when the bridge has never synced. */
-    val hrv: Flow<List<CorosHrv>> = context.corosDataStore.data.map { prefs ->
+    val hrv: Flow<List<CorosHrv>> = safeData().map { prefs ->
         decode(prefs[hrvKey], ListSerializer(CorosHrv.serializer()))
     }
 
     /** The cached daily summaries (RHR, training load, VO2max), oldest first. */
-    val daily: Flow<List<CorosDaily>> = context.corosDataStore.data.map { prefs ->
+    val daily: Flow<List<CorosDaily>> = safeData().map { prefs ->
         decode(prefs[dailyKey], ListSerializer(CorosDaily.serializer()))
     }
 
     /** The cached activity page (max 30 entries). */
-    val activities: Flow<List<CorosActivity>> = context.corosDataStore.data.map { prefs ->
+    val activities: Flow<List<CorosActivity>> = safeData().map { prefs ->
         decode(prefs[activitiesKey], ListSerializer(CorosActivity.serializer()))
     }
 
@@ -204,4 +206,15 @@ class CorosVitalSource(private val context: Context) {
             json.decodeFromString(serializer, raw)
         }.getOrDefault(emptyList())
     }
+
+    /**
+     * A read failure on the DataStore file (corrupt blob,
+     * filesystem permission, an interrupted write) is the
+     * same "no cache yet" state as a first run — empty
+     * preferences, every key absent. The wellness card
+     * surfaces that as a stale timestamp and a quiet
+     * placeholder rather than crashing the compose tree.
+     */
+    private fun safeData(): Flow<androidx.datastore.preferences.core.Preferences> =
+        context.corosDataStore.data.catch { emit(emptyPreferences()) }
 }

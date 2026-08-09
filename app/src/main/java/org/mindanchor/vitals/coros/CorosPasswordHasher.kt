@@ -32,6 +32,7 @@ object CorosPasswordHasher {
      * `result: "1001"` — invalid credentials — when
      * uppercase was sent).
      */
+    @Suppress("InsecureCryptoAlgorithm", "WeakHash")
     fun md5Hex(password: CharSequence): String {
         val bytes = password.toString().toByteArray(Charsets.UTF_8)
         val digest = MessageDigest.getInstance("MD5").digest(bytes)
