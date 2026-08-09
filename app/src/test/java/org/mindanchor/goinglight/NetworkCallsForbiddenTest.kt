@@ -1,5 +1,6 @@
 package org.mindanchor.goinglight
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -142,6 +143,18 @@ class NetworkCallsForbiddenTest {
             root.walkTopDown()
                 .filter { it.isFile && it.extension == "kt" }
                 .forEach { f ->
+                    // v0.20.1 round 5 follow-up: skip
+                    // this test file itself. The test's
+                    // job is to scan every OTHER .kt
+                    // file; scanning itself would
+                    // surface the forbiddenPatterns
+                    // list as a false positive (the
+                    // patterns are string literals in
+                    // this file). The exclusion is
+                    // scoped to this single file path.
+                    if (f.path == "app/src/test/java/org/mindanchor/goinglight/NetworkCallsForbiddenTest.kt") {
+                        return@forEach
+                    }
                     val content = f.readText()
                     if (f.path !in vpnSubsystemFiles) {
                         // Non-VpnService files: any
@@ -212,11 +225,20 @@ class NetworkCallsForbiddenTest {
         // allowed reference should be explicit, and
         // a new one should fail this test until a
         // clinical review re-pins the value.)
-        assertTrue(
+        //
+        // v0.20.1 round 5 follow-up: the previous
+        // size bound was 10..20, which allowed
+        // silent drift up to +7 entries without
+        // clinical review. Tightened to exact-match
+        // the current 13 entries. Any future
+        // change to the allowed set must be
+        // intentional and reviewed.
+        assertEquals(
             "vpnSubsystemAllowedReferences drift. " +
-                "Expected: ${vpnSubsystemAllowedReferences.size} entries. " +
-                "Got: $vpnSubsystemAllowedReferences",
-            vpnSubsystemAllowedReferences.size in 10..20,
+                "Expected exactly 13 entries (current pinned value). " +
+                "Got: ${vpnSubsystemAllowedReferences.size}: $vpnSubsystemAllowedReferences",
+            13,
+            vpnSubsystemAllowedReferences.size,
         )
     }
 }
