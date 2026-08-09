@@ -2,13 +2,17 @@ package org.mindanchor.support
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
@@ -25,10 +29,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusEvent
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
@@ -94,6 +101,16 @@ fun SupportScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .safeDrawingPadding()
+                // v0.20.9: imePadding on the support
+                // screen scroll container. The screen
+                // has four free-text fields (one per
+                // step of the Stanley & Brown safety
+                // plan: warning signs, coping
+                // strategies, places to distract,
+                // people to call) and any of them can
+                // be the one the user is editing when
+                // the soft keyboard is up.
+                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(24.dp),
         ) {
@@ -328,19 +345,32 @@ private fun SafetyPlanEditor(
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var professional by remember { mutableStateOf(false) }
+    // v0.20.9: bringIntoViewOnFocus on the
+    // contact-form fields. The form is at the
+    // bottom of the support screen, after the four
+    // safety-plan steps; with the keyboard up
+    // these two fields were at the bottom of the
+    // visible scroll area and the user could not
+    // see what they were typing.
     OutlinedTextField(
         value = name,
         onValueChange = { name = it },
         label = { Text(stringResource(R.string.contact_name)) },
         singleLine = true,
-        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .bringIntoViewOnFocus()
+            .padding(top = 8.dp),
     )
     OutlinedTextField(
         value = phone,
         onValueChange = { phone = it },
         label = { Text(stringResource(R.string.contact_phone)) },
         singleLine = true,
-        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .bringIntoViewOnFocus()
+            .padding(top = 8.dp),
     )
     // The row is the toggle and the switch is only a picture of it — one
     // named node for a screen reader, and a target the full width of the
@@ -394,12 +424,38 @@ private fun PlanField(
     value: String,
     onValueChange: (String) -> Unit,
 ) {
+    // v0.20.9: bringIntoViewOnFocus on the safety-plan
+    // step fields. The plan has four steps and any
+    // can be the one the user is editing when the
+    // keyboard comes up.
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         label = { Text(stringResource(labelRes)) },
         placeholder = { Text(stringResource(hintRes)) },
-        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .bringIntoViewOnFocus()
+            .padding(top = 12.dp),
         minLines = 2,
     )
+}
+
+/**
+ * v0.20.9: bringIntoView on focus. See the
+ * same-named helper in HomeScreen for the
+ * rationale.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun Modifier.bringIntoViewOnFocus(): Modifier {
+    val requester = remember { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
+    return this
+        .bringIntoViewRequester(requester)
+        .onFocusEvent { state ->
+            if (state.isFocused) {
+                scope.launch { requester.bringIntoView() }
+            }
+        }
 }

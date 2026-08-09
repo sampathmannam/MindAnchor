@@ -7,15 +7,19 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
@@ -39,6 +43,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusEvent
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -100,6 +105,29 @@ private fun SectionHeading(titleRes: Int, section: SettingsSection?, goals: Set<
 private val HOUR_MINUTE: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
 /**
+ * v0.20.9: Modifier extension that scrolls the nearest
+ * scrollable ancestor to bring the receiving composable
+ * into view when it gains focus. See the same-named helper
+ * in HomeScreen for the rationale — the settings screen
+ * has the same risk on the COROS form, the time-picker
+ * hour/minute inputs (when those are introduced), and any
+ * other free-text field added in this file.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun Modifier.bringIntoViewOnFocus(): Modifier {
+    val requester = remember { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
+    return this
+        .bringIntoViewRequester(requester)
+        .onFocusEvent { state ->
+            if (state.isFocused) {
+                scope.launch { requester.bringIntoView() }
+            }
+        }
+}
+
+/**
  * A half-hour stepper for one end of the quiet hours.
  *
  * Steppers rather than a clock dialog: the targets are large, which
@@ -107,13 +135,33 @@ private val HOUR_MINUTE: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm"
  * people actually do to a bedtime.
  */
 @Composable
-private fun TimeNudger(label: String, onEarlier: () -> Unit, onLater: () -> Unit) {
+private fun timeNudgerRow(
+    label: String,
+    /** The current value to display next to the label. */
+    value: String,
+    onEarlier: () -> Unit,
+    onLater: () -> Unit,
+) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            // v0.20.9: the time-nudger rows used to render
+            // only "Starts / Earlier / Later" and
+            // "Ends / Earlier / Later" — the value lived
+            // only in the "Quiet hours run 22:00 to 07:00."
+            // line above, and a person who wanted to know
+            // what the start time was had to read two
+            // lines and remember the first while reading
+            // the second. The fix is to show the value on
+            // the same row as the label, with the earlier /
+            // later buttons to its right. The same
+            // shape works for the batching time-slot
+            // picker, which had the same defect.
+            .heightIn(min = 48.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = label,
+            text = stringResource(R.string.time_nudger_row, label, value),
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.weight(1f),
         )
@@ -419,6 +467,19 @@ fun SettingsScreen(
         modifier = Modifier
             .fillMaxSize()
             .safeDrawingPadding()
+            // v0.20.9: imePadding on the scroll container
+            // so the soft keyboard does not cover the
+            // COROS form fields, the check-in interval
+            // inputs, the weekday pickers, the sunset
+            // time pickers, or any other text field the
+            // user is editing. safeDrawingPadding on the
+            // outer wrapper should already cover the
+            // IME insets, but explicit imePadding on the
+            // scroll container is the documented
+            // pattern and the one that survives a
+            // future refactor that moves the
+            // safeDrawingPadding to a smaller scope.
+            .imePadding()
             .verticalScroll(rememberScrollState())
             .padding(24.dp),
     ) {
@@ -795,8 +856,12 @@ fun SettingsScreen(
                     releaseTimes.forEachIndexed { slot, time ->
                         // forEachIndexed is inline, so stringResource here is
                         // still a call from the composable body.
-                        TimeNudger(
+                        // v0.20.9: the row now shows the
+                        // slot label *and* the time on the
+                        // same line — see timeNudgerRow KDoc.
+                        timeNudgerRow(
                             label = stringResource(R.string.batching_time_slot, time.format(HOUR_MINUTE)),
+                            value = time.format(HOUR_MINUTE),
                             onEarlier = { viewModel.nudgeReleaseTime(slot, -BatchSchedule.NUDGE_MINUTES) },
                             onLater = { viewModel.nudgeReleaseTime(slot, BatchSchedule.NUDGE_MINUTES) },
                         )
@@ -985,13 +1050,20 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(top = 8.dp),
             )
-            TimeNudger(
+            // v0.20.9: each row now shows the time on
+            // the same line as the label, so the user
+            // does not have to read "Quiet hours run
+            // 22:00 to 07:00." and hold the start in
+            // their head while reading the end.
+            timeNudgerRow(
                 label = stringResource(R.string.sunset_starts),
+                value = sunsetStart.format(HOUR_MINUTE),
                 onEarlier = { viewModel.nudgeSunset(-30, 0) },
                 onLater = { viewModel.nudgeSunset(30, 0) },
             )
-            TimeNudger(
+            timeNudgerRow(
                 label = stringResource(R.string.sunset_ends),
+                value = sunsetEnd.format(HOUR_MINUTE),
                 onEarlier = { viewModel.nudgeSunset(0, -30) },
                 onLater = { viewModel.nudgeSunset(0, 30) },
             )
@@ -1804,7 +1876,18 @@ fun SettingsScreen(
                     onValueChange = { corosEmailDraft = it },
                     singleLine = true,
                     label = { Text(stringResource(R.string.coros_email_hint)) },
-                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                    // v0.20.9: scroll the form up so the
+                    // email field is visible above the
+                    // keyboard. The COROS form sits below
+                    // the privacy explainer and the
+                    // connected-state block, so on a
+                    // small-screen device the email
+                    // field is well below the fold when
+                    // the keyboard comes up.
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .bringIntoViewOnFocus()
+                        .padding(top = 12.dp),
                 )
                 OutlinedTextField(
                     value = corosPasswordDraft,
@@ -1812,7 +1895,12 @@ fun SettingsScreen(
                     singleLine = true,
                     label = { Text(stringResource(R.string.coros_password_hint)) },
                     visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    // v0.20.9: same scroll-into-view as
+                    // the email field.
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .bringIntoViewOnFocus()
+                        .padding(top = 8.dp),
                 )
                 Text(
                     text = stringResource(R.string.coros_region_label),

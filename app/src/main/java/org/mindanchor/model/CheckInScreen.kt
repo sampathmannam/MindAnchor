@@ -8,6 +8,7 @@
 
 package org.mindanchor.model
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,8 +17,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -29,15 +33,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusEvent
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import org.mindanchor.R
 
 /**
@@ -141,6 +148,14 @@ fun CheckInScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .safeDrawingPadding()
+                // v0.20.9: imePadding on the inner Box so
+                // the soft keyboard does not cover the
+                // reflection OutlinedTextField or the
+                // Save button. The reflection is the
+                // only free-text field on this screen
+                // and the one the user is most likely
+                // to be editing when the keyboard is up.
+                .imePadding()
                 .padding(24.dp),
         ) {
             Column(
@@ -220,9 +235,19 @@ fun CheckInScreen(
                             reflection = it
                         }
                     },
+                    // v0.20.9: bringIntoViewOnFocus on the
+                    // reflection field so it scrolls above
+                    // the keyboard. The field is 120dp
+                    // tall and the keyboard is several
+                    // hundred; the bottom of the field
+                    // was otherwise hidden under the
+                    // keyboard with the user unable to
+                    // see what they were typing past the
+                    // first line.
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 120.dp),
+                        .heightIn(min = 120.dp)
+                        .bringIntoViewOnFocus(),
                     label = { Text(stringResource(R.string.check_in_reflection_label)) },
                     placeholder = { Text(stringResource(R.string.check_in_reflection_placeholder)) },
                     keyboardOptions = KeyboardOptions(
@@ -253,4 +278,23 @@ fun CheckInScreen(
             }
         }
     }
+}
+
+/**
+ * v0.20.9: bringIntoView on focus for the
+ * reflection field. See the same-named helper in
+ * HomeScreen for the rationale.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun Modifier.bringIntoViewOnFocus(): Modifier {
+    val requester = remember { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
+    return this
+        .bringIntoViewRequester(requester)
+        .onFocusEvent { state ->
+            if (state.isFocused) {
+                scope.launch { requester.bringIntoView() }
+            }
+        }
 }

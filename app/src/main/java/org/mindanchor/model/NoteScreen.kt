@@ -1,5 +1,6 @@
 package org.mindanchor.model
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -8,9 +9,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -27,18 +31,21 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusEvent
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import org.mindanchor.R
 
 /**
@@ -79,6 +86,34 @@ import org.mindanchor.R
  * no share, no export, no reminders. The
  * surface is the data, not a feature.
  */
+
+/**
+ * v0.20.9: Modifier extension that auto-scrolls
+ * the nearest scrollable ancestor to bring the
+ * receiving composable into view when it gains
+ * focus. The notes screen has two text fields
+ * (the always-on composer at the top and the
+ * inline editor that replaces a row when
+ * `editingNoteId` is set) and the soft keyboard
+ * otherwise covers whichever one the user is
+ * typing into. The inline editor is the worse
+ * case — it can be many rows down the LazyColumn,
+ * and a focus event without a bringIntoView call
+ * leaves the field hidden under the keyboard.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun Modifier.bringIntoViewOnFocus(): Modifier {
+    val requester = remember { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
+    return this
+        .bringIntoViewRequester(requester)
+        .onFocusEvent { state ->
+            if (state.isFocused) {
+                scope.launch { requester.bringIntoView() }
+            }
+        }
+}
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NoteScreen(
@@ -159,7 +194,19 @@ fun NoteScreen(
     }
 
     Surface(modifier = Modifier.fillMaxSize()) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        // v0.20.9: imePadding on the screen Column so
+        // the soft keyboard does not cover the
+        // composer or the inline editor when the
+        // user is editing an existing note. The
+        // TopAppBar below already handles the
+        // status-bar inset; imePadding adds the
+        // keyboard inset on the bottom of the
+        // content area.
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .imePadding(),
+        ) {
             TopAppBar(
                 title = { Text(stringResource(R.string.note_new)) },
                 navigationIcon = {
@@ -181,6 +228,12 @@ fun NoteScreen(
             // at the top of the screen — captures
             // the "I just thought of something"
             // moment without forcing a modal.
+            // v0.20.9: bringIntoViewOnFocus on the
+            // composer keeps it visible above the
+            // keyboard when the field is focused.
+            // (The auto-focus on empty state from
+            // composerFocus.requestFocus() also
+            // triggers the same requester.)
             OutlinedTextField(
                 value = newNoteDraft,
                 onValueChange = {
@@ -192,6 +245,7 @@ fun NoteScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
                     .heightIn(min = 80.dp)
+                    .bringIntoViewOnFocus()
                     .focusRequester(composerFocus),
                 placeholder = { Text(stringResource(R.string.note_body_hint)) },
                 keyboardOptions = KeyboardOptions(
@@ -275,6 +329,17 @@ fun NoteScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 if (isEditing) {
+                                    // v0.20.9: bringIntoViewOnFocus
+                                    // on the inline editor so the
+                                    // note being edited scrolls into
+                                    // view above the keyboard. The
+                                    // note is in a LazyColumn and
+                                    // the field can be many rows down
+                                    // — without the requester the
+                                    // field was at the same Y as
+                                    // the keyboard and the user
+                                    // could not see what they were
+                                    // typing.
                                     OutlinedTextField(
                                         value = editorBody,
                                         onValueChange = {
@@ -284,7 +349,8 @@ fun NoteScreen(
                                         },
                                         modifier = Modifier
                                             .weight(1f)
-                                            .heightIn(min = 80.dp),
+                                            .heightIn(min = 80.dp)
+                                            .bringIntoViewOnFocus(),
                                         keyboardOptions = KeyboardOptions(
                                             capitalization = KeyboardCapitalization.Sentences,
                                         ),
