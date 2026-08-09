@@ -1,40 +1,209 @@
 # Contributing to MindAnchor
 
-Thanks for helping build a calmer phone.
+MindAnchor is a privacy-first Android launcher for the
+mental-health population. It is small, single-developer
+today, and built to *stay* small. The most useful thing a
+new contributor can do is read this file first.
 
-## The evidence gate (project law)
+## The single most important rule
 
-MindAnchor's identity is that every intervention is research-backed. Concretely:
+**The clinical-review log at `docs/CLINICAL_REVIEW.md` is
+the project's substantive review record.** Every wording
+change — every string in `strings.xml`, every
+`@wording-reviewed` Kotlin file, every manifest change —
+must be added to that log before merge. The
+clinical-review gate (`.github/workflows/clinical-review.yml`)
+blocks the merge; the rule is enforced by automation, not
+by people remembering.
 
-1. **A PR adding or changing an intervention feature must cite at least one
-   peer-reviewed study** in its description, and the study must be added to
-   `docs/research/` if not already there.
-2. The feature must implement the **studied mechanism**, not a vibe of it, and
-   defaults should match the study's dosage where possible (e.g., notification
-   batches default to 3×/day per Fitz et al. 2019).
-3. Every intervention ships with a **toggle** and, where feasible, a measurement hook.
-4. Features the evidence argues against will be declined regardless of polish:
-   blanket notification muting, streaks/points/leaderboards, shame-framed statistics,
-   red badges, and anything resembling unsupervised AI therapy.
+The reason this rule exists: the population the app serves
+is at a higher base rate of harm than the general
+population. A wording mistake is a clinical mistake.
+A "we'll fix it in the next release" attitude about a
+clinical surface is a different kind of error than the
+same attitude about a UI bug. Read the project's
+`docs/CLINICAL_REVIEW.md` R1–R4 entries for the
+precedent.
 
-Non-intervention contributions (bug fixes, refactors, translations, accessibility,
-docs) need no citations — just tests where behavior changes.
+## How the project is organized
 
-## Ground rules
+```
+app/src/main/java/org/mindanchor/
+├── friction/       # The friction-gate feature (the core intervention)
+├── pulse/          # Daily check-in prompts, HRV via camera
+├── sleep/          # Bedtime to-do list, sunset hours
+├── settings/       # Settings screen
+├── launcher/       # The home screen and LauncherViewModel
+├── goinglight/     # Going Light v1.1 (VpnService)
+├── goinglight/.../PacketForwarder.kt  # the pure-function decision
+├── data/           # DataStore codecs, repositories
+├── ui/             # Cross-feature Compose primitives
+├── diagnostics/    # On-device log + share
+├── support/        # Crisis support screen
+└── ...
+```
 
-- **Zero backend stays zero.** No analytics, no telemetry, no network calls in core.
-  PRs adding an `INTERNET`-dependent feature need a documented, isolated justification.
-- **Privacy is structural.** Notification content, usage events and wellbeing pulses
-  never leave the device. Don't log content — metadata only, and only locally.
-- **Calm design language.** No red accents outside genuine emergencies, no autoplaying
-  motion, no manufactured urgency. Copy is warm and non-judgmental — we never shame
-  the user about their usage.
-- **Kotlin + Jetpack Compose**, single app module for now. Match existing style;
-  keep dependencies boring and FOSS (F-Droid inclusion is a hard requirement, so no
-  proprietary libraries or Google Play Services).
+Package-by-concern, not package-by-type. A new feature
+goes in its own `feature/` directory with a `feature/`
+KDoc, a `feature/...Test` directory, and a `feature/`
+manifest block (if it adds a service or receiver).
 
-## Practical notes
+## The design record
 
-- Build with `./gradlew build` (JDK 21). CI runs build + lint + unit tests on every PR.
-- Milestones and scope live in [docs/PLAN.md](docs/PLAN.md); please check an issue or
-  the plan before starting significant work so we protect the v1 scope.
+Three documents that *must* be read before any change:
+
+1. `docs/PLAN.md` — what the project is and what it
+   isn't.
+2. `docs/CONCEPT.md` — why each feature exists.
+3. `docs/CLINICAL_REVIEW.md` — the substantive review
+   log. R1 is the canonical example of a feature that
+   was reverted because the clinical review happened
+   *after* the merge.
+
+Plus the per-feature briefs in `docs/research/01–25`.
+Every existing feature cites a primary source. New
+features must do the same.
+
+## Before opening a PR
+
+1. Read `docs/PLAN.md` and the relevant brief in
+   `docs/research/`.
+2. If your change is wording-heavy (strings.xml,
+   manifest, `@wording-reviewed` files), add an entry
+   to `docs/CLINICAL_REVIEW.md` *in the same PR*. The
+   clinical-review gate will block the merge; the
+   review happens via the label application.
+3. Run the local build:
+   ```bash
+   ./gradlew test
+   ```
+   CI is the ground truth; the local build is a
+   pre-flight.
+4. Add new tests. The project maintains 100% test
+   pass rate; the new feature must be tested.
+5. Add a brief in `docs/research/NN-feature-name.md`
+   with primary sources. The brief is the evidence
+   trail. Code without a brief lands as "evidence or
+   it doesn't ship" (the project's own rule).
+
+## The test pyramid
+
+The project has four kinds of tests, in priority order:
+
+1. **Pure-function unit tests** (`app/src/test/.../*Test.kt`).
+   These are the most valuable because they are the
+   most testable. The friction feature, the
+   FrictionBandit, the GoingLightSchedule, the
+   BedtimeList — all are pure functions, all are
+   tested.
+2. **Structural tests** (`StringResourcesTest`,
+   `Apostrophe`, `Brace`, `Lint`, `ClinicalReviewGateTest`).
+   These are the right tests for things the
+   compiler cannot check: aapt's unescaped-
+   apostrophe trap, brace/paren balance, lint rule
+   violations, the clinical-review gate's structure.
+3. **Composable tests** (`app/src/androidTest/...`).
+   The instrumented tests run on a real device or
+   emulator. Slow and flaky; the project uses them
+   only when the Composable's runtime behavior is
+   not testable as a pure function.
+4. **CI workflows** (`.github/workflows/*.yml`).
+   The clinical-review gate, the detekt gate, the
+   build-and-test gate. These are the *meta*-tests:
+   they ensure the other three kinds of tests are
+   actually run.
+
+The Python-mirror pattern (verifying pure functions
+in Python before writing the Kotlin version) is the
+project's day-zero sanity check. It catches drift
+between the brief and the implementation.
+
+## Code conventions
+
+- **KDoc on the why, not the what.** Every public
+  function has a KDoc that explains the design
+  choice, the citation, or the trade-off. Comments
+  in the body explain decisions that are not obvious
+  from the type signature.
+- **Pure-function split.** Data-side logic (the
+  decision of *what* to do) is in a pure function.
+  Language-side logic (the *wording* of the decision)
+  is in a string resource. The two are reviewed by
+  different people.
+- **Hand-rolled DI.** The project does not use Hilt
+  or any DI framework. ViewModels take
+  `Application` in the constructor and read the
+  data layer directly. The dependency graph is
+  small enough to track by hand.
+- **No `INTERNET` permission except via the Going
+  Light v1.1 VpnService.** The manifest's permission
+  set is minimal by design. The `NetworkCallsForbiddenTest`
+  enforces "no outbound calls anywhere."
+- **GPLv3.** The license is the project's promise
+  to its users. A change that adds a non-GPLv3
+  dependency needs a written exception from the
+  project owner.
+- **No comments in commit messages with the literal
+  `'` character.** Apostrophes in commit-message
+  text break git's argument parser on some shells.
+  The project uses curly quotes (`'`, `'`, `'`) in
+  commit text.
+
+## The merge gate
+
+PRs are merged when:
+
+1. `./gradlew test` passes (CI confirms).
+2. `./gradlew detekt` passes (the static-analysis
+   gate from item B+K).
+3. The clinical-review gate is green (the
+   `clinical-review-approved` label has been applied
+   by a human reviewer; the gate does not auto-apply
+   labels).
+4. The PR has been reviewed by the project owner.
+   The project is single-developer today, so the
+   reviewer and the author are usually different
+   *days*; the 24-hour review window is the
+   project's review-period default.
+5. The PR is squash-merged with a single
+   `commit_message` that summarizes the SOTA
+   evidence trail. The full report is the PR body.
+
+## When you find a bug
+
+Open a GitHub issue. Use the issue templates
+(`bug_report.md` is the only template today). The
+issue should include:
+
+- The MindAnchor version (`vX.Y.Z` from settings).
+- The Android version and device model.
+- The exact reproduction steps.
+- The expected vs actual behavior.
+- A debug log (Settings → Share diagnostic logs).
+
+## When you want to add a feature
+
+Open a GitHub issue with the *research brief* before
+the code. The brief is a markdown file in
+`docs/research/NN-feature-name.md` with the primary
+sources, the design trade, and the evidence the
+project's review culture expects. A feature without
+a brief will not be merged.
+
+The brief is the conversation, not the code. The
+code is the implementation of the conversation.
+
+## See also
+
+- `docs/PLAN.md`
+- `docs/CONCEPT.md`
+- `docs/CLINICAL_REVIEW.md`
+- `docs/research/` — the per-feature briefs
+- `SOTA-IMPROVEMENT-REPORT.md` — the most recent
+  evidence-backed SOTA work, with primary citations
+- `.devcontainer/README.md` — the devcontainer
+  for local builds
+- `.github/workflows/clinical-review.yml` — the
+  clinical-review gate (item B+K of the SOTA plan)
+- `.github/workflows/detekt.yml` — the static
+  analysis gate (item B+K of the SOTA plan)
