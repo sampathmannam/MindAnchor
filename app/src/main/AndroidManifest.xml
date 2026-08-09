@@ -50,6 +50,48 @@
         tools:ignore="ProtectedPermissions" />
 
     <!--
+        Health Connect read permissions. The launcher's
+        whole wearable story is "talk to whatever watch the
+        user has and keep working when they change it" —
+        Health Connect is the one store every wearable's own
+        app already writes to. Each permission is the read
+        half of a Health Connect record type; one missing
+        entry means that record type's data is invisible to
+        the app, even from another source. The list matches
+        [org.mindanchor.vitals.HealthConnectSource.PERMISSIONS]
+        — if you add a record there, add a permission here.
+
+        WRITE permissions are intentionally NOT requested.
+        The app only reads; it never writes wearable data
+        back. The privacy promise ("we don't transmit your
+        data") holds precisely because the launcher has no
+        write path into Health Connect.
+    -->
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
+    <uses-permission android:name="android.permission.health.READ_RESTING_HEART_RATE" />
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE_VARIABILITY" />
+    <uses-permission android:name="android.permission.health.READ_SLEEP" />
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
+    <uses-permission android:name="android.permission.health.READ_EXERCISE" />
+    <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED" />
+    <uses-permission android:name="android.permission.health.READ_MINDFULNESS" />
+    <!--
+        The next two are not "read this record type"; they
+        are "how far back" and "when during the day". The
+        default 30-day window is the system floor; the
+        history permission lifts it so the personal-baseline
+        stage of the report (docs/research/08 §5 stage 5)
+        can see further back. The background permission lets
+        the nightly report fire at 03:00 from a
+        BroadcastReceiver rather than the foreground — see
+        ReportScheduler, which already runs at that hour.
+        Both are normal runtime grants; the user accepts
+        them in the system Health Connect dialog.
+    -->
+    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_HISTORY" />
+    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND" />
+
+    <!--
         Required by the VpnService API to capture loopback
         traffic. The privacy promise — the app makes zero
         outbound calls — is enforced by
@@ -134,6 +176,83 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+
+        <!--
+            The Health Connect permissions screen has a
+            "Privacy policy" link. Per Google's
+            get-started docs, the app must declare an
+            activity (alias is fine) that handles the
+            `androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE`
+            intent — when the user taps the link, the system
+            routes them here. Without this the link on the
+            Health Connect dialog leads nowhere, and the
+            Health Connect review rejects the app on
+            submission.
+
+            Two aliases: one for the older APK-provider
+            package (pre-Android 14 devices), one for the
+            platform provider (Android 14+). Each uses the
+            permission gate Health Connect enforces on
+            itself so a random app cannot invoke it.
+        -->
+        <activity-alias
+            android:name=".HealthPrivacyPolicyAlias"
+            android:targetActivity=".HomeActivity"
+            android:exported="true"
+            android:permission="android.permission.health.START_ONBOARDING">
+            <intent-filter>
+                <action android:name="android.health.connect.action.SHOW_ONBOARDING" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".HealthPrivacyPolicyAliasPre14"
+            android:targetActivity=".HomeActivity"
+            android:exported="true"
+            android:permission="com.google.android.apps.healthdata.permission.START_ONBOARDING">
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_ONBOARDING" />
+            </intent-filter>
+        </activity-alias>
+        <!--
+            v0.20.4: the rationale-link alias. The
+            system Health Connect dialog has a
+            "Privacy policy" link on the permissions
+            screen, and tapping it sends
+            `androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE`.
+            Per the same Google docs the SHOW_ONBOARDING
+            aliases above cite, the app must declare an
+            activity that handles this intent or the
+            link on the dialog leads nowhere and the
+            Health Connect review rejects the app on
+            submission.
+            Two aliases — one for the modern platform
+            Health Connect action name (Android 14+),
+            one for the older APK-provider name. Both
+            route to [HomeActivity] which already carries
+            the privacy wording in plain English in its
+            Wearable section; the launcher does not
+            keep a separate privacy policy document
+            because the privacy promise is small enough
+            to be the whole screen.
+        -->
+        <activity-alias
+            android:name=".HealthRationaleAlias"
+            android:targetActivity=".HomeActivity"
+            android:exported="true"
+            android:permission="android.permission.health.START_ONBOARDING">
+            <intent-filter>
+                <action android:name="android.health.connect.action.SHOW_PERMISSIONS_RATIONALE" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".HealthRationaleAliasPre14"
+            android:targetActivity=".HomeActivity"
+            android:exported="true"
+            android:permission="com.google.android.apps.healthdata.permission.START_ONBOARDING">
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+            </intent-filter>
+        </activity-alias>
 
         <activity
             android:name=".digest.DigestActivity"

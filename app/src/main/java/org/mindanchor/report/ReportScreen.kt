@@ -364,6 +364,7 @@ private fun Signal.inlineNameRes(): Int = when (this) {
     Signal.SLEEP_MINUTES -> R.string.signal_inline_sleep_minutes
     Signal.SLEEP_ONSET -> R.string.signal_inline_sleep_onset
     Signal.STEPS -> R.string.signal_inline_steps
+    Signal.MINDFULNESS_MINUTES -> R.string.signal_inline_mindfulness
     Signal.FIRST_UNLOCK -> R.string.signal_inline_first_unlock
     Signal.SCREEN_TIME -> R.string.signal_inline_screen_time
     Signal.VALENCE -> R.string.signal_inline_valence
@@ -388,6 +389,7 @@ private fun Signal.displayNameRes(): Int = when (this) {
     Signal.SLEEP_MINUTES -> R.string.signal_sleep_minutes
     Signal.SLEEP_ONSET -> R.string.signal_sleep_onset
     Signal.STEPS -> R.string.signal_steps
+    Signal.MINDFULNESS_MINUTES -> R.string.signal_mindfulness
     Signal.FIRST_UNLOCK -> R.string.signal_first_unlock
     Signal.SCREEN_TIME -> R.string.signal_screen_time
     Signal.VALENCE -> R.string.signal_valence
@@ -436,6 +438,9 @@ private fun Signal.formatValue(value: Double): String = when (this) {
     Signal.RESTING_HEART_RATE -> stringResource(R.string.value_bpm, value.roundToInt())
     // Steps are a bare count in every context a person has ever met one.
     Signal.STEPS -> value.roundToLong().toString()
+    // Mindfulness is minutes, like sleep; the same duration formatter
+    // reads naturally. "You sat 12 minutes" is the whole sentence.
+    Signal.MINDFULNESS_MINUTES -> durationText(value)
 }
 
 /** Minutes as hours-and-minutes once there is an hour to show. */

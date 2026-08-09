@@ -477,6 +477,13 @@ private fun valueFor(
         // same frame and for its honest limitation with day sleepers.
         Signal.SLEEP_ONSET -> vitals?.sleepOnset?.let { Deviation.minutesAfterSixPm(it).toDouble() }
         Signal.STEPS -> vitals?.steps?.toDouble()
+        // Mindfulness comes from a Health Connect write by a meditation
+        // app the launcher does not see. The launcher surfaces the total
+        // minutes; the report describes it as "you sat X minutes today",
+        // never as a relationship to mood or stress. That relationship
+        // exists in the literature (Gál et al., J Affect Disord 2020)
+        // but the report's job is to show the number, not to interpret it.
+        Signal.MINDFULNESS_MINUTES -> vitals?.mindfulnessMinutes?.toDouble()
         // The screen-rhythm pair has no wearable behind it and no
         // check-in either — it exists only through the phone-inferred
         // slot, so from every other source the honest answer is nothing.

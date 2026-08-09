@@ -51,13 +51,24 @@ data class DailyVitals(
     val steps: Long?,
     /** Minutes covered by the day's exercise sessions. */
     val activeMinutes: Int?,
+    /**
+     * Total minutes of meditation / breathing / guided mindfulness,
+     * summed across the day's [MindfulnessSessionRecord] sessions. The
+     * mental-health signal the wearable story was missing before — a
+     * 34-RCT meta-analysis (Gál et al., J Affect Disord 2020) reports
+     * app-based mindfulness reduces stress at g = 0.46, anxiety at
+     * g = 0.16–0.40, depression at g = 0.24–0.43. The signal here is
+     * not "this fixes X" — it is "this is a thing worth showing the
+     * person, alongside steps and sleep, in the same units."
+     */
+    val mindfulnessMinutes: Int? = null,
 ) {
 
     /** How many of [FIELD_COUNT] measured fields are present. */
     val fieldsPresent: Int
         get() = listOf(
             restingHeartRate, meanHeartRate, minHeartRate, hrvRmssd,
-            sleepMinutes, sleepOnset, steps, activeMinutes,
+            sleepMinutes, sleepOnset, steps, activeMinutes, mindfulnessMinutes,
         ).count { it != null }
 
     /** [fieldsPresent] as a fraction of [FIELD_COUNT]; 0.0 when the watch had nothing to say. */
@@ -66,8 +77,8 @@ data class DailyVitals(
 
     companion object {
 
-        /** The eight measured fields; [date] is a key, not a measurement, so it is not counted. */
-        const val FIELD_COUNT = 8
+        /** The nine measured fields; [date] is a key, not a measurement, so it is not counted. */
+        const val FIELD_COUNT = 9
 
         /** A day where nothing was read — the honest shape when Health Connect is unavailable or empty. */
         fun empty(date: LocalDate? = null): DailyVitals = DailyVitals(
@@ -80,6 +91,7 @@ data class DailyVitals(
             sleepOnset = null,
             steps = null,
             activeMinutes = null,
+            mindfulnessMinutes = null,
         )
     }
 }
@@ -163,6 +175,20 @@ object DailyVitalsReducer {
      * same reason as [sleepMinutes].
      */
     fun activeMinutes(sessions: List<Pair<Long, Long>>): Int? {
+        if (sessions.isEmpty()) return null
+        val totalMillis = sessions.sumOf { (start, end) -> (end - start).coerceAtLeast(0L) }
+        return (totalMillis / MILLIS_PER_MINUTE).toInt()
+    }
+
+    /**
+     * Total minutes of meditation / breathing / guided mindfulness across
+     * the day's [MindfulnessSessionRecord] sessions. Same overlap rule
+     * as [activeMinutes] — a session that is still running at midnight
+     * would be split into two and we accept the resulting double-count
+     * over a wrong answer. A person meditating past midnight is not a
+     * dataset worth a more careful implementation.
+     */
+    fun mindfulnessMinutes(sessions: List<Pair<Long, Long>>): Int? {
         if (sessions.isEmpty()) return null
         val totalMillis = sessions.sumOf { (start, end) -> (end - start).coerceAtLeast(0L) }
         return (totalMillis / MILLIS_PER_MINUTE).toInt()

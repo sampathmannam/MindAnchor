@@ -13,18 +13,24 @@ import kotlinx.coroutines.launch
 import org.mindanchor.data.AppRepository
 import org.mindanchor.data.FrictionPrefs
 import org.mindanchor.data.LauncherPrefs
+import org.mindanchor.data.NotesPrefs
 import org.mindanchor.friction.FrictionBandit
 import org.mindanchor.friction.GateContext
 import org.mindanchor.data.SunsetPrefs
 import org.mindanchor.friction.LoopPhase
 import org.mindanchor.friction.OpenLoop
 import org.mindanchor.friction.PerAppSessionLength
+import org.mindanchor.model.Note
+import org.mindanchor.model.NoteStore
 import org.mindanchor.sleep.BedtimeList
 import org.mindanchor.sleep.BedtimePhase
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.delay
 import java.time.LocalDate
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.Dispatchers
 
 data class LauncherUiState(
     val allApps: List<DisplayApp> = emptyList(),
@@ -34,12 +40,92 @@ data class LauncherUiState(
     val alwaysOpenPackages: Set<String> = emptySet(),
 )
 
+/**
+ * The number of recent notes shown in the home-screen
+ * quick-capture card. Three is the deliberate floor:
+ * one row tells the user the surface works, three
+ * rows give the card the feel of a running journal,
+ * and beyond three the card would push the favourites
+ * off a small screen at default font scale.
+ */
+internal const val QUICK_NOTES_RECENT_CAP = 3
+
 class LauncherViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = AppRepository(application)
     private val prefs = LauncherPrefs(application)
     private val sunsetPrefs = SunsetPrefs(application)
     private val frictionPrefs = FrictionPrefs(application)
+    private val wellnessRepository = org.mindanchor.vitals.WellnessRepository(application)
+    /**
+     * The notes DataStore. The home screen surfaces
+     * a quick-capture card (one input + a list of
+     * recent saves with timestamps) so the user can
+     * jot something without opening the full
+     * NoteActivity. Both surfaces write to the same
+     * sealed DataStore — a save from the home card
+     * shows up in the list view, and vice versa.
+     *
+     * v0.20.4 quick-notes: the home card is a thin
+     * shim over [org.mindanchor.model.Note] /
+     * [NotesPrefs] / [NoteStore]. The data layer is
+     * untouched; only the home-screen affordance is
+     * new. The idCounter is the same lazy / by
+     * applicationContext pattern used in
+     * [org.mindanchor.model.NoteActivity] to avoid
+     * the applicationContext-is-null-before-onCreate
+     * NPE that crashed that activity once.
+     */
+    private val notesPrefs = NotesPrefs(application)
+
+    /**
+     * The most recent notes, newest first, capped
+     * at [QUICK_NOTES_RECENT_CAP] for the home card.
+     * The full list (all notes, all timestamps) is
+     * available in NoteActivity; the home only needs
+     * the *recent* set to make the saving feel
+     * immediate. Sorted via [NoteStore.sortedForList]
+     * so a pinned note floats to the top of the
+     * recent set the way it would in the list view.
+     */
+    val notes: StateFlow<List<Note>> =
+        notesPrefs.notes
+            .map { state -> NoteStore.sortedForList(state.notes).take(QUICK_NOTES_RECENT_CAP) }
+            .stateIn(
+                viewModelScope,
+                SharingStarted.WhileSubscribed(5_000),
+                emptyList(),
+            )
+
+    /**
+     * Monotonic counter for note ids created from
+     * the home quick-capture card. The same
+     * [java.util.concurrent.atomic.AtomicLong] /
+     * lazy / applicationContext pattern as
+     * [org.mindanchor.model.NoteActivity.idCounter]:
+     * the counter is seeded on first use (not at
+     * construction) so a [NotesPrefs] read at
+     * construction time does not happen before the
+     * ViewModel's application context is available.
+     *
+     * Seeded from `max(currentTimeMillis, maxExistingId)`,
+     * so a process restart immediately after a save
+     * in the same millisecond does not duplicate an
+     * id. Two notes typed and saved in the same
+     * millisecond on the home card would otherwise
+     * collide (the brief acknowledged the risk; the
+     * fix is cheap).
+     */
+    private val idCounter: AtomicLong by lazy {
+        val seeded = kotlinx.coroutines.runBlocking {
+            val existing = notesPrefs.notes.first()
+            val maxExisting = existing.notes.maxOfOrNull { it.id } ?: 0L
+            maxOf(System.currentTimeMillis(), maxExisting)
+        }
+        AtomicLong(seeded)
+    }
+
+    private fun nextNoteId(): Long = idCounter.incrementAndGet()
     /**
      * The friction-gate concerns, extracted into
      * [FrictionViewModel] as part of the senior-architect
@@ -229,6 +315,65 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     /** Hands the list back, then clears it — the Scullin loop. */
     fun clearBedtimeList() {
         viewModelScope.launch { frictionPrefs.clearBedtimeList() }
+    }
+
+    /**
+     * Add a note from the home-screen quick-capture
+     * card. The body is trimmed and capped to the
+     * same [Note.MAX_BODY] the rest of the notes
+     * surface uses, then persisted with the current
+     * timestamp. The id is the shared [idCounter]
+     * (unique across both the home card and the
+     * full NoteActivity).
+     *
+     * Blank input is a no-op. A trimmed body that
+     * is empty after trimming is a no-op too —
+     * the [Note] constructor would store an empty
+     * string and the list view would show a blank
+     * row, which is the worst kind of clutter.
+     */
+    fun addQuickNote(body: String) {
+        val trimmed = body.trim().take(Note.MAX_BODY)
+        if (trimmed.isEmpty()) return
+        val now = System.currentTimeMillis()
+        viewModelScope.launch {
+            notesPrefs.add(
+                Note(
+                    id = nextNoteId(),
+                    body = trimmed,
+                    createdAt = now,
+                    updatedAt = now,
+                ),
+            )
+        }
+    }
+
+    // --- Wellness signals (N-of-1, from Health Connect) ---
+    //
+    // The home card surfaces the per-signal reading against the
+    // person's own baseline, with no interpretation beyond
+    // "above / at / below your usual". Refreshed on every
+    // recomposition of the home surface (it is the home
+    // surface's job to call refreshWellness, the same way it
+    // calls refresh on the bedtime list) so a Health Connect
+    // permission grant followed by an immediate home press
+    // shows the data without a launcher restart.
+    //
+    // The null initial state is "still loading", not "no data":
+    // a card that rendered "no data" on first composition would
+    // be the wrong answer for somebody whose permission grant
+    // is still being applied to the system tables.
+
+    private val _wellnessReadings = MutableStateFlow<List<org.mindanchor.vitals.WellnessReading>?>(null)
+    val wellnessReadings: StateFlow<List<org.mindanchor.vitals.WellnessReading>?> = _wellnessReadings.asStateFlow()
+
+    fun refreshWellness() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val readings = runCatching {
+                wellnessRepository.readingsFor(LocalDate.now())
+            }.getOrDefault(emptyList())
+            _wellnessReadings.value = readings
+        }
     }
 
     /**

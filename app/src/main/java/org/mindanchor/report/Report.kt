@@ -9,6 +9,16 @@ enum class Signal {
     SLEEP_MINUTES,
     SLEEP_ONSET,
     STEPS,
+    /**
+     * Total minutes of meditation / breathing / guided mindfulness in
+     * the day, sourced from Health Connect. Same provenance rules as
+     * the other wearable signals: a write the launcher did not make,
+     * surfaced in the same units. The corpus query is the
+     * mechanism — it does NOT claim that X minutes produces Y effect.
+     * That is a claim the report deliberately refuses to make; see
+     * [org.mindanchor.report.ReportComposer] for the wording gate.
+     */
+    MINDFULNESS_MINUTES,
 
     // The two the phone can count about itself with no grant beyond the
     // usage access the sleep estimate already asked for: when it was
@@ -37,6 +47,7 @@ enum class Signal {
             SLEEP_MINUTES -> "sleep duration hours"
             SLEEP_ONSET -> "sleep regularity timing bedtime circadian"
             STEPS -> "physical activity steps movement"
+            MINDFULNESS_MINUTES -> "mindfulness meditation breathing practice attention"
             FIRST_UNLOCK -> "wake timing morning circadian body clock social jetlag"
             SCREEN_TIME -> "smartphone screen time attention presence"
             VALENCE -> "momentary affect valence mood assessment"

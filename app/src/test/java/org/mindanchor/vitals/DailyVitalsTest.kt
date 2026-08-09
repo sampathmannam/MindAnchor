@@ -111,9 +111,11 @@ class DailyVitalsTest {
     }
 
     @Test
-    fun `completeness counts each present field once, out of eight`() {
+    fun `completeness counts each present field once, out of nine`() {
         // Mirrors a COROS Pacer 3 kind of day: heart rate and sleep
-        // present, nothing about steps or activity.
+        // present, nothing about steps or activity or mindfulness.
+        // v0.20.4 added a ninth field (mindfulnessMinutes) for the
+        // wellness surface — see [DailyVitals.FIELD_COUNT].
         val partial = DailyVitals(
             date = day,
             restingHeartRate = 55.0,
@@ -126,7 +128,7 @@ class DailyVitalsTest {
             activeMinutes = null,
         )
         assertEquals(4, partial.fieldsPresent)
-        assertEquals(0.5, partial.completeness, 0.0001)
+        assertEquals(4.0 / 9.0, partial.completeness, 0.0001)
     }
 
     @Test
@@ -141,6 +143,12 @@ class DailyVitalsTest {
             sleepOnset = 240,
             steps = 8_000L,
             activeMinutes = 30,
+            // v0.20.4: mindfulnessMinutes is the ninth
+            // measured field — see [DailyVitals.FIELD_COUNT].
+            // A "fully populated" day in this test
+            // means all nine are present, so the
+            // mindfulness field has to be set too.
+            mindfulnessMinutes = 12,
         )
         assertEquals(DailyVitals.FIELD_COUNT, full.fieldsPresent)
         assertEquals(1.0, full.completeness, 0.0001)

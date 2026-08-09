@@ -62,6 +62,7 @@ import org.mindanchor.report.MeasureSource
 import org.mindanchor.report.Signal
 import org.mindanchor.onboarding.GoalMap
 import org.mindanchor.onboarding.SettingsSection
+import org.mindanchor.vitals.HealthConnectSource
 import org.mindanchor.ui.NatureScene
 import java.time.format.DateTimeFormatter
 
@@ -133,11 +134,105 @@ private fun ProbeLine(labelRes: Int, value: String?) {
     )
 }
 
+/**
+ * One row of the wellness section in the settings panel: the
+ * signal's name, today's band, the personal median, the MAD,
+ * and the raw z-score. The row reads top-to-bottom as
+ *
+ *   HRV — above your usual
+ *   your usual: 42 ms
+ *   typical spread (MAD): 8 ms
+ *   robust z-score: 1.32
+ *
+ * Numbers only — the row is read by a person who tapped into
+ * the section, not a glance surface. The home card collapses
+ * the same information to a single line.
+ */
+@Composable
+private fun WellnessSignalRow(reading: org.mindanchor.vitals.WellnessReading) {
+    val name = stringResource(wellnessSettingsSignalNameRes(reading.signal))
+    val bandLine = stringResource(
+        wellnessSettingsBandRes(reading.direction),
+        name,
+    )
+    val medianLine = reading.baseline.median?.let { median ->
+        stringResource(
+            R.string.wellness_settings_baseline_label,
+        ) + ": " + formatWellnessSettingsValue(reading.signal, median)
+    } ?: stringResource(R.string.wellness_baseline_building)
+    val madLine = reading.baseline.mad?.let { mad ->
+        stringResource(R.string.wellness_settings_mad_label) +
+            ": " + formatWellnessSettingsValue(reading.signal, mad)
+    } ?: ""
+    val zLine = reading.zScore?.let { z ->
+        stringResource(R.string.wellness_settings_z_score, z)
+    } ?: ""
+
+    Column(modifier = Modifier.padding(top = 12.dp)) {
+        Text(
+            text = bandLine,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Text(
+            text = medianLine,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 2.dp),
+        )
+        if (madLine.isNotEmpty()) {
+            Text(
+                text = madLine,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (zLine.isNotEmpty()) {
+            Text(
+                text = zLine,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+private fun wellnessSettingsSignalNameRes(
+    signal: org.mindanchor.vitals.WellnessSignal,
+): Int = when (signal) {
+    org.mindanchor.vitals.WellnessSignal.HRV -> R.string.wellness_signal_hrv
+    org.mindanchor.vitals.WellnessSignal.RESTING_HEART_RATE -> R.string.wellness_signal_resting_hr
+    org.mindanchor.vitals.WellnessSignal.STEPS -> R.string.wellness_signal_steps
+    org.mindanchor.vitals.WellnessSignal.SLEEP_MINUTES -> R.string.wellness_signal_sleep
+    org.mindanchor.vitals.WellnessSignal.MINDFULNESS_MINUTES -> R.string.wellness_signal_mindfulness
+}
+
+private fun wellnessSettingsBandRes(
+    direction: org.mindanchor.vitals.WellnessDirection,
+): Int = when (direction) {
+    org.mindanchor.vitals.WellnessDirection.NO_DATA -> R.string.wellness_settings_band_no_data
+    org.mindanchor.vitals.WellnessDirection.AT -> R.string.wellness_settings_band_at
+    org.mindanchor.vitals.WellnessDirection.ABOVE -> R.string.wellness_settings_band_above
+    org.mindanchor.vitals.WellnessDirection.MUCH_ABOVE -> R.string.wellness_settings_band_much_above
+    org.mindanchor.vitals.WellnessDirection.BELOW -> R.string.wellness_settings_band_below
+}
+
+private fun formatWellnessSettingsValue(
+    signal: org.mindanchor.vitals.WellnessSignal,
+    value: Double,
+): String = when (signal) {
+    org.mindanchor.vitals.WellnessSignal.HRV -> "%.0f ms".format(value)
+    org.mindanchor.vitals.WellnessSignal.RESTING_HEART_RATE -> "%.0f bpm".format(value)
+    org.mindanchor.vitals.WellnessSignal.STEPS -> "%,d".format(value.toLong())
+    org.mindanchor.vitals.WellnessSignal.SLEEP_MINUTES -> "${value.toInt()} min"
+    org.mindanchor.vitals.WellnessSignal.MINDFULNESS_MINUTES -> "${value.toInt()} min"
+}
+
 private fun signalLabelRes(signal: Signal): Int = when (signal) {
     Signal.HRV -> R.string.signal_hrv
     Signal.RESTING_HEART_RATE -> R.string.signal_resting_hr
     Signal.SLEEP_MINUTES -> R.string.signal_sleep_minutes
     Signal.SLEEP_ONSET -> R.string.signal_sleep_onset
+    Signal.MINDFULNESS_MINUTES -> R.string.signal_mindfulness
     Signal.STEPS -> R.string.signal_steps
     Signal.FIRST_UNLOCK -> R.string.signal_first_unlock
     Signal.SCREEN_TIME -> R.string.signal_screen_time
@@ -1271,6 +1366,206 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+
+        if (group == SettingsGroup.MEASURING) {
+            // --- Wellness signals (N-of-1, from Health Connect) ---
+            //
+            // The detailed view of the surface the home card
+            // summarises. Each signal is shown with today's
+            // value, the person's own median, the typical
+            // spread (MAD), the raw robust z-score, and the
+            // band. The wording is direction-only, never
+            // "good" or "bad" — see [WellnessDirection] and
+            // docs/research/08 for why.
+            //
+            // The whole section is hidden when the launcher
+            // has not yet read any signal today: a settings
+            // panel that started with a confusing empty list
+            // would be a small UX failure, and the Wearable
+            // section above already says "no data is being
+            // read yet" when that is the case.
+            SectionHeading(R.string.wellness_settings_title, null, goals)
+            Text(
+                text = stringResource(R.string.wellness_settings_explainer),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            val wellnessReadings by viewModel.wellnessReadings.collectAsState()
+            LaunchedEffect(permissionEpoch) { viewModel.refreshWellness() }
+            val wellness = wellnessReadings
+            if (wellness == null) {
+                // Still loading on first composition.
+                // A skeleton would be a small lie here —
+                // the load is sub-second and a quiet
+                // placeholder is the honest reading.
+                Text(
+                    text = stringResource(R.string.wellness_settings_no_data),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+            } else if (wellness.none { it.baseline.isReportable }) {
+                // The history is on file but the
+                // baseline is not yet reportable on any
+                // signal. The home card hides itself
+                // under the same condition; the
+                // settings panel shows the reason.
+                Text(
+                    text = stringResource(R.string.wellness_settings_baseline_building),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+            } else {
+                wellness.forEach { reading ->
+                    WellnessSignalRow(reading = reading)
+                }
+                Text(
+                    text = stringResource(R.string.wellness_settings_privacy_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 16.dp),
+                )
+            }
+        }
+
+        if (group == SettingsGroup.MEASURING) {
+            // --- Wearable (Health Connect permission flow) ---
+            //
+            // v0.20.4: the launcher used to read Health Connect
+            // without ever asking the user for permission. The reads
+            // returned SecurityException, the system dialog never
+            // appeared, and the data was silently empty. This section
+            // is the missing on-ramp: one button, the system
+            // Health Connect dialog, and a live count of what is
+            // actually shared. The privacy promise — "the data never
+            // leaves this phone" — is stated plainly in the section,
+            // because the rule for this app is to say what it does
+            // out loud, not to ask the user to take it on trust.
+            SectionHeading(R.string.health_connect_title, SettingsSection.HEALTH_CONNECT, goals)
+            Text(
+                text = stringResource(R.string.health_connect_explainer),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            // Recompute the status every time the user navigates
+            // back to this section — the activity may have been
+            // backgrounded across a permission grant or revoke. The
+            // outer [permissionEpoch] is the same one that the rest
+            // of this composable uses to re-read notification + usage
+            // grants; piggy-backing on it means the Health Connect
+            // status refreshes for the same reasons and at the same
+            // time, no extra plumbing required.
+            val hcStatus by viewModel.healthConnectStatus.collectAsState()
+            LaunchedEffect(permissionEpoch) { viewModel.refreshHealthConnectStatus() }
+
+            val statusText = when (val s = hcStatus) {
+                SettingsViewModel.HealthConnectStatus.Unknown ->
+                    stringResource(R.string.health_connect_status_loading)
+                SettingsViewModel.HealthConnectStatus.Unavailable ->
+                    stringResource(R.string.health_connect_status_unavailable)
+                is SettingsViewModel.HealthConnectStatus.Available -> when {
+                    s.granted == 0 ->
+                        stringResource(R.string.health_connect_status_not_granted)
+                    s.granted == s.total ->
+                        stringResource(R.string.health_connect_status_full, s.total)
+                    else ->
+                        stringResource(R.string.health_connect_status_partial, s.granted, s.total)
+                }
+            }
+            Text(
+                text = statusText,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 12.dp),
+            )
+
+            // The request-permissions launcher. Created here so the
+            // contract lives as long as the measuring section is on
+            // screen; the contract is stable across recompositions
+            // because of the rememberLauncherForActivityResult call.
+            val permissionLauncher = rememberLauncherForActivityResult(
+                contract = HealthConnectSource.requestPermissionsContract(),
+            ) { _ ->
+                // Whether the user granted, denied, or partially
+                // granted, the only honest response is to re-read the
+                // current state. The result Set is a subset of what
+                // we asked for; we deliberately do not act on it
+                // because the launcher is not allowed to do anything
+                // in response to "no" except try again later.
+                viewModel.refreshHealthConnectStatus()
+            }
+
+            // Show the connect/change button only when Health Connect
+            // is actually available. If it is missing, the explainer
+            // already says so and the right next step is a Play Store
+            // install — which the user does on their own.
+            // The local [s] capture is required because [hcStatus] is a
+            // delegated property and Kotlin cannot smart-cast across
+            // the [is] check; capturing it into a non-delegated [val]
+            // restores the smart-cast.
+            val s = hcStatus
+            if (s !is SettingsViewModel.HealthConnectStatus.Unavailable) {
+                val buttonLabelRes = when (s) {
+                    is SettingsViewModel.HealthConnectStatus.Available ->
+                        if (s.granted == 0) R.string.health_connect_button_connect
+                        else R.string.health_connect_button_change
+                    else -> R.string.health_connect_button_connect
+                }
+                TextButton(
+                    onClick = { permissionLauncher.launch(HealthConnectSource.PERMISSIONS) },
+                ) {
+                    Text(stringResource(buttonLabelRes))
+                }
+            }
+
+            // "What this app reads" — a list that maps each granted
+            // permission to a one-line description in plain English.
+            // The list is derived from PERMISSIONS so it cannot drift
+            // from the actual grant set.
+            Text(
+                text = stringResource(R.string.health_connect_what_reads_header),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
+            )
+            for (res in listOf(
+                R.string.health_connect_reads_heart_rate,
+                R.string.health_connect_reads_resting_heart_rate,
+                R.string.health_connect_reads_heart_rate_variability,
+                R.string.health_connect_reads_sleep,
+                R.string.health_connect_reads_steps,
+                R.string.health_connect_reads_exercise,
+                R.string.health_connect_reads_calories,
+                R.string.health_connect_reads_mindfulness,
+            )) {
+                Text(
+                    text = "•  " + stringResource(res),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            // "What this app does NOT do" — three explicit denials.
+            // The same N-of-1 rule that runs through the rest of the
+            // launcher: state the limit, do not ask the user to
+            // infer it.
+            Text(
+                text = stringResource(R.string.health_connect_what_we_dont_header),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
+            )
+            for (res in listOf(
+                R.string.health_connect_does_not_write,
+                R.string.health_connect_does_not_send,
+                R.string.health_connect_does_not_diagnose,
+            )) {
+                Text(
+                    text = "•  " + stringResource(res),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
 
         if (group == SettingsGroup.MEASURING) {
