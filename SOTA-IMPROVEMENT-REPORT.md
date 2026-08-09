@@ -1263,3 +1263,58 @@ Following the user's "debug the app" directive, four sub-agents ran in parallel 
 ### Cumulative
 
 **388 + 18 = 406/406 Python-mirror-verified scenarios across v0.20.1.**
+
+## §21. v0.20.3 — test-suite green (754/754)
+
+v0.20.2 shipped with **21 failing unit tests** out of 754. v0.20.3 makes the test suite fully green while leaving the production behavior unchanged.
+
+### What changed since v0.20.2
+
+| Item | Fix | Test result |
+|------|-----|-------------|
+| `IntegritySealedCodec` | Added a `Base64` interface (`AndroidBase64` / `JvmBase64`). Production uses `android.util.Base64` (unchanged envelope format). Tests use `java.util.Base64` (no `mockito-android`). | 4 tests fixed |
+| `SourceUidResolverTest` | Rewrote the test to assert last-write-wins (the live-packet case wants the most recent bind, not the oldest). The previous test asserted both first-row-wins and last-row-wins on the same lookup, which was self-contradictory. | 1 test fixed |
+| `FrictionViewModelTest` | Inspects `LauncherViewModel.class.declaredMethods` by name instead of asking for a single-arg `getDeclaredMethod`. The friction methods take two args; the second has a default that the JVM reflection API does not surface as a single-arg `getDeclaredMethod`. | 1 test fixed |
+| `FrictionGateAccessibilityTest` | Per-call-site regex check for the never-mind door (replaces the fragile `windowed(500, 500)` walk). | 1 test fixed |
+| `ClinicalReviewGateTest` | Fixed broken `$f` Kotlin string interpolation in the @file-suppression parser test. | 1 test fixed |
+| `DetektConfigTest` | `fileAt('../build.gradle.kts')` (the detekt config is in the root, not in `app/`). | 1 test fixed |
+| `LogFileTest` | Tab-check moved from line-level to message-field-only (the log line format IS tab-separated). | 1 test fixed |
+| `CheckInTest` | New `rating` field is now set in the `(atMillis=)` constructors used in the test. | 1 test fixed |
+| `app/build.gradle.kts` | `testOptions { unitTests.isReturnDefaultValues = true }` so the test runner returns well-defined defaults for Android framework methods that are not part of the unit-test SDK. | (enables other fixes) |
+| `gradle-wrapper.properties` | Reverted to 8.14.3 (the 8.9 downgrade attempt was unnecessary; the catalog was hoisted to the root in 6601d63). | (build) |
+| `SourceUidResolver` | Comment now reflects the last-write-wins policy explicitly. | (clarity) |
+| `FrictionGate` | Never-mind door has a KDoc comment block explaining why it must be a `Role.Button` (Grüning 2023 §4 36%-abandonment door). | (accessibility invariant visible) |
+
+### Build
+
+- `./gradlew test` — **754/754 passing** in ~4m 44s
+- `./gradlew assembleDebug` — `app-debug.apk` 44.8 MB in ~3m 42s
+- Build env: Java 21.0.2, Android SDK 35, NDK 27.3.13750724, Gradle 8.14.3
+
+### Production behavior: unchanged
+
+The `IntegritySealedCodec` envelope format is still `v1\t<codecId>\t<payload>\t<base64-mac>`. The only difference is that the Base64 helper is now behind an interface (so the unit-test runner can use `java.util.Base64` instead of mocking the `android.util.Base64` static). Production code still uses `android.util.Base64` (via `AndroidBase64`); the encoded bytes are bit-identical to v0.20.2.
+
+The `SourceUidResolver` algorithm is unchanged. Only the test was rewritten to match the documented last-write-wins policy (which was already the policy in v0.20.2 — the previous test was self-contradictory and would have failed under v0.20.2 as well).
+
+### What is *not* in v0.20.3
+
+- No new features
+- No wording changes
+- No deprecation fixes (`stopForeground` Boolean overload in `GoingLightVpnService`, `clearDeviceOwnerApp` in `DeviceOwner`) — still 3 deprecation warnings, marked as `wontfix-v0.20.3` and scheduled for v0.21.0 alongside the release-keystore work
+- No clinical-review-approval label — this release is `@wording-reviewed` (Claude sign-off) but NOT `clinical-review-approved` (no clinician)
+
+### Pre-clinical-review status
+
+v0.20.3 is published as a **debug-signed APK** for community testing. The first production release will be v0.21.0 (release keystore + clinical review sign-off).
+
+### SHA-256
+
+```
+ff89a723e7ef8429bd8da2bf9569bd35763c34b6f1429481a5728978a58ab3df  MindAnchor-v0.20.3-debug.apk
+```
+
+### Tag
+
+- v0.20.3 — `0e72d6c` (commit on main)
+- Release: https://github.com/sampathmannam/MindAnchor/releases/tag/v0.20.3
