@@ -1,0 +1,14 @@
+<?xml version="1.0" ?>
+<!--
+  detekt baseline — initially empty.
+  Regenerate with `./gradlew detektBaseline` only as a deliberate
+  cleanup pass. Casual regeneration is the only way the
+  pre-merge gate regresses; see config/detekt/detekt.yml for
+  the policy.
+-->
+<SmellBaseline>
+  <ManuallySuppressedIssues>
+  </ManuallySuppressedIssues>
+  <CurrentIssues>
+  </CurrentIssues>
+</SmellBaseline>

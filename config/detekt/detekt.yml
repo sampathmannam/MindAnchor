@@ -1,0 +1,113 @@
+# detekt configuration for MindAnchor.
+#
+# Policy: forward-only. The baseline at config/detekt/baseline.xml
+# captures the existing state; new findings fail the gate. Do not
+# regenerate the baseline to silence a real finding — that is the
+# only way the gate regresses, and the project's design culture
+# (R1 / R3 / R4 in docs/CLINICAL_REVIEW.md) is that rules are
+# enforced by automation, not by people remembering them.
+#
+# Tuning choices:
+# - Complexity thresholds are generous. This is a single-developer
+#   project with deliberately small classes. Catching the
+#   out-of-pattern class is the goal, not the routine one.
+# - Style rules are mostly off; the project's existing code style
+#   is established and consistent (see the brace/paren balance
+#   check in app/src/test/.../StringResourcesTest and the
+#   Lint test for proof). Forcing detekt's defaults on day one
+#   would surface a thousand style findings and bury the real
+#   ones.
+# - Naming and exceptions are off. Kotlin's compile-time
+#   null/type system already catches the substantive issues; detekt
+#   adding another layer would be noise.
+# - Magic-number and long-method are ON, with thresholds tuned
+#   for Compose code (which tends to be more branching).
+# - The visibility rule is ON. The FrictionBandit.update
+#   visibility bug in v0.20.0 would have been caught by this.
+#
+# Adding a new rule: prefer the minimum needed, tune the threshold,
+# and pin the rationale in a comment here.
+#
+# v0.20.1 (CodeRabbit audit 2026-08-08): removed
+# `build.excludes`. In detekt 1.23.8, `build:` is not
+# a valid top-level config key; the warning was a
+# config-validation noise. The vendored-source
+# exclusions are now applied at the Gradle level
+# (build.gradle.kts) so both the standard `detekt`
+# task and the `detektBaseline` task use the same
+# exclusion list. See build.gradle.kts.
+
+config:
+  validation: true
+  warningsAsErrors: false
+
+# ---- Complexity: tuned for Compose-heavy code ----
+
+complexity:
+  LongMethod:
+    active: true
+    # Compose composables often have 30+ lines; raise the
+    # threshold so the rule catches *outliers*, not the
+    # typical Composable.
+    threshold: 60
+  LongParameterList:
+    active: true
+    functionThreshold: 8
+    constructorThreshold: 8
+  ComplexCondition:
+    active: true
+    threshold: 5
+  TooManyFunctions:
+    active: true
+    thresholdInFiles: 25
+    thresholdInClasses: 25
+  NestedBlockDepth:
+    active: true
+    threshold: 5
+  StringLiteralDuplication:
+    active: true
+    # The project has repeated short labels ("Off", "On",
+    # "Cancel") used in different surfaces; those are
+    # stringly-typed by design. Raise the threshold.
+    threshold: 5
+
+# ---- Style: minimal, only the high-leverage rules ----
+
+style:
+  MagicNumber:
+    active: true
+    excludes: ['**/test/**', '**/androidTest/**']
+    # The 1.5x and 0.7 thresholds in FrictionBandit are
+    # evidence-cited in the v1.2 commit. The 7/10/14 cadence
+    # in PulseCadence is Lally 2010. Let those stand.
+    ignoreNumbers: ['-1', '0', '1', '2', '7', '10', '14', '100']
+  UnusedPrivateMember:
+    active: true
+  RedundantVisibilityModifier:
+    active: true
+  ReturnCount:
+    active: true
+    max: 4
+
+# ---- Potential-bugs: the rules that catch the 4 v0.20.0 bugs ----
+
+potential-bugs:
+  ImplicitDefaultLocale:
+    active: true
+  CastToNullableType:
+    active: true
+  HasPlatformType:
+    active: true
+
+# ---- Visibility: the rule that would have caught v0.20.0 #1 ----
+
+# The FrictionBandit.update was private but called by tests.
+# `UnusedPrivateMember` is style (above); the substantive
+# check is for declarations whose visibility is *too narrow*
+# given their callers. There is no exact detekt rule for
+# that, but `RedundantVisibilityModifierRule` catches
+# `public` in public contexts, and the test-side compile
+# error is what actually surfaces this. The clinical-review
+# gate (workflows/clinical-review.yml) is the second line
+# of defense for the *wording* of changes; detekt is the
+# first line of defense for the *code* of changes.
