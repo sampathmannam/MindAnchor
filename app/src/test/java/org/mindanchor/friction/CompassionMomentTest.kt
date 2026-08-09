@@ -99,4 +99,80 @@ class CompassionMomentTest {
         assertEquals("a", CompassionStore.rotate(moments, reach = -1)?.phrase)
         assertEquals("a", CompassionStore.rotate(moments, reach = -100)?.phrase)
     }
+
+    // -- CompassionList (the editor's add / remove rules) ----
+
+    @Test
+    fun `add trims the input and caps to MAX_PHRASE characters`() {
+        val out = CompassionList.add(emptyList(), "  may I be kind to myself  ")
+        assertEquals(1, out.size)
+        assertEquals("may I be kind to myself", out[0].phrase)
+    }
+
+    @Test
+    fun `add trims and caps long phrases`() {
+        val long = "x".repeat(CompassionList.MAX_PHRASE + 50)
+        val out = CompassionList.add(emptyList(), long)
+        assertEquals(CompassionList.MAX_PHRASE, out[0].phrase.length)
+    }
+
+    @Test
+    fun `add rejects blank input`() {
+        assertEquals(emptyList<CompassionMoment>(), CompassionList.add(emptyList(), ""))
+        assertEquals(emptyList<CompassionMoment>(), CompassionList.add(emptyList(), "   "))
+    }
+
+    @Test
+    fun `add rejects duplicates (trim-equal)`() {
+        val first = CompassionList.add(emptyList(), "may I be kind to myself")
+        val again = CompassionList.add(first, "  may I be kind to myself  ")
+        assertEquals(1, again.size)
+    }
+
+    @Test
+    fun `add caps the list to MAX`() {
+        var list: List<CompassionMoment> = emptyList()
+        repeat(CompassionList.MAX) { i ->
+            list = CompassionList.add(list, "phrase $i")
+        }
+        // At MAX, additional add is a no-op.
+        val after = CompassionList.add(list, "one too many")
+        assertEquals(CompassionList.MAX, after.size)
+    }
+
+    @Test
+    fun `remove drops the first trim-equal match`() {
+        val list = listOf(
+            CompassionMoment("a"),
+            CompassionMoment("b"),
+            CompassionMoment("a"), // duplicate on purpose
+        )
+        val out = CompassionList.remove(list, "a")
+        assertEquals(2, out.size)
+        // The first "a" is gone; the duplicate survives.
+        assertEquals("b", out[0].phrase)
+        assertEquals("a", out[1].phrase)
+    }
+
+    @Test
+    fun `remove is a no-op when the phrase is not present`() {
+        val list = listOf(CompassionMoment("a"), CompassionMoment("b"))
+        val out = CompassionList.remove(list, "z")
+        assertEquals(list, out)
+    }
+
+    @Test
+    fun `remove trims the input before matching`() {
+        val list = listOf(CompassionMoment("a"), CompassionMoment("b"))
+        val out = CompassionList.remove(list, "  a  ")
+        assertEquals(1, out.size)
+        assertEquals("b", out[0].phrase)
+    }
+
+    @Test
+    fun `remove is a no-op on blank input`() {
+        val list = listOf(CompassionMoment("a"))
+        assertEquals(list, CompassionList.remove(list, ""))
+        assertEquals(list, CompassionList.remove(list, "   "))
+    }
 }
