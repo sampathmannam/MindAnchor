@@ -1,4 +1,10 @@
-@file:wording-reviewed
+// @wording-reviewed — the question text, the rating anchors,
+// and the reflection placeholder are clinical-review-required.
+// The full KDoc is in the CheckIn composable below; this
+// file-level note exists so the clinical-review gate in
+// .github/workflows/clinical-review.yml finds the tag on a
+// `git show HEAD:this-file` even when the Composable has been
+// refactored.
 
 package org.mindanchor.model
 

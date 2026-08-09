@@ -19,3 +19,6 @@ captures/
 
 # Kotlin compiler session state, written on every build.
 .kotlin/
+
+# Local worktrees (not for commit)
+.worktrees/

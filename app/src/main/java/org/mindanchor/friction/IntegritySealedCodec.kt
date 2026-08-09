@@ -71,6 +71,18 @@ import javax.crypto.Mac
  * the "data reset" log entries are user-visible and
  * clinical-review-required.
  */
+/**
+ * The minimal codec interface this layer requires.
+ * The existing v0.20.0 codecs (OpenLoop, IfThenPlan,
+ * etc.) are simple String <-> String codecs; this
+ * interface accepts the String form only because the
+ * integrity layer operates on the *encoded* form.
+ */
+interface Codec<T> {
+    fun encode(value: T): String
+    fun decode(encoded: String): T
+}
+
 class IntegritySealedCodec(
     /**
      * The underlying plaintext codec. Same encode/decode
@@ -110,19 +122,8 @@ class IntegritySealedCodec(
     private val resetValue: String = "",
 ) : Codec<String> {
 
-    /**
-     * The minimal codec interface this layer requires.
-     * The existing v0.20.0 codecs (OpenLoop, IfThenPlan,
-     * etc.) are simple String <-> String codecs; this
-     * interface accepts the String form only because the
-     * integrity layer operates on the *encoded* form.
-     */
-    interface Codec<T> {
-        fun encode(value: T): String
-        fun decode(encoded: String): T
-    }
-
     override fun encode(value: String): String {
+
         val payload = inner.encode(value)
         val macInput = "$codecId:$payload"
         val mac = try {

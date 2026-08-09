@@ -31,11 +31,20 @@ val detektExcludes = arrayOf(
     "**/llama/**",  // vendored inference engine, not our code
 )
 
+// Resolve the detekt version ONCE at the root, before the
+// subprojects block runs. The `subprojects { ... }` block
+// can read the version catalog directly, but the catalog
+// is only registered for the root project; resolving the
+// value here and capturing it in a `val` makes the value
+// available inside `subprojects` without re-accessing the
+// (root-only) extension.
+val detektToolVersion: String = libs.versions.detekt.get()
+
 subprojects {
     apply(plugin = "io.gitlab.arturbosch.detekt")
 
     extensions.configure(io.gitlab.arturbosch.detekt.extensions.DetektExtension::class.java) {
-        toolVersion = libs.versions.detekt.get()
+        toolVersion = detektToolVersion
         buildUponDefaultConfig = true
         allRules = false
         config.setFrom(files("$rootDir/config/detekt/detekt.yml"))

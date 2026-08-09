@@ -12,8 +12,25 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.mindanchor.data.FrictionPrefs
 import org.mindanchor.friction.GoingLightSchedule
-import java.time.LocalDateTime
+import org.mindanchor.friction.LocalDateTime
 import java.time.ZoneId
+import java.time.LocalDate
+import java.time.LocalTime
+
+/**
+ * Construct a [org.mindanchor.friction.LocalDateTime]
+ * from the system clock. The friction-package
+ * [LocalDateTime] is a value type with no `now()` factory,
+ * so the conversion is here at the call site. The
+ * friction-package [LocalDateTime] is used (not
+ * `java.time.LocalDateTime`) because the schedule's
+ * `nextTransition` and `isActiveAt` methods are typed
+ * against the friction value type.
+ */
+private fun nowAsFrictionLocalDateTime(): LocalDateTime {
+    val jdkNow = java.time.LocalDateTime.now()
+    return LocalDateTime(jdkNow.toLocalDate(), jdkNow.toLocalTime())
+}
 
 /**
  * The BroadcastReceiver that arms the next Going Light
@@ -35,7 +52,7 @@ class GoingLightScheduler : BroadcastReceiver() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onReceive(context: Context, intent: Intent) {
-        val now = LocalDateTime.now()
+        val now = nowAsFrictionLocalDateTime()
         val pending = goAsync()
         scope.launch {
             try {
@@ -87,7 +104,7 @@ class GoingLightScheduler : BroadcastReceiver() {
      * re-arm the chain.
      */
     private fun armNext(context: Context, schedule: GoingLightSchedule) {
-        val now = LocalDateTime.now()
+        val now = nowAsFrictionLocalDateTime()
         val next = schedule.nextTransition(now) ?: return
         val zone = ZoneId.systemDefault()
         val triggerAtMillis = next.date.atTime(next.time)
@@ -117,7 +134,7 @@ class GoingLightScheduler : BroadcastReceiver() {
                 prefs.setGoingLightSchedule(schedule)
             }
             // Arm the alarm.
-            val now = LocalDateTime.now()
+            val now = nowAsFrictionLocalDateTime()
             val next = schedule.nextTransition(now) ?: return
             val zone = ZoneId.systemDefault()
             val triggerAtMillis = next.date.atTime(next.time)

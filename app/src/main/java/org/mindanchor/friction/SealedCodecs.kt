@@ -92,7 +92,7 @@ object SealedCodecs {
      * against small-things.
      */
     val smallThings: IntegritySealedCodec = IntegritySealedCodec(
-        inner = object : IntegritySealedCodec.Codec<String> {
+        inner = object : Codec<String> {
             override fun encode(value: String): String = value
             override fun decode(encoded: String): String = encoded
         },
@@ -125,7 +125,7 @@ object SealedCodecs {
      * "bedtime_list_items".
      */
     val bedtimeList: IntegritySealedCodec = IntegritySealedCodec(
-        inner = object : IntegritySealedCodec.Codec<String> {
+        inner = object : Codec<String> {
             override fun encode(value: String): String = value
             override fun decode(encoded: String): String = encoded
         },
@@ -158,7 +158,7 @@ object SealedCodecs {
      * "compassion_moments".
      */
     val compassion: IntegritySealedCodec = IntegritySealedCodec(
-        inner = object : IntegritySealedCodec.Codec<String> {
+        inner = object : Codec<String> {
             override fun encode(value: String): String = value
             override fun decode(encoded: String): String = encoded
         },
@@ -190,7 +190,7 @@ object SealedCodecs {
      * "if_then_plans".
      */
     val ifThenPlans: IntegritySealedCodec = IntegritySealedCodec(
-        inner = object : IntegritySealedCodec.Codec<String> {
+        inner = object : Codec<String> {
             override fun encode(value: String): String = value
             override fun decode(encoded: String): String = encoded
         },
@@ -214,7 +214,7 @@ object SealedCodecs {
      * for FrictionPrefs to use.
      */
     val gateTallies: IntegritySealedCodec = IntegritySealedCodec(
-        inner = object : IntegritySealedCodec.Codec<String> {
+        inner = object : Codec<String> {
             override fun encode(value: String): String = value
             override fun decode(encoded: String): String = encoded
         },
@@ -275,7 +275,7 @@ object SealedCodecs {
      * with without invalidating the MAC.
      */
     val perAppSessionLength: IntegritySealedCodec = IntegritySealedCodec(
-        inner = object : IntegritySealedCodec.Codec<String> {
+        inner = object : Codec<String> {
             override fun encode(value: String): String = value
             override fun decode(encoded: String): String = encoded
         },
@@ -318,7 +318,7 @@ object SealedCodecs {
      * survives, history does not).
      */
     val notes: IntegritySealedCodec = IntegritySealedCodec(
-        inner = object : IntegritySealedCodec.Codec<String> {
+        inner = object : Codec<String> {
             override fun encode(value: String): String = value
             override fun decode(encoded: String): String = encoded
         },
@@ -359,7 +359,7 @@ object SealedCodecs {
      * check-in is the first sealed record.
      */
     val checkIns: IntegritySealedCodec = IntegritySealedCodec(
-        inner = object : IntegritySealedCodec.Codec<String> {
+        inner = object : Codec<String> {
             override fun encode(value: String): String = value
             override fun decode(encoded: String): String = encoded
         },

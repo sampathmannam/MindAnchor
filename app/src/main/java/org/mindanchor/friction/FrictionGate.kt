@@ -360,9 +360,12 @@ private fun BreathingPause(sky: SkyContent, onFinished: () -> Unit, onNeverMind:
                     )
                     // The circle is decorative; the phase
                     // text below carries the meaning.
-                    // null contentDescription is the
-                    // correct WCAG pattern (1.1.1).
-                    .semantics { contentDescription = null },
+                    // The semantics modifier is removed
+                    // (rather than `contentDescription = null`)
+                    // because the Compose contentDescription
+                    // property is non-nullable; the absence
+                    // of a modifier is itself the WCAG 1.1.1
+                    // "decorative" pattern.
             )
             Text(
                 text = stringResource(

@@ -11,6 +11,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.flow.first
 import org.mindanchor.R
 import org.mindanchor.data.db.AnchorDatabase
 
@@ -91,7 +92,7 @@ object PulseReminder {
     private suspend fun nextTriggerAt(context: Context, anchor: Long): Long {
         val dao = runCatching { AnchorDatabase.get(context).pulses() }.getOrNull()
             ?: return anchor + PulseCadence.EARLY_DAYS * 24 * 3_600_000L
-        val all = runCatching { dao.history() }.getOrNull() ?: return anchor + PulseCadence.EARLY_DAYS * 24 * 3_600_000L
+        val all = runCatching { dao.history().first() }.getOrNull() ?: return anchor + PulseCadence.EARLY_DAYS * 24 * 3_600_000L
         // Map the actual pulse history to a boolean list (true =
         // present), oldest first. The DAO returns newest first; we
         // reverse it here so [PulseCadence.recentOutcomes] sees the
