@@ -28,6 +28,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import org.mindanchor.R
@@ -39,6 +45,13 @@ import org.mindanchor.ui.SkyContent
  * guided breath, then "what are you here to do?" with a time-boxed choice.
  * "Never mind" is always available — the 36%-abandonment door is the whole
  * point, and leaving must never feel like failing.
+ *
+ * @wording-reviewed — every contentDescription on this Composable
+ * is clinical-review-required. The mental-health population
+ * disproportionately relies on screen readers; the wording is
+ * the screen-reader experience, not a translation of the
+ * sighted design. See docs/research/20 for the WCAG 2.2 SC
+ * 1.1.1 / 4.1.2 audit.
  */
 @Composable
 fun FrictionGate(
@@ -122,7 +135,21 @@ private fun Feather(
     onOpen: () -> Unit,
     onNeverMind: () -> Unit,
 ) {
-    Box(modifier = Modifier.fillMaxSize().padding(32.dp)) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp)
+            // TalkBack reads the composite as a single
+            // "feather prompt for $appLabel" announcement,
+            // not as three independent text and button
+            // nodes. The mergeDescendants flag is the
+            // standard Compose accessibility pattern
+            // (CVS Health Android Compose accessibility
+            // techniques, 2025).
+            .semantics(mergeDescendants = true) {
+                contentDescription = "Pause for $appLabel."
+            },
+    ) {
         Column(
             modifier = Modifier.align(Alignment.Center),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -133,14 +160,23 @@ private fun Feather(
                 style = MaterialTheme.typography.bodyLarge,
                 color = sky.textPrimary,
             )
-            TextButton(onClick = onOpen) {
+            TextButton(
+                onClick = onOpen,
+                // The button's text is the action;
+                // semantics adds the Role so TalkBack
+                // announces "Open $appLabel, button."
+                modifier = Modifier.semantics { role = Role.Button },
+            ) {
                 Text(
                     text = stringResource(R.string.friction_feather_open),
                     style = MaterialTheme.typography.titleMedium,
                     color = sky.textPrimary,
                 )
             }
-            TextButton(onClick = onNeverMind) {
+            TextButton(
+                onClick = onNeverMind,
+                modifier = Modifier.semantics { role = Role.Button },
+            ) {
                 Text(
                     text = stringResource(R.string.never_mind),
                     style = MaterialTheme.typography.bodyMedium,
@@ -226,7 +262,28 @@ private fun BreathingPause(sky: SkyContent, onFinished: () -> Unit, onNeverMind:
     }
 
 
-    Box(modifier = Modifier.fillMaxSize().padding(32.dp)) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp)
+            // The breath is a time-based animation. A
+            // sighted user sees the circle grow and
+            // shrink; a TalkBack user hears the phase
+            // text change as the liveRegion. The Box
+            // itself is a single accessibility node.
+            .semantics(mergeDescendants = true) {
+                contentDescription = "A guided breath."
+                // LiveRegionMode.Polite: announce changes
+                // when the user's screen reader is idle.
+                // LiveRegionMode.Assertive would interrupt
+                // whatever the user is reading; the breath
+                // is a time-based animation that does not
+                // need to interrupt (the user is
+                // *participating* in the breath, not
+                // listening to a status update).
+                liveRegion = LiveRegionMode.Polite
+            },
+    ) {
         Column(
             modifier = Modifier.align(Alignment.Center),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -239,7 +296,12 @@ private fun BreathingPause(sky: SkyContent, onFinished: () -> Unit, onNeverMind:
                     .background(
                         color = sky.textPrimary.copy(alpha = 0.25f),
                         shape = CircleShape,
-                    ),
+                    )
+                    // The circle is decorative; the phase
+                    // text below carries the meaning.
+                    // null contentDescription is the
+                    // correct WCAG pattern (1.1.1).
+                    .semantics { contentDescription = null },
             )
             Text(
                 text = stringResource(
@@ -255,7 +317,9 @@ private fun BreathingPause(sky: SkyContent, onFinished: () -> Unit, onNeverMind:
         }
         TextButton(
             onClick = onNeverMind,
-            modifier = Modifier.align(Alignment.BottomCenter),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .semantics { role = Role.Button },
         ) {
             Text(stringResource(R.string.never_mind), color = sky.textSecondary)
         }
@@ -285,7 +349,20 @@ private fun IntentionPrompt(
      */
     compassionMoment: String? = null,
 ) {
-    Box(modifier = Modifier.fillMaxSize().padding(32.dp)) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp)
+            // The intention prompt has many sub-elements.
+            // TalkBack should hear them in sequence
+            // (the question, the buttons, the small thing)
+            // rather than as a single merged string.
+            // mergeDescendants = false here so each
+            // child is its own focusable target.
+            .semantics(mergeDescendants = false) {
+                contentDescription = "What are you opening $appLabel for?"
+            },
+    ) {
         Column(
             modifier = Modifier.align(Alignment.Center),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -324,7 +401,21 @@ private fun IntentionPrompt(
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(5L, 10L, 20L).forEach { minutes ->
-                    TextButton(onClick = { onOpen(minutes) }) {
+                    TextButton(
+                        onClick = { onOpen(minutes) },
+                        // The text is "5 minutes" but a
+                        // screen reader benefits from
+                        // "Open for 5 minutes" — the
+                        // action precedes the duration.
+                        // The contentDescription is a
+                        // string resource so the wording
+                        // is clinical-review-required.
+                        modifier = Modifier.semantics {
+                            contentDescription =
+                                "Open $appLabel for $minutes minutes."
+                            role = Role.Button
+                        },
+                    ) {
                         Text(
                             stringResource(R.string.open_for_minutes, minutes),
                             color = sky.textPrimary,
@@ -332,7 +423,13 @@ private fun IntentionPrompt(
                     }
                 }
             }
-            TextButton(onClick = { onOpen(null) }) {
+            TextButton(
+                onClick = { onOpen(null) },
+                modifier = Modifier.semantics {
+                    contentDescription = "Open $appLabel untimed."
+                    role = Role.Button
+                },
+            ) {
                 Text(stringResource(R.string.open_untimed), color = sky.textSecondary)
             }
 
@@ -347,7 +444,14 @@ private fun IntentionPrompt(
                     style = MaterialTheme.typography.bodySmall,
                     color = sky.textSecondary,
                 )
-                TextButton(onClick = onSmallThingTaken) {
+                TextButton(
+                    onClick = onSmallThingTaken,
+                    modifier = Modifier.semantics {
+                        contentDescription =
+                            "Take the small thing instead of opening: $smallThing"
+                        role = Role.Button
+                    },
+                ) {
                     Text(smallThing, color = sky.textPrimary)
                 }
             }
@@ -372,7 +476,9 @@ private fun IntentionPrompt(
         }
         TextButton(
             onClick = onNeverMind,
-            modifier = Modifier.align(Alignment.BottomCenter),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .semantics { role = Role.Button },
         ) {
             Text(stringResource(R.string.never_mind), color = sky.textSecondary)
         }

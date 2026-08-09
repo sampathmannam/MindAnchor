@@ -214,4 +214,18 @@ class ClinicalReviewGateTest {
             content.contains("set -euo pipefail"),
         )
     }
+
+    @Test
+    fun `the workflow detects AndroidManifest xml changes`() {
+        // AndroidManifest.xml declares what the app is
+        // allowed to do on the user's phone; additions
+        // like INTERNET or a new VpnService are
+        // wording-heavy in the sense that they are
+        // user-consent surfaces. The gate must flag them.
+        val content = workflowFile.readText()
+        assertTrue(
+            "Workflow must check for AndroidManifest.xml changes.",
+            content.contains("AndroidManifest"),
+        )
+    }
 }
