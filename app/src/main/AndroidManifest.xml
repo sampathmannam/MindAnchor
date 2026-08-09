@@ -181,6 +181,69 @@
             android:configChanges="orientation|screenSize|keyboard|keyboardHidden" />
 
         <!--
+            v0.20.1 round 5: the v2 check-in. NOT
+            opened from a notification — the
+            CheckInTrigger fires on
+            ACTION_USER_PRESENT (phone unlock) and
+            launches this activity as a full-screen
+            moment. The activity itself sets
+            showWhenLocked / turnScreenOn at
+            runtime (API 27+); the manifest
+            declares the activity and its task
+            affinity, but the wake-on-lock-screen
+            behaviour is set in code, not here.
+            Excluded from recents for the same
+            reason as EmaActivity: a one-tap
+            check-in is a moment, not a place.
+        -->
+        <activity
+            android:name=".model.CheckInActivity"
+            android:exported="false"
+            android:taskAffinity=".model.checkin"
+            android:excludeFromRecents="true"
+            android:stateNotNeeded="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden|uiMode|density|fontScale|locale|smallestScreenSize|layoutDirection" />
+
+        <!--
+            v0.20.1 round 5: the notes activity.
+            User-authored free text, no
+            clinical-review-gated wording, no
+            wording-reviewed tag. The launcher
+            can route here from a long-press on
+            the home screen (to be wired in a
+            follow-up commit). Same task-affinity
+            isolation as the other secondary
+            surfaces.
+        -->
+        <activity
+            android:name=".model.NoteActivity"
+            android:exported="false"
+            android:taskAffinity=".model.note"
+            android:excludeFromRecents="false"
+            android:stateNotNeeded="true"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden" />
+
+        <!--
+            v0.20.1 round 5 follow-up: the
+            check-in history activity. Read-only
+            list of past check-ins. NOT
+            clinical-review-gated: the screen
+            renders the user's own data with no
+            interpretation (no averages, no
+            trends, no judgements — the
+            *view* is not clinical, only an
+            interpretation layer would be).
+        -->
+        <activity
+            android:name=".model.CheckInHistoryActivity"
+            android:exported="false"
+            android:taskAffinity=".model.checkin.history"
+            android:excludeFromRecents="false"
+            android:stateNotNeeded="true"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden" />
+
+        <!--
             Notices when a flagged app reaches the foreground, so the pause
             covers opens from notifications, recents and links rather than
             only taps on the home screen.
@@ -235,6 +298,23 @@
         <receiver
             android:name=".model.EmaAlarmReceiver"
             android:exported="false" />
+
+        <!--
+            v0.20.1 round 5: the v2 check-in trigger.
+            Fires on ACTION_USER_PRESENT (phone
+            unlock); the engine decides whether
+            this fire should actually launch a
+            check-in. Exported=false because we
+            never want another app to spoof a
+            USER_PRESENT broadcast at us.
+        -->
+        <receiver
+            android:name=".model.CheckInTrigger"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.USER_PRESENT" />
+            </intent-filter>
+        </receiver>
 
         <!--
             Present so this app *can* be made Device Owner over adb by

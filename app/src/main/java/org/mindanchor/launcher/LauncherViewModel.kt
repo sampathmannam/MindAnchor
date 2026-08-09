@@ -18,6 +18,7 @@ import org.mindanchor.friction.GateContext
 import org.mindanchor.data.SunsetPrefs
 import org.mindanchor.friction.LoopPhase
 import org.mindanchor.friction.OpenLoop
+import org.mindanchor.friction.PerAppSessionLength
 import org.mindanchor.sleep.BedtimeList
 import org.mindanchor.sleep.BedtimePhase
 import kotlinx.coroutines.flow.flow
@@ -238,10 +239,60 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     /**
-     * Delegation to [FrictionViewModel.launchTimed]. The
-     * actual app launch is the [FrictionViewModel.LaunchCallback]
-     * passed in — the [LauncherViewModel.launch] method,
-     * which owns the app repository.
+     * Record a per-app time-box choice from the friction
+     * gate. v0.20.1 round 4 (item M, docs/research/22).
+     * The launcher invokes this when the user picks a
+     * 5/10/20 button *and* the "Learn this for next time"
+     * toggle is on. The choice is stored in
+     * [FrictionPrefs.perAppSessionLength] and the gate
+     * highlights the matching button on subsequent
+     * reaches.
+     *
+     * The DataStore key is `per_app_session_length`; the
+     * sealed-codecs equivalent lives on the codec-hmac
+     * branch. A blank package name is a no-op (the gate
+     * never passes a blank package; this is defensive).
+     */
+    fun recordPerAppSessionLength(packageName: String, minutes: Long) {
+        if (packageName.isBlank()) return
+        viewModelScope.launch {
+            frictionPrefs.recordPerAppSessionLength(packageName, minutes)
+        }
+    }
+
+    /**
+     * v0.20.1 round 5 follow-up: forget the per-app
+     * default. The user reached the gate, saw "Like
+     * last time — N min", and decided that default
+     * is no longer what they want. The launcher
+     * clears the map entry; the next reach shows
+     * the "Learn this for next time" toggle again
+     * as if the user had never picked.
+     *
+     * Defensive: blank package name is a no-op. A
+     * blank package would otherwise clear the entire
+     * map (PerAppSessionLength.forget on an empty
+     * string is a no-op too, but the gate never
+     * passes a blank package; this is a belt-and-
+     * braces check).
+     */
+    fun clearPerAppSessionLength(packageName: String) {
+        if (packageName.isBlank()) return
+        viewModelScope.launch {
+            frictionPrefs.clearPerAppSessionLength(packageName)
+        }
+    }
+
+    /**
+     * Launch after the friction gate; [minutes] null means no session timer.
+     * The timer is armed only if the app actually started — otherwise a
+     * failed launch would leave a phantom session ringing later.
+     *
+     * The [banditArm] is the arm the bandit played for this gate, when
+     * one was. A "did go in" outcome is the *reward* signal the bandit
+     * learns against — it tells the bandit this tone (FULL or BRIEF) was
+     * the one the user proceeded through. The update is a no-op when
+     * [banditArm] is null.
      */
     fun launchTimed(app: DisplayApp, minutes: Long?, banditArm: FrictionBandit.ArmChoice? = null) {
         friction.launchTimed(app, minutes, banditArm) { launch(it) }

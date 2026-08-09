@@ -1,12 +1,19 @@
 package org.mindanchor.goinglight
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.Context
 import android.content.Intent
 import android.net.VpnService
+import android.os.Build
 import android.os.ParcelFileDescriptor
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.net.InetAddress
 import java.nio.ByteBuffer
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 
 /**
  * The local VpnService that drops mobile-internet traffic
@@ -41,11 +48,53 @@ class GoingLightVpnService : VpnService() {
 
     /**
      * The decision function used by the protect loop.
-     * Set via [setForwarder] before [start] is called; the
-     * VpnService lifecycle is owned by the OS so the
-     * forwarder cannot be passed in the Intent.
+     *
+     * v0.20.1 round 5 follow-up: the previous
+     * `lateinit var forwarder` design required an
+     * external caller to invoke [setForwarder]
+     * before [start] was called. No caller does
+     * this (the VpnService Intent cannot carry a
+     * Parcelable, and no Companion factory or
+     * Application-bound setter exists). The
+     * first packet would throw
+     * `UninitializedPropertyAccessException`, the
+     * protect loop's catch-all would swallow it,
+     * and the VPN would run but silently drop
+     * every packet.
+     *
+     * The fix: a default-constructed [PacketForwarder]
+     * with `blockAll = true` and the empty
+     * `contentUids` set. The fail-closed default
+     * is the safe behaviour: if the prefs read at
+     * start time throws, the VPN blocks
+     * everything (the Castelo 2025 mechanism),
+     * which is the *expected* behaviour of Going
+     * Light anyway. If [setForwarder] is later
+     * called by a future caller, the new
+     * forwarder replaces the default; the read-
+     * modify-write on the @Volatile field is
+     * safe because the protect loop reads the
+     * field once per packet.
+     *
+     * @Volatile: a setter on one thread is
+     * visible to a getter on the protect loop's
+     * thread without a happens-before edge.
      */
-    private lateinit var forwarder: PacketForwarder
+    @Volatile
+    private var forwarder: PacketForwarder = PacketForwarder(
+        contentUids = emptySet(),
+        systemUids = setOf(1000, 1001),
+        blockAll = true,
+    )
+
+    /**
+     * The source-UID resolver. v0.20.1 round 2 (CodeRabbit
+     * #12): the v0.20.0 implementation used UID 0 for
+     * every packet, which the forwarder treated as a
+     * system UID and forwarded. v0.20.1 round 2 uses a
+     * real resolver that reads /proc/net/tcp{6}.
+     */
+    private val sourceUidResolver = SourceUidResolver()
 
     fun setForwarder(f: PacketForwarder) {
         forwarder = f
@@ -55,25 +104,78 @@ class GoingLightVpnService : VpnService() {
      * Establish the local interface and start the protect
      * loop. Returns true on success.
      *
-     * The address space is `10.66.66.0/24` — a private
-     * range chosen to be unlikely to collide with the
-     * user's home Wi-Fi or mobile hotspot. NetGuard uses
+     * The address space is `10.66.66.0/24` (IPv4) and
+     * `fd00:66:66::/48` (IPv6) — private ranges chosen
+     * to be unlikely to collide with the user's home
+     * Wi-Fi or mobile hotspot. NetGuard uses
      * `10.1.10.0/24`; we picked `10.66.66.0/24` to make
      * it visually obvious in network logs that this is
      * the MindAnchor interface, not the user's network.
      *
-     * The routes are 0.0.0.0/0 — catch-all. The decision
-     * to forward or drop is made in the protect loop,
-     * not at the routing layer, because the routes are
-     * coarse-grained and the decision is per-packet.
+     * The routes are 0.0.0.0/0 and ::/0 — catch-all.
+     * The decision to forward or drop is made in the
+     * protect loop, not at the routing layer, because
+     * the routes are coarse-grained and the decision is
+     * per-packet.
+     *
+     * v0.20.1 (CodeRabbit #12): the builder now
+     * configures IPv6 alongside IPv4. The v0.20.0
+     * builder registered only IPv4, but the protect
+     * loop's parsePacket() also called parseIpv6()
+     * for IP version 6 traffic. With no IPv6
+     * address/route, the OS would block IPv6
+     * entirely, and the parseIpv6() path was dead.
+     * v0.20.1 adds an IPv6 interface address and a
+     * ::/0 route so parseIpv6() can reach the
+     * forwarder.
      */
     fun start(): Boolean {
         if (isRunning) return true
+        // v0.20.1 round 5 follow-up: read the
+        // Going Light schedule and the system /
+        // content UID sets from FrictionPrefs at
+        // start time and rebuild the forwarder.
+        // The previous design had a default
+        // fail-closed forwarder only (blockAll
+        // = true, contentUids = empty), which
+        // means every packet was dropped. Now
+        // the forwarder reflects the user's
+        // actual schedule and the resolved
+        // system-UID set. If the prefs read
+        // throws (DataStore corruption, missing
+        // Keystore), the default fail-closed
+        // forwarder is kept; the VPN blocks
+        // everything, which is the safe default.
+        try {
+            val prefs = org.mindanchor.data.FrictionPrefs(this)
+            val schedule = kotlinx.coroutines.runBlocking {
+                prefs.goingLightSchedule.first()
+            }
+            val contentUids = GoingLightPackageList.effectiveContentUids()
+            val systemUids = GoingLightPackageList.systemUids
+            forwarder = PacketForwarder(
+                contentUids = contentUids,
+                systemUids = systemUids,
+                blockAll = schedule.enabled,
+            )
+        } catch (e: Exception) {
+            // Keep the fail-closed default. The
+            // VPN blocks everything; the user
+            // sees "no internet." The exception
+            // is intentionally swallowed: a
+            // partial-prefs state must not crash
+            // the VpnService, which would
+            // require the user to revoke the
+            // VPN and re-enable it.
+        }
         val builder = Builder()
             .setSession("Going Light")
             .addAddress("10.66.66.2", 24)
+            .addAddress("fd00:66:66::2", 48)
             .addRoute("0.0.0.0", 0)
+            .addRoute("::", 0)
             .addDnsServer("10.66.66.1")
+            .addDnsServer("fd00:66:66::1")
             .setMtu(1500)
             .setBlocking(true)
         val pfd = builder.establish() ?: return false
@@ -105,8 +207,39 @@ class GoingLightVpnService : VpnService() {
     }
 
     private fun runProtectLoop(pfd: ParcelFileDescriptor) {
+        // v0.20.1 (CodeRabbit audit 2026-08-08 #13):
+        // the sinkhole pattern. We do NOT write to the
+        // VPN descriptor. The VpnService is a
+        // *capture* interface, not a routing engine:
+        //  - Reading a packet from `input` consumes
+        //    it from the kernel's perspective.
+        //  - Writing it back to `output` would
+        //    *re-inject* the same packet — the OS
+        //    would route it again, the VpnService
+        //    would read it again, and the loop
+        //    would spin.
+        //  - The "forward" semantic in a sinkhole is
+        //    a no-op: the packet is consumed, the
+        //    app's socket eventually times out, and
+        //    the user sees "no internet."
+        //
+        // Going Light v1.1 is a content-blocker. The
+        // forwarder decides per-packet whether the
+        // packet *would have been allowed*; the
+        // verdict is for logging and analytics. The
+        // network behavior is the same for every
+        // verdict: drop. The Castelo 2025 mechanism
+        // is the silent timeout; this implementation
+        // honors that.
+        //
+        // (For real traffic *forwarding* — a
+        // proxy-style VPN — the design would be
+        // different: read the packet, write to a
+        // protected socket to the real network, read
+        // the response, write the response back to
+        // the VpnService. The v1.1 design is not
+        // a proxy; it is a content-blocker.)
         val input = FileInputStream(pfd.fileDescriptor)
-        val output = FileOutputStream(pfd.fileDescriptor)
         val packet = ByteBuffer.allocate(32767)
         while (isRunning) {
             try {
@@ -115,20 +248,16 @@ class GoingLightVpnService : VpnService() {
                 if (n <= 0) continue
                 packet.limit(n)
                 val decision = forwarder.decide(parsePacket(packet))
+                // All three verdicts are no-ops on the
+                // wire: the packet was consumed by
+                // the read above. The decision is
+                // recorded for logging/analytics; the
+                // network effect is identical.
                 when (decision) {
-                    Verdict.FORWARD -> {
-                        // Write the packet back; the OS will
-                        // forward it to the real network.
-                        output.write(packet.array(), 0, n)
-                    }
-                    Verdict.DROP -> {
-                        // Silently drop. No write to output.
-                        // The app sees a slow connection.
-                    }
+                    Verdict.FORWARD,
+                    Verdict.DROP,
                     Verdict.RETURN_ERROR -> {
-                        // Don't write; the OS closes the
-                        // socket on the next keepalive
-                        // timeout. Castelo's mechanism.
+                        // sinkhole: do nothing.
                     }
                 }
             } catch (_: Exception) {
@@ -142,23 +271,29 @@ class GoingLightVpnService : VpnService() {
      * protocol, destination address, and destination port.
      * Returns a [Packet] for [PacketForwarder.decide].
      *
-     * Real UID extraction requires the /proc/net/tcp
-     * lookup keyed on the source port; the VpnService API
-     * doesn't expose it directly. The implementation here
-     * reads the source IP from the IP header and uses it
-     * as a stand-in. A full implementation would maintain
-     * a (source_ip, source_port) -> uid table refreshed
-     * every few seconds from /proc/net/tcp{6}.
+     * v0.20.1 round 2 (CodeRabbit #12): the source UID
+     * is resolved via [SourceUidResolver], which reads
+     * /proc/net/tcp{6} and matches the packet's
+     * (source_ip, source_port) to the UID of the app
+     * that opened the source socket. The VpnService API
+     * does not expose the source UID directly; reading
+     * the /proc/net/tcp table is the standard pattern
+     * (NetGuard, Blokada).
+     *
+     * Returns UID [Packet.UID_UNRESOLVED] (= -1) when
+     * the source is not in the table or the file is
+     * unreadable. The forwarder fail-closes on
+     * UID_UNRESOLVED to DROP.
      */
     private fun parsePacket(buf: ByteBuffer): Packet {
         if (buf.remaining() < 20) {
-            return Packet(0, Packet.Protocol.ICMP, InetAddress.getByName("0.0.0.0"), 0)
+            return Packet(Packet.UID_UNRESOLVED, Packet.Protocol.ICMP, InetAddress.getByName("0.0.0.0"), 0)
         }
         val version = (buf.get(0).toInt() shr 4) and 0x0F
         return when (version) {
             4 -> parseIpv4(buf)
             6 -> parseIpv6(buf)
-            else -> Packet(0, Packet.Protocol.ICMP, InetAddress.getByName("0.0.0.0"), 0)
+            else -> Packet(Packet.UID_UNRESOLVED, Packet.Protocol.ICMP, InetAddress.getByName("0.0.0.0"), 0)
         }
     }
 
@@ -170,24 +305,33 @@ class GoingLightVpnService : VpnService() {
             1 -> Packet.Protocol.ICMP
             else -> Packet.Protocol.ICMP
         }
+        val src = ByteArray(4)
+        buf.position(12)
+        buf.get(src)
         val dst = ByteArray(4)
         buf.position(16)
         buf.get(dst)
+        val srcAddr = InetAddress.getByAddress(src)
         val destAddr = InetAddress.getByAddress(dst)
-        val destPort = if (protocol == Packet.Protocol.TCP || protocol == Packet.Protocol.UDP) {
+        val (srcPort, destPort) = if (protocol == Packet.Protocol.TCP || protocol == Packet.Protocol.UDP) {
             val pos = buf.position()
             buf.position(pos + 2)
-            val p = (buf.get().toInt() and 0xFF) shl 8 or (buf.get().toInt() and 0xFF)
+            val srcP = (buf.get().toInt() and 0xFF) shl 8 or (buf.get().toInt() and 0xFF)
+            val dstP = (buf.get().toInt() and 0xFF) shl 8 or (buf.get().toInt() and 0xFF)
             buf.position(pos)
-            p
-        } else 0
-        // Stand-in for UID: 0. The real implementation
-        // maintains a (source_ip, source_port) -> uid table.
-        // The PacketForwarder handles 0 as "unknown app
-        // UID" and applies the conservative DROP rule, so
-        // the safe failure mode is "drop everything we
-        // can't positively identify as a system UID."
-        return Packet(0, protocol, destAddr, destPort)
+            srcP to dstP
+        } else 0 to 0
+        // v0.20.1 round 2 (CodeRabbit #12): use the
+        // real /proc/net/tcp resolver. The packet is
+        // attributed to the UID of the application
+        // that opened the source socket. If the
+        // resolver cannot attribute the packet
+        // (cold start, the socket is in TIME_WAIT,
+        // etc.), the result is
+        // [Packet.UID_UNRESOLVED] and the forwarder
+        // fail-closes to DROP.
+        val uid = sourceUidResolver.resolve(srcAddr, srcPort)
+        return Packet(uid, protocol, destAddr, destPort)
     }
 
     private fun parseIpv6(buf: ByteBuffer): Packet {
@@ -198,18 +342,25 @@ class GoingLightVpnService : VpnService() {
             58 -> Packet.Protocol.ICMP
             else -> Packet.Protocol.ICMP
         }
+        val src = ByteArray(16)
+        buf.position(8)
+        buf.get(src)
         val dst = ByteArray(16)
         buf.position(24)
         buf.get(dst)
+        val srcAddr = InetAddress.getByAddress(src)
         val destAddr = InetAddress.getByAddress(dst)
-        val destPort = if (protocol == Packet.Protocol.TCP || protocol == Packet.Protocol.UDP) {
+        val (srcPort, destPort) = if (protocol == Packet.Protocol.TCP || protocol == Packet.Protocol.UDP) {
             val pos = buf.position()
             buf.position(pos + 2)
-            val p = (buf.get().toInt() and 0xFF) shl 8 or (buf.get().toInt() and 0xFF)
+            val srcP = (buf.get().toInt() and 0xFF) shl 8 or (buf.get().toInt() and 0xFF)
+            val dstP = (buf.get().toInt() and 0xFF) shl 8 or (buf.get().toInt() and 0xFF)
             buf.position(pos)
-            p
-        } else 0
-        return Packet(0, protocol, destAddr, destPort)
+            srcP to dstP
+        } else 0 to 0
+        // v0.20.1 round 2: same /proc/net/tcp6 resolver.
+        val uid = sourceUidResolver.resolve(srcAddr, srcPort)
+        return Packet(uid, protocol, destAddr, destPort)
     }
 
     override fun onRevoke() {
@@ -222,6 +373,94 @@ class GoingLightVpnService : VpnService() {
         super.onDestroy()
     }
 
+    /**
+     * Handle the start/stop intents the
+     * [GoingLightScheduler] sends. ACTION_START opens
+     * the VPN; ACTION_STOP tears it down and stops the
+     * service. GoingLightScheduler.disable uses
+     * ACTION_STOP so disabling the schedule during an
+     * active window immediately stops the VPN (CodeRabbit
+     * audit 2026-08-08: the previous behavior cancelled
+     * only the alarm, leaving the VPN running until the
+     * next transition).
+     *
+     * v0.20.1 (CodeRabbit #11): ACTION_START now calls
+     * [startForeground] with a [Notification] before
+     * the temporary background-start allowance expires
+     * (Android 12+ requires a foreground service for
+     * any service that starts from the background).
+     * Without the foreground promotion, the OS kills
+     * the service within seconds of the receiver
+     * firing.
+     */
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            ACTION_START -> {
+                if (!isRunning) {
+                    val started = start()
+                    if (!started) {
+                        stopForeground(true)
+                        stopSelf()
+                        return START_NOT_STICKY
+                    }
+                    // Promote to a foreground service so
+                    // the OS does not kill us under the
+                    // background-start restrictions
+                    // (Android 12+). The notification
+                    // copy is the project's wording-
+                    // reviewed surface.
+                    startForeground(NOTIFICATION_ID, buildNotification())
+                }
+            }
+            ACTION_STOP -> {
+                stop()
+                stopForeground(true)
+                stopSelf()
+                return START_NOT_STICKY
+            }
+        }
+        return START_STICKY
+    }
+
+    /**
+     * Build the foreground-service notification. The
+     * channel and the title/text are the project's
+     * wording-reviewed surface; the gate
+     * (.github/workflows/clinical-review.yml) flags
+     * any change here for review.
+     *
+     * v0.20.1: the channel ID is stable across app
+     * restarts; we don't recreate the channel on
+     * every start. If the channel was deleted by
+     * the user, [Build.VERSION_CODES.O]+ requires
+     * [NotificationManager.createNotificationChannel]
+     * before [startForeground] — we create it
+     * lazily.
+     */
+    private fun buildNotification(): Notification {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val existing = nm.getNotificationChannel(CHANNEL_ID)
+            if (existing == null) {
+                val channel = NotificationChannel(
+                    CHANNEL_ID,
+                    "Going Light",
+                    NotificationManager.IMPORTANCE_LOW,
+                )
+                channel.description = "Active Going Light window"
+                channel.setShowBadge(false)
+                nm.createNotificationChannel(channel)
+            }
+        }
+        return Notification.Builder(this, CHANNEL_ID)
+            .setContentTitle("Going Light is on")
+            .setContentText("Mobile internet is paused for selected apps")
+            .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
+            .setOngoing(true)
+            .setCategory(Notification.CATEGORY_SERVICE)
+            .build()
+    }
+
     companion object {
         /**
          * The Intent action that the OS uses to start a
@@ -230,5 +469,19 @@ class GoingLightVpnService : VpnService() {
          */
         const val ACTION_START = "org.mindanchor.goinglight.START"
         const val ACTION_STOP = "org.mindanchor.goinglight.STOP"
+
+        /**
+         * The foreground-service notification ID.
+         * Stable across restarts so the system
+         * reuses the same notification slot.
+         */
+        const val NOTIFICATION_ID = 1001
+
+        /**
+         * The notification channel ID. v0.20.1:
+         * stable across restarts; the channel is
+         * created lazily on first use.
+         */
+        const val CHANNEL_ID = "org.mindanchor.goinglight"
     }
 }

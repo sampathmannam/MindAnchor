@@ -89,6 +89,13 @@ class FrictionViewModel(application: Application) : AndroidViewModel(application
         val smallThings = frictionPrefs.smallThings.first()
         val ifThenPlans = frictionPrefs.ifThenPlans.first()
         val compassion = frictionPrefs.compassionMoments.first()
+        // v0.20.1 round 4 (item M): the per-app session-length
+        // map. The gate looks up
+        // `perAppSessionLength.defaultMinutes(packageName)`
+        // to decide which button to highlight. Reading the
+        // map here keeps the gate signature stable: one
+        // [GateContext] in, one decision out.
+        val perAppLength = frictionPrefs.perAppSessionLength.first()
         val offer = SmallThings.offer(
             things = smallThings,
             nthReach = prior,
@@ -103,6 +110,8 @@ class FrictionViewModel(application: Application) : AndroidViewModel(application
             smallThing = offer,
             ifThenPlan = plan,
             compassionMoment = compassionPhrase,
+            packageName = packageName,
+            perAppSessionLength = perAppLength,
         )
     }
 

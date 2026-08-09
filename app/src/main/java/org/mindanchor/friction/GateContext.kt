@@ -38,4 +38,20 @@ data class GateContext(
     val ifThenPlan: IfThenPlan? = null,
     /** The user's self-compassion moment for this reach, or null. */
     val compassionMoment: String? = null,
+    /**
+     * The package name of the app the gate is interrupting.
+     * Used by the per-app session-length default to look up
+     * the user's last-picked time-box for this app. v0.20.1
+     * round 4 (item M). Empty string when the package name is
+     * not known (defensive: the gate should still render with
+     * a missing default).
+     */
+    val packageName: String = "",
+    /**
+     * The user's per-app session-length map. The gate reads
+     * `perAppSessionLength.defaultMinutes(packageName)` to
+     * decide which button to highlight and whether to show
+     * the "Like last time?" affordance. v0.20.1 round 4.
+     */
+    val perAppSessionLength: PerAppSessionLength = PerAppSessionLength(),
 )
