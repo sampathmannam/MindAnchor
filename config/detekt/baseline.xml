@@ -1,14 +1,445 @@
 <?xml version="1.0" ?>
-<!--
-  detekt baseline — initially empty.
-  Regenerate with `./gradlew detektBaseline` only as a deliberate
-  cleanup pass. Casual regeneration is the only way the
-  pre-merge gate regresses; see config/detekt/detekt.yml for
-  the policy.
--->
 <SmellBaseline>
-  <ManuallySuppressedIssues>
-  </ManuallySuppressedIssues>
+  <ManuallySuppressedIssues/>
   <CurrentIssues>
+    <ID>CyclomaticComplexMethod:HomeScreen.kt$@Composable fun LauncherRoot( viewModel: LauncherViewModel = viewModel(), /** Bumped whenever the home button is pressed; see HomeActivity. */ goHomeSignal: Int = 0, )</ID>
+    <ID>CyclomaticComplexMethod:Hrv.kt$Hrv$fun clean(rrMillis: List&lt;Double&gt;, rule: ArtifactRule = ArtifactRule.COMBINED): CleanedBeats</ID>
+    <ID>CyclomaticComplexMethod:NoteScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun NoteScreen( notes: NotesState, onAdd: (body: String) -&gt; Unit, onEdit: (id: Long, body: String) -&gt; Unit, onTogglePinned: (id: Long) -&gt; Unit, onDelete: (id: Long) -&gt; Unit, onClose: () -&gt; Unit, )</ID>
+    <ID>CyclomaticComplexMethod:PulseScreen.kt$@Composable fun PulseScreen( onClose: () -&gt; Unit, viewModel: PulseViewModel = viewModel(), )</ID>
+    <ID>CyclomaticComplexMethod:ReportScreen.kt$@Composable fun ReportScreen( stored: StoredReport?, onBack: () -&gt; Unit, /** Yesterday's measured facts, or null when nothing has ever been built. */ facts: Map&lt;Signal, Sourced&gt;? = null, )</ID>
+    <ID>CyclomaticComplexMethod:ReportStore.kt$ReportLedger$fun decode(raw: String): StoredReport?</ID>
+    <ID>CyclomaticComplexMethod:ScreenRhythm.kt$ScreenRhythm$fun days( events: List&lt;ScreenEvent&gt;, days: List&lt;LocalDate&gt;, zone: ZoneId, until: Long, ): Map&lt;LocalDate, DayRhythm&gt;</ID>
+    <ID>CyclomaticComplexMethod:SettingsScreen.kt$@Composable fun SettingsScreen( allApps: List&lt;DisplayApp&gt;, hiddenApps: List&lt;DisplayApp&gt;, onUnhide: (DisplayApp) -&gt; Unit, onBack: () -&gt; Unit, /** Opens the heart-rhythm reading on its own surface. */ onOpenPpg: () -&gt; Unit = {}, /** Opens last night's report on its own surface. */ onOpenReport: () -&gt; Unit = {}, viewModel: SettingsViewModel = viewModel(), )</ID>
+    <ID>DestructuringDeclarationWithTooManyEntries:FrictionPrefs.kt$FrictionPrefs$val (fa, fb, ba, bb) = parts</ID>
+    <ID>ForEachOnRange:CheckInScreen.kt$CheckIn.MIN_RATING..CheckIn.MAX_RATING</ID>
+    <ID>ForEachOnRange:EmaScreen.kt$Moment.MIN..Moment.MAX</ID>
+    <ID>ForEachOnRange:PulseScreen.kt$0..WhoFive.MAX_ANSWER</ID>
+    <ID>FunctionNaming:AppActionsDialog.kt$@Composable fun AppActionsDialog( app: DisplayApp, isFrictioned: Boolean, isAlwaysOpen: Boolean, onDismiss: () -&gt; Unit, onToggleFavorite: () -&gt; Unit, onToggleHidden: () -&gt; Unit, onToggleFriction: () -&gt; Unit, onToggleAlwaysOpen: () -&gt; Unit, onRename: (String?) -&gt; Unit, )</ID>
+    <ID>FunctionNaming:CalmBackground.kt$@Composable fun CalmBackground(content: @Composable (SkyContent) -&gt; Unit)</ID>
+    <ID>FunctionNaming:CheckInHistoryScreen.kt$@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class) @Composable fun CheckInHistoryScreen( checkIns: CheckInState, onClose: () -&gt; Unit, )</ID>
+    <ID>FunctionNaming:CheckInScreen.kt$@Composable fun CheckInScreen( /** * Called exactly once, with the rating (1-5) * and the (possibly empty) reflection. The * activity persists the check-in and dismisses * the screen. */ onSave: (rating: Int, reflection: String) -&gt; Unit, /** * v0.20.1 round 5 follow-up: while the activity * is in the middle of saving (after the user * tapped Save, before the activity finishes), * the Save button is disabled. Without this * flag, a fast double-tap can fire onSave * twice and create two check-ins for one * prompt. The flag is a UI hint; the activity * also guards with a `saved` boolean (defense * in depth). */ saving: Boolean = false, )</ID>
+    <ID>FunctionNaming:DigestScreen.kt$@Composable fun DigestScreen( onClose: () -&gt; Unit, viewModel: DigestViewModel = viewModel(), )</ID>
+    <ID>FunctionNaming:DigestScreen.kt$@Composable private fun JournalRow(item: HeldNotification, waiting: Boolean, onClick: () -&gt; Unit)</ID>
+    <ID>FunctionNaming:EmaScreen.kt$@Composable fun EmaScreen( onSave: (Moment) -&gt; Unit, /** * Called exactly once, however the screen ends — both questions * answered, "Not now" tapped after one or after neither. Answering * and skipping cost the same single call, which is what makes "Not * now" a real way out rather than a smaller failure. */ onFinished: () -&gt; Unit, )</ID>
+    <ID>FunctionNaming:EmaScreen.kt$@Composable private fun EmaQuestion( questionRes: Int, lowRes: Int, highRes: Int, onChosen: (Int) -&gt; Unit, )</ID>
+    <ID>FunctionNaming:FrictionGate.kt$@Composable fun FrictionGate( appLabel: String, onOpen: (minutes: Long?) -&gt; Unit, onNeverMind: () -&gt; Unit, /** How hard to push this time; see [FrictionTone]. */ tone: FrictionTone = FrictionTone.FULL, /** * One of the person's own small things, or null. Chosen by * [SmallThings], which is where the rules about when to stay quiet * live. Never shown on FEATHER and never in the quiet hours. */ smallThing: String? = null, onSmallThingTaken: () -&gt; Unit = {}, /** * The user's pre-written if-then plan for this app, or null. When * present, the intention prompt is pre-filled with the user's * own words — the Gollwitzer 1999 implementation-intention * structure, which the SOTA brief (docs/research/15 §8) calls * the cheapest anti-habituation fix. */ ifThenPlan: IfThenPlan? = null, /** * One of the user's own self-compassion phrases for this reach, * or null. Rotated by [CompassionStore.rotate] so the same * phrase does not become wallpaper. */ compassionMoment: String? = null, /** * The user's per-app session-length map. v0.20.1 round 4 * (item M, docs/research/22). The gate looks up * `perAppSessionLength.defaultMinutes(packageName)` and * highlights the matching button in the 5/10/20 row. * If the user has never picked a length for this app, * the gate shows a "Learn this for next time" toggle * (on by default) and records the choice iff the * toggle is on at the moment of the tap. The default * value (`FALLBACK_MINUTES = 10L`) is used when no * map entry exists. */ perAppSessionLength: PerAppSessionLength = PerAppSessionLength(), /** * The package name of the app the gate is interrupting. * Used to look up the per-app default in * [perAppSessionLength]. Empty string is treated as * "no per-app default known"; the gate falls back to * the 5/10/20 row with no highlight. */ packageName: String = "", /** * Invoked when the user picks a time-box (one of 5, 10, * 20). The launcher records the choice via * `FrictionPrefs.recordPerAppSessionLength` iff the * "Learn this for next time" toggle is on at the moment * of the tap. The callback is *not* invoked for the * "open untimed" button (no per-app length is recorded * for an untimed open — the user's choice is "I want * no timer," not a length to learn). */ onTimeBoxPicked: (packageName: String, minutes: Long) -&gt; Unit = { _, _ -&gt; }, /** * v0.20.1 round 5 follow-up: invoked when the * user asks to forget the per-app default. The * launcher calls `FrictionPrefs.clearPerAppSessionLength` * on this. The callback is only invoked when a * default exists; the affordance is hidden * otherwise. The launcher never shows a "Forget" * affordance on the first reach per app — there * is nothing to forget. */ onForgetDefault: (packageName: String) -&gt; Unit = { _ -&gt; }, )</ID>
+    <ID>FunctionNaming:FrictionGate.kt$@Composable private fun BreathingPause(sky: SkyContent, onFinished: () -&gt; Unit, onNeverMind: () -&gt; Unit)</ID>
+    <ID>FunctionNaming:FrictionGate.kt$@Composable private fun Feather( sky: SkyContent, appLabel: String, onOpen: () -&gt; Unit, onNeverMind: () -&gt; Unit, )</ID>
+    <ID>FunctionNaming:FrictionGate.kt$@Composable private fun IntentionPrompt( sky: SkyContent, appLabel: String, onOpen: (minutes: Long?) -&gt; Unit, onNeverMind: () -&gt; Unit, smallThing: String? = null, onSmallThingTaken: () -&gt; Unit = {}, /** * The user's pre-written if-then plan for this app. When * present, the prompt is pre-filled with the user's own * words — the user-chosen plan is *additional* to the * existing time-box buttons, not a replacement. The way * in stays exactly where it was. */ ifThenPlan: IfThenPlan? = null, /** * The user's rotated self-compassion moment for this * reach. One line, beneath the if-then plan if both are * present. */ compassionMoment: String? = null, /** * The user's per-app session-length map. v0.20.1 round 4 * (item M). The IntentionPrompt uses * `perAppSessionLength.defaultMinutes(packageName)` to * decide which button to highlight. The default * (`FALLBACK_MINUTES = 10L`) is returned when no entry * exists; in that case the gate shows the "Learn this * for next time" toggle so the user can record their * first pick. */ perAppSessionLength: PerAppSessionLength = PerAppSessionLength(), /** * The package name of the app the gate is interrupting. * Used to look up the per-app default in * [perAppSessionLength]. Empty string is treated as * "no per-app default known"; the gate falls back to * the 5/10/20 row with no highlight. */ packageName: String = "", /** * Invoked when the user picks a time-box (5, 10, 20). * The launcher records the choice iff the "Learn this * for next time" toggle is on at the moment of the * tap. Not invoked for the "open untimed" button. */ onTimeBoxPicked: (packageName: String, minutes: Long) -&gt; Unit = { _, _ -&gt; }, /** * v0.20.1 round 5 follow-up: invoked when the * user asks to forget the per-app default. Shown * only when a default exists. See the docstring * on the parent [FrictionGate] for the lifecycle. */ onForgetDefault: (packageName: String) -&gt; Unit = { _ -&gt; }, )</ID>
+    <ID>FunctionNaming:HomeScreen.kt$@Composable fun LauncherRoot( viewModel: LauncherViewModel = viewModel(), /** Bumped whenever the home button is pressed; see HomeActivity. */ goHomeSignal: Int = 0, )</ID>
+    <ID>FunctionNaming:HomeScreen.kt$@Composable private fun BedtimeListCard( sky: SkyContent, phase: BedtimePhase, items: List&lt;String&gt;, onSave: (List&lt;String&gt;) -&gt; Unit, onClear: () -&gt; Unit, )</ID>
+    <ID>FunctionNaming:HomeScreen.kt$@Composable private fun OpenLoopCard( sky: SkyContent, phase: LoopPhase, note: String?, onSave: (String) -&gt; Unit, onClear: () -&gt; Unit, )</ID>
+    <ID>FunctionNaming:HomeScreen.kt$@Composable private fun QuickNotesCard( sky: SkyContent, recent: List&lt;Note&gt;, onSave: (String) -&gt; Unit, onOpenAll: () -&gt; Unit, )</ID>
+    <ID>FunctionNaming:HomeScreen.kt$@Composable private fun WellnessCard( sky: SkyContent, readings: List&lt;WellnessReading&gt;, )</ID>
+    <ID>FunctionNaming:HomeScreen.kt$@Composable private fun WellnessLine(sky: SkyContent, reading: WellnessReading)</ID>
+    <ID>FunctionNaming:HomeScreen.kt$@OptIn(ExperimentalFoundationApi::class) @Composable private fun DrawerSurface( viewModel: LauncherViewModel, state: LauncherUiState, onLaunch: (DisplayApp) -&gt; Unit, onLongPress: (DisplayApp) -&gt; Unit, )</ID>
+    <ID>FunctionNaming:HomeScreen.kt$@OptIn(ExperimentalFoundationApi::class) @Composable private fun HomeSurface( sky: SkyContent, favorites: List&lt;DisplayApp&gt;, onOpenDrawer: () -&gt; Unit, onOpenSettings: () -&gt; Unit, onLaunch: (DisplayApp) -&gt; Unit, onLongPress: (DisplayApp) -&gt; Unit, loopPhase: LoopPhase = LoopPhase.NONE, loopNote: String? = null, onLoopSave: (String) -&gt; Unit = {}, onLoopClear: () -&gt; Unit = {}, bedtimePhase: BedtimePhase = BedtimePhase.NONE, bedtimeItems: List&lt;String&gt; = emptyList(), onBedtimeSave: (List&lt;String&gt;) -&gt; Unit = {}, onBedtimeClear: () -&gt; Unit = {}, /** Shown only when last night's report actually has something in it. */ hasReport: Boolean = false, onOpenReport: () -&gt; Unit = {}, /** * v0.20.1 round 5: route to [org.mindanchor.model.NoteActivity]. * Notes are a one-tap home-screen affordance for the * "I want to remember this" capture pattern (brief §A). * TopEnd so it does not collide with TopStart (Support) * or BottomStart (Digest) or BottomEnd (Settings). */ onOpenNotes: () -&gt; Unit = {}, /** * v0.20.1 round 5 follow-up: route to * [org.mindanchor.model.CheckInHistoryActivity]. * The history is a read-only list of past * check-ins; the *write* side is the * phone-unlock trigger, the *read* side is * the home-screen affordance. Same pattern * as the notes (capture) — separate the write * and read surfaces so neither clutters the * other. */ onOpenCheckInHistory: () -&gt; Unit = {}, /** * v0.20.4: the home-screen quick-notes * affordance. The card shows a one-line * input, a save button, and the most recent * notes. The save callback writes to the * same [org.mindanchor.data.NotesPrefs] the * full [org.mindanchor.model.NoteActivity] * reads from — the two surfaces share the * store. [onOpenNotes] is reused to route * the "View all" link and the per-row tap * to the full activity. */ recentNotes: List&lt;Note&gt; = emptyList(), onAddQuickNote: (String) -&gt; Unit = {}, /** * v0.20.5: the wellness card — per-signal readings for * today against the person's own history. Null is * "still loading", not "no data": the card is hidden * entirely when [wellnessReadings] is null or when * every reading is [WellnessDirection.NO_DATA]. The * home stays the home when there is nothing to show. */ wellnessReadings: List&lt;org.mindanchor.vitals.WellnessReading&gt;? = null, )</ID>
+    <ID>FunctionNaming:NoteScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun NoteScreen( notes: NotesState, onAdd: (body: String) -&gt; Unit, onEdit: (id: Long, body: String) -&gt; Unit, onTogglePinned: (id: Long) -&gt; Unit, onDelete: (id: Long) -&gt; Unit, onClose: () -&gt; Unit, )</ID>
+    <ID>FunctionNaming:OnboardingScreen.kt$@Composable fun OnboardingScreen(onDone: (Set&lt;Goal&gt;) -&gt; Unit)</ID>
+    <ID>FunctionNaming:OnboardingScreen.kt$@Composable private fun GoalRow( goal: Goal, labelRes: Int, selected: Set&lt;Goal&gt;, onChange: (Set&lt;Goal&gt;) -&gt; Unit, )</ID>
+    <ID>FunctionNaming:OnboardingScreen.kt$@Composable private fun PlanLine(textRes: Int)</ID>
+    <ID>FunctionNaming:PpgScreen.kt$@Composable fun PpgScreen( onBack: () -&gt; Unit, lastReadingSummary: String? = null, )</ID>
+    <ID>FunctionNaming:PulseScreen.kt$@Composable fun PulseScreen( onClose: () -&gt; Unit, viewModel: PulseViewModel = viewModel(), )</ID>
+    <ID>FunctionNaming:ReportScreen.kt$@Composable fun ReportScreen( stored: StoredReport?, onBack: () -&gt; Unit, /** Yesterday's measured facts, or null when nothing has ever been built. */ facts: Map&lt;Signal, Sourced&gt;? = null, )</ID>
+    <ID>FunctionNaming:ReportScreen.kt$@Composable fun ReportScreen(onBack: () -&gt; Unit)</ID>
+    <ID>FunctionNaming:ReportScreen.kt$@Composable private fun ReportSectionCard(section: ReportSection)</ID>
+    <ID>FunctionNaming:SettingsScreen.kt$@Composable fun SettingsScreen( allApps: List&lt;DisplayApp&gt;, hiddenApps: List&lt;DisplayApp&gt;, onUnhide: (DisplayApp) -&gt; Unit, onBack: () -&gt; Unit, /** Opens the heart-rhythm reading on its own surface. */ onOpenPpg: () -&gt; Unit = {}, /** Opens last night's report on its own surface. */ onOpenReport: () -&gt; Unit = {}, viewModel: SettingsViewModel = viewModel(), )</ID>
+    <ID>FunctionNaming:SettingsScreen.kt$@Composable private fun GroupRow(titleRes: Int, descriptionRes: Int, marked: Boolean, onClick: () -&gt; Unit)</ID>
+    <ID>FunctionNaming:SettingsScreen.kt$@Composable private fun ProbeLine(labelRes: Int, value: String?)</ID>
+    <ID>FunctionNaming:SettingsScreen.kt$@Composable private fun SectionHeading(titleRes: Int, section: SettingsSection?, goals: Set&lt;Goal&gt;)</ID>
+    <ID>FunctionNaming:SettingsScreen.kt$@Composable private fun TimeNudger(label: String, onEarlier: () -&gt; Unit, onLater: () -&gt; Unit)</ID>
+    <ID>FunctionNaming:SettingsScreen.kt$@Composable private fun WellnessSignalRow(reading: org.mindanchor.vitals.WellnessReading)</ID>
+    <ID>FunctionNaming:SupportScreen.kt$@Composable fun SupportScreen( onClose: () -&gt; Unit, viewModel: SupportViewModel = viewModel(), )</ID>
+    <ID>FunctionNaming:SupportScreen.kt$@Composable private fun PlanField( labelRes: Int, hintRes: Int, value: String, onValueChange: (String) -&gt; Unit, )</ID>
+    <ID>FunctionNaming:SupportScreen.kt$@Composable private fun SafetyPlanEditor( plan: SafetyPlan, onChange: (SafetyPlan) -&gt; Unit, contacts: List&lt;CrisisContact&gt;, onAddContact: (String, String, Boolean) -&gt; Unit, onRemoveContact: (CrisisContact) -&gt; Unit, )</ID>
+    <ID>FunctionNaming:SupportScreen.kt$@Composable private fun SafetyPlanReader(plan: SafetyPlan)</ID>
+    <ID>FunctionNaming:Theme.kt$@Composable fun MindAnchorTheme(content: @Composable () -&gt; Unit)</ID>
+    <ID>FunctionNaming:Theme.kt$@Composable internal fun MindAnchorThemeForced(dark: Boolean, content: @Composable () -&gt; Unit)</ID>
+    <ID>LongMethod:AppActionsDialog.kt$@Composable fun AppActionsDialog( app: DisplayApp, isFrictioned: Boolean, isAlwaysOpen: Boolean, onDismiss: () -&gt; Unit, onToggleFavorite: () -&gt; Unit, onToggleHidden: () -&gt; Unit, onToggleFriction: () -&gt; Unit, onToggleAlwaysOpen: () -&gt; Unit, onRename: (String?) -&gt; Unit, )</ID>
+    <ID>LongMethod:CalmBackground.kt$@Composable fun CalmBackground(content: @Composable (SkyContent) -&gt; Unit)</ID>
+    <ID>LongMethod:CheckInActivity.kt$CheckInActivity$override fun onCreate(savedInstanceState: Bundle?)</ID>
+    <ID>LongMethod:CheckInHistoryScreen.kt$@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class) @Composable fun CheckInHistoryScreen( checkIns: CheckInState, onClose: () -&gt; Unit, )</ID>
+    <ID>LongMethod:CheckInScreen.kt$@Composable fun CheckInScreen( /** * Called exactly once, with the rating (1-5) * and the (possibly empty) reflection. The * activity persists the check-in and dismisses * the screen. */ onSave: (rating: Int, reflection: String) -&gt; Unit, /** * v0.20.1 round 5 follow-up: while the activity * is in the middle of saving (after the user * tapped Save, before the activity finishes), * the Save button is disabled. Without this * flag, a fast double-tap can fire onSave * twice and create two check-ins for one * prompt. The flag is a UI hint; the activity * also guards with a `saved` boolean (defense * in depth). */ saving: Boolean = false, )</ID>
+    <ID>LongMethod:DigestScreen.kt$@Composable fun DigestScreen( onClose: () -&gt; Unit, viewModel: DigestViewModel = viewModel(), )</ID>
+    <ID>LongMethod:FrictionGate.kt$@Composable private fun BreathingPause(sky: SkyContent, onFinished: () -&gt; Unit, onNeverMind: () -&gt; Unit)</ID>
+    <ID>LongMethod:FrictionGate.kt$@Composable private fun IntentionPrompt( sky: SkyContent, appLabel: String, onOpen: (minutes: Long?) -&gt; Unit, onNeverMind: () -&gt; Unit, smallThing: String? = null, onSmallThingTaken: () -&gt; Unit = {}, /** * The user's pre-written if-then plan for this app. When * present, the prompt is pre-filled with the user's own * words — the user-chosen plan is *additional* to the * existing time-box buttons, not a replacement. The way * in stays exactly where it was. */ ifThenPlan: IfThenPlan? = null, /** * The user's rotated self-compassion moment for this * reach. One line, beneath the if-then plan if both are * present. */ compassionMoment: String? = null, /** * The user's per-app session-length map. v0.20.1 round 4 * (item M). The IntentionPrompt uses * `perAppSessionLength.defaultMinutes(packageName)` to * decide which button to highlight. The default * (`FALLBACK_MINUTES = 10L`) is returned when no entry * exists; in that case the gate shows the "Learn this * for next time" toggle so the user can record their * first pick. */ perAppSessionLength: PerAppSessionLength = PerAppSessionLength(), /** * The package name of the app the gate is interrupting. * Used to look up the per-app default in * [perAppSessionLength]. Empty string is treated as * "no per-app default known"; the gate falls back to * the 5/10/20 row with no highlight. */ packageName: String = "", /** * Invoked when the user picks a time-box (5, 10, 20). * The launcher records the choice iff the "Learn this * for next time" toggle is on at the moment of the * tap. Not invoked for the "open untimed" button. */ onTimeBoxPicked: (packageName: String, minutes: Long) -&gt; Unit = { _, _ -&gt; }, /** * v0.20.1 round 5 follow-up: invoked when the * user asks to forget the per-app default. Shown * only when a default exists. See the docstring * on the parent [FrictionGate] for the lifecycle. */ onForgetDefault: (packageName: String) -&gt; Unit = { _ -&gt; }, )</ID>
+    <ID>LongMethod:GateActivity.kt$GateActivity$override fun onCreate(savedInstanceState: Bundle?)</ID>
+    <ID>LongMethod:HomeScreen.kt$@Composable fun LauncherRoot( viewModel: LauncherViewModel = viewModel(), /** Bumped whenever the home button is pressed; see HomeActivity. */ goHomeSignal: Int = 0, )</ID>
+    <ID>LongMethod:HomeScreen.kt$@Composable private fun BedtimeListCard( sky: SkyContent, phase: BedtimePhase, items: List&lt;String&gt;, onSave: (List&lt;String&gt;) -&gt; Unit, onClear: () -&gt; Unit, )</ID>
+    <ID>LongMethod:HomeScreen.kt$@Composable private fun QuickNotesCard( sky: SkyContent, recent: List&lt;Note&gt;, onSave: (String) -&gt; Unit, onOpenAll: () -&gt; Unit, )</ID>
+    <ID>LongMethod:HomeScreen.kt$@OptIn(ExperimentalFoundationApi::class) @Composable private fun HomeSurface( sky: SkyContent, favorites: List&lt;DisplayApp&gt;, onOpenDrawer: () -&gt; Unit, onOpenSettings: () -&gt; Unit, onLaunch: (DisplayApp) -&gt; Unit, onLongPress: (DisplayApp) -&gt; Unit, loopPhase: LoopPhase = LoopPhase.NONE, loopNote: String? = null, onLoopSave: (String) -&gt; Unit = {}, onLoopClear: () -&gt; Unit = {}, bedtimePhase: BedtimePhase = BedtimePhase.NONE, bedtimeItems: List&lt;String&gt; = emptyList(), onBedtimeSave: (List&lt;String&gt;) -&gt; Unit = {}, onBedtimeClear: () -&gt; Unit = {}, /** Shown only when last night's report actually has something in it. */ hasReport: Boolean = false, onOpenReport: () -&gt; Unit = {}, /** * v0.20.1 round 5: route to [org.mindanchor.model.NoteActivity]. * Notes are a one-tap home-screen affordance for the * "I want to remember this" capture pattern (brief §A). * TopEnd so it does not collide with TopStart (Support) * or BottomStart (Digest) or BottomEnd (Settings). */ onOpenNotes: () -&gt; Unit = {}, /** * v0.20.1 round 5 follow-up: route to * [org.mindanchor.model.CheckInHistoryActivity]. * The history is a read-only list of past * check-ins; the *write* side is the * phone-unlock trigger, the *read* side is * the home-screen affordance. Same pattern * as the notes (capture) — separate the write * and read surfaces so neither clutters the * other. */ onOpenCheckInHistory: () -&gt; Unit = {}, /** * v0.20.4: the home-screen quick-notes * affordance. The card shows a one-line * input, a save button, and the most recent * notes. The save callback writes to the * same [org.mindanchor.data.NotesPrefs] the * full [org.mindanchor.model.NoteActivity] * reads from — the two surfaces share the * store. [onOpenNotes] is reused to route * the "View all" link and the per-row tap * to the full activity. */ recentNotes: List&lt;Note&gt; = emptyList(), onAddQuickNote: (String) -&gt; Unit = {}, /** * v0.20.5: the wellness card — per-signal readings for * today against the person's own history. Null is * "still loading", not "no data": the card is hidden * entirely when [wellnessReadings] is null or when * every reading is [WellnessDirection.NO_DATA]. The * home stays the home when there is nothing to show. */ wellnessReadings: List&lt;org.mindanchor.vitals.WellnessReading&gt;? = null, )</ID>
+    <ID>LongMethod:NoteScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun NoteScreen( notes: NotesState, onAdd: (body: String) -&gt; Unit, onEdit: (id: Long, body: String) -&gt; Unit, onTogglePinned: (id: Long) -&gt; Unit, onDelete: (id: Long) -&gt; Unit, onClose: () -&gt; Unit, )</ID>
+    <ID>LongMethod:OnboardingScreen.kt$@Composable fun OnboardingScreen(onDone: (Set&lt;Goal&gt;) -&gt; Unit)</ID>
+    <ID>LongMethod:PpgScreen.kt$@Composable fun PpgScreen( onBack: () -&gt; Unit, lastReadingSummary: String? = null, )</ID>
+    <ID>LongMethod:PulseScreen.kt$@Composable fun PulseScreen( onClose: () -&gt; Unit, viewModel: PulseViewModel = viewModel(), )</ID>
+    <ID>LongMethod:ReportScheduler.kt$ReportScheduler$private suspend fun buildAndStore(context: Context)</ID>
+    <ID>LongMethod:ReportScreen.kt$@Composable fun ReportScreen( stored: StoredReport?, onBack: () -&gt; Unit, /** Yesterday's measured facts, or null when nothing has ever been built. */ facts: Map&lt;Signal, Sourced&gt;? = null, )</ID>
+    <ID>LongMethod:SettingsScreen.kt$@Composable fun SettingsScreen( allApps: List&lt;DisplayApp&gt;, hiddenApps: List&lt;DisplayApp&gt;, onUnhide: (DisplayApp) -&gt; Unit, onBack: () -&gt; Unit, /** Opens the heart-rhythm reading on its own surface. */ onOpenPpg: () -&gt; Unit = {}, /** Opens last night's report on its own surface. */ onOpenReport: () -&gt; Unit = {}, viewModel: SettingsViewModel = viewModel(), )</ID>
+    <ID>LongMethod:SupportScreen.kt$@Composable fun SupportScreen( onClose: () -&gt; Unit, viewModel: SupportViewModel = viewModel(), )</ID>
+    <ID>LongMethod:SupportScreen.kt$@Composable private fun SafetyPlanEditor( plan: SafetyPlan, onChange: (SafetyPlan) -&gt; Unit, contacts: List&lt;CrisisContact&gt;, onAddContact: (String, String, Boolean) -&gt; Unit, onRemoveContact: (CrisisContact) -&gt; Unit, )</ID>
+    <ID>LongParameterList:AppActionsDialog.kt$( app: DisplayApp, isFrictioned: Boolean, isAlwaysOpen: Boolean, onDismiss: () -&gt; Unit, onToggleFavorite: () -&gt; Unit, onToggleHidden: () -&gt; Unit, onToggleFriction: () -&gt; Unit, onToggleAlwaysOpen: () -&gt; Unit, onRename: (String?) -&gt; Unit, )</ID>
+    <ID>LongParameterList:FrictionGate.kt$( appLabel: String, onOpen: (minutes: Long?) -&gt; Unit, onNeverMind: () -&gt; Unit, /** How hard to push this time; see [FrictionTone]. */ tone: FrictionTone = FrictionTone.FULL, /** * One of the person's own small things, or null. Chosen by * [SmallThings], which is where the rules about when to stay quiet * live. Never shown on FEATHER and never in the quiet hours. */ smallThing: String? = null, onSmallThingTaken: () -&gt; Unit = {}, /** * The user's pre-written if-then plan for this app, or null. When * present, the intention prompt is pre-filled with the user's * own words — the Gollwitzer 1999 implementation-intention * structure, which the SOTA brief (docs/research/15 §8) calls * the cheapest anti-habituation fix. */ ifThenPlan: IfThenPlan? = null, /** * One of the user's own self-compassion phrases for this reach, * or null. Rotated by [CompassionStore.rotate] so the same * phrase does not become wallpaper. */ compassionMoment: String? = null, /** * The user's per-app session-length map. v0.20.1 round 4 * (item M, docs/research/22). The gate looks up * `perAppSessionLength.defaultMinutes(packageName)` and * highlights the matching button in the 5/10/20 row. * If the user has never picked a length for this app, * the gate shows a "Learn this for next time" toggle * (on by default) and records the choice iff the * toggle is on at the moment of the tap. The default * value (`FALLBACK_MINUTES = 10L`) is used when no * map entry exists. */ perAppSessionLength: PerAppSessionLength = PerAppSessionLength(), /** * The package name of the app the gate is interrupting. * Used to look up the per-app default in * [perAppSessionLength]. Empty string is treated as * "no per-app default known"; the gate falls back to * the 5/10/20 row with no highlight. */ packageName: String = "", /** * Invoked when the user picks a time-box (one of 5, 10, * 20). The launcher records the choice via * `FrictionPrefs.recordPerAppSessionLength` iff the * "Learn this for next time" toggle is on at the moment * of the tap. The callback is *not* invoked for the * "open untimed" button (no per-app length is recorded * for an untimed open — the user's choice is "I want * no timer," not a length to learn). */ onTimeBoxPicked: (packageName: String, minutes: Long) -&gt; Unit = { _, _ -&gt; }, /** * v0.20.1 round 5 follow-up: invoked when the * user asks to forget the per-app default. The * launcher calls `FrictionPrefs.clearPerAppSessionLength` * on this. The callback is only invoked when a * default exists; the affordance is hidden * otherwise. The launcher never shows a "Forget" * affordance on the first reach per app — there * is nothing to forget. */ onForgetDefault: (packageName: String) -&gt; Unit = { _ -&gt; }, )</ID>
+    <ID>LongParameterList:FrictionGate.kt$( sky: SkyContent, appLabel: String, onOpen: (minutes: Long?) -&gt; Unit, onNeverMind: () -&gt; Unit, smallThing: String? = null, onSmallThingTaken: () -&gt; Unit = {}, /** * The user's pre-written if-then plan for this app. When * present, the prompt is pre-filled with the user's own * words — the user-chosen plan is *additional* to the * existing time-box buttons, not a replacement. The way * in stays exactly where it was. */ ifThenPlan: IfThenPlan? = null, /** * The user's rotated self-compassion moment for this * reach. One line, beneath the if-then plan if both are * present. */ compassionMoment: String? = null, /** * The user's per-app session-length map. v0.20.1 round 4 * (item M). The IntentionPrompt uses * `perAppSessionLength.defaultMinutes(packageName)` to * decide which button to highlight. The default * (`FALLBACK_MINUTES = 10L`) is returned when no entry * exists; in that case the gate shows the "Learn this * for next time" toggle so the user can record their * first pick. */ perAppSessionLength: PerAppSessionLength = PerAppSessionLength(), /** * The package name of the app the gate is interrupting. * Used to look up the per-app default in * [perAppSessionLength]. Empty string is treated as * "no per-app default known"; the gate falls back to * the 5/10/20 row with no highlight. */ packageName: String = "", /** * Invoked when the user picks a time-box (5, 10, 20). * The launcher records the choice iff the "Learn this * for next time" toggle is on at the moment of the * tap. Not invoked for the "open untimed" button. */ onTimeBoxPicked: (packageName: String, minutes: Long) -&gt; Unit = { _, _ -&gt; }, /** * v0.20.1 round 5 follow-up: invoked when the * user asks to forget the per-app default. Shown * only when a default exists. See the docstring * on the parent [FrictionGate] for the lifecycle. */ onForgetDefault: (packageName: String) -&gt; Unit = { _ -&gt; }, )</ID>
+    <ID>LongParameterList:HomeScreen.kt$( sky: SkyContent, favorites: List&lt;DisplayApp&gt;, onOpenDrawer: () -&gt; Unit, onOpenSettings: () -&gt; Unit, onLaunch: (DisplayApp) -&gt; Unit, onLongPress: (DisplayApp) -&gt; Unit, loopPhase: LoopPhase = LoopPhase.NONE, loopNote: String? = null, onLoopSave: (String) -&gt; Unit = {}, onLoopClear: () -&gt; Unit = {}, bedtimePhase: BedtimePhase = BedtimePhase.NONE, bedtimeItems: List&lt;String&gt; = emptyList(), onBedtimeSave: (List&lt;String&gt;) -&gt; Unit = {}, onBedtimeClear: () -&gt; Unit = {}, /** Shown only when last night's report actually has something in it. */ hasReport: Boolean = false, onOpenReport: () -&gt; Unit = {}, /** * v0.20.1 round 5: route to [org.mindanchor.model.NoteActivity]. * Notes are a one-tap home-screen affordance for the * "I want to remember this" capture pattern (brief §A). * TopEnd so it does not collide with TopStart (Support) * or BottomStart (Digest) or BottomEnd (Settings). */ onOpenNotes: () -&gt; Unit = {}, /** * v0.20.1 round 5 follow-up: route to * [org.mindanchor.model.CheckInHistoryActivity]. * The history is a read-only list of past * check-ins; the *write* side is the * phone-unlock trigger, the *read* side is * the home-screen affordance. Same pattern * as the notes (capture) — separate the write * and read surfaces so neither clutters the * other. */ onOpenCheckInHistory: () -&gt; Unit = {}, /** * v0.20.4: the home-screen quick-notes * affordance. The card shows a one-line * input, a save button, and the most recent * notes. The save callback writes to the * same [org.mindanchor.data.NotesPrefs] the * full [org.mindanchor.model.NoteActivity] * reads from — the two surfaces share the * store. [onOpenNotes] is reused to route * the "View all" link and the per-row tap * to the full activity. */ recentNotes: List&lt;Note&gt; = emptyList(), onAddQuickNote: (String) -&gt; Unit = {}, /** * v0.20.5: the wellness card — per-signal readings for * today against the person's own history. Null is * "still loading", not "no data": the card is hidden * entirely when [wellnessReadings] is null or when * every reading is [WellnessDirection.NO_DATA]. The * home stays the home when there is nothing to show. */ wellnessReadings: List&lt;org.mindanchor.vitals.WellnessReading&gt;? = null, )</ID>
+    <ID>LongParameterList:PpgTest.kt$PpgTest$( bpm: Double, seconds: Double, rsaMillis: Double = 0.0, rsaHz: Double = 0.25, wander: Double = 0.35, noise: Double = 0.02, seed: Long = 12345L, inverted: Boolean = false, )</ID>
+    <ID>LongParameterList:ReportScheduler.kt$( signal: Signal, date: LocalDate, vitalsByDate: Map&lt;LocalDate, DailyVitals&gt;, momentsByDay: Map&lt;String, List&lt;Moment&gt;&gt;, measured: Map&lt;Pair&lt;String, String&gt;, Double&gt;, sleepByWake: Map&lt;LocalDate, SleepWindow&gt;, inferred: Map&lt;Pair&lt;String, String&gt;, Double&gt;, zone: ZoneId, )</ID>
+    <ID>LoopWithTooManyJumpStatements:Hrv.kt$Hrv$for</ID>
+    <ID>LoopWithTooManyJumpStatements:PerAppSessionLength.kt$PerAppSessionLengthStore$for</ID>
+    <ID>LoopWithTooManyJumpStatements:PpgCapture.kt$PpgCapture$while</ID>
+    <ID>LoopWithTooManyJumpStatements:ScreenRhythm.kt$ScreenRhythm$for</ID>
+    <ID>LoopWithTooManyJumpStatements:SourceUidResolver.kt$SourceUidResolver$for</ID>
+    <ID>LoopWithTooManyJumpStatements:StringResourcesTest.kt$StringResourcesTest$for</ID>
+    <ID>MagicNumber:AnchorDatabase.kt$AnchorDatabase.Companion.&lt;no name provided&gt;$3</ID>
+    <ID>MagicNumber:BatchReleaser.kt$BatchReleaser$4</ID>
+    <ID>MagicNumber:BatchSchedule.kt$BatchSchedule$12</ID>
+    <ID>MagicNumber:BatchSchedule.kt$BatchSchedule$18</ID>
+    <ID>MagicNumber:BatchSchedule.kt$BatchSchedule$30</ID>
+    <ID>MagicNumber:BatchSchedule.kt$BatchSchedule$8</ID>
+    <ID>MagicNumber:BedtimeList.kt$BedtimeList$12</ID>
+    <ID>MagicNumber:CalmBackground.kt$0.01f</ID>
+    <ID>MagicNumber:CalmBackground.kt$0.02f</ID>
+    <ID>MagicNumber:CalmBackground.kt$0.03f</ID>
+    <ID>MagicNumber:CalmBackground.kt$0.04f</ID>
+    <ID>MagicNumber:CalmBackground.kt$0.05f</ID>
+    <ID>MagicNumber:CalmBackground.kt$0.30f</ID>
+    <ID>MagicNumber:CalmBackground.kt$0.35f</ID>
+    <ID>MagicNumber:CalmBackground.kt$0.55f</ID>
+    <ID>MagicNumber:CalmBackground.kt$0.70f</ID>
+    <ID>MagicNumber:CalmBackground.kt$0.74f</ID>
+    <ID>MagicNumber:CalmBackground.kt$0.84f</ID>
+    <ID>MagicNumber:CalmBackground.kt$255</ID>
+    <ID>MagicNumber:CalmBackground.kt$60</ID>
+    <ID>MagicNumber:CheckIn.kt$CheckInEngine$1000</ID>
+    <ID>MagicNumber:CheckIn.kt$CheckInEngine$24L</ID>
+    <ID>MagicNumber:CheckIn.kt$CheckInEngine$60</ID>
+    <ID>MagicNumber:CheckIn.kt$CheckInStore$3</ID>
+    <ID>MagicNumber:Clock.kt$60_000L</ID>
+    <ID>MagicNumber:CorpusStore.kt$CorpusStore$3</ID>
+    <ID>MagicNumber:Deviation.kt$Deviation$1440</ID>
+    <ID>MagicNumber:Deviation.kt$Deviation$18</ID>
+    <ID>MagicNumber:Deviation.kt$Deviation$60</ID>
+    <ID>MagicNumber:DigestScreen.kt$DigestViewModel$5_000</ID>
+    <ID>MagicNumber:Ema.kt$EmaSchedule$0x7feb352d</ID>
+    <ID>MagicNumber:Ema.kt$EmaSchedule$0x7fffffff</ID>
+    <ID>MagicNumber:Ema.kt$EmaSchedule$15</ID>
+    <ID>MagicNumber:Ema.kt$EmaSchedule$16</ID>
+    <ID>MagicNumber:Ema.kt$EmaSchedule$24</ID>
+    <ID>MagicNumber:Ema.kt$EmaSchedule$31</ID>
+    <ID>MagicNumber:Ema.kt$EmaSchedule$60</ID>
+    <ID>MagicNumber:EmaScheduler.kt$EmaScheduler$60</ID>
+    <ID>MagicNumber:ExtensionLedger.kt$ExtensionLedger$3</ID>
+    <ID>MagicNumber:FrictionBandit.kt$FrictionBandit.Context$3</ID>
+    <ID>MagicNumber:FrictionGate.kt$1.6f</ID>
+    <ID>MagicNumber:FrictionGate.kt$1.8f</ID>
+    <ID>MagicNumber:FrictionGate.kt$20L</ID>
+    <ID>MagicNumber:FrictionGate.kt$5L</ID>
+    <ID>MagicNumber:FrictionPrefs.kt$FrictionPrefs$4</ID>
+    <ID>MagicNumber:FrictionPrefs.kt$FrictionPrefs$60</ID>
+    <ID>MagicNumber:FrictionPrefs.kt$FrictionPrefs$8</ID>
+    <ID>MagicNumber:FrictionPrefs.kt$FrictionPrefs$9</ID>
+    <ID>MagicNumber:FrictionViewModel.kt$FrictionViewModel$0.25</ID>
+    <ID>MagicNumber:FrictionViewModel.kt$FrictionViewModel$0.5</ID>
+    <ID>MagicNumber:FrictionViewModel.kt$FrictionViewModel$0.75</ID>
+    <ID>MagicNumber:FrictionViewModel.kt$FrictionViewModel$11</ID>
+    <ID>MagicNumber:FrictionViewModel.kt$FrictionViewModel$12</ID>
+    <ID>MagicNumber:FrictionViewModel.kt$FrictionViewModel$16</ID>
+    <ID>MagicNumber:FrictionViewModel.kt$FrictionViewModel$17</ID>
+    <ID>MagicNumber:FrictionViewModel.kt$FrictionViewModel$20</ID>
+    <ID>MagicNumber:FrictionViewModel.kt$FrictionViewModel$3</ID>
+    <ID>MagicNumber:FrictionViewModel.kt$FrictionViewModel$5</ID>
+    <ID>MagicNumber:GateLedger.kt$GateLedger$4</ID>
+    <ID>MagicNumber:GoingLight.kt$GoingLightSchedule$20</ID>
+    <ID>MagicNumber:GoingLight.kt$GoingLightSchedule$22</ID>
+    <ID>MagicNumber:GoingLightPackageList.kt$GoingLightPackageList$1000</ID>
+    <ID>MagicNumber:GoingLightPackageList.kt$GoingLightPackageList$1001</ID>
+    <ID>MagicNumber:GoingLightVpnService.kt$GoingLightVpnService$0xFF</ID>
+    <ID>MagicNumber:GoingLightVpnService.kt$GoingLightVpnService$1000</ID>
+    <ID>MagicNumber:GoingLightVpnService.kt$GoingLightVpnService$1001</ID>
+    <ID>MagicNumber:GoingLightVpnService.kt$GoingLightVpnService$12</ID>
+    <ID>MagicNumber:GoingLightVpnService.kt$GoingLightVpnService$1500</ID>
+    <ID>MagicNumber:GoingLightVpnService.kt$GoingLightVpnService$16</ID>
+    <ID>MagicNumber:GoingLightVpnService.kt$GoingLightVpnService$17</ID>
+    <ID>MagicNumber:GoingLightVpnService.kt$GoingLightVpnService$20</ID>
+    <ID>MagicNumber:GoingLightVpnService.kt$GoingLightVpnService$24</ID>
+    <ID>MagicNumber:GoingLightVpnService.kt$GoingLightVpnService$32767</ID>
+    <ID>MagicNumber:GoingLightVpnService.kt$GoingLightVpnService$4</ID>
+    <ID>MagicNumber:GoingLightVpnService.kt$GoingLightVpnService$48</ID>
+    <ID>MagicNumber:GoingLightVpnService.kt$GoingLightVpnService$58</ID>
+    <ID>MagicNumber:GoingLightVpnService.kt$GoingLightVpnService$6</ID>
+    <ID>MagicNumber:GoingLightVpnService.kt$GoingLightVpnService$8</ID>
+    <ID>MagicNumber:GoingLightVpnService.kt$GoingLightVpnService$9</ID>
+    <ID>MagicNumber:HealthConnectSource.kt$HealthConnectSource$60</ID>
+    <ID>MagicNumber:HomeScreen.kt$11</ID>
+    <ID>MagicNumber:HomeScreen.kt$12</ID>
+    <ID>MagicNumber:HomeScreen.kt$17</ID>
+    <ID>MagicNumber:HomeScreen.kt$5</ID>
+    <ID>MagicNumber:HomeScreen.kt$60</ID>
+    <ID>MagicNumber:Hrv.kt$Hrv$50.0</ID>
+    <ID>MagicNumber:IfThenPlan.kt$IfThenPlanStore$3</ID>
+    <ID>MagicNumber:IfThenPlan.kt$IfThenPlanStore$4</ID>
+    <ID>MagicNumber:KeystoreHmacKey.kt$KeystoreHmacKey$256</ID>
+    <ID>MagicNumber:LauncherViewModel.kt$LauncherViewModel$5_000</ID>
+    <ID>MagicNumber:LauncherViewModel.kt$LauncherViewModel$60_000</ID>
+    <ID>MagicNumber:Link.kt$LinkFinder$3</ID>
+    <ID>MagicNumber:Link.kt$LinkFinder$6</ID>
+    <ID>MagicNumber:Link.kt$LinkFinder.Xorshift$13</ID>
+    <ID>MagicNumber:Link.kt$LinkFinder.Xorshift$17</ID>
+    <ID>MagicNumber:LlamaNarrator.kt$LlamaNarrator.Companion$0xffffffffL</ID>
+    <ID>MagicNumber:LlamaNarrator.kt$LlamaNarrator.Companion$4</ID>
+    <ID>MagicNumber:MeasuredStore.kt$MeasuredLedger$3</ID>
+    <ID>MagicNumber:ModelSlot.kt$ModelSlot$1024</ID>
+    <ID>MagicNumber:ModelSlot.kt$ModelSlot$2048</ID>
+    <ID>MagicNumber:MomentStore.kt$MomentLedger$1439</ID>
+    <ID>MagicNumber:MomentStore.kt$MomentLedger$3</ID>
+    <ID>MagicNumber:MomentStore.kt$MomentLedger$4</ID>
+    <ID>MagicNumber:NatureLayer.kt$0.012f</ID>
+    <ID>MagicNumber:NatureLayer.kt$0.028f</ID>
+    <ID>MagicNumber:NatureLayer.kt$0.02f</ID>
+    <ID>MagicNumber:NatureLayer.kt$0.03</ID>
+    <ID>MagicNumber:NatureLayer.kt$0.035f</ID>
+    <ID>MagicNumber:NatureLayer.kt$0.045f</ID>
+    <ID>MagicNumber:NatureLayer.kt$0.055f</ID>
+    <ID>MagicNumber:NatureLayer.kt$0.06f</ID>
+    <ID>MagicNumber:NatureLayer.kt$0.07f</ID>
+    <ID>MagicNumber:NatureLayer.kt$0.11f</ID>
+    <ID>MagicNumber:NatureLayer.kt$0.15f</ID>
+    <ID>MagicNumber:NatureLayer.kt$0.16f</ID>
+    <ID>MagicNumber:NatureLayer.kt$0.17f</ID>
+    <ID>MagicNumber:NatureLayer.kt$0.22f</ID>
+    <ID>MagicNumber:NatureLayer.kt$0.3f</ID>
+    <ID>MagicNumber:NatureLayer.kt$0.4f</ID>
+    <ID>MagicNumber:NatureLayer.kt$0.55f</ID>
+    <ID>MagicNumber:NatureLayer.kt$0.5f</ID>
+    <ID>MagicNumber:NatureLayer.kt$0.74f</ID>
+    <ID>MagicNumber:NatureLayer.kt$0.83f</ID>
+    <ID>MagicNumber:NatureLayer.kt$0.92f</ID>
+    <ID>MagicNumber:NatureLayer.kt$0.93f</ID>
+    <ID>MagicNumber:NatureLayer.kt$0.95f</ID>
+    <ID>MagicNumber:NatureLayer.kt$48</ID>
+    <ID>MagicNumber:NatureLayer.kt$6</ID>
+    <ID>MagicNumber:NatureScene.kt$NatureMath$0.15</ID>
+    <ID>MagicNumber:NatureScene.kt$NatureMath$0.28</ID>
+    <ID>MagicNumber:NatureScene.kt$NatureMath$0.4</ID>
+    <ID>MagicNumber:NatureScene.kt$NatureMath$0.5</ID>
+    <ID>MagicNumber:NatureScene.kt$NatureMath$0.6</ID>
+    <ID>MagicNumber:NatureScene.kt$NatureMath$0.7</ID>
+    <ID>MagicNumber:NatureScene.kt$NatureMath$0.72</ID>
+    <ID>MagicNumber:NatureScene.kt$NatureMath$1.6</ID>
+    <ID>MagicNumber:NatureScene.kt$NatureMath$1.7</ID>
+    <ID>MagicNumber:NatureScene.kt$NatureMath$12.9898</ID>
+    <ID>MagicNumber:NatureScene.kt$NatureMath$43758.5453</ID>
+    <ID>MagicNumber:NatureScene.kt$NatureMath$78.233</ID>
+    <ID>MagicNumber:Note.kt$Note.Companion$3</ID>
+    <ID>MagicNumber:Note.kt$Note.Companion$4</ID>
+    <ID>MagicNumber:NotificationPrefs.kt$NotificationPrefs$60</ID>
+    <ID>MagicNumber:PacketForwarder.kt$PacketForwarder$0xFC</ID>
+    <ID>MagicNumber:PacketForwarder.kt$PacketForwarder$0xFE</ID>
+    <ID>MagicNumber:PacketForwarder.kt$PacketForwarder$1000</ID>
+    <ID>MagicNumber:PacketForwarder.kt$PacketForwarder$1001</ID>
+    <ID>MagicNumber:PacketForwarder.kt$PacketForwarder$16</ID>
+    <ID>MagicNumber:PacketForwarder.kt$PacketForwarder$31</ID>
+    <ID>MagicNumber:PacketForwarder.kt$PacketForwarder$4</ID>
+    <ID>MagicNumber:PacketForwarder.kt$PacketForwarder$5060</ID>
+    <ID>MagicNumber:PacketForwarder.kt$PacketForwarder$5061</ID>
+    <ID>MagicNumber:PacketForwarder.kt$PacketForwarder$53</ID>
+    <ID>MagicNumber:PhoneMatch.kt$PhoneMatch$3</ID>
+    <ID>MagicNumber:Ppg.kt$Ppg$0.20</ID>
+    <ID>MagicNumber:Ppg.kt$Ppg$0.35</ID>
+    <ID>MagicNumber:Ppg.kt$Ppg$0.45</ID>
+    <ID>MagicNumber:Ppg.kt$Ppg$0.5</ID>
+    <ID>MagicNumber:Ppg.kt$Ppg$1.4826</ID>
+    <ID>MagicNumber:Ppg.kt$Ppg$1000.0</ID>
+    <ID>MagicNumber:Ppg.kt$Ppg$3</ID>
+    <ID>MagicNumber:Ppg.kt$Ppg$60_000.0</ID>
+    <ID>MagicNumber:PpgCapture.kt$PpgCapture$1000L</ID>
+    <ID>MagicNumber:PpgCapture.kt$PpgCapture.Companion$0xFF</ID>
+    <ID>MagicNumber:PulseReminder.kt$PulseReminder$24</ID>
+    <ID>MagicNumber:PulseReminder.kt$PulseReminder$3_600_000L</ID>
+    <ID>MagicNumber:PulseScreen.kt$PulseViewModel$5_000</ID>
+    <ID>MagicNumber:ReportScheduler.kt$60</ID>
+    <ID>MagicNumber:ReportScheduler.kt$60_000L</ID>
+    <ID>MagicNumber:ReportScreen.kt$1440</ID>
+    <ID>MagicNumber:ReportScreen.kt$18</ID>
+    <ID>MagicNumber:ReportScreen.kt$60</ID>
+    <ID>MagicNumber:ReportStore.kt$ReportLedger$3</ID>
+    <ID>MagicNumber:ReportStore.kt$ReportLedger$4</ID>
+    <ID>MagicNumber:ReportStore.kt$ReportLedger$5</ID>
+    <ID>MagicNumber:Retrieval.kt$Retrieval$0.5</ID>
+    <ID>MagicNumber:ScreenRhythm.kt$ScreenRhythm$60</ID>
+    <ID>MagicNumber:SessionManager.kt$SessionManager$60_000</ID>
+    <ID>MagicNumber:SettingsScreen.kt$30</ID>
+    <ID>MagicNumber:SettingsScreen.kt$60</ID>
+    <ID>MagicNumber:SettingsViewModel.kt$SettingsViewModel$5_000</ID>
+    <ID>MagicNumber:SettingsViewModel.kt$SettingsViewModel$60</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0.01</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0.03928</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0.05</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0.055</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0.0722</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0.2126</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0.7152</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0x0B</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0x10</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0x13</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0x14</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0x1A</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0x1B</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0x1C</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0x21</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0x26</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0x2E</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0x34</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0x39</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0x3B</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0x40</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0x42</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0x52</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0x6A</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0x7A</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0x8A</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0x8B</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0x8C</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0x9F</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0xA0</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0xA8</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0xB4</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0xC3</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0xC4</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0xC8</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0xD0</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0xD6</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0xD8</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0xDB</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0xDD</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0xDE</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0xE8</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0xEB</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0xF3</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$0xF6</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$1.055</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$12.92</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$17</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$19</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$1e-9</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$2.4</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$21</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$23</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$255</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$255.0</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$30</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$5</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$6</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$60</ID>
+    <ID>MagicNumber:SkyMath.kt$SkyMath$9</ID>
+    <ID>MagicNumber:SleepMath.kt$SleepMath$12</ID>
+    <ID>MagicNumber:SleepMath.kt$SleepMath$3_600_000.0</ID>
+    <ID>MagicNumber:SleepMath.kt$SleepMath$60</ID>
+    <ID>MagicNumber:SleepMath.kt$SleepMath$720</ID>
+    <ID>MagicNumber:SleepMath.kt$SleepWindow$3_600_000.0</ID>
+    <ID>MagicNumber:SleepRepository.kt$SleepRepository$24</ID>
+    <ID>MagicNumber:SleepRepository.kt$SleepRepository$3_600_000</ID>
+    <ID>MagicNumber:SleepRepository.kt$SleepRepository$8L</ID>
+    <ID>MagicNumber:SourceUidResolver.kt$SourceUidResolver$0xFF</ID>
+    <ID>MagicNumber:SourceUidResolver.kt$SourceUidResolver$16</ID>
+    <ID>MagicNumber:SourceUidResolver.kt$SourceUidResolver$3</ID>
+    <ID>MagicNumber:SourceUidResolver.kt$SourceUidResolver$32</ID>
+    <ID>MagicNumber:SourceUidResolver.kt$SourceUidResolver$4</ID>
+    <ID>MagicNumber:SourceUidResolver.kt$SourceUidResolver$6</ID>
+    <ID>MagicNumber:SourceUidResolver.kt$SourceUidResolver$8</ID>
+    <ID>MagicNumber:Sourcing.kt$CoverageLedger$4</ID>
+    <ID>MagicNumber:Sourcing.kt$FactsLedger$3</ID>
+    <ID>MagicNumber:SunsetPrefs.kt$SunsetPrefs$60</ID>
+    <ID>MagicNumber:SunsetPrefs.kt$SunsetPrefs.Companion$1439</ID>
+    <ID>MagicNumber:SunsetPrefs.kt$SunsetPrefs.Companion$60</ID>
+    <ID>MagicNumber:SupportViewModel.kt$SupportViewModel$5_000</ID>
+    <ID>MagicNumber:Theme.kt$0xFF14191B</ID>
+    <ID>MagicNumber:Theme.kt$0xFF1C2523</ID>
+    <ID>MagicNumber:Theme.kt$0xFF25332E</ID>
+    <ID>MagicNumber:Theme.kt$0xFF262D2F</ID>
+    <ID>MagicNumber:Theme.kt$0xFF2E3B39</ID>
+    <ID>MagicNumber:Theme.kt$0xFF33433E</ID>
+    <ID>MagicNumber:Theme.kt$0xFF576560</ID>
+    <ID>MagicNumber:Theme.kt$0xFF57726A</ID>
+    <ID>MagicNumber:Theme.kt$0xFF5A625F</ID>
+    <ID>MagicNumber:Theme.kt$0xFF7A8B9E</ID>
+    <ID>MagicNumber:Theme.kt$0xFF86655F</ID>
+    <ID>MagicNumber:Theme.kt$0xFF9BAABA</ID>
+    <ID>MagicNumber:Theme.kt$0xFFA8ADA6</ID>
+    <ID>MagicNumber:Theme.kt$0xFFA9B2AC</ID>
+    <ID>MagicNumber:Theme.kt$0xFFA9C5BC</ID>
+    <ID>MagicNumber:Theme.kt$0xFFC79E95</ID>
+    <ID>MagicNumber:Theme.kt$0xFFD9E3DC</ID>
+    <ID>MagicNumber:Theme.kt$0xFFE3DFD5</ID>
+    <ID>MagicNumber:Theme.kt$0xFFE4E0D6</ID>
+    <ID>MagicNumber:Theme.kt$0xFFF4F1E9</ID>
+    <ID>MagicNumber:Theme.kt$60</ID>
+    <ID>MagicNumber:WatchPolicy.kt$WatchPolicy$60_000L</ID>
+    <ID>MagicNumber:WellnessHistoryStore.kt$WellnessLedger$3</ID>
+    <ID>MagicNumber:WhoFive.kt$WhoFive$4</ID>
+    <ID>MatchingDeclarationName:CalmBackground.kt$SkyContent</ID>
+    <ID>MatchingDeclarationName:DigestScreen.kt$DigestViewModel : AndroidViewModel</ID>
+    <ID>MatchingDeclarationName:PulseScreen.kt$PulseViewModel : AndroidViewModel</ID>
+    <ID>MaxLineLength:CorpusImportTest.kt$CorpusImportTest$val outcome = CorpusImport.merge(seed, row("hrv-rmssd", "Shaffer &amp; Ginsberg 2017", "RMSSD reflects vagal tone."))</ID>
+    <ID>MaxLineLength:PatternsTest.kt$PatternsTest$val labels = mapOf(Label.VALENCE to (0 until n).associate { start.plusDays(it.toLong()) to (it % 5).toDouble() })</ID>
+    <ID>MaxLineLength:PulseReminder.kt$PulseReminder$val all = runCatching { dao.history().first() }.getOrNull() ?: return anchor + PulseCadence.EARLY_DAYS * 24 * 3_600_000L</ID>
+    <ID>MaxLineLength:ReportComposerTest.kt$ReportComposerTest$Passage("hrv", "Shaffer &amp; Ginsberg 2017", "RMSSD reflects vagal parasympathetic activity in heart rate variability.")</ID>
+    <ID>MaxLineLength:ReportComposerTest.kt$ReportComposerTest$Passage("sri", "Windred et al. 2024", "Sleep regularity and bedtime timing predict outcomes beyond sleep duration circadian.")</ID>
+    <ID>MayBeConst:Ppg.kt$Ppg$val MAX_RR_MS = 60_000.0 / MIN_BPM // 1428.6 ms</ID>
+    <ID>MayBeConst:Ppg.kt$Ppg$val MIN_RR_MS = 60_000.0 / MAX_BPM // 285.7 ms</ID>
+    <ID>NestedBlockDepth:NetworkCallsForbiddenTest.kt$NetworkCallsForbiddenTest$@Test fun `no source file outside the VpnService subsystem references a network API`()</ID>
+    <ID>RethrowCaughtException:IntegritySealedCodec.kt$IntegritySealedCodec$throw e</ID>
+    <ID>ReturnCount:Anticipation.kt$Anticipation$fun forToday( link: Link, history: List&lt;Paired&gt;, todaysSignal: Double, ): Neighbourhood?</ID>
+    <ID>ReturnCount:Baseline.kt$Baseline$fun robustZ(today: Double, history: List&lt;Double&gt;): Double?</ID>
+    <ID>ReturnCount:CheckIn.kt$CheckInStore$fun decodeLine(line: String): CheckIn?</ID>
+    <ID>ReturnCount:FrictionPrefs.kt$FrictionPrefs$private fun decodeBandit(raw: String): FrictionBandit.BanditState</ID>
+    <ID>ReturnCount:FrictionPrefs.kt$FrictionPrefs$private fun decodeGoingLight(raw: String): GoingLightSchedule</ID>
+    <ID>ReturnCount:GateLedger.kt$GateLedger$fun worthMentioning(tally: GateTally, today: LocalDate): Boolean</ID>
+    <ID>ReturnCount:IntegritySealedCodec.kt$IntegritySealedCodec$override fun decode(encoded: String): String</ID>
+    <ID>ReturnCount:MomentStore.kt$MomentLedger$private fun decodeLine(line: String): Moment?</ID>
+    <ID>ReturnCount:Note.kt$Note.Companion$fun decodeLine(line: String): Note?</ID>
+    <ID>ReturnCount:NotificationClassifier.kt$NotificationClassifier$fun shouldHold( meta: NotificationMeta, batchingEnabled: Boolean, batchedApps: Set&lt;String&gt;, ownPackage: String, /** Chosen people who must never be delayed, whatever the settings. */ crisisContacts: Collection&lt;CrisisContactRef&gt; = emptyList(), ): Boolean</ID>
+    <ID>ReturnCount:PacketForwarder.kt$PacketForwarder$private fun isRfc1918(addr: InetAddress): Boolean</ID>
+    <ID>ReturnCount:Prompting.kt$NarrationGuard$fun judge(raw: String): Verdict</ID>
+    <ID>ReturnCount:PulseCadence.kt$PulseCadence$fun cadenceDays( completedCount: Int, recentOutcomes: List&lt;Boolean&gt;, consecutiveMisses: Int, ): Long</ID>
+    <ID>ReturnCount:ReportStore.kt$ReportLedger$private fun decodeObservation(rest: String): Observation?</ID>
+    <ID>ReturnCount:ReportStore.kt$ReportLedger$private fun decodePattern(rest: String): Pattern?</ID>
+    <ID>ReturnCount:SourceUidResolver.kt$SourceUidResolver$fun resolve(sourceIp: InetAddress, sourcePort: Int): Int</ID>
+    <ID>ReturnCount:SourceUidResolver.kt$SourceUidResolver$private fun tcpKeyToCanonical(tcpKey: String, isIpv6: Boolean): String?</ID>
+    <ID>ReturnCount:WatchPolicy.kt$WatchPolicy$fun shouldGate( opened: String, flagged: Set&lt;String&gt;, self: String, launcher: String?, allowance: Allowance?, now: Long, ): Boolean</ID>
+    <ID>SpreadOperator:AnchorDatabase.kt$AnchorDatabase.Companion$(*migrations())</ID>
+    <ID>SpreadOperator:Retrieval.kt$Retrieval$(*NON_WORD)</ID>
+    <ID>StringLiteralDuplication:SealedCodecs.kt$SealedCodecs$"Keystore unavailable"</ID>
+    <ID>SwallowedException:CheckIn.kt$CheckInStore$e: IllegalArgumentException</ID>
+    <ID>SwallowedException:CheckIn.kt$CheckInStore$e: java.nio.charset.MalformedInputException</ID>
+    <ID>SwallowedException:CheckInRateLimitHolderTest.kt$CheckInRateLimitHolderTest$e: Exception</ID>
+    <ID>SwallowedException:CheckInTest.kt$CheckInTest$e: IllegalArgumentException</ID>
+    <ID>SwallowedException:GoingLightVpnService.kt$GoingLightVpnService$e: Exception</ID>
+    <ID>SwallowedException:IntegritySealedCodec.kt$IntegritySealedCodec$e: Exception</ID>
+    <ID>SwallowedException:IntegritySealedCodecTest.kt$IntegritySealedCodecTest$e: Exception</ID>
+    <ID>SwallowedException:Note.kt$Note.Companion$e: IllegalArgumentException</ID>
+    <ID>SwallowedException:Note.kt$Note.Companion$e: java.nio.charset.MalformedInputException</ID>
+    <ID>SwallowedException:SealedCodecs.kt$SealedCodecs$e: Exception</ID>
+    <ID>SwallowedException:SourceUidResolver.kt$SourceUidResolver$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:CheckInTrigger.kt$CheckInTrigger$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:GoingLightVpnService.kt$GoingLightVpnService$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:IntegritySealedCodec.kt$IntegritySealedCodec$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:KeystoreHmacKey.kt$KeystoreHmacKey$e2: Exception</ID>
+    <ID>TooGenericExceptionCaught:KeystoreHmacKey.kt$KeystoreHmacKey$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:PpgCapture.kt$PpgCapture$error: Throwable</ID>
+    <ID>TooGenericExceptionCaught:SealedCodecs.kt$SealedCodecs$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:SourceUidResolver.kt$SourceUidResolver$e: Exception</ID>
+    <ID>TooManyFunctions:BackupCodec.kt$BackupCodec</ID>
+    <ID>TooManyFunctions:FrictionPrefs.kt$FrictionPrefs</ID>
+    <ID>TooManyFunctions:HealthConnectSource.kt$HealthConnectSource</ID>
+    <ID>TooManyFunctions:Ppg.kt$Ppg</ID>
+    <ID>TooManyFunctions:SealedCodecs.kt$SealedCodecs</ID>
+    <ID>TooManyFunctions:SettingsViewModel.kt$SettingsViewModel : AndroidViewModel</ID>
+    <ID>UnusedParameter:FrictionGate.kt$/** * v0.20.1 round 5 follow-up: invoked when the * user asks to forget the per-app default. The * launcher calls `FrictionPrefs.clearPerAppSessionLength` * on this. The callback is only invoked when a * default exists; the affordance is hidden * otherwise. The launcher never shows a "Forget" * affordance on the first reach per app — there * is nothing to forget. */ onForgetDefault: (packageName: String) -&gt; Unit = { _ -&gt; }</ID>
+    <ID>UnusedParameter:FrictionViewModel.kt$FrictionViewModel$prior: Int</ID>
+    <ID>UnusedParameter:FrictionViewModel.kt$FrictionViewModel$state: FrictionBandit.BanditState</ID>
+    <ID>UnusedPrivateProperty:FrictionGate.kt$private const val BREATH_MILLIS = BreathingProtocol.CYCLE_MILLIS</ID>
+    <ID>UseCheckOrError:SealedCodecs.kt$SealedCodecs$throw IllegalStateException("Keystore unavailable")</ID>
+    <ID>VariableNaming:ClinicalReviewGateTest.kt$ClinicalReviewGateTest$private val base_sha = "\$base_sha"</ID>
+    <ID>VariableNaming:ClinicalReviewGateTest.kt$ClinicalReviewGateTest$private val head_sha = "\$head_sha"</ID>
   </CurrentIssues>
 </SmellBaseline>

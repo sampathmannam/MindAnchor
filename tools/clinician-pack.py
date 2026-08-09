@@ -42,7 +42,10 @@ GROUPS = [
 
 
 def parse(path):
-    text = path.read_text()
+    # Use utf-8 explicitly: Windows Python's default locale
+    # encoding (cp1252) mis-decodes the smart quotes / em-dashes
+    # that the strings table carries.
+    text = path.read_text(encoding="utf-8")
     out = []
     for m in re.finditer(r'<string name="([^"]+)">(.*?)</string>', text, re.S):
         name, body = m.group(1), m.group(2)
@@ -93,7 +96,7 @@ def main():
         for name, body in buckets[index]:
             clean = " ".join(body.split())
             lines.append(f"- **`{name}`** — {clean}")
-    OUT.write_text("\n".join(lines) + "\n")
+    OUT.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"wrote {OUT} with {len(strings)} strings, digest {digest}")
 
 

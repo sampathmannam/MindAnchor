@@ -177,11 +177,17 @@ jobs:
             fi
           done
           if [ "$matched" -ne 1 ]; then
-            echo "::error::This PR touches a wording-heavy surface and is missing the 'clinical-review-approved' label."
-            echo "::error::Reason from the change detector:"
-            echo "::error::${{ steps.detect.outputs.reason }}"
-            echo "::error::The project's docs/CLINICAL_REVIEW.md is the substantive review log; this gate enforces that the review *happened*."
-            echo "::error::Apply the label after the wording is reviewed, then re-run this check."
+            # The annotation parser rejects messages that
+            # start with "Reason: " or carry a leading colon
+            # (it tries to read them as key=value properties).
+            # Keep the headline as ::error:: and emit the
+            # detail lines as plain echo so the parser is
+            # not asked to interpret them.
+            echo "::error message=This PR touches a wording-heavy surface and is missing the 'clinical-review-approved' label."
+            echo "Reason from the change detector:"
+            echo "::warning::${{ steps.detect.outputs.reason }}"
+            echo "The project's docs/CLINICAL_REVIEW.md is the substantive review log; this gate enforces that the review *happened*."
+            echo "Apply the label after the wording is reviewed, then re-run this check."
             exit 1
           fi
           echo "Clinical-review-approved label present (exact match)."

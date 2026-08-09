@@ -83,7 +83,7 @@ style:
     ignoreNumbers: ['-1', '0', '1', '2', '7', '10', '14', '100']
   UnusedPrivateMember:
     active: true
-  RedundantVisibilityModifier:
+  RedundantVisibilityModifierRule:
     active: true
   ReturnCount:
     active: true
