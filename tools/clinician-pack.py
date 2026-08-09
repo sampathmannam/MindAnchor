@@ -63,7 +63,15 @@ def bucket(name):
 
 def main():
     strings = parse(STRINGS)
-    digest = hashlib.sha256(STRINGS.read_bytes()).hexdigest()[:12]
+    # Hash the parsed string table, not the raw file bytes.
+    # The raw bytes differ between CRLF (Windows checkouts)
+    # and LF (Linux CI), and a hash over the bytes would
+    # therefore drift on every platform. The parsed table
+    # is the actual content the pack is built from and
+    # gives a stable digest everywhere.
+    digest = hashlib.sha256(
+        "\n".join(f"{n}\t{body}" for n, body in strings).encode("utf-8")
+    ).hexdigest()[:12]
     lines = []
     lines.append("# Clinician review pack\n")
     lines.append(
