@@ -42,7 +42,7 @@ SEV_EMOJI = {
     "\U0001f535": "Trivial",   # 🔵
     "\U0001f7e3": "Nitpick",   # 🟣
 }
-SEV_RANK = {"Major": 0, "Minor": 1, "Trivial": 2, "Nitpick": 3}
+SEV_RANK = {"Major": 0, "Minor": 1, "Trivial": 2, "Nitpick": 3, "Unknown": 4}
 
 # -- Section labels in CodeRabbit's <summary> ---------------
 SECTION_LABELS = {
@@ -72,14 +72,36 @@ SECTION_RE = re.compile(r"<summary>(?P<label>[^<]*)</summary>")
 def gh_json(args):
     """Run `gh <args> --json ... -r .` and return parsed JSON.
 
-    Raises on non-zero exit so the cron agent sees the error
-    rather than parsing empty output silently.
+    Uses `--paginate --slurp` so the response is a single
+    JSON array regardless of how many pages the endpoint
+    returns. `--paginate` alone concatenates the per-page
+    JSON documents, which the default JSON parser handles,
+    but `--slurp` makes the contract explicit and survives
+    endpoints that don't set a `Link: rel="next"` header.
+
+    `gh api --paginate --slurp` returns a list of one
+    JSON array per page (so the outer value is a list of
+    lists). When the endpoint returns a single page, the
+    outer list has one entry; we flatten to a single
+    list of items.
+
+    Raises on non-zero exit so the cron agent sees the
+    error rather than parsing empty output silently.
     """
     cmd = ["gh"] + args
+    if "--paginate" in cmd and "--slurp" not in cmd:
+        cmd.append("--slurp")
     result = subprocess.run(
         cmd, capture_output=True, text=True, encoding="utf-8", check=True
     )
-    return json.loads(result.stdout)
+    parsed = json.loads(result.stdout)
+    if (
+        isinstance(parsed, list)
+        and all(isinstance(p, list) for p in parsed)
+    ):
+        # Flatten the per-page arrays.
+        return [item for page in parsed for item in page]
+    return parsed
 
 
 def fetch_reviews(repo, pr):
@@ -97,8 +119,7 @@ def fetch_issue_comments(repo, pr):
 
     CodeRabbit also posts a walkthrough comment on the PR
     issue thread; that's where the walkthrough / autofix
-    sections live when the bot is in walkthrough mode. We
-    surface the most recent as a separate 'walkthrough' item.
+    sections live when the bot is in walkthrough mode.
     """
     data = gh_json([
         "api",
@@ -106,6 +127,55 @@ def fetch_issue_comments(repo, pr):
         "--paginate",
     ])
     return [c for c in data if c.get("user", {}).get("login") == "coderabbitai[bot]"]
+
+
+def _normalize_issue_comment(c):
+    """Shape an issue-comment into the same dict shape as a review.
+
+    Both `pulls/{pr}/reviews` and `issues/{pr}/comments` carry a
+    body and a login, but their field names differ: reviews
+    use `submitted_at`, comments use `created_at`. The walker
+    in `load_reviews_for` doesn't care which; it just needs
+    one timeline key.
+    """
+    return {
+        "id": c.get("id"),
+        "user": c.get("user", {}),
+        "body": c.get("body", ""),
+        "submitted_at": c.get("created_at"),
+        "state": "COMMENTED",  # issue comments have no review state
+        "via_issue_comment": True,
+    }
+
+
+def load_reviews_for(repo, pr):
+    """Return a unified, time-ordered list of CodeRabbit review
+    payloads on a PR.
+
+    Merges `pulls/{pr}/reviews` (the formal review API) and
+    `issues/{pr}/comments` (the walkthrough / autofix comments
+    that CodeRabbit posts as issue comments rather than as
+    reviews). The merged list is sorted by `submitted_at` so
+    the most recent entry is the last one.
+
+    Issue comments are filtered to those whose body
+    actually carries the CodeRabbit review header
+    (`**Actionable comments posted:**`). Otherwise the
+    loader picks up unrelated issue-comment chatter —
+    rate-limit "no" replies, "I'll re-review" acks,
+    walkthrough-only summaries, etc. — and surfaces them
+    as empty reviews.
+    """
+    reviews = fetch_reviews(repo, pr)
+    raw_comments = fetch_issue_comments(repo, pr)
+    review_comments = [
+        _normalize_issue_comment(c)
+        for c in raw_comments
+        if "**Actionable comments posted:" in (c.get("body") or "")
+    ]
+    unified = list(reviews) + review_comments
+    unified.sort(key=lambda r: r.get("submitted_at") or "")
+    return unified
 
 
 def parse_review(body):
@@ -290,7 +360,13 @@ def _b_item_to_finding(item, file_path, section_kind):
     return {
         "file": file_path,
         "lines": item["lines"],
-        "severity": "Trivial",  # format B has no emoji
+        # Format B (the rate-limited walkthrough / prompt-only
+        # mode) doesn't carry a severity emoji, so the review
+        # can't be bucketed into Major / Minor / Trivial /
+        # Nitpick. Surface that as "Unknown" so the digest
+        # doesn't mislabel rate-limited walkthroughs as low-
+        # priority Trivial findings.
+        "severity": "Unknown",
         "category": "CodeRabbit",
         "quick_win": False,
         "title": title,
@@ -338,21 +414,84 @@ def line_last_touched(file_path, lines, repo_dir, review_time):
     """Return the commit time of the most recent edit to the
     cited line range, or None if we can't tell.
 
-    Uses `git blame -L start,end` to find the SHA(s)
-    responsible for the cited lines, then `git log -1
-    --format=%ct` to read each SHA's commit time. The
-    answer is "addressed" if any of those SHAs is later
-    than the review's submitted_at (the line was edited
-    after the review) and "open" if all are earlier.
+    Two-step lookup:
 
-    This is an approximation: a commit on a different
-    line of the same file will not move the cited line's
-    blame SHA, so we won't get a false "addressed" for
-    edits that don't actually touch the flagged lines.
+    1. `git log -L start,end:file` is the right tool here:
+       it tracks the cited line range across the file's
+       history and reports every commit that touched it.
+       That survives the case where the cited lines
+       shifted because of an edit elsewhere in the file
+       (a `git blame -L start,end` against the current
+       checkout would return SHAs for whatever content
+       now lives at those line numbers, which may be
+       unrelated to the cited finding).
+    2. For each such commit, pick the most recent
+       timestamp. The answer is "addressed" if any cited
+       line was edited after the review.
+
+    Fallback: when `git log -L` fails (line range past
+    EOF, file deleted, etc.), fall back to `git blame
+    -L` so the tool still surfaces an answer — it's
+    just less precise.
     """
     if not repo_dir or not file_path or not lines:
         return None
     start, end = line_range_start_end(lines)
+
+    # Primary: `git log -L` lists every commit that touched
+    # the line range. Restrict to commits at or before
+    # `review_time` because we want to know whether the
+    # *pre-review* state is still in place; the commits
+    # after review_time are themselves evidence the range
+    # moved.
+    most_recent = _log_L_touched_time(file_path, start, end, repo_dir, review_time)
+    if most_recent is not None:
+        return most_recent
+
+    # Fallback: blame the cited lines in the current
+    # checkout. Less precise (line numbers may have
+    # shifted) but better than nothing.
+    return _blame_touched_time(file_path, start, end, repo_dir)
+
+
+def _log_L_touched_time(file_path, start, end, repo_dir, review_time):
+    """Return the most recent commit time in the line-range
+    history, or None if `git log -L` cannot resolve the
+    range.
+    """
+    try:
+        log = subprocess.run(
+            ["git", "log", "-L", f"{start},{end}:{file_path}",
+             "--since=1970-01-01", "--until=@" + str(int(review_time)),
+             "--format=%ct"],
+            cwd=repo_dir, capture_output=True, text=True, encoding="utf-8",
+            timeout=15,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return None
+    if log.returncode != 0:
+        return None
+    timestamps = []
+    for line in log.stdout.splitlines():
+        line = line.strip()
+        if line.isdigit():
+            timestamps.append(int(line))
+    if not timestamps:
+        # `git log -L` returns no commit lines if the
+        # range was created post-review (which means
+        # there's no pre-review history to track). In
+        # that case the cited line range simply did not
+        # exist in the reviewed revision. Fall through
+        # to blame.
+        return None
+    return max(timestamps)
+
+
+def _blame_touched_time(file_path, start, end, repo_dir):
+    """Fallback: blame the cited lines in the current
+    checkout and return the most recent SHA's commit
+    time, or None on failure.
+    """
     try:
         blame = subprocess.run(
             ["git", "blame", "-L", f"{start},{end}", "--", file_path],
@@ -432,7 +571,7 @@ def fmt_digest(review, findings, action_total, repo_dir=None):
 
     # Headline
     parts = []
-    for sev in ("Major", "Minor", "Trivial", "Nitpick"):
+    for sev in ("Major", "Minor", "Trivial", "Nitpick", "Unknown"):
         if sev_counts.get(sev):
             parts.append(f"{sev_counts[sev]} {sev}")
     headline = "Actionable: " + (", ".join(parts) if parts else "none")
@@ -459,6 +598,7 @@ def fmt_digest(review, findings, action_total, repo_dir=None):
             "Minor": "\U0001f7e1 Minor",
             "Trivial": "\U0001f535 Trivial",
             "Nitpick": "\U0001f7e3 Nitpick",
+            "Unknown": "❔ Unknown",
         }
         for f in sorted(findings, key=lambda x: (SEV_RANK.get(x["severity"], 99), x["file"], x["lines"])):
             row = [
@@ -498,6 +638,8 @@ def fmt_digest(review, findings, action_total, repo_dir=None):
         majors = [f for f in findings if f["severity"] == "Major"]
         if majors:
             tldr = f"{len(majors)} Major finding(s) need a code change"
+        elif sev_counts.get("Unknown") and not sev_counts.get("Trivial") and not sev_counts.get("Nitpick"):
+            tldr = "All findings are Unknown severity (rate-limited walkthrough mode)"
         elif sev_counts.get("Trivial"):
             tldr = "No Majors; Trivial-only \u2014 most are doc/comment fixes"
         else:
@@ -534,7 +676,7 @@ def main():
     p.add_argument("--json", action="store_true", help="Output raw findings as JSON instead of Markdown")
     args = p.parse_args()
 
-    reviews = fetch_reviews(args.repo, args.pr)
+    reviews = load_reviews_for(args.repo, args.pr)
     if not reviews:
         print("(no CodeRabbit reviews on this PR)", file=sys.stderr)
         sys.exit(0)
@@ -545,18 +687,30 @@ def main():
             print(f"(no review found with run id {args.run})", file=sys.stderr)
             sys.exit(1)
 
-    # Order: oldest first unless --all then it stays as-is.
-    reviews.sort(key=lambda r: r.get("submitted_at", ""))
+    # `load_reviews_for` already returns a time-ordered
+    # list, so the most recent review is the last one.
 
     if args.json:
         out = []
         for r in reviews:
-            findings = parse_review(r["body"] or "")
+            body = r["body"] or ""
+            findings = parse_review(body)
+            # Run the same addressed/open check the
+            # Markdown path runs, so consumers of the
+            # JSON output get the same verdicts the chat
+            # digest shows.
+            review_time = parse_submitted_at(r)
+            if args.repo_dir and review_time is not None:
+                for f in findings:
+                    f["status"] = address_status(
+                        f["file"], f["lines"], args.repo_dir, review_time
+                    )
             out.append({
                 "id": r["id"],
                 "state": r["state"],
                 "submitted_at": r["submitted_at"],
-                "actionable_total": action_count(r["body"] or ""),
+                "actionable_total": action_count(body),
+                "via_issue_comment": r.get("via_issue_comment", False),
                 "findings": findings,
             })
         print(json.dumps(out, indent=2, ensure_ascii=False))
