@@ -207,3 +207,31 @@ code is the implementation of the conversation.
   clinical-review gate (item B+K of the SOTA plan)
 - `.github/workflows/detekt.yml` — the static
   analysis gate (item B+K of the SOTA plan)
+- `docs/research/20-coros-bridge.md` — the
+  COROS Training Hub side-channel; opt-in only, the
+  launcher's default promise of "zero outbound calls"
+  is preserved everywhere else
+
+## Adding a new file under `vitals/coros/`
+
+The COROS Training Hub side-channel is the *only* place in
+the app that makes outbound network calls. The
+`NetworkCallsForbiddenTest` enforces this with a pinned
+allowlist of 5 file paths under
+`app/src/main/java/org/mindanchor/vitals/coros/`. A new
+file in that package must be:
+
+1. Added to the `corosBridgeFiles` set in
+   `NetworkCallsForbiddenTest.kt` (the test will fail
+   otherwise).
+2. Documented in `docs/research/20-coros-bridge.md`.
+3. Reviewed per the clinical-review gate — the test's
+   KDoc text is wording-reviewed, and any change to
+   `corosBridgeFiles` is a wording-heavy change that the
+   gate catches on the file's own KDoc.
+
+A network reference in any file outside this package is a
+test failure by design. The clinical-review gate and the
+`NetworkCallsForbiddenTest` are the two layers of the
+"no other outbound calls" promise; both must be updated
+together for the new file to build.

@@ -14,9 +14,26 @@ cameraX = "1.4.1"
 concurrentFutures = "1.2.0"
 listenableFuture = "1.0"
 junit = "4.13.2"
+# MockWebServer is the OkHttp project's test fixture: a
+# real HTTP server bound to localhost that records requests
+# and returns scripted responses. v0.20.7's CorosApiTest
+# needs it to exercise the four Training Hub endpoints
+# without touching the live server.
+mockwebserver = "4.12.0"
+# Mockito for the CorosAuthTest's stub of the
+# CorosCredentialStore's parent constructor argument.
+# Only used in testImplementation, never in production.
+mockito = "4.11.0"
 androidxTestJunit = "1.2.1"
 androidxTestRunner = "1.6.2"
 androidxTestCore = "1.6.1"
+okhttp = "4.12.0"
+# security-crypto is the AndroidX wrapper around Tink / Keystore-backed AES-256.
+# The COROS bridge needs a place to store the user's email + password so it
+# can refresh the 24h web token without re-prompting. EncryptedSharedPreferences
+# is the smallest, audit-friendly surface for that.
+securityCrypto = "1.1.0-alpha06"
+work = "2.9.1"
 # detekt 1.23.8 is the last 1.x line release; built against
 # Kotlin 2.0.21 (matches this project) and AGP 8.8.x (the
 # project's 8.7.3 is one minor behind, which the detekt
@@ -51,6 +68,11 @@ androidx-test-junit = { group = "androidx.test.ext", name = "junit", version.ref
 androidx-test-runner = { group = "androidx.test", name = "runner", version.ref = "androidxTestRunner" }
 androidx-test-core = { group = "androidx.test", name = "core-ktx", version.ref = "androidxTestCore" }
 androidx-room-testing = { group = "androidx.room", name = "room-testing", version.ref = "room" }
+okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
+okhttp-mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver", version.ref = "mockwebserver" }
+mockito-core = { group = "org.mockito", name = "mockito-core", version.ref = "mockito" }
+androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
+androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
 compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }

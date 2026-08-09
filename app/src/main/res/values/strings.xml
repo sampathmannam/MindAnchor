@@ -564,6 +564,48 @@
     <string name="health_connect_section_data_label">What is arriving</string>
 
     <!--
+        v0.20.7 wearable bridge (COROS Training Hub side-channel).
+
+        @wording-reviewed — clinical-review-required. The user-facing
+        strings here declare that the launcher makes a network call to
+        a third-party server (teamapi.coros.com) and holds the user's
+        COROS password in Keystore-encrypted storage for as long as
+        the bridge is connected. Both are deliberate departures from
+        the launcher's default "zero outbound calls" promise; the
+        strings below make the trade-off legible.
+
+        Wording re-review trigger: any change to a string in this
+        block, or to the format of the email/password/region form, is
+        a clinical-review-surface change per docs/CLINICAL_REVIEW.md.
+    -->
+    <string name="coros_bridge_section">Wearable bridge (COROS)</string>
+    <string name="coros_bridge_explainer">Some watches — COROS today — do not release every signal to Health Connect. This optional bridge fills the gaps. The launcher makes outbound calls to the COROS Training Hub (a third-party server) and stores your COROS email + password in this phone\'s secure Keystore for as long as the bridge stays connected. Disconnect wipes both. Off by default.</string>
+    <string name="coros_email_hint">COROS account email</string>
+    <string name="coros_password_hint">COROS password</string>
+    <string name="coros_region_label">Server region</string>
+    <string name="coros_region_us">United States</string>
+    <string name="coros_region_eu">Europe</string>
+    <string name="coros_region_asia">Asia / China</string>
+    <string name="coros_connect_button">Connect to COROS</string>
+    <string name="coros_disconnect_button">Disconnect</string>
+    <string name="coros_sync_now_button">Sync now</string>
+    <string name="coros_connected_label">Connected as %1$s (%2$s)</string>
+    <string name="coros_last_sync_label">Last sync: %1$s</string>
+    <string name="coros_last_sync_never">Never synced on this device.</string>
+    <string name="coros_login_failed">Sign-in failed: %1$s</string>
+    <string name="coros_login_in_progress">Signing in…</string>
+    <string name="coros_privacy_note">What goes to the COROS server: your email + password (for sign-in), the resulting access token, and the four data fetches (HRV, daily summary, activity list). What does not go anywhere else: nothing — this bridge is the only outbound channel and the launcher\'s promise of \"no other network call\" still holds.</string>
+    <string name="coros_what_this_does_header">What this bridge does</string>
+    <string name="coros_does_login">Sign in once with your COROS Training Hub email + password. The password is hashed locally (MD5, the form COROS expects) and never sent in clear.</string>
+    <string name="coros_does_sync">Fetch the last 7 days of nightly HRV (RMSSD ms) and the last ~28 days of resting heart rate from the Training Hub every 6 hours.</string>
+    <string name="coros_does_merge">Show the data on the wellness card, alongside the Health Connect data. Health Connect wins when both have a reading; COROS fills the gaps for the signals the watch does not release.</string>
+    <string name="coros_does_not_store">No analytics, no crash reports, no telemetry. The encrypted credential blob is the only thing on disk.</string>
+    <string name="coros_does_not_logout">Does not sign out of the COROS phone app. The side-channel uses the Training Hub web API, not the mobile API, so your phone app stays signed in.</string>
+    <string name="coros_sync_running">Syncing…</string>
+    <string name="coros_sync_idle">Up to date.</string>
+    <string name="coros_sync_failed">Last sync failed: %1$s</string>
+
+    <!--
         v0.20.5 wellness surface (N-of-1, from Health Connect).
 
         @wording-reviewed — clinical-review-required. The wellness

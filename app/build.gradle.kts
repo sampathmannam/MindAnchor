@@ -205,6 +205,15 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.serialization.json)
+    // COROS Training Hub bridge (opt-in side-channel). EncryptedSharedPreferences
+    // stores the user's email + password so the 24h web token can be refreshed
+    // without re-prompting. OkHttp is the HTTP client for the Training Hub REST
+    // endpoints; the work-runtime is for the periodic-sync background worker.
+    // Carve-out: only files under app/src/main/java/org/mindanchor/vitals/coros/
+    // may reference these (see NetworkCallsForbiddenTest).
+    implementation(libs.okhttp)
+    implementation(libs.androidx.security.crypto)
+    implementation(libs.androidx.work.runtime.ktx)
     // Device-agnostic wearable ingestion. Integrating with Health Connect
     // rather than with any one watch's app is what makes changing watches
     // a non-event: whatever writes there is readable, and nothing in this
@@ -239,6 +248,15 @@ dependencies {
     implementation(libs.compose.ui.tooling.preview)
 
     testImplementation(libs.junit)
+    // OkHttp's MockWebServer: a localhost-bound HTTP server that
+    // records requests and returns scripted responses. v0.20.7's
+    // CorosApiTest exercises the four Training Hub endpoints
+    // through it without touching the live server. Pinned to the
+    // same version as the main okhttp client (4.12.0).
+    testImplementation(libs.okhttp.mockwebserver)
+    // Mockito for the CorosAuthTest's stub of the
+    // CorosCredentialStore's parent constructor argument.
+    testImplementation(libs.mockito.core)
 
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.androidx.test.junit)
