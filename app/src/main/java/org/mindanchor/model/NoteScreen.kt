@@ -107,6 +107,14 @@ fun NoteScreen(
     var editingNoteId by rememberSaveable { mutableStateOf<Long?>(null) }
     var editorBody by rememberSaveable { mutableStateOf("") }
     var newNoteDraft by rememberSaveable { mutableStateOf("") }
+    // v0.20.1 round 5 follow-up: the id of the
+    // note whose delete the user just confirmed.
+    // Set when the user taps the × IconButton on a
+    // note row; cleared when the user confirms or
+    // dismisses the dialog. remember (not
+    // rememberSaveable) is correct: a config change
+    // mid-dialog should not auto-confirm a delete.
+    var pendingDeleteId by remember { mutableStateOf<Long?>(null) }
 
     // The composer's focus requester. The
     // "directly" affordance: the user lands on the

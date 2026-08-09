@@ -49,15 +49,49 @@ class NoteActivity : ComponentActivity() {
      * saved in the same wall-clock millisecond
      * would otherwise collide (the brief
      * acknowledged the risk; the fix is cheap).
-     * The counter is in-memory and process-local;
-     * a process restart resets it, and the new ids
-     * are still higher than the old (Long is wide
-     * enough that overflow is not a real concern
-     * for a human-scale note collection).
+     *
+     * v0.20.1 round 5 follow-up: the counter is
+     * seeded at onCreate from the largest existing
+     * id (or currentTimeMillis, whichever is
+     * larger). Without this, a process restart
+     * inside the same millisecond as the last save
+     * would re-initialise the counter to the
+     * current millisecond and the next note would
+     * get a *duplicate* id. The old code claimed
+     * "the new ids are still higher than the old"
+     * but that was wrong: the seed is currentTime
+     * at construction, which is not necessarily
+     * higher than the last id written in a
+     * previous process.
+     *
+     * Seeding from the max existing id is correct:
+     * the on-disk notes are the source of truth,
+     * and any new id strictly greater than the
+     * existing max is unique.
      */
-    private val idCounter = java.util.concurrent.atomic.AtomicLong(
-        System.currentTimeMillis(),
-    )
+    private val idCounter: java.util.concurrent.atomic.AtomicLong
+
+    init {
+        // runBlocking here is acceptable: this
+        // is the activity's onCreate, which is
+        // already on the main thread; a single
+        // DataStore read is fast (microseconds
+        // when the file is cached). The
+        // alternative is to defer the seed to
+        // the first call to nextId(), which
+        // would require prefs to be a field
+        // before idCounter, which it cannot be
+        // (Context is the activity's). The
+        // pragmatic choice is runBlocking once
+        // at construction.
+        val prefsForSeed = NotesPrefs(this) // 'this' is the Activity (Context) at init time
+        val seeded = kotlinx.coroutines.runBlocking {
+            val existing = prefsForSeed.notes.first()
+            val maxExisting = existing.notes.maxOfOrNull { it.id } ?: 0L
+            maxOf(System.currentTimeMillis(), maxExisting)
+        }
+        idCounter = java.util.concurrent.atomic.AtomicLong(seeded)
+    }
 
     private fun nextId(): Long = idCounter.incrementAndGet()
 
@@ -79,6 +113,24 @@ class NoteActivity : ComponentActivity() {
 
         val prefs = NotesPrefs(applicationContext)
 
+        // v0.20.1 round 5 follow-up: notes
+        // persistence runs in an application-scoped
+        // coroutine, not lifecycleScope. The
+        // activity can finish() while a write is
+        // in flight (user taps the in-app back
+        // button, the system back, or system
+        // back-then-rotate); lifecycleScope is
+        // cancelled by finish() and the in-flight
+        // DataStore write could be lost. The
+        // notes are user-authored text; losing a
+        // write to a finishing activity is a
+        // real UX bug (the user saw the
+        // TextButton fire, then nothing).
+        val appScope = kotlinx.coroutines.CoroutineScope(
+            kotlinx.coroutines.SupervisorJob() +
+                kotlinx.coroutines.Dispatchers.IO,
+        )
+
         setContent {
             MindAnchorTheme {
                 val state by prefs.notes.collectAsState(initial = NotesState())
@@ -91,26 +143,28 @@ class NoteActivity : ComponentActivity() {
                         // millisecond do not collide
                         // (brief §A5).
                         val now = System.currentTimeMillis()
-                        lifecycleScope.launch {
-                            prefs.add(
-                                Note(
-                                    id = nextId(),
-                                    body = body,
-                                    createdAt = now,
-                                    updatedAt = now,
-                                    pinned = false,
-                                ),
-                            )
+                        appScope.launch {
+                            runCatching {
+                                prefs.add(
+                                    Note(
+                                        id = nextId(),
+                                        body = body,
+                                        createdAt = now,
+                                        updatedAt = now,
+                                        pinned = false,
+                                    ),
+                                )
+                            }
                         }
                     },
                     onEdit = { id, body ->
-                        lifecycleScope.launch { prefs.edit(id, body) }
+                        appScope.launch { runCatching { prefs.edit(id, body) } }
                     },
                     onTogglePinned = { id ->
-                        lifecycleScope.launch { prefs.togglePinned(id) }
+                        appScope.launch { runCatching { prefs.togglePinned(id) } }
                     },
                     onDelete = { id ->
-                        lifecycleScope.launch { prefs.delete(id) }
+                        appScope.launch { runCatching { prefs.delete(id) } }
                     },
                     onClose = { finish() },
                 )

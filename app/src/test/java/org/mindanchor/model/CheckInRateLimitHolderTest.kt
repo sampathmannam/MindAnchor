@@ -7,6 +7,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
 import java.time.ZoneId
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Unit tests for [CheckInRateLimitHolder] + the
@@ -19,6 +23,13 @@ import java.time.ZoneId
  * the v0.20.1 round 5 ship; the source of truth
  * for the algorithm is the companion Python
  * block in commit `d10753d`.
+ *
+ * v0.20.1 round 5 follow-up: tests now exercise
+ * the monitor-based [CheckInRateLimitHolder.update]
+ * function and a concurrent-writer scenario that
+ * the previous `@Volatile`-only design would
+ * fail (the test `concurrent updates are
+ * serialised` catches the lost-update race).
  */
 class CheckInRateLimitHolderTest {
 
@@ -28,7 +39,7 @@ class CheckInRateLimitHolderTest {
         // The holder is a process-wide singleton;
         // tests can run in any order, and one
         // test's residue would corrupt the next.
-        CheckInRateLimitHolder.state = CheckInRateLimit()
+        CheckInRateLimitHolder.resetForTesting()
     }
 
     private fun dayStartAt(millis: Long): Long =
@@ -50,16 +61,85 @@ class CheckInRateLimitHolderTest {
         )
     }
 
-    @Test fun `state writes are visible to subsequent reads`() {
+    @Test fun `update writes are visible to subsequent reads`() {
         val now = System.currentTimeMillis()
         val newState = CheckInRateLimit(
             lastAcceptedMillis = now,
             acceptedToday = 1,
             dayStartMillis = dayStartAt(now),
         )
-        CheckInRateLimitHolder.state = newState
+        CheckInRateLimitHolder.update { newState }
         assertEquals(now, CheckInRateLimitHolder.state.lastAcceptedMillis)
         assertEquals(1, CheckInRateLimitHolder.state.acceptedToday)
+    }
+
+    @Test fun `update returns the new state`() {
+        val now = System.currentTimeMillis()
+        val newState = CheckInRateLimit(
+            lastAcceptedMillis = now,
+            acceptedToday = 7,
+            dayStartMillis = dayStartAt(now),
+        )
+        val returned = CheckInRateLimitHolder.update { newState }
+        assertEquals(7, returned.acceptedToday)
+        assertEquals(now, returned.lastAcceptedMillis)
+    }
+
+    @Test fun `concurrent updates are serialised`() {
+        // The headline test for v0.20.1 round 5
+        // follow-up: 100 concurrent threads each
+        // record a rejection via the monitor-based
+        // update. With the previous `@Volatile`-only
+        // design, the read-modify-write race could
+        // lose some of the 100 increments, leaving
+        // `consecutiveRejections` at some value
+        // *less than* 100. The monitor guarantees
+        // that every increment is observed.
+        val now = System.currentTimeMillis()
+        CheckInRateLimitHolder.update { rl ->
+            rl.copy(dayStartMillis = dayStartAt(now))
+        }
+
+        val threads = 100
+        val latch = CountDownLatch(1)
+        val pool = Executors.newFixedThreadPool(8)
+        val errors = AtomicInteger(0)
+
+        try {
+            repeat(threads) {
+                pool.submit {
+                    try {
+                        latch.await()
+                        CheckInRateLimitHolder.update { rl ->
+                            CheckInEngine.recordRejection(rl, now)
+                        }
+                    } catch (e: Exception) {
+                        errors.incrementAndGet()
+                    }
+                }
+            }
+            // Release all threads at once.
+            latch.countDown()
+            pool.shutdown()
+            assertTrue(
+                "concurrent update pool did not finish in 30s",
+                pool.awaitTermination(30, TimeUnit.SECONDS),
+            )
+        } finally {
+            if (!pool.isTerminated) {
+                pool.shutdownNow()
+            }
+        }
+
+        assertEquals(0, errors.get())
+        // Every increment must be visible.
+        // The previous @Volatile design would
+        // have lost some; the monitor preserves
+        // them.
+        assertEquals(
+            threads,
+            CheckInRateLimitHolder.state.consecutiveRejections,
+        )
     }
 
     @Test fun `cross-unlock rejection counter persists`() {
@@ -71,51 +151,68 @@ class CheckInRateLimitHolderTest {
         val t = 8L * 60 * 60 * 1000
 
         // Unlock 1
-        var rl = CheckInRateLimitHolder.state
-        val (afterInit, _) = CheckInEngine.rolloverIfNeeded(rl, t)
-        CheckInRateLimitHolder.state = afterInit
-        assertTrue(CheckInEngine.shouldFire(CheckInRateLimitHolder.state, CheckInState(), t))
-        CheckInRateLimitHolder.state = CheckInEngine.recordRejection(
+        val (afterInit, _) = CheckInEngine.rolloverIfNeeded(
             CheckInRateLimitHolder.state, t,
         )
+        CheckInRateLimitHolder.update { afterInit }
+        assertTrue(
+            CheckInEngine.shouldFire(
+                CheckInRateLimitHolder.state, CheckInState(), t,
+            ),
+        )
+        CheckInRateLimitHolder.update { rl ->
+            CheckInEngine.recordRejection(rl, t)
+        }
         assertEquals(1, CheckInRateLimitHolder.state.consecutiveRejections)
         assertFalse(CheckInRateLimitHolder.state.autoPaused)
 
         // Unlock 2
         val t2 = t + 60L * 60 * 1000
-        assertTrue(CheckInEngine.shouldFire(CheckInRateLimitHolder.state, CheckInState(), t2))
-        CheckInRateLimitHolder.state = CheckInEngine.recordRejection(
-            CheckInRateLimitHolder.state, t2,
+        assertTrue(
+            CheckInEngine.shouldFire(
+                CheckInRateLimitHolder.state, CheckInState(), t2,
+            ),
         )
+        CheckInRateLimitHolder.update { rl ->
+            CheckInEngine.recordRejection(rl, t2)
+        }
         assertEquals(2, CheckInRateLimitHolder.state.consecutiveRejections)
         assertFalse(CheckInRateLimitHolder.state.autoPaused)
 
         // Unlock 3 — should auto-pause
         val t3 = t2 + 60L * 60 * 1000
-        assertTrue(CheckInEngine.shouldFire(CheckInRateLimitHolder.state, CheckInState(), t3))
-        CheckInRateLimitHolder.state = CheckInEngine.recordRejection(
-            CheckInRateLimitHolder.state, t3,
+        assertTrue(
+            CheckInEngine.shouldFire(
+                CheckInRateLimitHolder.state, CheckInState(), t3,
+            ),
         )
+        CheckInRateLimitHolder.update { rl ->
+            CheckInEngine.recordRejection(rl, t3)
+        }
         assertEquals(3, CheckInRateLimitHolder.state.consecutiveRejections)
         assertTrue(CheckInRateLimitHolder.state.autoPaused)
 
         // Subsequent unlock should NOT fire
         val t4 = t3 + 60L * 60 * 1000
-        assertFalse(CheckInEngine.shouldFire(CheckInRateLimitHolder.state, CheckInState(), t4))
+        assertFalse(
+            CheckInEngine.shouldFire(
+                CheckInRateLimitHolder.state, CheckInState(), t4,
+            ),
+        )
     }
 
     @Test fun `acceptance resets rejection counter`() {
         val now = System.currentTimeMillis()
         val t = 8L * 60 * 60 * 1000
         // Start with 2 rejections
-        var rl = CheckInRateLimit(
+        val rl = CheckInRateLimit(
             lastAcceptedMillis = 0,
             acceptedToday = 0,
             dayStartMillis = dayStartAt(t),
             consecutiveRejections = 2,
             autoPaused = false,
         )
-        CheckInRateLimitHolder.state = rl
+        CheckInRateLimitHolder.update { rl }
 
         // Accept
         val checkIn = CheckIn(rating = 3, atMillis = now)
@@ -125,7 +222,7 @@ class CheckInRateLimitHolderTest {
             checkIn = checkIn,
             nowMillis = now,
         )
-        CheckInRateLimitHolder.state = newRl
+        CheckInRateLimitHolder.update { newRl }
 
         assertEquals(0, CheckInRateLimitHolder.state.consecutiveRejections)
         assertFalse(CheckInRateLimitHolder.state.autoPaused)
@@ -135,13 +232,15 @@ class CheckInRateLimitHolderTest {
     @Test fun `day rollover clears auto-pause and counts`() {
         val t = 8L * 60 * 60 * 1000
         // State: 3 rejections, auto-paused, 4 accepted, day 1
-        CheckInRateLimitHolder.state = CheckInRateLimit(
-            lastAcceptedMillis = t,
-            acceptedToday = 4,
-            dayStartMillis = dayStartAt(t),
-            consecutiveRejections = 3,
-            autoPaused = true,
-        )
+        CheckInRateLimitHolder.update {
+            CheckInRateLimit(
+                lastAcceptedMillis = t,
+                acceptedToday = 4,
+                dayStartMillis = dayStartAt(t),
+                consecutiveRejections = 3,
+                autoPaused = true,
+            )
+        }
 
         // Day 2 8am
         val t2 = t + 24L * 60 * 60 * 1000
@@ -157,16 +256,18 @@ class CheckInRateLimitHolderTest {
 
     @Test fun `reset clears all transient state`() {
         val now = System.currentTimeMillis()
-        CheckInRateLimitHolder.state = CheckInRateLimit(
-            lastAcceptedMillis = now,
-            acceptedToday = 2,
-            dayStartMillis = dayStartAt(now),
-            consecutiveRejections = 2,
-            autoPaused = true,
-        )
-        CheckInRateLimitHolder.state = CheckInEngine.reset(
-            CheckInRateLimitHolder.state, now,
-        )
+        CheckInRateLimitHolder.update {
+            CheckInRateLimit(
+                lastAcceptedMillis = now,
+                acceptedToday = 2,
+                dayStartMillis = dayStartAt(now),
+                consecutiveRejections = 2,
+                autoPaused = true,
+            )
+        }
+        CheckInRateLimitHolder.update { rl ->
+            CheckInEngine.reset(rl, now)
+        }
         assertEquals(0L, CheckInRateLimitHolder.state.lastAcceptedMillis)
         assertEquals(0, CheckInRateLimitHolder.state.acceptedToday)
         assertEquals(0, CheckInRateLimitHolder.state.consecutiveRejections)
@@ -174,6 +275,9 @@ class CheckInRateLimitHolderTest {
         // The new dayStartMillis is set by reset to
         // the start of `now`'s day, not the
         // UNINITIALISED_DAY sentinel.
-        assertTrue(CheckInRateLimitHolder.state.dayStartMillis != CheckInRateLimit.UNINITIALISED_DAY)
+        assertTrue(
+            CheckInRateLimitHolder.state.dayStartMillis !=
+                CheckInRateLimit.UNINITIALISED_DAY,
+        )
     }
 }

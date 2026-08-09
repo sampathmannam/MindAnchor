@@ -39,7 +39,7 @@ class GoingLightScheduler : BroadcastReceiver() {
         val pending = goAsync()
         scope.launch {
             try {
-                val prefs = FrictionPrefs.get(context)
+                val prefs = FrictionPrefs(context)
                 val schedule = prefs.goingLightSchedule.first()
                 val transition = schedule.nextTransition(now) ?: return@launch
                 val transitioningToActive = isTransitioningToActive(now, schedule, transition)
@@ -112,7 +112,7 @@ class GoingLightScheduler : BroadcastReceiver() {
         fun enable(context: Context, schedule: GoingLightSchedule) {
             // Persist the schedule; the BroadcastReceiver
             // reads it from FrictionPrefs when it fires.
-            val prefs = FrictionPrefs.get(context)
+            val prefs = FrictionPrefs(context)
             CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
                 prefs.setGoingLightSchedule(schedule)
             }
@@ -132,7 +132,7 @@ class GoingLightScheduler : BroadcastReceiver() {
         }
 
         fun disable(context: Context) {
-            val prefs = FrictionPrefs.get(context)
+            val prefs = FrictionPrefs(context)
             CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
                 prefs.setGoingLightSchedule(GoingLightSchedule(enabled = false))
             }

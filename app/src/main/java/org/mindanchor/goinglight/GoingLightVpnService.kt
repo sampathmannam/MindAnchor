@@ -12,6 +12,8 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.net.InetAddress
 import java.nio.ByteBuffer
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 
 /**
  * The local VpnService that drops mobile-internet traffic
@@ -46,11 +48,44 @@ class GoingLightVpnService : VpnService() {
 
     /**
      * The decision function used by the protect loop.
-     * Set via [setForwarder] before [start] is called; the
-     * VpnService lifecycle is owned by the OS so the
-     * forwarder cannot be passed in the Intent.
+     *
+     * v0.20.1 round 5 follow-up: the previous
+     * `lateinit var forwarder` design required an
+     * external caller to invoke [setForwarder]
+     * before [start] was called. No caller does
+     * this (the VpnService Intent cannot carry a
+     * Parcelable, and no Companion factory or
+     * Application-bound setter exists). The
+     * first packet would throw
+     * `UninitializedPropertyAccessException`, the
+     * protect loop's catch-all would swallow it,
+     * and the VPN would run but silently drop
+     * every packet.
+     *
+     * The fix: a default-constructed [PacketForwarder]
+     * with `blockAll = true` and the empty
+     * `contentUids` set. The fail-closed default
+     * is the safe behaviour: if the prefs read at
+     * start time throws, the VPN blocks
+     * everything (the Castelo 2025 mechanism),
+     * which is the *expected* behaviour of Going
+     * Light anyway. If [setForwarder] is later
+     * called by a future caller, the new
+     * forwarder replaces the default; the read-
+     * modify-write on the @Volatile field is
+     * safe because the protect loop reads the
+     * field once per packet.
+     *
+     * @Volatile: a setter on one thread is
+     * visible to a getter on the protect loop's
+     * thread without a happens-before edge.
      */
-    private lateinit var forwarder: PacketForwarder
+    @Volatile
+    private var forwarder: PacketForwarder = PacketForwarder(
+        contentUids = emptySet(),
+        systemUids = setOf(1000, 1001),
+        blockAll = true,
+    )
 
     /**
      * The source-UID resolver. v0.20.1 round 2 (CodeRabbit
@@ -96,6 +131,43 @@ class GoingLightVpnService : VpnService() {
      */
     fun start(): Boolean {
         if (isRunning) return true
+        // v0.20.1 round 5 follow-up: read the
+        // Going Light schedule and the system /
+        // content UID sets from FrictionPrefs at
+        // start time and rebuild the forwarder.
+        // The previous design had a default
+        // fail-closed forwarder only (blockAll
+        // = true, contentUids = empty), which
+        // means every packet was dropped. Now
+        // the forwarder reflects the user's
+        // actual schedule and the resolved
+        // system-UID set. If the prefs read
+        // throws (DataStore corruption, missing
+        // Keystore), the default fail-closed
+        // forwarder is kept; the VPN blocks
+        // everything, which is the safe default.
+        try {
+            val prefs = org.mindanchor.data.FrictionPrefs(this)
+            val schedule = kotlinx.coroutines.runBlocking {
+                prefs.goingLightSchedule.first()
+            }
+            val contentUids = GoingLightPackageList.effectiveContentUids()
+            val systemUids = GoingLightPackageList.systemUids
+            forwarder = PacketForwarder(
+                contentUids = contentUids,
+                systemUids = systemUids,
+                blockAll = schedule.enabled,
+            )
+        } catch (e: Exception) {
+            // Keep the fail-closed default. The
+            // VPN blocks everything; the user
+            // sees "no internet." The exception
+            // is intentionally swallowed: a
+            // partial-prefs state must not crash
+            // the VpnService, which would
+            // require the user to revoke the
+            // VPN and re-enable it.
+        }
         val builder = Builder()
             .setSession("Going Light")
             .addAddress("10.66.66.2", 24)
