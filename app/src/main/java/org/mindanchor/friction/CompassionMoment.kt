@@ -42,6 +42,47 @@ data class CompassionMoment(
 }
 
 /**
+ * Pure list operations on [CompassionMoment]s — adding,
+ * removing, capping. Kept here (next to the data class) so
+ * the storage layer has a single place to call for the
+ * mutation rules, the same way [SmallThings.add] /
+ * [SmallThings.remove] live next to their data class.
+ *
+ * The MAX cap is the same as [SmallThings.MAX]: a launcher
+ * rotating a wall of phrases would defeat the rotation.
+ * Six is the most a person would write in a calm hour
+ * (most write one or two) and the most that the gate
+ * would rotate through without any single phrase
+ * becoming wallpaper.
+ */
+object CompassionList {
+    const val MAX = 6
+    const val MAX_PHRASE = 140
+
+    /** Trim, blank-blank out, and add to the list. No-op when
+     *  the input is blank or the list is at MAX. The
+     *  resulting phrase is trimmed and capped to
+     *  [MAX_PHRASE] characters. */
+    fun add(moments: List<CompassionMoment>, phrase: String): List<CompassionMoment> {
+        val cleaned = phrase.trim().take(MAX_PHRASE)
+        if (cleaned.isEmpty()) return moments
+        if (moments.any { it.phrase.trim() == cleaned }) return moments
+        if (moments.size >= MAX) return moments
+        return moments + CompassionMoment(cleaned)
+    }
+
+    /** Drop the first match (trim-equal). No-op when the
+     *  phrase is blank. */
+    fun remove(moments: List<CompassionMoment>, phrase: String): List<CompassionMoment> {
+        val cleaned = phrase.trim()
+        if (cleaned.isEmpty()) return moments
+        val idx = moments.indexOfFirst { it.phrase.trim() == cleaned }
+        if (idx < 0) return moments
+        return moments.toMutableList().apply { removeAt(idx) }
+    }
+}
+
+/**
  * Storage codec for [CompassionMoment]s — the user's own set
  * of phrases the launcher rotates through. One per line in a
  * plain text file, following the [OpenLoop.encode] /

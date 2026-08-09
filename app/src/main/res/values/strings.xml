@@ -123,6 +123,9 @@
     <string name="small_things_hint">Two minutes outside</string>
     <string name="small_things_add">Add</string>
     <string name="small_things_remove">Remove</string>
+    <string name="compassion_section">Self-compassion micro-moments</string>
+    <string name="compassion_explainer">If you write down a few short phrases in your own words — \"may I be kind to myself\" is the template, not the script — one of them is offered in the friction prompt. Your words only; never the launcher\'s. Neff 2003.</string>
+    <string name="compassion_hint">May I be kind to myself</string>
     <string name="small_thing_prompt">Or, one of yours:</string>
     <!--
         Per-app if-then plan (Gollwitzer 1999) — the user's own

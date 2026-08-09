@@ -101,6 +101,23 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { frictionPrefs.removeSmallThing(thing) }
     }
 
+    /**
+     * The user's own self-compassion phrases — see
+     * [org.mindanchor.friction.CompassionMoment]. Their
+     * words only; the launcher never seeds suggestions
+     * (Neff 2003, Linardon 2020 meta).
+     */
+    val compassionMoments = frictionPrefs.compassionMoments
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun addCompassionMoment(phrase: String) {
+        viewModelScope.launch { frictionPrefs.addCompassionMoment(phrase) }
+    }
+
+    fun removeCompassionMoment(phrase: String) {
+        viewModelScope.launch { frictionPrefs.removeCompassionMoment(phrase) }
+    }
+
     /** Somebody looked at the numbers and kept the pause. Start again. */
     fun keepPause(packageName: String) {
         viewModelScope.launch { frictionPrefs.resetTally(packageName) }
