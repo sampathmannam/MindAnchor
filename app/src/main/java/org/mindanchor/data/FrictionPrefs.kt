@@ -406,6 +406,37 @@ class FrictionPrefs(private val context: Context) {
         context.dataStore.edit { it[compassionKey] = SealedCodecs.encodeCompassion(moments) }
     }
 
+    /**
+     * Add a new self-compassion phrase the user has just
+     * typed. Pure list op through
+     * [org.mindanchor.friction.CompassionList.add] so the
+     * storage layer never has to know about MAX / dedup /
+     * trim rules.
+     */
+    suspend fun addCompassionMoment(phrase: String) {
+        context.dataStore.edit {
+            val current = SealedCodecs.decodeCompassion(it[compassionKey].orEmpty())
+            val updated = org.mindanchor.friction.CompassionList.add(current, phrase)
+            if (updated !== current) {
+                it[compassionKey] = SealedCodecs.encodeCompassion(updated)
+            }
+        }
+    }
+
+    /**
+     * Drop the first trim-equal match for [phrase]. No-op
+     * when the phrase is not in the list.
+     */
+    suspend fun removeCompassionMoment(phrase: String) {
+        context.dataStore.edit {
+            val current = SealedCodecs.decodeCompassion(it[compassionKey].orEmpty())
+            val updated = org.mindanchor.friction.CompassionList.remove(current, phrase)
+            if (updated !== current) {
+                it[compassionKey] = SealedCodecs.encodeCompassion(updated)
+            }
+        }
+    }
+
     private val goingLightKey = stringPreferencesKey("going_light_schedule")
 
     /**

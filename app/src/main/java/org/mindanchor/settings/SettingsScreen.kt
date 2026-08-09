@@ -658,6 +658,62 @@ fun SettingsScreen(
                     Text(stringResource(R.string.small_things_add))
                 }
             }
+
+            // --- Self-compassion micro-moments ---
+            //
+            // Neff 2003 Self-Compassion Break: at the moment of
+            // reaching for a doomscroll app, optionally surface
+            // a phrase the user has previously written — their
+            // own words, never the launcher's. Linardon 2020
+            // (J Clin Psychol meta of 27 RCTs, PMID 32586436)
+            // reports small-to-moderate effects on distress.
+            // Same "only their own words" fence as small things;
+            // same shape; same cap (six phrases is enough for
+            // a rotation without any one becoming wallpaper).
+            Text(
+                text = stringResource(R.string.compassion_section),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
+            )
+            Text(
+                text = stringResource(R.string.compassion_explainer),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            val compassionMoments by viewModel.compassionMoments.collectAsState()
+            compassionMoments.forEach { moment ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = moment.phrase,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = { viewModel.removeCompassionMoment(moment.phrase) }) {
+                        Text(stringResource(R.string.small_things_remove))
+                    }
+                }
+            }
+            if (compassionMoments.size < org.mindanchor.friction.CompassionList.MAX) {
+                var draft by remember { mutableStateOf("") }
+                OutlinedTextField(
+                    value = draft,
+                    onValueChange = { draft = it },
+                    singleLine = true,
+                    placeholder = { Text(stringResource(R.string.compassion_hint)) },
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                )
+                TextButton(
+                    onClick = {
+                        viewModel.addCompassionMoment(draft)
+                        draft = ""
+                    },
+                ) {
+                    Text(stringResource(R.string.small_things_add))
+                }
+            }
         }
 
         if (group == SettingsGroup.QUIET) {
