@@ -52,46 +52,43 @@ class NoteActivity : ComponentActivity() {
      * acknowledged the risk; the fix is cheap).
      *
      * v0.20.1 round 5 follow-up: the counter is
-     * seeded at onCreate from the largest existing
-     * id (or currentTimeMillis, whichever is
-     * larger). Without this, a process restart
-     * inside the same millisecond as the last save
-     * would re-initialise the counter to the
-     * current millisecond and the next note would
-     * get a *duplicate* id. The old code claimed
-     * "the new ids are still higher than the old"
-     * but that was wrong: the seed is currentTime
-     * at construction, which is not necessarily
-     * higher than the last id written in a
-     * previous process.
+     * seeded at the first call to [nextId] from the
+     * largest existing id (or currentTimeMillis,
+     * whichever is larger). Without this, a
+     * process restart inside the same millisecond
+     * as the last save would re-initialise the
+     * counter to the current millisecond and the
+     * next note would get a *duplicate* id.
+     *
+     * v0.20.4 emulator-rig find: the previous
+     * design put the seed in an `init {}` block,
+     * which runs at *activity construction* — not
+     * `onCreate` as the KDoc claimed. At that
+     * point `applicationContext` is still null
+     * (the Activity has not been attached to the
+     * application), so `NotesPrefs(this)` →
+     * `preferencesDataStore.data` →
+     * `getApplicationContext()` threw an NPE and
+     * the whole activity crashed on launch. The
+     * fix is `by lazy`, which defers the seed
+     * until the first call to [nextId] from the
+     * UI's onAdd callback, well after `onCreate`
+     * has run and the application context is
+     * available.
      *
      * Seeding from the max existing id is correct:
      * the on-disk notes are the source of truth,
      * and any new id strictly greater than the
      * existing max is unique.
      */
-    private val idCounter: java.util.concurrent.atomic.AtomicLong
-
-    init {
-        // runBlocking here is acceptable: this
-        // is the activity's onCreate, which is
-        // already on the main thread; a single
-        // DataStore read is fast (microseconds
-        // when the file is cached). The
-        // alternative is to defer the seed to
-        // the first call to nextId(), which
-        // would require prefs to be a field
-        // before idCounter, which it cannot be
-        // (Context is the activity's). The
-        // pragmatic choice is runBlocking once
-        // at construction.
-        val prefsForSeed = NotesPrefs(this) // 'this' is the Activity (Context) at init time
+    private val idCounter: java.util.concurrent.atomic.AtomicLong by lazy {
+        val prefs = NotesPrefs(applicationContext)
         val seeded = kotlinx.coroutines.runBlocking {
-            val existing = prefsForSeed.notes.first()
+            val existing = prefs.notes.first()
             val maxExisting = existing.notes.maxOfOrNull { it.id } ?: 0L
             maxOf(System.currentTimeMillis(), maxExisting)
         }
-        idCounter = java.util.concurrent.atomic.AtomicLong(seeded)
+        java.util.concurrent.atomic.AtomicLong(seeded)
     }
 
     private fun nextId(): Long = idCounter.incrementAndGet()

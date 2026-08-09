@@ -399,7 +399,16 @@ class GoingLightVpnService : VpnService() {
                 if (!isRunning) {
                     val started = start()
                     if (!started) {
-                        stopForeground(true)
+                        // stopForeground(boolean) was
+                        // deprecated in API 24. The
+                        // int form takes a flag from
+                        // Service.STOP_FOREGROUND_*
+                        // (REMOVE drops the
+                        // notification, DETACH keeps
+                        // it but exits foreground).
+                        // Both call sites below want
+                        // REMOVE.
+                        stopForeground(STOP_FOREGROUND_REMOVE)
                         stopSelf()
                         return START_NOT_STICKY
                     }
@@ -414,7 +423,7 @@ class GoingLightVpnService : VpnService() {
             }
             ACTION_STOP -> {
                 stop()
-                stopForeground(true)
+                stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 return START_NOT_STICKY
             }

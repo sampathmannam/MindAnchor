@@ -102,6 +102,12 @@ object DeviceOwner {
      * Suspensions are lifted first. Releasing ownership while apps are
      * still suspended would leave them stuck with nothing left on the
      * phone able to free them short of a factory reset.
+     *
+     * `clearDeviceOwnerApp(String)` is deprecated in API 28; the
+     * platform team marked it so because device-owner is now a
+     * privileged-app-only grant, but no `ComponentName` replacement
+     * has been published on the public API surface of API 35. The
+     * deprecation is a signal of intent, not a call site to migrate.
      */
     fun release(context: Context, suspended: Set<String>): Boolean = runCatching {
         clear(context, suspended)
