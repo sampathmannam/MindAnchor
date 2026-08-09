@@ -481,7 +481,7 @@
     <string name="backup_restored">Restored.</string>
     <string name="backup_not_a_backup">That file isn\'t a MindAnchor copy, or it came from a newer version. Nothing was changed.</string>
     <string name="backup_failed">Couldn\'t read or write that file. Nothing was changed.</string>
-    <string name="about_text">MindAnchor is an open-source, research-backed launcher. It has no accounts, no server and no analytics — your data never leaves this phone. It is a wellness tool, not a medical device, and it is no substitute for talking to someone.</string>
+    <string name="about_text">MindAnchor is an open-source, research-backed launcher. It has no accounts, no server and no analytics — by default, your data never leaves this phone. The one opt-in exception is the COROS Training Hub bridge under Settings → Measuring: when you connect it, the launcher fetches HRV and resting heart rate from COROS, over an encrypted connection, with your COROS password held in this phone\'s secure Keystore. The connection is off until you turn it on. It is a wellness tool, not a medical device, and it is no substitute for talking to someone.</string>
 
     <!--
         v0.20.1 round 5 follow-up: Going Light

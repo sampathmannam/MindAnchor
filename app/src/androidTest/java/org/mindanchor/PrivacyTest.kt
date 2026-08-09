@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -53,12 +54,46 @@ class PrivacyTest {
         // and the VpnService cannot reach the network." The
         // second half is enforced by NetworkCallsForbiddenTest.
         //
-        // What this test now asserts: no other networking
-        // permission is declared, so the only way out is via
-        // INTERNET, and INTERNET is gated to the VpnService.
-        assertFalse(
-            "ACCESS_NETWORK_STATE is not needed by an offline app",
-            android.Manifest.permission.ACCESS_NETWORK_STATE in declared,
+        // v0.20.7 (COROS Training Hub bridge, docs/research/20)
+        // adds one new networking permission: ACCESS_NETWORK_STATE.
+        // This is what WorkManager's NetworkType.CONNECTED
+        // constraint reads to defer the periodic sync until the
+        // device is back online. It is the *only* networking
+        // permission the bridge adds; the bridge itself does
+        // not use it (it asks OkHttp to make the request and
+        // OkHttp returns an IOException on no network). The
+        // promise the About screen now carries is "by default
+        // your data never leaves this phone; the COROS bridge
+        // is the one opt-in exception, and it carries this
+        // one extra permission only because WorkManager needs
+        // it to schedule around connectivity."
+        //
+        // What this test asserts: the only networking-related
+        // permissions in the manifest are INTERNET (VpnService)
+        // and ACCESS_NETWORK_STATE (WorkManager scheduling).
+        // A future dependency that drags in, say,
+        // NEARBY_WIFI_DEVICES would fail this test, even if no
+        // other test noticed.
+        val ALLOWED_NETWORKING = setOf(
+            android.Manifest.permission.INTERNET,
+            android.Manifest.permission.ACCESS_NETWORK_STATE,
+        )
+        val NETWORKING = setOf(
+            "android.permission.INTERNET",
+            "android.permission.ACCESS_NETWORK_STATE",
+            "android.permission.ACCESS_WIFI_STATE",
+            "android.permission.CHANGE_WIFI_STATE",
+            "android.permission.CHANGE_NETWORK_STATE",
+            "android.permission.CHANGE_WIFI_MULTICAST_STATE",
+            "android.permission.NEARBY_WIFI_DEVICES",
+        )
+        val unexpected = declared.filter { it in NETWORKING } - ALLOWED_NETWORKING
+        assertTrue(
+            "Unexpected networking-related permission declared: $unexpected. " +
+                "If this is a new opt-in network channel, document it in the " +
+                "About screen and update this test's ALLOWED_NETWORKING set; " +
+                "otherwise reject the dependency.",
+            unexpected.isEmpty(),
         )
         assertFalse(
             "CHANGE_WIFI_STATE is not needed by an offline app",
