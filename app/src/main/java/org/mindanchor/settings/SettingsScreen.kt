@@ -46,6 +46,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -63,6 +64,8 @@ import org.mindanchor.report.Signal
 import org.mindanchor.onboarding.GoalMap
 import org.mindanchor.onboarding.SettingsSection
 import org.mindanchor.vitals.HealthConnectSource
+import org.mindanchor.vitals.coros.CorosConnectionState
+import org.mindanchor.vitals.coros.CorosSyncWorker
 import org.mindanchor.ui.NatureScene
 import java.text.NumberFormat
 import java.time.format.DateTimeFormatter
@@ -362,6 +365,7 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = viewModel(),
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val activityLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { }
@@ -400,6 +404,16 @@ fun SettingsScreen(
     // null shows the index of six destinations; a value opens that
     // group's own screen in its place.
     var group by remember { mutableStateOf<SettingsGroup?>(null) }
+
+    // COROS bridge form state. Held at the screen level so
+    // the input fields survive recomposition while the user
+    // types; the [remember] keys are the fields' identity,
+    // not the connection state, so a re-read after a login
+    // failure does not wipe the half-typed email.
+    var corosEmailDraft by remember { mutableStateOf("") }
+    var corosPasswordDraft by remember { mutableStateOf("") }
+    var corosRegionDraft by remember { mutableStateOf("eu") }
+    var corosLoginInProgress by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -1663,6 +1677,225 @@ fun SettingsScreen(
                 R.string.health_connect_does_not_write,
                 R.string.health_connect_does_not_send,
                 R.string.health_connect_does_not_diagnose,
+            )) {
+                Text(
+                    text = "•  " + stringResource(res),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        if (group == SettingsGroup.MEASURING) {
+            // --- Wearable bridge (COROS, opt-in side-channel) ---
+            //
+            // v0.20.7: the third tier of the wearable story.
+            // Health Connect is the default; the camera PPG is
+            // for HRV when no watch is present; the COROS
+            // bridge is the opt-in escape hatch for the
+            // signals a particular watch does not release to
+            // Health Connect (HRV on a COROS Pacer 3, for
+            // example). The user has to come here and decide.
+            //
+            // The form is deliberately simple — three text
+            // fields, one region selector, two buttons — and
+            // the privacy trade-off is stated plainly above
+            // the form. A trust-me button on a screen that
+            // asks for a third-party password would be the
+            // wrong shape; the user has to see what the
+            // bridge does before they can decide.
+            SectionHeading(R.string.coros_bridge_section, null, goals)
+            Text(
+                text = stringResource(R.string.coros_bridge_explainer),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            val corosState by viewModel.corosState.collectAsState()
+            val corosLastSync by viewModel.corosLastSyncEpochMs.collectAsState()
+            val corosSyncRunning by viewModel.corosSyncRunning.collectAsState()
+            val corosSyncError by viewModel.corosSyncError.collectAsState()
+            LaunchedEffect(permissionEpoch) { viewModel.refreshCorosState() }
+
+            when (val s = corosState) {
+                is CorosConnectionState.Connected -> {
+                    Text(
+                        text = stringResource(
+                            R.string.coros_connected_label,
+                            s.email,
+                            s.region,
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                    val lastSyncText = corosLastSync?.let { ms ->
+                        val instant = java.time.Instant.ofEpochMilli(ms)
+                        val zoned = instant.atZone(java.time.ZoneId.systemDefault())
+                        val formatter = java.time.format.DateTimeFormatter
+                            .ofPattern("yyyy-MM-dd HH:mm")
+                        stringResource(
+                            R.string.coros_last_sync_label,
+                            zoned.format(formatter),
+                        )
+                    } ?: stringResource(R.string.coros_last_sync_never)
+                    Text(
+                        text = lastSyncText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                    corosSyncError?.let { msg ->
+                        Text(
+                            text = stringResource(R.string.coros_sync_failed, msg),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
+                    Row(modifier = Modifier.padding(top = 8.dp)) {
+                        TextButton(
+                            enabled = !corosSyncRunning,
+                            onClick = viewModel::corosSyncNow,
+                        ) {
+                            Text(
+                                stringResource(
+                                    if (corosSyncRunning) R.string.coros_sync_running
+                                    else R.string.coros_sync_now_button,
+                                ),
+                            )
+                        }
+                        TextButton(onClick = viewModel::disconnectCoros) {
+                            Text(stringResource(R.string.coros_disconnect_button))
+                        }
+                    }
+                }
+                CorosConnectionState.AwaitingConsent -> {
+                    Text(
+                        text = stringResource(R.string.coros_login_in_progress),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                }
+                is CorosConnectionState.Failed -> {
+                    Text(
+                        text = stringResource(R.string.coros_login_failed, s.reason),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                }
+                CorosConnectionState.NotConnected -> {
+                    // The form is rendered for both
+                    // NotConnected and Failed — the user
+                    // gets to retry without re-entering the
+                    // email if the first attempt failed.
+                }
+            }
+
+            // The form. Always visible when the bridge is
+            // not currently Connected — the email / password
+            // fields are the affordance the user needs in
+            // both first-time setup and the post-failure
+            // retry path.
+            val showForm = corosState !is CorosConnectionState.Connected
+            if (showForm) {
+                OutlinedTextField(
+                    value = corosEmailDraft,
+                    onValueChange = { corosEmailDraft = it },
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.coros_email_hint)) },
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                )
+                OutlinedTextField(
+                    value = corosPasswordDraft,
+                    onValueChange = { corosPasswordDraft = it },
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.coros_password_hint)) },
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                )
+                Text(
+                    text = stringResource(R.string.coros_region_label),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
+                )
+                listOf(
+                    "us" to R.string.coros_region_us,
+                    "eu" to R.string.coros_region_eu,
+                    "asia" to R.string.coros_region_asia,
+                ).forEach { (regionCode, labelRes) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .selectable(
+                                selected = corosRegionDraft == regionCode,
+                                role = Role.RadioButton,
+                            ) { corosRegionDraft = regionCode }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(
+                            selected = corosRegionDraft == regionCode,
+                            onClick = null,
+                        )
+                        Text(
+                            text = stringResource(labelRes),
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                    }
+                }
+                TextButton(
+                    enabled = !corosLoginInProgress &&
+                        corosEmailDraft.isNotBlank() && corosPasswordDraft.isNotBlank(),
+                    onClick = {
+                        corosLoginInProgress = true
+                        coroutineScope.launch {
+                            runCatching {
+                                viewModel.connectCoros(
+                                    email = corosEmailDraft.trim(),
+                                    password = corosPasswordDraft,
+                                    region = corosRegionDraft,
+                                )
+                            }
+                            // The viewmodel's [connectCoros]
+                            // re-throws on failure; success
+                            // moves the state to Connected and
+                            // the form above vanishes. Clear
+                            // the password draft in either
+                            // case so it does not sit on
+                            // screen if the user closes the
+                            // section and returns.
+                            corosPasswordDraft = ""
+                            corosLoginInProgress = false
+                        }
+                    },
+                ) {
+                    Text(
+                        stringResource(
+                            if (corosLoginInProgress) R.string.coros_login_in_progress
+                            else R.string.coros_connect_button,
+                        ),
+                    )
+                }
+            }
+
+            // The "what this bridge does" block. Same shape
+            // as the Health Connect "what this app does NOT
+            // do" block above: a list of plain English
+            // sentences, the user can read the trade-off
+            // without scrolling back up to the explainer.
+            Text(
+                text = stringResource(R.string.coros_what_this_does_header),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
+            )
+            for (res in listOf(
+                R.string.coros_does_login,
+                R.string.coros_does_sync,
+                R.string.coros_does_merge,
+                R.string.coros_does_not_store,
+                R.string.coros_does_not_logout,
             )) {
                 Text(
                     text = "•  " + stringResource(res),

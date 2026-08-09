@@ -37,6 +37,10 @@ import org.mindanchor.sleep.SleepSummary
 import org.mindanchor.sunset.SunsetController
 import org.mindanchor.vitals.DailyVitals
 import org.mindanchor.vitals.HealthConnectSource
+import org.mindanchor.vitals.coros.CorosAuth
+import org.mindanchor.vitals.coros.CorosConnectionState
+import org.mindanchor.vitals.coros.CorosSyncWorker
+import org.mindanchor.vitals.coros.CorosVitalSource
 import java.time.LocalDate
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
@@ -636,6 +640,144 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 org.mindanchor.vitals.WellnessRepository(app).readingsFor(LocalDate.now())
             }.getOrDefault(emptyList())
             _wellnessReadings.value = readings
+        }
+    }
+
+    // --- COROS Training Hub bridge (opt-in side-channel) ---
+    //
+    // This is the third tier of the launcher's "wearable
+    // story": Health Connect is the default and the wellness
+    // card reads from it, the camera PPG is for HRV when no
+    // watch is present, and the COROS bridge is the
+    // opt-in-only escape hatch for the signals the watch does
+    // not release to Health Connect. The state and the actions
+    // are deliberately separate from the rest of the file —
+    // there is no "always on" / "auto-reconnect" affordance,
+    // the user has to come here and decide.
+    //
+    // The flow shape mirrors the rest of this ViewModel: a
+    // [StateFlow] of a [CorosConnectionState] for the UI, and
+    // suspend functions for the actions. The bridge's worker
+    // is the only thing that calls the COROS API at runtime;
+    // the UI never blocks on a network call (it sets the
+    // state to [CorosConnectionState.AwaitingConsent] and lets
+    // the worker complete in the background).
+
+    private val _corosState = MutableStateFlow<CorosConnectionState>(CorosConnectionState.NotConnected)
+    val corosState: StateFlow<CorosConnectionState> = _corosState.asStateFlow()
+
+    /** The most recent successful sync, in epoch millis. Null when never synced on this device. */
+    val corosLastSyncEpochMs: StateFlow<Long?> =
+        CorosVitalSource(getApplication()).lastSyncEpochMs
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** The latest sync outcome, for the UI's "Last sync: X" line. */
+    private val _corosSyncRunning = MutableStateFlow(false)
+    val corosSyncRunning: StateFlow<Boolean> = _corosSyncRunning.asStateFlow()
+
+    private val _corosSyncError = MutableStateFlow<String?>(null)
+    val corosSyncError: StateFlow<String?> = _corosSyncError.asStateFlow()
+
+    /**
+     * Recomputes the COROS bridge state from the encrypted
+     * credential store. Called when the user navigates back to
+     * the measuring section, when the login completes, and on
+     * any disconnect — same [permissionEpoch] pattern as the
+     * Health Connect status above.
+     */
+    fun refreshCorosState() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val app = getApplication<Application>()
+            val auth = CorosAuth(app)
+            val lastSync = corosLastSyncEpochMs.value
+            _corosState.value = auth.connectionState(lastSync)
+        }
+    }
+
+    /**
+     * Signs in with the supplied credentials, stores them in
+     * EncryptedSharedPreferences, and arms the periodic
+     * worker. Throws on a login failure (the caller surfaces
+     * the message to the user); succeeds silently on a fresh
+     * sign-in so the UI can flip to "Connected" without
+     * showing a green checkmark that would invite the user
+     * to read it as a confirmation.
+     */
+    @Suppress("detekt.TooGenericExceptionCaught")
+    suspend fun connectCoros(
+        email: String,
+        password: String,
+        region: String,
+    ) {
+        val app = getApplication<Application>()
+        val auth = CorosAuth(app)
+        _corosSyncError.value = null
+        _corosState.value = CorosConnectionState.AwaitingConsent
+        try {
+            auth.loginWithCredentials(email = email, password = password, region = region)
+            CorosSyncWorker.ensureScheduled(app)
+            refreshCorosState()
+        } catch (e: Exception) {
+            // The catch is intentionally broad: the
+            // sign-in path can throw a CorosApiException
+            // (network failure, bad credentials) or a
+            // SecurityException (Keystore-backed crypto
+            // unavailable), and the UI surfaces the
+            // message in both cases. A narrow catch
+            // would force the user to retry on a
+            // legitimately unrecoverable error.
+            @Suppress("TooGenericExceptionCaught")
+            val message = e.message
+            _corosState.value = CorosConnectionState.Failed(message ?: "unknown")
+            _corosSyncError.value = message
+            throw e
+        }
+    }
+
+    /**
+     * Cancels the periodic schedule, wipes the encrypted
+     * credential blob, and clears the cached data. The
+     * disconnect path is the only way the bridge can leave
+     * the device — disconnect = wipe, every time.
+     */
+    fun disconnectCoros() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val app = getApplication<Application>()
+            CorosAuth(app).disconnect()
+            CorosVitalSource(app).clear()
+            CorosSyncWorker.cancel(app)
+            _corosState.value = CorosConnectionState.NotConnected
+            _corosSyncError.value = null
+        }
+    }
+
+    /**
+     * Kicks an immediate one-shot sync. The [CorosSyncWorker.syncNow]
+     * uses REPLACE policy so a second "Sync now" while the
+     * first is still running joins the same work, rather than
+     * stacking a second network call.
+     */
+    @Suppress("detekt.TooGenericExceptionCaught")
+    fun corosSyncNow() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val app = getApplication<Application>()
+            _corosSyncRunning.value = true
+            _corosSyncError.value = null
+            try {
+                CorosSyncWorker.syncNow(app)
+            } catch (e: Exception) {
+                // WorkManager.enqueueUniqueWork throws on
+                // a mis-configured worker name; a SecurityException
+                // surfaces when the app lacks the
+                // FOREGROUND_SERVICE permission. The catch
+                // is intentionally broad because both
+                // lead to the same UI message — "sync
+                // failed" with the exception text.
+                @Suppress("TooGenericExceptionCaught")
+                _corosSyncError.value = e.message
+            } finally {
+                _corosSyncRunning.value = false
+            }
         }
     }
 }

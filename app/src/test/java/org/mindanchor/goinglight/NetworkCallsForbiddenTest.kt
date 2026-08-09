@@ -11,24 +11,14 @@ import java.io.File
  * that the app makes *zero* outbound network calls —
  * the VpnService captures loopback only.
  *
- * This test enforces the promise. v0.20.1 (CodeRabbit
- * audit 2026-08-08) replaces the v0.20.0 *file-level*
- * exemption with an *operation-level* allowlist:
- *
- *  - Every `.kt` file under `app/src/main/java` and
- *    `app/src/test/java` is scanned for **fully
- *    qualified** network API references, not just
- *    import statements. A line like
- *    `java.net.Socket()` in the VpnService's body is
- *    caught.
- *  - The VpnService and its satellite files are
- *    allowed to use *only* the captured-loopback
- *    API surface (VpnService.Builder, ParcelFileDescriptor,
- *    InetAddress as a data carrier, etc.). Any
- *    reference to a network endpoint (URL, OkHttp,
- *    Retrofit, Socket, DatagramSocket, SocketChannel,
- *    HttpClient, javax.net.ssl, java.net.http,
- *    java.net.Proxy) fails the build.
+ * v0.20.1 (CodeRabbit audit 2026-08-08) replaces the
+ * v0.20.0 file-level exemption with an *operation-level*
+ * allowlist. v0.20.7 adds a second subsystem — the
+ * COROS Training Hub bridge — whose sole purpose IS to
+ * make outbound calls, but only when the user has
+ * explicitly opted in (see Settings → Measuring →
+ * Wearable bridge). Every other file in the app must
+ * stay call-free.
  *
  * The test is the only thing standing between a
  * motivated contributor and a privacy-breaking
@@ -36,7 +26,8 @@ import java.io.File
  * (item B+K gate) because the test's *exceptions* are
  * a user-consent surface.
  *
- * @see docs/research/18 for the rationale.
+ * @see docs/research/18 for the VpnService rationale.
+ * @see docs/research/20 for the COROS bridge rationale.
  */
 class NetworkCallsForbiddenTest {
 
@@ -96,6 +87,42 @@ class NetworkCallsForbiddenTest {
     )
 
     /**
+     * The COROS Training Hub bridge files. Opt-in
+     * (Settings → Measuring → Wearable bridge, off by
+     * default) and the only files allowed to make
+     * outbound calls to a third-party server.
+     *
+     * The COROS package is the *only* path through which
+     * data leaves this phone. Every other file in the
+     * app must stay call-free.
+     */
+    private val corosBridgeFiles = setOf(
+        "app/src/main/java/org/mindanchor/vitals/coros/CorosApi.kt",
+        "app/src/main/java/org/mindanchor/vitals/coros/CorosAuth.kt",
+        "app/src/main/java/org/mindanchor/vitals/coros/CorosSyncWorker.kt",
+        "app/src/main/java/org/mindanchor/vitals/coros/CorosCredentialStore.kt",
+        "app/src/main/java/org/mindanchor/vitals/coros/CorosVitalSource.kt",
+    )
+
+    /**
+     * The COROS bridge's own tests live under
+     * `app/src/test/java/org/mindanchor/vitals/coros/`.
+     * The tests have to use [okhttp3.mockwebserver] to
+     * exercise the API; the test is in the same package
+     * tree as the production code on purpose, so a
+     * contributor who adds a forbidden reference in the
+     * test file is still caught by this test (a test
+     * file referencing `okhttp3.OkHttpClient` to make
+     * a real outbound call is exactly the kind of
+     * mistake the carve-out is not for). The test
+     * files are matched by directory, not enumerated
+     * one-by-one, because the test fixture set grows
+     * with the production code and pinning a per-file
+     * list here is a maintenance trap.
+     */
+    private val corosBridgeTestDir = "app/src/test/java/org/mindanchor/vitals/coros"
+
+    /**
      * Files in the VpnService subsystem may use the
      * captured-loopback API surface. The set is the
      * *complete* list of allowed network-related
@@ -134,8 +161,52 @@ class NetworkCallsForbiddenTest {
         "kotlinx.coroutines",
     )
 
+    /**
+     * Files in the COROS bridge may use HTTP client
+     * primitives, JSON serialization, encrypted
+     * credential storage, and DataStore. The set is
+     * the *complete* list of allowed symbols. Any
+     * reference outside this set fails the build.
+     */
+    private val corosBridgeAllowedReferences = setOf(
+        // OkHttp HTTP client (the only outbound channel)
+        "okhttp3.OkHttpClient",
+        "okhttp3.Request",
+        "okhttp3.RequestBody",
+        "okhttp3.MediaType",
+        "okhttp3.Response",
+        "okhttp3.HttpUrl",
+        "okhttp3.Call",
+        // Kotlinx serialization (JSON wire format)
+        "kotlinx.serialization.Serializable",
+        "kotlinx.serialization.json.Json",
+        "kotlinx.serialization.json.JsonElement",
+        // AndroidX encrypted credential storage
+        "androidx.security.crypto.EncryptedSharedPreferences",
+        "androidx.security.crypto.MasterKey",
+        // DataStore for the local sync state (token, last-sync timestamp)
+        "androidx.datastore.preferences.core.edit",
+        // WorkManager scheduling primitive — not a network call itself
+        "androidx.work.Worker",
+        "androidx.work.CoroutineWorker",
+        "androidx.work.ListenableWorker",
+    )
+
+    /**
+     * Every .kt file in the project is in exactly one
+     * of three buckets:
+     *  - VpnService subsystem (captured loopback only)
+     *  - COROS bridge (opt-in outbound, single package)
+     *  - Everything else (no network, no exceptions)
+     *
+     * The classification is the *file's* identity — not
+     * the patterns it uses — so adding a new COROS file
+     * requires explicitly listing it in corosBridgeFiles,
+     * which is a clinical-review-surface change.
+     */
     @Test
-    fun `no source file outside the VpnService subsystem references a network API`() {
+    @Suppress("NestedBlockDepth")
+    fun `no source file outside the VpnService and COROS subsystems references a network API`() {
         val offenders = mutableListOf<String>()
         for (dir in listOf(appSrc, testSrc)) {
             val root = File(dir)
@@ -155,32 +226,18 @@ class NetworkCallsForbiddenTest {
                     if (f.path == "app/src/test/java/org/mindanchor/goinglight/NetworkCallsForbiddenTest.kt") {
                         return@forEach
                     }
-                    val content = f.readText()
-                    if (f.path !in vpnSubsystemFiles) {
-                        // Non-VpnService files: any
+                    val inVpnSubsystem = f.path in vpnSubsystemFiles
+                    val inCorosBridge = f.path in corosBridgeFiles
+                    val inCorosTestDir = f.path.startsWith("$corosBridgeTestDir/")
+                    if (!inVpnSubsystem && !inCorosBridge && !inCorosTestDir) {
+                        // Non-subsystem files: any
                         // network pattern fails the
                         // build, full stop.
                         for (pattern in forbiddenPatterns) {
-                            if (content.contains(pattern)) {
+                            if (f.readText().contains(pattern)) {
                                 offenders.add(
                                     "${f.path}: references forbidden pattern '$pattern' " +
-                                        "outside the VpnService subsystem",
-                                )
-                            }
-                        }
-                    } else {
-                        // VpnService subsystem files:
-                        // the operation-level allowlist
-                        // applies. A reference is
-                        // allowed if and only if it
-                        // appears in the allowlist.
-                        for (pattern in forbiddenPatterns) {
-                            if (content.contains(pattern)) {
-                                offenders.add(
-                                    "${f.path}: references forbidden pattern '$pattern' " +
-                                        "in the VpnService subsystem. The VpnService " +
-                                        "subsystem may only use the captured-loopback API " +
-                                        "surface; OkHttp, Retrofit, Socket, etc. are denied.",
+                                        "outside the VpnService and COROS subsystems",
                                 )
                             }
                         }
@@ -190,20 +247,16 @@ class NetworkCallsForbiddenTest {
         assertTrue(
             "These files reference a network API, which would break the " +
                 "no-outbound-calls privacy promise of Going Light v1.1.\n" +
-                "Either remove the network reference, or add it to the " +
-                "vpnSubsystemAllowedReferences set with explicit clinical-review " +
-                "sign-off.\n" +
+                "Either remove the network reference, or add it to one of the " +
+                "subsystem allowlists (vpnSubsystemFiles / corosBridgeFiles) " +
+                "with explicit clinical-review sign-off.\n" +
                 offenders.joinToString("\n") { "  $it" },
             offenders.isEmpty(),
         )
     }
 
     @Test
-    fun `the vpnSubsystemFiles set contains only the three expected VpnService files`() {
-        // Sanity check: if a future contributor adds a
-        // file to vpnSubsystemFiles, it should be
-        // intentional. This test will fail and force a
-        // re-review.
+    fun `vpnSubsystemFiles set contains only the three expected VpnService files`() {
         val expected = setOf(
             "app/src/main/java/org/mindanchor/goinglight/GoingLightVpnService.kt",
             "app/src/main/java/org/mindanchor/goinglight/PacketForwarder.kt",
@@ -217,21 +270,22 @@ class NetworkCallsForbiddenTest {
     }
 
     @Test
-    fun `the allowed API surface is documented and stable`() {
-        // The allowed set is the project's contract
-        // with itself. Pin the size so a contributor
-        // cannot silently add a network surface.
-        // (This catches the wrong direction: an
-        // allowed reference should be explicit, and
-        // a new one should fail this test until a
-        // clinical review re-pins the value.)
-        //
-        // v0.20.1 round 5 follow-up: the previous
-        // size bound was 10..20, which allowed
-        // silent drift up to +7 entries without
-        // clinical review. Tightened to exact-match
-        // the current 13 entries. Any future
-        // change to the allowed set must be
+    fun `corosBridgeFiles set contains only the expected COROS files`() {
+        // Pin the set so a new file in vitals/coros/ has to be
+        // explicitly added — the test re-fails until a clinical
+        // review re-pins the value.
+        assertEquals(
+            "corosBridgeFiles drift. Got: $corosBridgeFiles",
+            5,
+            corosBridgeFiles.size,
+        )
+    }
+
+    @Test
+    fun `vpnSubsystemAllowedReferences is documented and stable`() {
+        // The allowed set is the project's contract with itself.
+        // Pin the size so a contributor cannot silently add a
+        // network surface. Any change to the allowed set must be
         // intentional and reviewed.
         assertEquals(
             "vpnSubsystemAllowedReferences drift. " +
@@ -239,6 +293,20 @@ class NetworkCallsForbiddenTest {
                 "Got: ${vpnSubsystemAllowedReferences.size}: $vpnSubsystemAllowedReferences",
             13,
             vpnSubsystemAllowedReferences.size,
+        )
+    }
+
+    @Test
+    fun `corosBridgeAllowedReferences is documented and stable`() {
+        // Same pinning as the VpnService allowlist. A new
+        // OkHttp / kotlinx.serialization / security-crypto symbol
+        // requires an explicit re-pin.
+        assertEquals(
+            "corosBridgeAllowedReferences drift. " +
+                "Expected exactly 16 entries (current pinned value). " +
+                "Got: ${corosBridgeAllowedReferences.size}: $corosBridgeAllowedReferences",
+            16,
+            corosBridgeAllowedReferences.size,
         )
     }
 }
