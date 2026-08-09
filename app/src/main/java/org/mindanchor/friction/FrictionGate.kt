@@ -714,6 +714,11 @@ private fun IntentionPrompt(
                 .align(Alignment.BottomCenter)
                 .semantics { role = Role.Button },
         ) {
+            // The "never mind" affordance is the
+            // 36%-abandonment door (Grüning 2023
+            // §4). It must be a Role.Button so a
+            // TalkBack user can find and activate
+            // it without sighted cues.
             Text(stringResource(R.string.never_mind), color = sky.textSecondary)
         }
     }

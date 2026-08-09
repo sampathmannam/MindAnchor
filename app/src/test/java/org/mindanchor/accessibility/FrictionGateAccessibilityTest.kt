@@ -144,17 +144,28 @@ class FrictionGateAccessibilityTest {
         // The "never mind" button is the 36%-abandonment
         // door (the KDoc references this). A blind user
         // must be able to find and activate it.
-        val neverMindCount = gate.split("never_mind").size - 1
-        val exitButtonRoleCount = gate.windowed(500, 500).count { window ->
-            window.contains("onNeverMind") && window.contains("role = Role.Button")
-        }
+        //
+        // The test checks that every "onClick = onNeverMind"
+        // site has a `role = Role.Button` modifier
+        // *somewhere in the same TextButton* (within
+        // ~600 chars of the call site). The windowed
+        // approach is fragile to file growth; the
+        // per-call-site check is more durable. The
+        // count of expected never-mind button call
+        // sites is derived from the source by counting
+        // `onClick = onNeverMind,` (with the trailing
+        // comma) — the same expression the test
+        // searches for.
+        val callSites = Regex("""onClick\s*=\s*onNeverMind,""").findAll(gate).count()
+        val withRoleInScope = Regex(
+            """onClick\s*=\s*onNeverMind,[\s\S]{0,600}?role\s*=\s*Role\.Button""",
+        ).findAll(gate).count()
         assertTrue(
-            "The 'never mind' button (the 36%-abandonment door) " +
-                "must have a Role.Button semantic. Found " +
-                "$neverMindCount references to the string but only " +
-                "$exitButtonRoleCount of the surrounding contexts " +
-                "have a Role.Button modifier.",
-            exitButtonRoleCount >= 3,
+            "Every onClick = onNeverMind call site must have a " +
+                "role = Role.Button semantic within ~600 chars. " +
+                "Found $callSites call sites, but only " +
+                "$withRoleInScope have the role.",
+            callSites > 0 && withRoleInScope == callSites,
         )
     }
 }

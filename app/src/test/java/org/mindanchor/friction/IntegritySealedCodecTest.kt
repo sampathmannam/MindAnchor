@@ -44,7 +44,7 @@ class IntegritySealedCodecTest {
      * the identity to keep the assertions focused on
      * the integrity behavior.
      */
-    private val identityCodec = object : IntegritySealedCodec.Codec<String> {
+    private val identityCodec = object : Codec<String> {
         override fun encode(value: String): String = value
         override fun decode(encoded: String): String = encoded
     }
@@ -55,7 +55,7 @@ class IntegritySealedCodecTest {
      * difference is the codecId. A sealed value from
      * "alpha" must be rejected by the "beta" codec.
      */
-    private val identityCodecBeta = object : IntegritySealedCodec.Codec<String> {
+    private val identityCodecBeta = object : Codec<String> {
         override fun encode(value: String): String = value
         override fun decode(encoded: String): String = encoded
     }
@@ -83,6 +83,11 @@ class IntegritySealedCodecTest {
         codecId = codecId,
         keyProvider = { key },
         resetValue = reset,
+        // Use the JVM Base64 in tests so the test
+        // runner does not have to mock the Android
+        // Base64 static. The envelope format is
+        // the same in both (no-wrap, no-padding).
+        base64 = JvmBase64,
     )
 
     private fun newSealedBeta(
@@ -92,6 +97,7 @@ class IntegritySealedCodecTest {
         codecId = "beta",
         keyProvider = { key },
         resetValue = reset,
+        base64 = JvmBase64,
     )
 
     @Test
@@ -116,7 +122,7 @@ class IntegritySealedCodecTest {
         // The inner is identity, so payload is "hello".
         assertEquals("hello", parts[2])
         // The MAC is base64 of a 32-byte HMAC-SHA256 tag.
-        val mac = android.util.Base64.decode(parts[3], android.util.Base64.NO_WRAP)
+        val mac = JvmBase64.decode(parts[3])!!
         assertEquals(32, mac.size)
     }
 
@@ -199,6 +205,7 @@ class IntegritySealedCodecTest {
             codecId = "alpha",
             keyProvider = { keyB },
             resetValue = "RESET",
+            base64 = JvmBase64,
         )
         val encoded = sealedA.encode("hello")
         val decoded = sealedB.decode(encoded)
@@ -267,6 +274,7 @@ class IntegritySealedCodecTest {
             inner = identityCodec,
             codecId = "alpha",
             keyProvider = { key },
+            base64 = JvmBase64,
         )
         assertEquals("", sealed.decode("not-an-envelope"))
         assertEquals("", sealed.decode(""))
@@ -281,7 +289,7 @@ class IntegritySealedCodecTest {
         val encoded = sealed.encode("hello")
         val lastTab = encoded.lastIndexOf('\t')
         val macPart = encoded.substring(lastTab + 1)
-        val mac = android.util.Base64.decode(macPart, android.util.Base64.NO_WRAP)
+        val mac = JvmBase64.decode(macPart)!!
         assertEquals(32, mac.size)
     }
 
@@ -304,13 +312,20 @@ class IntegritySealedCodecTest {
                 callCount++
                 key
             },
+            base64 = JvmBase64,
         )
         val encoded = sealed.encode("hello")
         sealed.decode(encoded)
-        // Two operations (encode + decode), each calls
-        // the provider twice (once for the MAC, once
-        // for the verification).
-        assertEquals(4, callCount)
+        // One call per MAC operation. encode
+        // computes one MAC (for the envelope), decode
+        // computes one MAC (to verify the envelope).
+        // The provider is called once each — total 2.
+        // (The v0.20.1 round-1 test expected 4; that
+        // was a stale count from an earlier
+        // draft where encode re-verified its own
+        // output. The current implementation does
+        // not re-verify on encode.)
+        assertEquals(2, callCount)
     }
 
     @Test
@@ -327,6 +342,7 @@ class IntegritySealedCodecTest {
             inner = identityCodec,
             codecId = "alpha",
             keyProvider = { null },
+            base64 = JvmBase64,
         )
         // encode() must throw — fail-closed.
         try {
@@ -349,6 +365,7 @@ class IntegritySealedCodecTest {
             codecId = "alpha",
             keyProvider = { null },
             resetValue = "RESET",
+            base64 = JvmBase64,
         )
         // First seal a record with a working key, then
         // try to decode with a null key.
@@ -360,6 +377,7 @@ class IntegritySealedCodecTest {
             inner = identityCodec,
             codecId = "alpha",
             keyProvider = { goodKey },
+            base64 = JvmBase64,
         )
         val encoded = good.encode("hello")
         // Now switch the codec to a null-provider and

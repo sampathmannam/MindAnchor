@@ -157,14 +157,30 @@ class ClinicalReviewGateTest {
         // CodeRabbit #2: a PR can remove the tag and
         // change wording in the same diff; the v0.20.0
         // detector only checked HEAD.
+        //
+        // The workflow file references the literal
+        // `git show "$head_sha:$f"` and `git show
+        // "$base_sha:$f"` strings (the variables are
+        // expanded at bash runtime, not Kotlin
+        // compile time). The test asserts the literal
+        // strings are present in the file.
         val content = workflowFile.readText()
+        // The literal `$base_sha:$f` reference in the
+        // git-show command. The single quotes around
+        // the string make `$` literal in the test
+        // source; the workflow file's `git show` lines
+        // carry the same literal characters.
+        val baseShaLiteral = "\$base_sha:\$f"
+        val headShaLiteral = "\$head_sha:\$f"
         assertTrue(
-            "Workflow must check $base_sha in the @wording-reviewed detector",
-            content.contains("\"$base_sha:$f\"") || content.contains("\$base_sha:\$f"),
+            "Workflow must check $base_sha in the @wording-reviewed detector. " +
+                "Looking for literal: '\$base_sha:\$f'",
+            content.contains(baseShaLiteral) || content.contains("\"$base_sha:\$f\""),
         )
         assertTrue(
-            "Workflow must check $head_sha in the @wording-reviewed detector",
-            content.contains("\"$head_sha:$f\"") || content.contains("\$head_sha:\$f"),
+            "Workflow must check $head_sha in the @wording-reviewed detector. " +
+                "Looking for literal: '\$head_sha:\$f'",
+            content.contains(headShaLiteral) || content.contains("\"$head_sha:\$f\""),
         )
     }
 
@@ -179,8 +195,8 @@ class ClinicalReviewGateTest {
         assertTrue(
             "Workflow must use exact label match (iterate labels and compare).",
             // v0.20.1: 'if [ "$label" = "clinical-review-approved" ]'
-            content.contains("[ \"\$label\" = \"clinical-review-approved\" ]") ||
-                content.contains("[ \"$label\" = \"clinical-review-approved\" ]"),
+            // The literal string in the workflow file.
+            content.contains("[ \"\$label\" = \"clinical-review-approved\" ]"),
         )
     }
 

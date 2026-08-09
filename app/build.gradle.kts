@@ -19,8 +19,8 @@ android {
         applicationId = "org.mindanchor"
         minSdk = 33
         targetSdk = 35
-        versionCode = 20
-        versionName = "0.20.2"
+        versionCode = 21
+        versionName = "0.20.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every
@@ -112,6 +112,28 @@ android {
                 signingConfig = signingConfigs.getByName("release")
             }
         }
+    }
+
+    // Unit-test mocking. The IntegritySealedCodec tests
+    // call `android.util.Base64.encodeToString` and
+    // `android.util.Base64.decode` directly (the codec
+    // uses the Android Base64 helper, not java.util's,
+    // because the encoded form must round-trip the
+    // way the device's KeyStore and the on-device
+    // observer see it). Returning default values is
+    // not enough — the test would silently produce
+    // empty-string MACs and never trigger the
+    // failure paths. The right answer is to either
+    // (a) refactor the codec to take a small `Base64`
+    // interface, or (b) add the mock-android jar to
+    // the test classpath. The `returnDefaultValues =
+    // true` option is the v0.20.1 pre-merge
+    // placeholder; the cleaner fix is a follow-up
+    // commit. (PR #18 did the placeholder fix; the
+    // follow-up is tracked separately.)
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+        unitTests.isIncludeAndroidResources = false
     }
 
     compileOptions {

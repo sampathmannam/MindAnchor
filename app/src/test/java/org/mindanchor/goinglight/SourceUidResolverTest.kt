@@ -54,6 +54,21 @@ class SourceUidResolverTest {
 
     @Test
     fun `parses multiple rows`() {
+        // The kernel /proc/net/tcp table can list a
+        // (address, port) pair more than once. The
+        // production resolver uses last-write-wins
+        // (the most recent bind is the answer for a
+        // live packet that just came through), so the
+        // resulting map is `{127.0.0.1:80 -> 1001,
+        // 127.0.0.1:443 -> 1000}` after the file is
+        // parsed. (The test in v0.20.0 originally
+        // asserted first-row-wins; that was a
+        // last-write-wins regression in
+        // round-2's "first-match-wins" attempt —
+        // the live-packet case wants the most
+        // recent bind, which is the last row in
+        // the /proc snapshot. The test is fixed to
+        // match.)
         val path = fixture(
             """  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
                            0: 0100007F:0050 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 12345
@@ -62,13 +77,10 @@ class SourceUidResolverTest {
             """,
         )
         val resolver = SourceUidResolver(tcp4Path = path, tcp6Path = "/nonexistent")
-        // First row: 127.0.0.1:80 -> uid 0
-        assertEquals(0, resolver.resolve(ip4("127.0.0.1"), 80))
-        // Second row: 127.0.0.1:443 -> uid 1000 (system)
-        assertEquals(1000, resolver.resolve(ip4("127.0.0.1"), 443))
-        // Third row: 127.0.0.1:80 -> uid 1001
-        // (later row wins for the same endpoint)
+        // Last-write-wins for the (127.0.0.1, 80) endpoint.
         assertEquals(1001, resolver.resolve(ip4("127.0.0.1"), 80))
+        // Only one row for (127.0.0.1, 443).
+        assertEquals(1000, resolver.resolve(ip4("127.0.0.1"), 443))
     }
 
     @Test

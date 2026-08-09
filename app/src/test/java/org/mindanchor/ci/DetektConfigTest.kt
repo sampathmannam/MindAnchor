@@ -60,11 +60,20 @@ class DetektConfigTest {
     fun `the detekt config excludes vendored code`() {
         // v0.20.1 (CodeRabbit #18): the vendored-source
         // exclusion is now applied at the Gradle level
-        // (build.gradle.kts), not the detekt config. The
+        // (root build.gradle.kts), not the detekt config. The
         // detekt config's `build:` block is not a valid
         // top-level key in detekt 1.23.8 and was emitting
         // a config-validation warning.
-        val gradle = fileAt("build.gradle.kts").readText()
+        //
+        // The detekt configuration lives in the *root*
+        // build.gradle.kts (subprojects { apply(plugin)
+        // "io.gitlab.arturbosch.detekt" }), not in the
+        // app-module build.gradle.kts. The v0.20.1 PR
+        // moved the exclusion list to the root so the
+        // same `detektExcludes` array is shared between
+        // every subproject's Detekt and
+        // DetektCreateBaselineTask.
+        val gradle = fileAt("../build.gradle.kts").readText()
         assertTrue(
             "Vendored code (e.g. llama) must be excluded from detekt in " +
                 "build.gradle.kts. The detekt.yml 'build:' key is not a " +

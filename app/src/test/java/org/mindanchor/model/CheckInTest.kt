@@ -230,7 +230,7 @@ class CheckInTest {
         val now = 7L * 60 * 60 * 1000  // 7am
         val dayStart = now  // Use 7am as the day boundary
         val checkIns = (0 until CheckInRateLimit.DAILY_CAP).map { i ->
-            CheckIn(atMillis = dayStart + (i + 1) * 60 * 60 * 1000)
+            CheckIn(rating = 3, atMillis = dayStart + (i + 1) * 60 * 60 * 1000)
         }
         val state = CheckInState(checkIns)
         // Fresh holder (process restart): acceptedToday=0.
@@ -251,7 +251,7 @@ class CheckInTest {
         val now = 7L * 60 * 60 * 1000
         val dayStart = now
         val checkIns = (0 until 3).map { i ->
-            CheckIn(atMillis = dayStart + (i + 1) * 60 * 60 * 1000)
+            CheckIn(rating = 3, atMillis = dayStart + (i + 1) * 60 * 60 * 1000)
         }
         val state = CheckInState(checkIns)
         val freshHolder = CheckInRateLimit()
@@ -284,13 +284,19 @@ class CheckInTest {
     }
 
     @Test fun `shouldFire allowed on new day after auto-pause yesterday`() {
-        val now = 1000L
+        // The rate-limit was set on a previous
+        // calendar day; today is a new calendar day.
+        // The day rollover must clear the
+        // auto-paused flag so a new day's first
+        // check-in is allowed.
+        val now = System.currentTimeMillis()
         val yesterday = now - 24L * 60 * 60 * 1000
+        val yesterdayDayStart = CheckInEngine.computeDayStart(yesterday)
         val rl = CheckInRateLimit(
             autoPaused = true,
             acceptedToday = 4,
             consecutiveRejections = 3,
-            dayStartMillis = 0L,  // UTC midnight is 0
+            dayStartMillis = yesterdayDayStart,  // yesterday's start, NOT today's
             lastAcceptedMillis = yesterday,
         )
         val state = CheckInState()

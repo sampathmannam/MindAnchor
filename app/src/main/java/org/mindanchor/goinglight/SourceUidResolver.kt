@@ -194,14 +194,23 @@ class SourceUidResolver(
                     val canonical = tcpKeyToCanonical(parts[1], isIpv6) ?: continue
                     // uid is decimal, port is hex
                     val uid = parts[7].toIntOrNull() ?: continue
+                    // Last-write-wins: the kernel
+                    // /proc/net/tcp table can list a
+                    // (address, port) pair more than
+                    // once (e.g. when a port has been
+                    // re-bound across user ids); the
+                    // last entry is the most recent
+                    // bind, which is the answer we
+                    // want for a source-uid check on a
+                    // packet that just came through.
+                    // (The first match would be the
+                    // oldest bind, which is the wrong
+                    // answer for a live packet.)
                     result[canonical] = uid
                 }
             }
             result
         } catch (e: Exception) {
-            // Permission denied, parse error, etc. The
-            // PacketForwarder fail-closes on the
-            // resulting UID_UNRESOLVED.
             emptyMap()
         }
     }

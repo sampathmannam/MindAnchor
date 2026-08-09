@@ -1,6 +1,5 @@
 package org.mindanchor.friction
 
-import android.util.Base64
 import java.security.Key
 import javax.crypto.Mac
 
@@ -83,6 +82,44 @@ interface Codec<T> {
     fun decode(encoded: String): T
 }
 
+/**
+ * The Base64 helper abstraction. The integrity
+ * layer produces a `v1\t<codecId>\t<payload>\t<mac>`
+ * envelope; the MAC bytes are base64-encoded with no
+ * line wrapping and no `=` padding. The default
+ * implementation uses `android.util.Base64`; the JVM
+ * implementation uses `java.util.Base64` and is
+ * used in unit tests so the test runner does not
+ * have to mock the Android Base64 static (which
+ * `returnDefaultValues = true` cannot do for
+ * `ByteArray` returns, leaving the production
+ * envelope unencoded).
+ */
+interface Base64 {
+    fun encode(bytes: ByteArray): String
+    fun decode(encoded: String): ByteArray?
+}
+
+object AndroidBase64 : Base64 {
+    override fun encode(bytes: ByteArray): String =
+        android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+    override fun decode(encoded: String): ByteArray? = try {
+        android.util.Base64.decode(encoded, android.util.Base64.NO_WRAP)
+    } catch (_: IllegalArgumentException) {
+        null
+    }
+}
+
+object JvmBase64 : Base64 {
+    override fun encode(bytes: ByteArray): String =
+        java.util.Base64.getEncoder().withoutPadding().encodeToString(bytes)
+    override fun decode(encoded: String): ByteArray? = try {
+        java.util.Base64.getDecoder().decode(encoded)
+    } catch (_: IllegalArgumentException) {
+        null
+    }
+}
+
 class IntegritySealedCodec(
     /**
      * The underlying plaintext codec. Same encode/decode
@@ -110,7 +147,7 @@ class IntegritySealedCodec(
      * a failed MAC means the payload was tampered, not
      * that the key is bad.
      */
-    private val keyProvider: () -> Key,
+    private val keyProvider: () -> Key?,
     /**
      * The reset value returned when a sealed record is
      * missing, malformed, or fails MAC verification. The
@@ -120,6 +157,18 @@ class IntegritySealedCodec(
      * value.
      */
     private val resetValue: String = "",
+    /**
+     * The Base64 helper. The default is
+     * [AndroidBase64] (the `android.util.Base64`
+     * static methods). Tests inject
+     * [JvmBase64] (java.util.Base64) so the
+     * unit-test runner does not have to mock the
+     * Android Base64 static. The envelope format
+     * (`v1\t<codecId>\t<payload>\t<mac>`) is the
+     * same in both — both encoders produce
+     * no-wrap, no-padding output.
+     */
+    private val base64: Base64 = AndroidBase64,
 ) : Codec<String> {
 
     override fun encode(value: String): String {
@@ -149,7 +198,7 @@ class IntegritySealedCodec(
             // was broken. Throwing is better.
             throw e
         }
-        return "$ENVELOPE\t$codecId\t$payload\t${Base64.encodeToString(mac, Base64.NO_WRAP)}"
+        return "$ENVELOPE\t$codecId\t$payload\t${base64.encode(mac)}"
     }
 
     override fun decode(encoded: String): String {
@@ -187,11 +236,7 @@ class IntegritySealedCodec(
         val macPart = rest.substring(lastTab + 1)
         // The MAC part is base64. If decoding fails or
         // the MAC doesn't verify, return the reset value.
-        val providedMac = try {
-            Base64.decode(macPart, Base64.NO_WRAP)
-        } catch (_: IllegalArgumentException) {
-            return resetValue
-        }
+        val providedMac = base64.decode(macPart) ?: return resetValue
         // The MAC covers the codecId + the payload, so
         // a tampered payload or a tampered codecId both
         // fail the verification.

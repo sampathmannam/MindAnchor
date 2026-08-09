@@ -57,11 +57,30 @@ class LogFileTest {
         log.append(LogFile.Level.INFO, "test", "a\tb\nc\rd", now = 1L)
         val content = log.current.readText()
         val line = content.trim()
-        // The line must not contain tab or newline
-        // (other than the trailing one we just trimmed).
-        assertTrue("Line should not contain raw tab: '$line'", !line.contains('\t'))
-        assertTrue("Line should not contain raw newline: '$line'", !line.contains('\n'))
-        assertTrue("Line should not contain raw CR: '$line'", !line.contains('\r'))
+        // The line IS tab-separated (the format
+        // `timestamp<TAB>level<TAB>tag<TAB>message`),
+        // so the *whole* line can contain tabs. The
+        // assertion is that the *message field*
+        // (the fourth field, after the third tab)
+        // contains no raw control characters.
+        val fields = line.split('\t')
+        assertTrue(
+            "Line should have exactly four fields: '$line'",
+            fields.size == 4,
+        )
+        val message = fields[3]
+        assertTrue(
+            "Message field should not contain raw tab: '$message'",
+            !message.contains('\t'),
+        )
+        assertTrue(
+            "Message field should not contain raw newline: '$message'",
+            !message.contains('\n'),
+        )
+        assertTrue(
+            "Message field should not contain raw CR: '$message'",
+            !message.contains('\r'),
+        )
         // The sanitized message is "a b c d" with spaces
         assertTrue("Line should contain the sanitized message: '$line'",
             line.endsWith("a b c d"))
