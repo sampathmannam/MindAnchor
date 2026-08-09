@@ -116,7 +116,12 @@ class CheckInActivity : ComponentActivity() {
             .toEpochMilli()
         if (rateLimitValue.dayStartMillis == CheckInRateLimit.UNINITIALISED_DAY) {
             rateLimitValue = rateLimitValue.copy(dayStartMillis = dayStart)
-            CheckInRateLimitHolder.state = rateLimitValue
+            // v0.20.1 round 5 follow-up: use the
+            // monitor-based update so a concurrent
+            // trigger callback cannot lose this
+            // write. The previous direct-assignment
+            // pattern (`state = X`) was racy.
+            CheckInRateLimitHolder.update { rateLimitValue }
         }
 
         // Reject-tracking. A "rejection" is a back-
@@ -135,10 +140,18 @@ class CheckInActivity : ComponentActivity() {
         // just a simple back button to reject").
         onBackPressedDispatcher.addCallback(this) {
             if (!saved) {
-                CheckInRateLimitHolder.state = CheckInEngine.recordRejection(
-                    rateLimit = CheckInRateLimitHolder.state,
-                    nowMillis = System.currentTimeMillis(),
-                )
+                // v0.20.1 round 5 follow-up: use the
+                // monitor-based update. The
+                // back-press rejection must be
+                // serialized with the trigger's
+                // shouldFire read-modify-write
+                // and the activity's recordAcceptance.
+                CheckInRateLimitHolder.update { rl ->
+                    CheckInEngine.recordRejection(
+                        rateLimit = rl,
+                        nowMillis = System.currentTimeMillis(),
+                    )
+                }
             }
             finish()
         }
@@ -184,7 +197,14 @@ class CheckInActivity : ComponentActivity() {
                             checkIn = checkIn,
                             nowMillis = now,
                         )
-                        CheckInRateLimitHolder.state = newRl
+                        // v0.20.1 round 5 follow-up: use
+                        // the monitor-based update. The
+                        // previous direct-assignment
+                        // pattern could lose the
+                        // acceptedToday increment to a
+                        // concurrent trigger or
+                        // back-press callback.
+                        CheckInRateLimitHolder.update { newRl }
                         // Both prefs.add and
                         // EmaScheduler.disable run
                         // in an application-scoped

@@ -41,26 +41,97 @@ package org.mindanchor.model
  *
  * The holder is read and written by both
  * [CheckInActivity] (UI thread) and
- * [CheckInTrigger] (IO thread). The `var` is
- * `Volatile`-style — `@Volatile` annotation
- * guarantees the read/write is visible across
- * threads. The state transitions
- * ([CheckInEngine.recordAcceptance] etc.) are
- * pure functions that produce a new [CheckInRateLimit]
- * via `.copy(...)`; the read-modify-write is not
- * atomic, but the engine is *eventually consistent*
- * — a lost update is a missed check-in, not a
- * wrong check-in.
+ * [CheckInTrigger] (IO thread).
+ *
+ * v0.20.1 round 5 follow-up: the read-modify-
+ * write pattern is now wrapped in a `synchronized`
+ * block on the holder. The previous design used
+ * only `@Volatile` and the docstring claimed
+ * "a lost update is a missed check-in, not a wrong
+ * check-in" — that was wrong. `acceptedToday` lost
+ * updates are *not* missed check-ins: they are
+ * *over-prompts*, a user can receive a 5th check-in
+ * on a day that already had 4 (the daily cap is
+ * the only thing enforcing the cap, and the cap
+ * is in `acceptedToday`).
+ *
+ * The fix is a monitor on the holder: every
+ * read-modify-write goes through [update], which
+ * takes the lock, reads the current state, calls
+ * the pure-function engine method, and writes back.
+ * The `synchronized` block is the price of correct
+ * concurrent behaviour on a single JVM object. A
+ * `compareAndSet` loop on an `AtomicReference` would
+ * also work but would require the engine's pure
+ * functions to be re-entrant; the monitor is
+ * simpler and is in the brief's spirit of "no
+ * cleverness."
  */
 object CheckInRateLimitHolder {
     /**
-     * The current rate-limit state. The trigger
-     * reads this to decide whether to fire; the
-     * activity updates it on accept/reject. Volatile
-     * so a write on the IO thread is visible to a
-     * read on the UI thread without needing
-     * explicit synchronisation.
+     * The current rate-limit state. Reads and
+     * writes happen inside [update] so the
+     * read-modify-write is atomic. Direct
+     * access is not part of the public API;
+     * the activity and the trigger must use
+     * [update] for any read-modify-write. The
+     * bare [state] field is provided for
+     * read-only access from the trigger's
+     * "should I fire?" check, which does not
+     * mutate.
+     *
+     * `@Volatile` is kept for the read-side
+     * guarantee: a thread that reads [state]
+     * outside of [update] sees the most recent
+     * write without a happens-before edge. The
+     * write-side discipline is the [update]
+     * function.
      */
     @Volatile
-    var state: CheckInRateLimit = CheckInRateLimit()
+    private var _state: CheckInRateLimit = CheckInRateLimit()
+
+    /**
+     * Read the current state. A pure read; no
+     * side effect. Visible across threads via
+     * `@Volatile`.
+     */
+    val state: CheckInRateLimit
+        get() = _state
+
+    /**
+     * Atomically transform the state. The
+     * `transform` lambda is called while
+     * holding the monitor on this object; the
+     * returned value is the new state. The
+     * lambda is expected to be a pure-function
+     * call to a [CheckInEngine] method
+     * (`recordAcceptance`, `recordRejection`,
+     * `reset`).
+     *
+     * Returns the new state. If the transform
+     * throws, the state is not changed.
+     */
+    fun update(
+        transform: (CheckInRateLimit) -> CheckInRateLimit,
+    ): CheckInRateLimit = synchronized(this) {
+        val next = transform(_state)
+        _state = next
+        next
+    }
+
+    /**
+     * Test-only: reset the holder to a fresh
+     * state. Production code should never need
+     * this; it is here for unit-test isolation.
+     * Marked `@VisibleForTesting` so the lint
+     * passes; the `internal` visibility on the
+     * function prevents accidental production
+     * use.
+     */
+    @androidx.annotation.VisibleForTesting
+    internal fun resetForTesting(
+        newState: CheckInRateLimit = CheckInRateLimit(),
+    ) {
+        synchronized(this) { _state = newState }
+    }
 }

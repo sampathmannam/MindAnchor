@@ -89,24 +89,42 @@ fun NoteScreen(
     onDelete: (id: Long) -> Unit,
     onClose: () -> Unit,
 ) {
-    // v0.20.1 round 5 follow-up: while a save is
-    // in flight (the onAdd callback has fired and
-    // is in the activity's coroutine), the Save
-    // button is disabled. Without this, a fast
-    // double-tap can add the same note twice.
-    // Defense in depth: the activity also guards
-    // by clearing `newNoteDraft` once onAdd has
-    // returned, but Compose state updates are not
-    // synchronous with the next recomposition.
+    // v0.20.1 round 5 follow-up (round 5 audit
+    // fix): the previous comment claimed the
+    // `addInFlight` flag prevents a double-tap.
+    // It does not — the flag is set and reset in
+    // the same synchronous call frame because
+    // `onAdd(...)` returns immediately (the
+    // activity's prefs.add is on a separate
+    // coroutine). The actual double-tap guard
+    // is the synchronous `newNoteDraft = ""`
+    // that runs after the onAdd fires: a second
+    // tap in the same frame sees the draft as
+    // blank, the Save button's `enabled` check
+    // returns false, and Compose does not
+    // dispatch the click. The flag is kept for
+    // future use (a real async guard if the
+    // onAdd becomes suspending) and to make the
+    // intent explicit in the code.
+    //
     // rememberSaveable: the in-flight draft body
     // and the editor body survive a configuration
     // change. The activity is stateNotNeeded in
-    // the manifest, so a rotation kills it; the
-    // draft would otherwise be lost.
+    // the manifest, but rememberSaveable uses the
+    // activity's SavedStateRegistry, which is
+    // independent of stateNotNeeded.
     var addInFlight by remember { mutableStateOf(false) }
     var editingNoteId by rememberSaveable { mutableStateOf<Long?>(null) }
     var editorBody by rememberSaveable { mutableStateOf("") }
     var newNoteDraft by rememberSaveable { mutableStateOf("") }
+    // v0.20.1 round 5 follow-up: the id of the
+    // note whose delete the user just confirmed.
+    // Set when the user taps the × IconButton on a
+    // note row; cleared when the user confirms or
+    // dismisses the dialog. remember (not
+    // rememberSaveable) is correct: a config change
+    // mid-dialog should not auto-confirm a delete.
+    var pendingDeleteId by remember { mutableStateOf<Long?>(null) }
 
     // The composer's focus requester. The
     // "directly" affordance: the user lands on the

@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -130,7 +130,26 @@ fun CheckInHistoryScreen(
                         .fillMaxSize()
                         .padding(horizontal = 16.dp),
                 ) {
-                    items(sorted, key = { it.atMillis }) { checkIn ->
+                    // The key must be unique across the
+                    // list. atMillis is not — two
+                    // accepted check-ins in the same
+                    // millisecond (rare but possible
+                    // across two CheckInActivity
+                    // launches that land on the same
+                    // System.currentTimeMillis()) would
+                    // collide and trigger a
+                    // IllegalArgumentException from
+                    // LazyColumn. The list index, paired
+                    // with the atMillis, is a strong-enough
+                    // key: re-orderings in the source list
+                    // would change the index, but this
+                    // screen is append-only (oldest first,
+                    // never re-sorted), so the (atMillis,
+                    // index) tuple is stable.
+                    itemsIndexed(
+                        sorted,
+                        key = { index, ci -> "${ci.atMillis}-$index" },
+                    ) { _, checkIn ->
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()

@@ -315,7 +315,33 @@ object CheckInEngine {
         // yesterday but it's now a new day.
         val (effectiveToday, _) = rolloverIfNeeded(rateLimit, nowMillis)
         if (effectiveToday.autoPaused) return false
-        if (effectiveToday.acceptedToday >= CheckInRateLimit.DAILY_CAP) return false
+        // v0.20.1 round 5 follow-up: the daily
+        // cap is now enforced from the on-disk
+        // state, not the in-memory
+        // `effectiveToday.acceptedToday`. The
+        // in-memory counter is reset on every
+        // process death; the on-disk state is
+        // not. Without this fix, a process death
+        // on a day with 4 accepted check-ins
+        // would reset the cap and the user
+        // could receive a 5th prompt the same
+        // day (the explicit "no over-prompting"
+        // promise).
+        //
+        // The state is supplied by the caller
+        // (the trigger) via the prefs flow; if
+        // the caller passes an empty
+        // CheckInState (e.g. a unit test that
+        // does not care about the cap), the cap
+        // check is skipped — `max` with 0.
+        val dayStart = computeDayStart(nowMillis)
+        val dayEnd = dayStart + 24L * 60 * 60 * 1000
+        val onDiskToday = state.acceptedInDay(dayStart, dayEnd).size
+        val effectiveTodayCount = maxOf(
+            effectiveToday.acceptedToday,
+            onDiskToday,
+        )
+        if (effectiveTodayCount >= CheckInRateLimit.DAILY_CAP) return false
         if (effectiveToday.lastAcceptedMillis > 0L &&
             nowMillis - effectiveToday.lastAcceptedMillis < CheckInRateLimit.MIN_INTERVAL_MILLIS
         ) {

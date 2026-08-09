@@ -216,6 +216,53 @@ class CheckInTest {
         assertFalse(CheckInEngine.shouldFire(rl, state, now))
     }
 
+    @Test fun `shouldFire blocked at daily cap from disk state even after process restart`() {
+        // v0.20.1 round 5 follow-up: the cap must
+        // survive a process death. The in-memory
+        // `acceptedToday` counter resets to 0 on
+        // every process restart; the on-disk
+        // check-ins do not. Without the
+        // max(acceptedToday, onDiskToday) fix,
+        // a fresh process on a day with 4 accepted
+        // check-ins would re-enable the prompt for
+        // a 5th, in direct violation of the
+        // "no over-prompting" promise.
+        val now = 7L * 60 * 60 * 1000  // 7am
+        val dayStart = now  // Use 7am as the day boundary
+        val checkIns = (0 until CheckInRateLimit.DAILY_CAP).map { i ->
+            CheckIn(atMillis = dayStart + (i + 1) * 60 * 60 * 1000)
+        }
+        val state = CheckInState(checkIns)
+        // Fresh holder (process restart): acceptedToday=0.
+        val freshHolder = CheckInRateLimit()
+        // Disk has 4 check-ins today; should NOT fire.
+        assertFalse(
+            "shouldFire must be blocked when disk has 4 check-ins " +
+                "even if in-memory count is 0",
+            CheckInEngine.shouldFire(freshHolder, state, dayStart + 5 * 60 * 60 * 1000),
+        )
+    }
+
+    @Test fun `shouldFire allowed below daily cap from disk state`() {
+        // v0.20.1 round 5 follow-up: 3 disk
+        // check-ins (under the cap of 4) should
+        // still allow the prompt to fire even
+        // after a process restart.
+        val now = 7L * 60 * 60 * 1000
+        val dayStart = now
+        val checkIns = (0 until 3).map { i ->
+            CheckIn(atMillis = dayStart + (i + 1) * 60 * 60 * 1000)
+        }
+        val state = CheckInState(checkIns)
+        val freshHolder = CheckInRateLimit()
+        assertTrue(
+            "shouldFire must allow prompts when disk has <4 check-ins",
+            CheckInEngine.shouldFire(
+                freshHolder, state, dayStart + 5 * 60 * 60 * 1000,
+            ),
+        )
+    }
+
     @Test fun `shouldFire allowed below daily cap`() {
         val now = 1000L
         val rl = CheckInRateLimit(

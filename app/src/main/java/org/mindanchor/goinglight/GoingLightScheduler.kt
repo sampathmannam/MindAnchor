@@ -39,7 +39,7 @@ class GoingLightScheduler : BroadcastReceiver() {
         val pending = goAsync()
         scope.launch {
             try {
-                val prefs = FrictionPrefs.get(context)
+                val prefs = FrictionPrefs(context)
                 val schedule = prefs.goingLightSchedule.first()
                 val transition = schedule.nextTransition(now) ?: return@launch
                 val transitioningToActive = isTransitioningToActive(now, schedule, transition)
@@ -112,7 +112,7 @@ class GoingLightScheduler : BroadcastReceiver() {
         fun enable(context: Context, schedule: GoingLightSchedule) {
             // Persist the schedule; the BroadcastReceiver
             // reads it from FrictionPrefs when it fires.
-            val prefs = FrictionPrefs.get(context)
+            val prefs = FrictionPrefs(context)
             CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
                 prefs.setGoingLightSchedule(schedule)
             }
@@ -132,10 +132,20 @@ class GoingLightScheduler : BroadcastReceiver() {
         }
 
         fun disable(context: Context) {
-            val prefs = FrictionPrefs.get(context)
+            val prefs = FrictionPrefs(context)
             CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
                 prefs.setGoingLightSchedule(GoingLightSchedule(enabled = false))
             }
+            // Stop the active VPN. The user just disabled
+            // the schedule; an in-flight VpnService must
+            // not keep blocking content until the next
+            // alarm. The ACTION_STOP handler in the service
+            // closes the VPN interface and calls
+            // stopSelf().
+            val stopIntent = Intent(context, GoingLightVpnService::class.java).apply {
+                action = GoingLightVpnService.ACTION_STOP
+            }
+            context.startService(stopIntent)
             val alarmIntent = Intent(context, GoingLightScheduler::class.java)
             val pi = PendingIntent.getBroadcast(
                 context, 0, alarmIntent,

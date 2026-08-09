@@ -109,15 +109,24 @@ fun CheckInScreen(
     // v0.20.1 round 5 follow-up: rememberSaveable
     // so the rating + reflection survive a
     // configuration change. The activity is
-    // stateNotNeeded in the manifest, so a
-    // rotation kills the activity and recreates
-    // it; remember (the default) starts fresh.
-    // The reflection can be a long free-text
-    // entry; losing it on rotation is a real
-    // UX bug. rememberSaveable persists the
-    // value across config changes (and the
-    // activity's onSaveInstanceState / Bundle
-    // restoration handles the rest).
+    // stateNotNeeded in the manifest, but that
+    // attribute only affects the system Bundle
+    // (onSaveInstanceState); rememberSaveable
+    // uses the activity's SavedStateRegistry,
+    // which is a separate channel and is
+    // independent of stateNotNeeded. The
+    // reflection can be a long free-text entry;
+    // losing it on rotation is a real UX bug.
+    // v0.20.1 round 5 follow-up 2: the
+    // configChanges in the manifest now
+    // includes uiMode, density, fontScale,
+    // locale, smallestScreenSize,
+    // layoutDirection — the most common
+    // recreation triggers. With those
+    // configChanges set, the activity is NOT
+    // recreated for those changes, and the
+    // rememberSaveable values survive
+    // in-memory without a Bundle round-trip.
     var rating by rememberSaveable { mutableStateOf<Int?>(null) }
     var reflection by rememberSaveable { mutableStateOf("") }
 
