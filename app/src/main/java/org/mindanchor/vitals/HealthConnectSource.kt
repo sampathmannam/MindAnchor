@@ -5,6 +5,7 @@ package org.mindanchor.vitals
 import android.content.Context
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.HealthConnectFeatures
 import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.feature.ExperimentalMindfulnessSessionApi
 import androidx.health.connect.client.permission.HealthPermission
@@ -78,6 +79,48 @@ object HealthConnectSource {
         HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
         HealthPermission.getReadPermission(MindfulnessSessionRecord::class),
     )
+
+    /**
+     * The subset of [PERMISSIONS] the current provider can actually
+     * supply. Always at least the seven types that do not depend on
+     * a feature flag; the eighth — [MindfulnessSessionRecord] — is
+     * included only when [HealthConnectFeatures.FEATURE_MINDFULNESS_SESSION]
+     * is reported as [HealthConnectFeatures.FEATURE_STATUS_AVAILABLE].
+     *
+     * Returned by [effectivePermissions] and used by the Settings
+     * panel's "change what is shared" flow. A provider that lacks the
+     * feature should not see the permission in the system dialog,
+     * and the wellness surface should not read a record type the
+     * provider cannot return.
+     */
+    fun effectivePermissions(context: Context): Set<String> {
+        val base = PERMISSIONS - HealthPermission.getReadPermission(MindfulnessSessionRecord::class)
+        if (!isAvailable(context)) return base
+        val hcClient = runCatching { client(context) }.getOrNull() ?: return base
+        val features = runCatching { hcClient.features }.getOrNull() ?: return base
+        val status = runCatching { features.getFeatureStatus(HealthConnectFeatures.FEATURE_MINDFULNESS_SESSION) }
+            .getOrDefault(HealthConnectFeatures.FEATURE_STATUS_UNAVAILABLE)
+        return if (status == HealthConnectFeatures.FEATURE_STATUS_AVAILABLE) {
+            PERMISSIONS
+        } else {
+            base
+        }
+    }
+
+    /**
+     * True when the current Health Connect provider advertises
+     * support for [MindfulnessSessionRecord]. False on a missing
+     * provider, a mid-update provider, a 1.1.0 provider that has
+     * not turned the feature on, or any read failure. Used by the
+     * wellness surface to skip the mindfulness read path on
+     * devices that cannot supply it.
+     */
+    fun isMindfulnessSupported(context: Context): Boolean = runCatching {
+        val hcClient = client(context) ?: return@runCatching false
+        val features = hcClient.features
+        features.getFeatureStatus(HealthConnectFeatures.FEATURE_MINDFULNESS_SESSION) ==
+            HealthConnectFeatures.FEATURE_STATUS_AVAILABLE
+    }.getOrDefault(false)
 
     /**
      * Whether Health Connect is installed and usable on this device.
@@ -184,8 +227,17 @@ object HealthConnectSource {
         val exerciseSessions = readIntervals<ExerciseSessionRecord>(hcClient, range) {
             it.startTime.toEpochMilli() to it.endTime.toEpochMilli()
         }
-        val mindfulnessSessions = readIntervals<MindfulnessSessionRecord>(hcClient, range) {
-            it.startTime.toEpochMilli() to it.endTime.toEpochMilli()
+        // Mindfulness is gated on a per-provider feature flag in
+        // Health Connect 1.1.0 — older 1.1.0 providers do not advertise
+        // it. Reading the record on an unsupported provider raises an
+        // exception the outer [runCatching] would swallow, but a
+        // defensive skip keeps the call out of the provider entirely.
+        val mindfulnessSessions = if (isMindfulnessSupported(context)) {
+            readIntervals<MindfulnessSessionRecord>(hcClient, range) {
+                it.startTime.toEpochMilli() to it.endTime.toEpochMilli()
+            }
+        } else {
+            emptyList()
         }
 
         DailyVitals(

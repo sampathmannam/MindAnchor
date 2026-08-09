@@ -581,7 +581,7 @@
         their own median.
     -->
     <string name="wellness_section">Wellness signals</string>
-    <string name="wellness_subtitle">Today against your own last 30 days. No population thresholds, no diagnosis.</string>
+    <string name="wellness_subtitle">Today against your own history. No population thresholds, no diagnosis.</string>
     <string name="wellness_signal_hrv">HRV</string>
     <string name="wellness_signal_resting_hr">Resting heart rate</string>
     <string name="wellness_signal_steps">Steps</string>
@@ -596,10 +596,12 @@
     <string name="wellness_baseline_building">still building a picture</string>
     <string name="wellness_no_value_today">—</string>
     <string name="wellness_settings_title">Wellness signals</string>
-    <string name="wellness_settings_explainer">Your own last 30 days for each signal, shown in the same units your watch or ring writes. None of this is sent off the phone. None of it is compared to anyone else. The launcher never applies a population threshold to a person.</string>
+    <string name="wellness_settings_explainer">Your own history for each signal, shown in the same units your watch or ring writes. None of this is sent off the phone. None of it is compared to anyone else. The launcher never applies a population threshold to a person.</string>
     <string name="wellness_settings_baseline_building">Still building a picture. Each signal needs 14 days of your own data before the baseline is honest enough to show. The home card and this section appear once it is.</string>
+    <string name="wellness_settings_loading">Reading from your watch…</string>
     <string name="wellness_settings_no_data">No signal data has been read yet today. Open the Wearable section above to connect your watch, then come back.</string>
-    <string name="wellness_settings_signal_header">%1$s — last 30 days</string>
+    <string name="wellness_settings_line">%1$s: %2$s</string>
+    <string name="wellness_settings_signal_header">%1$s</string>
     <string name="wellness_settings_band_at">%1$s — at your usual</string>
     <string name="wellness_settings_band_above">%1$s — above your usual</string>
     <string name="wellness_settings_band_much_above">%1$s — much above your usual</string>

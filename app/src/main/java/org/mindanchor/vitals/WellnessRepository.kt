@@ -64,26 +64,42 @@ class WellnessRepository(private val context: Context) {
             .getOrDefault(emptyList())
             .filter { it.day == day.toString() }
             .associate { it.key to it.value }
-        return WellnessSignal.ORDERED.map { signal ->
+
+        // Read every signal's history once, then derive each baseline
+        // from the in-memory snapshot. The previous per-signal
+        // historyFor was N reads of the same file; one read is
+        // enough because the file is small (a 180-day × 5-signal
+        // ledger is well under 100 KB) and the read is the
+        // expensive side.
+        val historyBySignal: Map<WellnessSignal, List<Double>> = runCatching {
+            val all = history.all()
+            WellnessSignal.ORDERED.associateWith { signal ->
+                all.filter { it.signal == signal && it.day < day }
+                    .map { it.value }
+            }
+        }.getOrDefault(emptyMap())
+
+        // Reduce every signal in memory, collect the non-null
+        // today's values for the batched write, and write them all
+        // in a single DataStore.edit at the end. This is the one
+        // place today's value is persisted; doing it once per
+        // refresh, atomically, is what lets the launcher handle
+        // overlapping refreshes without losing a signal.
+        val readings = WellnessSignal.ORDERED.map { signal ->
             val wearable = valueFor(signal, vitals)
             val measuredHere = measuredFor(signal, measured)
             val today = measuredHere ?: wearable
-            // Persist today's value to history *before* computing
-            // the baseline. The baseline is over days strictly
-            // before today, so persisting today does not contaminate
-            // it — but doing the persist first also means a crash
-            // between read and persist does not lose the day's
-            // value the next time around (the next refresh would
-            // see it, compute on the right history, and arrive at
-            // the same answer).
-            today?.let { runCatching { history.record(day, signal, it) } }
-            val historyValues = runCatching { history.historyFor(signal) }
-                .getOrDefault(emptyList())
-                .filter { it.day < day }
-                .map { it.value }
+            val historyValues = historyBySignal[signal].orEmpty()
             val baseline = WellnessStats.baseline(signal, historyValues)
             WellnessStats.reading(signal, today, baseline)
         }
+        val todaysValues = readings.mapNotNull { reading ->
+            reading.today?.let { reading.signal to it }
+        }.toMap()
+        if (todaysValues.isNotEmpty()) {
+            runCatching { history.recordAll(day, todaysValues) }
+        }
+        return readings
     }
 
     /**

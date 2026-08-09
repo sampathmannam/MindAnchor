@@ -599,8 +599,21 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _wellnessReadings = MutableStateFlow<List<org.mindanchor.vitals.WellnessReading>?>(null)
     val wellnessReadings: StateFlow<List<org.mindanchor.vitals.WellnessReading>?> = _wellnessReadings.asStateFlow()
 
+    /**
+     * The in-flight wellness refresh, if any. Held so a fresh
+     * [refreshWellness] call (e.g. when the settings screen returns
+     * to the foreground, or a Health Connect permission grant
+     * lands) cancels the previous run before starting the new one:
+     * the readings pipeline reads and writes the wellness DataStore
+     * on every call, and the launcher would otherwise run two
+     * `readingsFor` operations in parallel and pick the one that
+     * finished last, regardless of which one started last.
+     */
+    private var wellnessJob: kotlinx.coroutines.Job? = null
+
     fun refreshWellness() {
-        viewModelScope.launch(Dispatchers.IO) {
+        wellnessJob?.cancel()
+        wellnessJob = viewModelScope.launch(Dispatchers.IO) {
             val app = getApplication<Application>()
             val readings = runCatching {
                 org.mindanchor.vitals.WellnessRepository(app).readingsFor(LocalDate.now())

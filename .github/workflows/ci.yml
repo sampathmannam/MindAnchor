@@ -22,6 +22,21 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      # v0.20.4: Health Connect 1.1.0 stable requires the
+      # Android 36 platform and build-tools 36.0.0. The
+      # `android-actions/setup-android@v2` action's
+      # `api-level: 36` line is enough; `build-tools-version`
+      # is the same major as the platform (36.0.0). Without
+      # this step, the runner image only has platforms up to
+      # android-35 and `./gradlew build` fails at
+      # `:app:checkDebugAarMetadata` with "Dependency requires
+      # libraries to compile against version 36 or later".
+      - name: Set up Android SDK (platform-36, build-tools-36.0.0)
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: 36
+          build-tools-version: 36.0.0
+
       # docs/CLINICIAN_PACK.md is the wording a clinician is asked to read,
       # generated from strings.xml. It says "regenerate after wording
       # changes" and nothing enforced it, so it drifted: it was quoting

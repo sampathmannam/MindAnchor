@@ -64,7 +64,10 @@ import org.mindanchor.onboarding.GoalMap
 import org.mindanchor.onboarding.SettingsSection
 import org.mindanchor.vitals.HealthConnectSource
 import org.mindanchor.ui.NatureScene
+import java.text.NumberFormat
 import java.time.format.DateTimeFormatter
+import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 
 /**
  * A section title, marked when the person named a reason for it.
@@ -157,12 +160,17 @@ private fun WellnessSignalRow(reading: org.mindanchor.vitals.WellnessReading) {
     )
     val medianLine = reading.baseline.median?.let { median ->
         stringResource(
-            R.string.wellness_settings_baseline_label,
-        ) + ": " + formatWellnessSettingsValue(reading.signal, median)
+            R.string.wellness_settings_line,
+            stringResource(R.string.wellness_settings_baseline_label),
+            formatWellnessSettingsValue(reading.signal, median),
+        )
     } ?: stringResource(R.string.wellness_baseline_building)
     val madLine = reading.baseline.mad?.let { mad ->
-        stringResource(R.string.wellness_settings_mad_label) +
-            ": " + formatWellnessSettingsValue(reading.signal, mad)
+        stringResource(
+            R.string.wellness_settings_line,
+            stringResource(R.string.wellness_settings_mad_label),
+            formatWellnessSettingsValue(reading.signal, mad),
+        )
     } ?: ""
     val zLine = reading.zScore?.let { z ->
         stringResource(R.string.wellness_settings_z_score, z)
@@ -216,15 +224,30 @@ private fun wellnessSettingsBandRes(
     org.mindanchor.vitals.WellnessDirection.BELOW -> R.string.wellness_settings_band_below
 }
 
+/**
+ * Render a [WellnessSignal] value for the settings panel.
+ *
+ * Routes the user-visible unit text through the existing
+ * [value_milliseconds] / [value_bpm] / [value_minutes] resources so a
+ * translator can reword "min" to "minutes" (or reorder words for
+ * a RTL locale) without touching the launcher. Step count uses
+ * [NumberFormat.getIntegerInstance] so the locale's thousands
+ * separator is honoured — `%,d` was hard-coding en-US.
+ */
+@Composable
 private fun formatWellnessSettingsValue(
     signal: org.mindanchor.vitals.WellnessSignal,
     value: Double,
 ): String = when (signal) {
-    org.mindanchor.vitals.WellnessSignal.HRV -> "%.0f ms".format(value)
-    org.mindanchor.vitals.WellnessSignal.RESTING_HEART_RATE -> "%.0f bpm".format(value)
-    org.mindanchor.vitals.WellnessSignal.STEPS -> "%,d".format(value.toLong())
-    org.mindanchor.vitals.WellnessSignal.SLEEP_MINUTES -> "${value.toInt()} min"
-    org.mindanchor.vitals.WellnessSignal.MINDFULNESS_MINUTES -> "${value.toInt()} min"
+    org.mindanchor.vitals.WellnessSignal.HRV ->
+        stringResource(R.string.value_milliseconds, value.roundToInt())
+    org.mindanchor.vitals.WellnessSignal.RESTING_HEART_RATE ->
+        stringResource(R.string.value_bpm, value.roundToInt())
+    org.mindanchor.vitals.WellnessSignal.STEPS ->
+        NumberFormat.getIntegerInstance().format(value.roundToLong())
+    org.mindanchor.vitals.WellnessSignal.SLEEP_MINUTES,
+    org.mindanchor.vitals.WellnessSignal.MINDFULNESS_MINUTES ->
+        stringResource(R.string.value_minutes, value.toInt())
 }
 
 private fun signalLabelRes(signal: Signal): Int = when (signal) {
@@ -1395,12 +1418,18 @@ fun SettingsScreen(
             LaunchedEffect(permissionEpoch) { viewModel.refreshWellness() }
             val wellness = wellnessReadings
             if (wellness == null) {
-                // Still loading on first composition.
-                // A skeleton would be a small lie here —
-                // the load is sub-second and a quiet
-                // placeholder is the honest reading.
+                // Still loading on first composition. The
+                // loading message is a different string from
+                // the no-data one below because the two are
+                // different states — "Reading from your watch…"
+                // is honest when the launcher is mid-read;
+                // "no data has been read yet" is honest when
+                // the read has run and returned empty. A
+                // skeleton would be a small lie here — the
+                // load is sub-second and a quiet placeholder
+                // is the honest reading.
                 Text(
-                    text = stringResource(R.string.wellness_settings_no_data),
+                    text = stringResource(R.string.wellness_settings_loading),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 12.dp),
@@ -1485,7 +1514,14 @@ fun SettingsScreen(
             // contract lives as long as the measuring section is on
             // screen; the contract is stable across recompositions
             // because of the rememberLauncherForActivityResult call.
-            val permissionLauncher = rememberLauncherForActivityResult(
+            // Renamed to [healthConnectPermissionLauncher] to avoid
+            // shadowing the outer [permissionLauncher] declared for
+            // the notification-batching POST_NOTIFICATIONS request
+            // (line ~345) — the two contracts are different shapes,
+            // but a same-named local would silently bind to the
+            // wrong one the next time a maintainer added a button
+            // in this block.
+            val healthConnectPermissionLauncher = rememberLauncherForActivityResult(
                 contract = HealthConnectSource.requestPermissionsContract(),
             ) { _ ->
                 // Whether the user granted, denied, or partially
@@ -1514,7 +1550,11 @@ fun SettingsScreen(
                     else -> R.string.health_connect_button_connect
                 }
                 TextButton(
-                    onClick = { permissionLauncher.launch(HealthConnectSource.PERMISSIONS) },
+                    onClick = {
+                        healthConnectPermissionLauncher.launch(
+                            HealthConnectSource.effectivePermissions(context),
+                        )
+                    },
                 ) {
                     Text(stringResource(buttonLabelRes))
                 }
@@ -1522,25 +1562,33 @@ fun SettingsScreen(
 
             // "What this app reads" — a list that maps each granted
             // permission to a one-line description in plain English.
-            // The list is derived from PERMISSIONS so it cannot drift
-            // from the actual grant set.
+            // Iterated from [HealthConnectSource.permissionLabelsInOrder]
+            // — keyed on the same set the system dialog was opened
+            // against — so a future permission added to the source
+            // surfaces here without a parallel edit in this file.
+            // Each label-key falls back to the raw permission name
+            // when no string resource is configured for it, which
+            // makes a misnamed permission crash-resistant instead of
+            // silently absent.
+            val labelKeyToRes: Map<String, Int> = mapOf(
+                "heart_rate" to R.string.health_connect_reads_heart_rate,
+                "resting_heart_rate" to R.string.health_connect_reads_resting_heart_rate,
+                "heart_rate_variability" to R.string.health_connect_reads_heart_rate_variability,
+                "sleep" to R.string.health_connect_reads_sleep,
+                "steps" to R.string.health_connect_reads_steps,
+                "exercise" to R.string.health_connect_reads_exercise,
+                "calories" to R.string.health_connect_reads_calories,
+                "mindfulness" to R.string.health_connect_reads_mindfulness,
+            )
             Text(
                 text = stringResource(R.string.health_connect_what_reads_header),
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
             )
-            for (res in listOf(
-                R.string.health_connect_reads_heart_rate,
-                R.string.health_connect_reads_resting_heart_rate,
-                R.string.health_connect_reads_heart_rate_variability,
-                R.string.health_connect_reads_sleep,
-                R.string.health_connect_reads_steps,
-                R.string.health_connect_reads_exercise,
-                R.string.health_connect_reads_calories,
-                R.string.health_connect_reads_mindfulness,
-            )) {
+            HealthConnectSource.permissionLabelsInOrder().forEach { (labelKey, _) ->
+                val text = labelKeyToRes[labelKey]?.let { stringResource(it) } ?: labelKey
                 Text(
-                    text = "•  " + stringResource(res),
+                    text = "•  " + text,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

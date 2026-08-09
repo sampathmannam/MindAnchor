@@ -169,6 +169,37 @@ class WellnessHistoryStore(private val context: Context) {
         }
     }
 
+    /**
+     * Batched counterpart to [record]. Persists every (signal, value)
+     * pair for [day] in a single [DataStore.edit] transaction, which
+     * is the one the launcher actually wants: a 5-signal refresh
+     * previously ran five sequential edits (and five full
+     * re-encodings of the on-disk payload), and the second write
+     * could finish before the first when refreshes overlap, leaving
+     * the file in a state that reflected only some of the signals.
+     * A single transaction removes the race and the redundant work.
+     *
+     * An empty [values] is a no-op — a refresh that read nothing
+     * from Health Connect still goes through the storage path
+     * without writing a zero-record row.
+     */
+    suspend fun recordAll(day: LocalDate, values: Map<WellnessSignal, Double>) {
+        if (values.isEmpty()) return
+        runCatching {
+            context.wellnessDataStore.edit { prefs ->
+                var current = WellnessLedger.decode(prefs[entriesKey].orEmpty())
+                for ((signal, value) in values) {
+                    current = WellnessLedger.upsert(
+                        current,
+                        WellnessLedger.Entry(signal = signal, day = day, value = value),
+                    )
+                }
+                val pruned = WellnessLedger.prune(current, day.minusDays(KEEP_DAYS.toLong()))
+                prefs[entriesKey] = WellnessLedger.encode(pruned)
+            }
+        }
+    }
+
     companion object {
         /**
          * Comfortably past the wellness surface's baseline window

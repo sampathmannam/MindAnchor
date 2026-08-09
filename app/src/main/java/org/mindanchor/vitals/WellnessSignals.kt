@@ -124,9 +124,11 @@ data class PersonalBaseline(
 
     /**
      * Whether this baseline is reportable. False when the day count
-     * is below [WellnessSignal.MIN_HISTORY_DAYS], or when the
-     * distribution was degenerate enough that the median equals the
-     * MAD and the z-score would divide by zero.
+     * is below [WellnessSignal.MIN_HISTORY_DAYS], or when the median
+     * or the MAD could not be computed at all. A zero MAD is still
+     * reportable here — a perfectly-repeated week is a real result,
+     * not a missing one; the refusal lives in [robustZ] instead, which
+     * returns null when the MAD is zero rather than divide by it.
      */
     val isReportable: Boolean
         get() = median != null && mad != null && sampleCount >= WellnessSignal.MIN_HISTORY_DAYS
@@ -206,28 +208,35 @@ data class WellnessReading(
  * "good").
  *
  * Bands chosen against the per-person distribution, not a
- * population normal: the band cut-offs are MAD-multiples, which
- * makes "much above" the same fraction of a person's own range
- * whether their range is narrow or wide.
+ * population normal: the band cut-offs are in robust z-score
+ * units — which, because [PersonalBaseline.robustZ] scales the
+ * MAD by 0.6745, work out to roughly +/- 1.48 raw MADs and
+ * +/- 2.96 raw MADs at the cut-offs. The MAD-scaling lives in
+ * [PersonalBaseline.ROBUST_Z_NORMALISER] so a value of +1.0
+ * here reads as "one robust z-score above the median" rather
+ * than "one raw MAD", which is the wording the Iglewicz and
+ * Hoaglin "mild / moderate / extreme" outlier cut-offs use
+ * (How to Detect and Handle Outliers, ASQC Basic References
+ * in Quality Control: Statistical Techniques, 1993).
  */
 enum class WellnessDirection {
     /** No reading today, or baseline not yet reportable. */
     NO_DATA,
-    /** Below the personal median. */
+    /** Below the personal median (z < -1). */
     BELOW,
-    /** Within +/- 1 MAD of the personal median. */
+    /** Within +/- 1 robust z-score of the personal median. */
     AT,
-    /** Between 1 and 2 MADs above the personal median. */
+    /** Between +1 and +2 robust z-score above the personal median. */
     ABOVE,
-    /** More than 2 MADs above the personal median. */
+    /** More than +2 robust z-score above the personal median. */
     MUCH_ABOVE,
     ;
 
     companion object {
 
         /**
-         * The MAD-multiples for each band. -1, +1, +2 are the Iglewicz
-         * and Hoaglin "mild / moderate / extreme" outlier cut-offs,
+         * The robust z-score cut-offs. -1, +1, +2 are the Iglewicz
+         * and Hoaglin "mild / moderate / extreme" outlier bands,
          * adapted here as one-sided above-the-median bands and
          * mirrored below. The asymmetry (a single BELOW band, three
          * ABOVE bands) is deliberate: for the signals the launcher
