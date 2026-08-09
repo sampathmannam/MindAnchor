@@ -19,7 +19,7 @@ import org.mindanchor.friction.IfThenPlan
 import org.mindanchor.friction.IfThenPlanStore
 import org.mindanchor.friction.OpenLoop
 import org.mindanchor.friction.PerAppSessionLength
-import org.mindanchor.friction.PerAppSessionLengthStore
+import org.mindanchor.friction.SealedCodecs
 import org.mindanchor.friction.SmallThings
 import org.mindanchor.sleep.BedtimeList
 import java.time.DayOfWeek
@@ -107,21 +107,27 @@ class FrictionPrefs(private val context: Context) {
      * The small things the person said help them — see
      * [org.mindanchor.friction.SmallThings]. Their words only; nothing
      * here is ever seeded with suggestions.
+     *
+     * Persisted through [SealedCodecs.encodeSmallThings] /
+     * [SealedCodecs.decodeSmallThings] so the data carries
+     * an HMAC-SHA256 tag (Keystore-backed key). A v0.20.0
+     * plaintext form on disk is rejected on read; the
+     * first write seals the data.
      */
     val smallThings: Flow<List<String>> =
-        context.dataStore.data.map { SmallThings.decode(it[smallThingsKey].orEmpty()) }
+        context.dataStore.data.map { SealedCodecs.decodeSmallThings(it[smallThingsKey].orEmpty()) }
 
     suspend fun addSmallThing(thing: String) {
         context.dataStore.edit {
-            it[smallThingsKey] =
-                SmallThings.encode(SmallThings.add(SmallThings.decode(it[smallThingsKey].orEmpty()), thing))
+            val current = SealedCodecs.decodeSmallThings(it[smallThingsKey].orEmpty())
+            it[smallThingsKey] = SealedCodecs.encodeSmallThings(SmallThings.add(current, thing))
         }
     }
 
     suspend fun removeSmallThing(thing: String) {
         context.dataStore.edit {
-            it[smallThingsKey] =
-                SmallThings.encode(SmallThings.remove(SmallThings.decode(it[smallThingsKey].orEmpty()), thing))
+            val current = SealedCodecs.decodeSmallThings(it[smallThingsKey].orEmpty())
+            it[smallThingsKey] = SealedCodecs.encodeSmallThings(SmallThings.remove(current, thing))
         }
     }
 
@@ -167,9 +173,12 @@ class FrictionPrefs(private val context: Context) {
      * one** (Scullin 2018 — see docs/research/15 §2). A list from a
      * previous night is handed back in the morning and then cleared
      * the next time the prompt fires.
+     *
+     * Persisted through [SealedCodecs.encodeBedtimeList] /
+     * [SealedCodecs.decodeBedtimeList] (HMAC-SHA256 tag).
      */
     val bedtimeList: Flow<List<String>> =
-        context.dataStore.data.map { BedtimeList.decode(it[bedtimeItemsKey].orEmpty()) }
+        context.dataStore.data.map { SealedCodecs.decodeBedtimeList(it[bedtimeItemsKey].orEmpty()) }
 
     val bedtimeListDay: Flow<String?> =
         context.dataStore.data.map { it[bedtimeDayKey] }
@@ -187,7 +196,7 @@ class FrictionPrefs(private val context: Context) {
             return
         }
         context.dataStore.edit {
-            it[bedtimeItemsKey] = BedtimeList.encode(cleaned)
+            it[bedtimeItemsKey] = SealedCodecs.encodeBedtimeList(cleaned)
             it[bedtimeDayKey] = today.toString()
         }
     }
@@ -206,18 +215,27 @@ class FrictionPrefs(private val context: Context) {
      *
      * Two integers and a date per app. Nothing about when, nothing about
      * what was done inside the app, nothing that could reconstruct a day.
+     *
+     * Persisted through [SealedCodecs.encodeGateTallies] /
+     * [SealedCodecs.decodeGateTallies] (HMAC-SHA256 tag).
+     * CodeRabbit audit #20 (2026-08-08): the v0.20.1
+     * round 1 documentation claimed GateLedger was
+     * wrapped, but the production path still used the
+     * raw plaintext codec. v0.20.1 round 2 wires the
+     * gate-tally codec and uses it for every
+     * read/write of the gate-tally data.
      */
     val gateTallies: Flow<Map<String, GateTally>> =
-        context.dataStore.data.map { GateLedger.decode(it[ledgerTallyKey].orEmpty()) }
+        context.dataStore.data.map { SealedCodecs.decodeGateTallies(it[ledgerTallyKey].orEmpty()) }
 
     private suspend fun editTally(
         packageName: String,
         block: (GateTally) -> GateTally,
     ) {
         context.dataStore.edit { prefs ->
-            val all = GateLedger.decode(prefs[ledgerTallyKey].orEmpty()).toMutableMap()
+            val all = SealedCodecs.decodeGateTallies(prefs[ledgerTallyKey].orEmpty()).toMutableMap()
             all[packageName] = block(all[packageName] ?: GateTally())
-            prefs[ledgerTallyKey] = GateLedger.encode(all)
+            prefs[ledgerTallyKey] = SealedCodecs.encodeGateTallies(all)
         }
     }
 
@@ -295,27 +313,128 @@ class FrictionPrefs(private val context: Context) {
      * gate pre-fills the intention prompt with a complete
      * plan and falls back to the generic prompt when no plan
      * is on file.
+     *
+     * Persisted through [SealedCodecs.encodeIfThenPlans] /
+     * [SealedCodecs.decodeIfThenPlans] (HMAC-SHA256 tag).
      */
     val ifThenPlans: Flow<Map<String, IfThenPlan>> =
-        context.dataStore.data.map { IfThenPlanStore.decode(it[ifThenPlansKey].orEmpty()) }
+        context.dataStore.data.map { SealedCodecs.decodeIfThenPlans(it[ifThenPlansKey].orEmpty()) }
 
     suspend fun setIfThenPlan(packageName: String, plan: IfThenPlan) {
         context.dataStore.edit { prefs ->
-            val all = IfThenPlanStore.decode(prefs[ifThenPlansKey].orEmpty()).toMutableMap()
+            val all = SealedCodecs.decodeIfThenPlans(prefs[ifThenPlansKey].orEmpty()).toMutableMap()
             if (plan.cue.isBlank() && plan.action.isBlank() && plan.defaultMinutes == null) {
                 all.remove(packageName)
             } else {
                 all[packageName] = plan
             }
-            prefs[ifThenPlansKey] = IfThenPlanStore.encode(all)
+            prefs[ifThenPlansKey] = SealedCodecs.encodeIfThenPlans(all)
         }
     }
 
     suspend fun clearIfThenPlan(packageName: String) {
         context.dataStore.edit { prefs ->
-            val all = IfThenPlanStore.decode(prefs[ifThenPlansKey].orEmpty()).toMutableMap()
+            val all = SealedCodecs.decodeIfThenPlans(prefs[ifThenPlansKey].orEmpty()).toMutableMap()
             all.remove(packageName)
-            prefs[ifThenPlansKey] = IfThenPlanStore.encode(all)
+            prefs[ifThenPlansKey] = SealedCodecs.encodeIfThenPlans(all)
+        }
+    }
+
+    private val perAppSessionLengthKey = stringPreferencesKey("per_app_session_length")
+
+    /**
+     * The per-app *time-box* default — see
+     * [org.mindanchor.friction.PerAppSessionLength]. A user
+     * who picks "Open for 10 minutes" for Instagram can
+     * have that choice remembered for the next reach.
+     *
+     * Persisted through
+     * [SealedCodecs.encodePerAppSessionLength] /
+     * [SealedCodecs.decodePerAppSessionLength]
+     * (HMAC-SHA256 tag).
+     *
+     * Evidence: `docs/research/22`. Lally 2010,
+     * Adhikari 2023, Gollwitzer 1999, Wood & Neal 2007.
+     */
+    val perAppSessionLength: Flow<PerAppSessionLength> =
+        context.dataStore.data.map {
+            SealedCodecs.decodePerAppSessionLength(it[perAppSessionLengthKey].orEmpty())
+        }
+
+    /**
+     * Record a per-app time-box choice. The minutes are
+     * clamped to `[1, 120]` by [PerAppSessionLength.record].
+     * A blank package name is a no-op.
+     */
+    suspend fun recordPerAppSessionLength(packageName: String, minutes: Long) {
+        if (packageName.isBlank()) return
+        context.dataStore.edit { prefs ->
+            val current = SealedCodecs.decodePerAppSessionLength(prefs[perAppSessionLengthKey].orEmpty())
+            val next = current.record(packageName, minutes)
+            prefs[perAppSessionLengthKey] = SealedCodecs.encodePerAppSessionLength(next)
+        }
+    }
+
+    /**
+     * Forget a per-app time-box choice. A blank or
+     * non-existent package name is a no-op.
+     */
+    suspend fun clearPerAppSessionLength(packageName: String) {
+        if (packageName.isBlank()) return
+        context.dataStore.edit { prefs ->
+            val current = SealedCodecs.decodePerAppSessionLength(prefs[perAppSessionLengthKey].orEmpty())
+            val next = current.forget(packageName)
+            prefs[perAppSessionLengthKey] = SealedCodecs.encodePerAppSessionLength(next)
+        }
+    }
+
+    private val perAppSessionLengthKey = stringPreferencesKey("per_app_session_length")
+
+    /**
+     * The per-app *time-box* default — see
+     * [org.mindanchor.friction.PerAppSessionLength]. A user
+     * who picks "Open for 10 minutes" for Instagram can
+     * have that choice remembered for the next reach.
+     *
+     * Stored as `package<TAB>minutes` per line, the
+     * same shape as [IfThenPlanStore.encode]. The friction
+     * gate reads this flow to highlight the user's last
+     * choice in the 5/10/20 button row; the user can
+     * still pick any of 5, 10, 20, or "open untimed"
+     * with one tap.
+     *
+     * Evidence: `docs/research/22`. Lally 2010, Adhikari
+     * 2023, Gollwitzer 1999, Wood & Neal 2007.
+     */
+    val perAppSessionLength: Flow<PerAppSessionLength> =
+        context.dataStore.data.map {
+            PerAppSessionLengthStore.decode(it[perAppSessionLengthKey].orEmpty())
+        }
+
+    /**
+     * Record a per-app time-box choice. The minutes are
+     * clamped to `[1, 120]` by [PerAppSessionLength.record].
+     * A blank package name is a no-op.
+     */
+    suspend fun recordPerAppSessionLength(packageName: String, minutes: Long) {
+        if (packageName.isBlank()) return
+        context.dataStore.edit { prefs ->
+            val current = PerAppSessionLengthStore.decode(prefs[perAppSessionLengthKey].orEmpty())
+            val next = current.record(packageName, minutes)
+            prefs[perAppSessionLengthKey] = PerAppSessionLengthStore.encode(next)
+        }
+    }
+
+    /**
+     * Forget a per-app time-box choice. A blank or
+     * non-existent package name is a no-op.
+     */
+    suspend fun clearPerAppSessionLength(packageName: String) {
+        if (packageName.isBlank()) return
+        context.dataStore.edit { prefs ->
+            val current = PerAppSessionLengthStore.decode(prefs[perAppSessionLengthKey].orEmpty())
+            val next = current.forget(packageName)
+            prefs[perAppSessionLengthKey] = PerAppSessionLengthStore.encode(next)
         }
     }
 
@@ -376,12 +495,15 @@ class FrictionPrefs(private val context: Context) {
      * [org.mindanchor.friction.CompassionMoment]. Stored as
      * one phrase per line, following the [SmallThings.encode]
      * / [OpenLoop.encode] pattern.
+     *
+     * Persisted through [SealedCodecs.encodeCompassion] /
+     * [SealedCodecs.decodeCompassion] (HMAC-SHA256 tag).
      */
     val compassionMoments: Flow<List<CompassionMoment>> =
-        context.dataStore.data.map { CompassionStore.decode(it[compassionKey].orEmpty()) }
+        context.dataStore.data.map { SealedCodecs.decodeCompassion(it[compassionKey].orEmpty()) }
 
     suspend fun setCompassionMoments(moments: List<CompassionMoment>) {
-        context.dataStore.edit { it[compassionKey] = CompassionStore.encode(moments) }
+        context.dataStore.edit { it[compassionKey] = SealedCodecs.encodeCompassion(moments) }
     }
 
     private val goingLightKey = stringPreferencesKey("going_light_schedule")

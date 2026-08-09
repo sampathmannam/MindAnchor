@@ -6,8 +6,8 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import org.mindanchor.friction.SealedCodecs
 import org.mindanchor.model.Note
-import org.mindanchor.model.NoteStore
 import org.mindanchor.model.NotesState
 
 /**
@@ -18,23 +18,29 @@ import org.mindanchor.model.NotesState
  * DataStore: notes are user-authored text, not
  * friction configuration. Mixing them would
  * conflate "did the user write a note" with
- * "did the user change a friction setting",
- * and the sealed-codecs HMAC layer would
- * invalidate the friction data on any note edit.
+ * "did the user change a friction setting", and
+ * the sealed-codecs HMAC layer would invalidate
+ * the friction data on any note edit.
  *
- * The data is plain text on disk; the sealed-codecs
- * wrapper on work/codec-hmac adds the HMAC layer
- * (item D threat model). The plaintext DataStore
- * is harmless on its own — the SealedCodecs
- * wrapper is the integrity boundary.
+ * The on-disk form is sealed with
+ * [SealedCodecs.encodeNotes] / [SealedCodecs.decodeNotes]
+ * (HMAC-SHA256 tag, codecId "notes"). The seal
+ * is the threat-model boundary: a motivated user
+ * with root cannot rewrite the on-disk notes
+ * without invalidating the MAC. A v0.20.0
+ * plaintext form is *not* migrated; the first
+ * write produces a sealed record. This is the
+ * same fail-closed migration policy as the
+ * other codecs (per-app session-length, gate
+ * tallies, etc.).
  */
 private val Context.notesDataStore by preferencesDataStore(name = "notes")
 
 /**
  * The notes prefs. Thin DataStore layer over
- * [NoteStore], which carries all the format
- * knowledge. Same pattern as
- * [org.mindanchor.model.MomentStore] / [MomentLedger].
+ * [org.mindanchor.model.NoteStore], which carries
+ * all the format knowledge. The integrity layer
+ * (the HMAC tag) lives in [SealedCodecs].
  */
 class NotesPrefs(private val context: Context) {
 
@@ -43,11 +49,11 @@ class NotesPrefs(private val context: Context) {
     /**
      * The user's notes, in storage order. The list
      * view sorts for display via
-     * [NoteStore.sortedForList].
+     * [org.mindanchor.model.NoteStore.sortedForList].
      */
     val notes: Flow<NotesState> =
         context.notesDataStore.data.map {
-            NotesState(NoteStore.decode(it[notesKey].orEmpty()))
+            SealedCodecs.decodeNotes(it[notesKey].orEmpty())
         }
 
     /**
@@ -57,8 +63,9 @@ class NotesPrefs(private val context: Context) {
      */
     suspend fun add(note: Note) {
         context.notesDataStore.edit { prefs ->
-            val current = NoteStore.decode(prefs[notesKey].orEmpty())
-            prefs[notesKey] = NoteStore.encode(current + note)
+            val current = SealedCodecs.decodeNotes(prefs[notesKey].orEmpty())
+            val next = current.add(note)
+            prefs[notesKey] = SealedCodecs.encodeNotes(next)
         }
     }
 
@@ -69,11 +76,9 @@ class NotesPrefs(private val context: Context) {
      */
     suspend fun edit(id: Long, body: String, editTimestamp: Long = System.currentTimeMillis()) {
         context.notesDataStore.edit { prefs ->
-            val current = NoteStore.decode(prefs[notesKey].orEmpty())
-            val next = current.map {
-                if (it.id == id) it.copy(body = body, updatedAt = editTimestamp) else it
-            }
-            prefs[notesKey] = NoteStore.encode(next)
+            val current = SealedCodecs.decodeNotes(prefs[notesKey].orEmpty())
+            val next = current.edit(id, body, editTimestamp)
+            prefs[notesKey] = SealedCodecs.encodeNotes(next)
         }
     }
 
@@ -82,11 +87,9 @@ class NotesPrefs(private val context: Context) {
      */
     suspend fun togglePinned(id: Long) {
         context.notesDataStore.edit { prefs ->
-            val current = NoteStore.decode(prefs[notesKey].orEmpty())
-            val next = current.map {
-                if (it.id == id) it.copy(pinned = !it.pinned) else it
-            }
-            prefs[notesKey] = NoteStore.encode(next)
+            val current = SealedCodecs.decodeNotes(prefs[notesKey].orEmpty())
+            val next = current.togglePinned(id)
+            prefs[notesKey] = SealedCodecs.encodeNotes(next)
         }
     }
 
@@ -96,8 +99,9 @@ class NotesPrefs(private val context: Context) {
      */
     suspend fun delete(id: Long) {
         context.notesDataStore.edit { prefs ->
-            val current = NoteStore.decode(prefs[notesKey].orEmpty())
-            prefs[notesKey] = NoteStore.encode(current.filter { it.id != id })
+            val current = SealedCodecs.decodeNotes(prefs[notesKey].orEmpty())
+            val next = current.delete(id)
+            prefs[notesKey] = SealedCodecs.encodeNotes(next)
         }
     }
 }

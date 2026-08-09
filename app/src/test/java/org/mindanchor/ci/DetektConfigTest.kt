@@ -41,6 +41,22 @@ class DetektConfigTest {
     }
 
     @Test
+    fun `the build script does not turn on all rules at once`() {
+        // CodeRabbit audit (PR #20, item #15, 2026-08-08):
+        // the YAML check above can pass while the build
+        // script overrides allRules = true. The detekt
+        // plugin reads the build script before the YAML
+        // config. Both must keep allRules = false.
+        val content = fileAt("build.gradle.kts").readText()
+        assertTrue(
+            "build.gradle.kts must keep allRules = false. The detekt " +
+                "plugin reads the build script before the YAML config, " +
+                "so this is the source of truth.",
+            !content.contains(Regex("""allRules\s*=\s*true""")),
+        )
+    }
+
+    @Test
     fun `the detekt config excludes vendored code`() {
         // v0.20.1 (CodeRabbit #18): the vendored-source
         // exclusion is now applied at the Gradle level

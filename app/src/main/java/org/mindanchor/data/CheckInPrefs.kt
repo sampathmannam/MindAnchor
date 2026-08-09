@@ -6,9 +6,9 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import org.mindanchor.friction.SealedCodecs
 import org.mindanchor.model.CheckIn
 import org.mindanchor.model.CheckInState
-import org.mindanchor.model.CheckInStore
 
 /**
  * The on-device check-in DataStore. v0.20.1 round 5
@@ -20,27 +20,33 @@ import org.mindanchor.model.CheckInStore
  * friction configuration. Mixing them would conflate
  * three independent concerns; the sealed-codecs HMAC
  * layer would invalidate the friction data on any
- * check-in write, and check-in rate-limit semantics
- * are different from notes.
+ * check-in write.
  *
- * The on-disk format is plain text; the sealed-codecs
- * wrapper on work/codec-hmac adds the HMAC layer (item
- * D threat model). Note: the *rate-limit state* (the
- * `lastAcceptedMillis` / `acceptedToday` / etc.) is
- * *transient* and never written to disk — only the
- * accepted check-ins themselves are persisted. The
- * launcher prefers a missed check-in over a permanent
- * record of "user said no 47 times" (the no-mood-
- * inference rule, brief §B3/B6).
+ * The on-disk form is sealed with
+ * [SealedCodecs.encodeCheckIns] /
+ * [SealedCodecs.decodeCheckIns] (HMAC-SHA256 tag,
+ * codecId "checkins"). The seal is the threat-model
+ * boundary: a motivated user with root cannot rewrite
+ * the accepted check-ins without invalidating the MAC.
+ * A v0.20.0 plaintext form is *not* migrated; the
+ * first write produces a sealed record.
+ *
+ * The on-disk state holds *only* accepted check-ins.
+ * The rate-limit state (lastAcceptedMillis /
+ * acceptedToday / etc.) is *transient* and never
+ * written to disk — only the accepted check-ins
+ * themselves are persisted. The launcher prefers a
+ * missed check-in over a permanent record of
+ * "user said no 47 times" (the no-mood-inference
+ * rule, brief §B3/B6).
  */
 private val Context.checkInsDataStore by preferencesDataStore(name = "checkins")
 
 /**
  * The check-in prefs. Thin DataStore layer over
- * [CheckInStore], which carries all the format
- * knowledge. Same pattern as
- * [org.mindanchor.model.MomentStore] / [MomentLedger]
- * and [NotesPrefs].
+ * [org.mindanchor.model.CheckInStore], which
+ * carries all the format knowledge. The integrity
+ * layer (the HMAC tag) lives in [SealedCodecs].
  */
 class CheckInPrefs(private val context: Context) {
 
@@ -53,7 +59,7 @@ class CheckInPrefs(private val context: Context) {
      */
     val checkIns: Flow<CheckInState> =
         context.checkInsDataStore.data.map {
-            CheckInState(CheckInStore.decode(it[checkInsKey].orEmpty()))
+            SealedCodecs.decodeCheckIns(it[checkInsKey].orEmpty())
         }
 
     /**
@@ -63,8 +69,9 @@ class CheckInPrefs(private val context: Context) {
      */
     suspend fun add(checkIn: CheckIn) {
         context.checkInsDataStore.edit { prefs ->
-            val current = CheckInStore.decode(prefs[checkInsKey].orEmpty())
-            prefs[checkInsKey] = CheckInStore.encode(current + checkIn)
+            val current = SealedCodecs.decodeCheckIns(prefs[checkInsKey].orEmpty())
+            val next = current.add(checkIn)
+            prefs[checkInsKey] = SealedCodecs.encodeCheckIns(next)
         }
     }
 
@@ -75,7 +82,7 @@ class CheckInPrefs(private val context: Context) {
      */
     suspend fun clear() {
         context.checkInsDataStore.edit { prefs ->
-            prefs[checkInsKey] = CheckInStore.encode(emptyList())
+            prefs[checkInsKey] = SealedCodecs.encodeCheckIns(CheckInState())
         }
     }
 }

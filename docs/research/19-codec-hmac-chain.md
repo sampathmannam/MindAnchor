@@ -49,14 +49,24 @@ time. Any byte flip fails the read.
 
 1. `IntegritySealedCodec.kt` — a wrapper that takes any
    `encode(): String` / `decode(String): T` codec and
-   adds a keyed-MAC layer. The MAC is the last line of
-   the encoded form, separated by a tab.
+   adds a keyed-MAC layer. The MAC is the last tab-
+   separated field of the encoded form.
 
-   Format: `<encoded-payload>\t<base64-mac>`
+   Format: `v1\t<codecId>\t<encoded-payload>\t<base64-mac>`
+   - `v1` is the envelope version sentinel. v0.20.1+
+     rejects any envelope without this prefix; a
+     v0.20.0 form on disk is treated as a forgery.
+   - `codecId` identifies the codec (small-things,
+     bedtime, compassion, if-then, gate-tallies). The
+     MAC authenticates `codecId:encoded-payload`, so a
+     valid sealed value from one preference cannot be
+     replayed into another (CodeRabbit audit
+     2026-08-08, item #5).
    - `encoded-payload` is the codec's existing plaintext
      output, unchanged.
-   - `base64-mac` is the HMAC-SHA256 of the payload
-     using the Keystore-backed key.
+   - `base64-mac` is the HMAC-SHA256 of
+     `codecId:encoded-payload` using the Keystore-backed
+     key.
 
 2. `KeystoreHmacKey.kt` — generates and retrieves the
    single HMAC key from the Android Keystore. Key alias
@@ -85,12 +95,26 @@ time. Any byte flip fails the read.
    "wrong-key" case (verifying that a different Keystore
    key rejects the same payload).
 
-5. `Migration safety`: existing v0.20.0 DataStore entries
-   are read once, re-encoded with the MAC, and written
-   back. The wrapped `decode()` accepts both the
-   "plaintext" and "plaintext + MAC" forms; a future
-   write always emits the MAC form. This means a user
-   upgrading from v0.20.0 to v0.21 does not lose data.
+5. `Migration behavior`: v0.20.0 DataStore entries
+   are *not* read. A v0.20.0 form on disk has no
+   integrity tag and no envelope version; the
+   integrity layer's `decode()` returns the reset
+   value (an empty list, an empty plan). The first
+   write after the upgrade produces a sealed record.
+   The user experiences this as "my small-things are
+   gone" — the data is unrecoverable from a v0.20.0
+   form because the v0.20.0 form had no integrity
+   tag. This is the correct trade-off: the threat is
+   forgery, and a v0.20.0 form cannot be
+   distinguished from a forged record.
+
+   The alternative — a v0.20.0 → v0.20.1 migration
+   that accepts the plaintext on read — was the
+   v0.20.0 behavior. It was a vulnerability: a
+   power user with root could rewrite the
+   friction-gate ledger and silence the gate.
+   v0.20.1 is fail-closed by design
+   (CodeRabbit audit 2026-08-08, item #19).
 
 ## What this PR does NOT ship
 
@@ -121,38 +145,84 @@ time. Any byte flip fails the read.
 
 - A user on a device with a corrupted Keystore (rare
   but possible after a failed OTA) will see all v0.20.0
-  data reset to empty on first launch. The mitigation
-  is the migration: if the MAC fails to verify, the
-  decode() returns an empty list (the same default a
-  fresh install sees), and the user loses their
-  small-things / if-then plans but not their core
-  friction-gate progress (the per-app tally is in
-  GateLedger, which the user's data has just been reset
-  from). The data loss is bounded and recoverable.
+  data reset to empty on first launch. The integrity
+  layer returns the empty/reset value on any read where
+  the `v1` prefix is missing, the codecId does not
+  match, the MAC fails to verify, or the base64 MAC
+  part is malformed. The user loses their small-
+  things / if-then plans / compassion moments / gate
+  tallies; the data loss is bounded and recoverable
+  on the next write (the user re-enters their lists
+  and the gate tallies restart at zero).
 - The Keystore key is per-app-install. An uninstall +
-  reinstall loses the key, which means the data is
-  unreadable. The mitigation is the same as above:
-  the migration path accepts the no-MAC form, so the
-  reinstalled app reads the old data, then writes a
-  fresh MACed form on the next save.
+  reinstall loses the key, which means v0.20.1+ data
+  is unreadable after a reinstall. v0.20.1 is
+  intentionally fail-closed: a reinstalled app sees an
+  empty list, not the v0.20.0 form. The user can
+  re-enter their small-things. There is no automatic
+  backup (the project's no-cloud promise); the
+  threat model is "a motivated user forges the gate
+  tally," not "a user reinstalls the app."
+- A v0.20.0 → v0.20.1 upgrade resets the user's
+  small-things / if-then plans / compassion moments
+  to empty. This is the *intended* security fix:
+  the v0.20.0 plaintext form is treated as either a
+  forge or an unverified record, and the right
+  behaviour is to start over. (CodeRabbit audit
+  2026-08-08: the v0.20.0 fall-through to plaintext
+  was a CRITICAL security issue — a power user with
+  root could rewrite the friction-gate ledger and
+  silence the gate.)
+
+## Migration behavior (v0.20.1 — final)
+
+A v0.20.0 form on disk is *rejected* on read. The
+integrity layer's decode() returns the reset value
+(an empty list, an empty plan). The first write after
+the upgrade produces a sealed record. The user
+experiences this as "my small-things are gone" — the
+data is unrecoverable from a v0.20.0 form because
+the v0.20.0 form had no integrity tag. This is the
+correct trade-off: the threat is forgery, and a
+v0.20.0 form cannot be distinguished from a forged
+record.
+
+The alternative — a v0.20.0 → v0.20.1 migration that
+accepts the plaintext on read — was the v0.20.0
+behavior. It was a vulnerability. v0.20.1 is
+fail-closed by design.
 
 ## Verification
 
-- 8 new test cases in `IntegrityTest`:
+- 14 new test cases in `IntegritySealedCodecTest`:
   1. round-trip encode-decode preserves content
-  2. byte-flip in payload fails verification
-  3. byte-flip in MAC fails verification
-  4. empty-codec round-trip
-  5. unicode-codec round-trip
-  6. wrong-key verification fails
-  7. migration path: plaintext input decodes, gets
-     re-encoded with MAC
-  8. migration path: MAC-broken input falls back to
-     empty list (the "rebuild" case)
-- All assertions Python-mirror-verified: 12/12.
+  2. encoded form is v1 envelope, payload, base64 MAC
+  3. byte-flip in payload fails verification, returns reset
+  4. byte-flip in MAC fails verification, returns reset
+  5. empty-codec round-trip
+  6. unicode-codec round-trip
+  7. wrong-key verification fails, returns reset
+  8. plaintext without envelope is rejected, returns reset
+  9. v0.20.0 tab-mac form (no v1 prefix) is rejected
+  10. re-encoding a reset value produces a sealed record
+  11. MAC is deterministic
+  12. different payloads produce different MACs
+  13. empty string is a valid default reset
+  14. MAC tag length is 32 bytes (SHA-256 output)
+- All assertions Python-mirror-verified: 22/22 (logic
+  mirror) + 14/14 (JVM test).
 - Brace/paren balance re-checked on all new files.
 - No new Android dependencies; Keystore and Mac are
   stdlib.
+- Production wiring: FrictionPrefs uses
+  `SealedCodecs.encodeSmallThings` /
+  `SealedCodecs.decodeSmallThings` (and the bedtime,
+  compassion, and if-then equivalents) on every
+  read/write. The raw `SmallThings.encode` /
+  `BedtimeList.encode` / `CompassionStore.encode` /
+  `IfThenPlanStore.encode` are not used in
+  FrictionPrefs anymore — they are still
+  `internal`-visible to the sealed codec layer.
 
 ## Primary sources
 
