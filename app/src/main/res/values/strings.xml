@@ -188,6 +188,7 @@
     <string name="sunset_ends">Ends</string>
     <string name="time_earlier">Earlier</string>
     <string name="time_later">Later</string>
+    <string name="time_nudger_row">%1$s %2$s</string>
     <string name="sunset_section">Sunset mode</string>
     <string name="sunset_explainer">Through your quiet hours the phone goes priority-only: starred contacts and repeat callers still reach you, everything else waits for morning. Set the hours to your night, not to a default — shift work and being on call are the norm, not the exception.</string>
     <string name="grant_dnd_access">Grant Do Not Disturb access to enable sunset</string>

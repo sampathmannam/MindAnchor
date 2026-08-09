@@ -130,4 +130,24 @@ class StringResourcesTest {
             offenders.isEmpty(),
         )
     }
+
+    @Test
+    fun `v0_20_9 time-nudger row string is wired correctly`() {
+        // The Quiet hours and batching time pickers used to render
+        // "Starts / Earlier / Later" and "Ends / Earlier / Later" with
+        // the time only in the descriptive line above. v0.20.9 moved
+        // the value onto the same row as the label. The string is
+        // "%1$s %2$s" and the call sites pass the label first and the
+        // time second — a swap and the row would render
+        // "22:00 Starts" instead of "Starts 22:00", which would be
+        // wrong and would not be caught by any other test.
+        val all = values()
+        val template = all["time_nudger_row"]
+            ?: error("time_nudger_row is missing from strings.xml")
+        assertTrue(
+            "time_nudger_row must be exactly two positional args separated " +
+                "by a single space; got '$template'",
+            template == "%1\$s %2\$s",
+        )
+    }
 }

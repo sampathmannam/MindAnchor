@@ -2,8 +2,8 @@ package org.mindanchor.launcher
 
 import android.content.Intent
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,16 +12,22 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -39,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusEvent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -74,6 +81,47 @@ import java.time.format.DateTimeFormatter
 import java.util.Date
 
 private enum class LauncherSurface { Home, Drawer, Settings, Ppg, Report }
+
+/**
+ * v0.20.9: Modifier extension that auto-scrolls the nearest
+ * scrollable ancestor to bring the receiving composable into
+ * view when it gains focus. The home surface has three input
+ * surfaces (the open-loop capture line, the bedtime-list lines,
+ * the quick-notes input) and the soft keyboard would otherwise
+ * cover whichever line is focused — the user could not see
+ * what they were typing. The bedtime list in particular has
+ * up to five lines, and the one being typed into could be the
+ * bottom one, well below the visible scroll area once the
+ * keyboard is up.
+ *
+ * The pattern is the standard Compose one: a
+ * [BringIntoViewRequester] registered with the input's
+ * modifier, called from a coroutine when the input gains
+ * focus. The scroll container picks up the request and
+ * scrolls the minimum needed to expose the focused field.
+ *
+ * Returns a [Modifier] so the caller can chain further
+ * modifiers (e.g. fillMaxWidth, padding) before applying.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun Modifier.bringIntoViewOnFocus(): Modifier {
+    // The factory is `BringIntoViewRequester()` (top-
+    // level function in the relocation package);
+    // there is no `rememberBringIntoViewRequester` in
+    // Compose Foundation 1.7.x. Wrapping it in
+    // remember gives one instance per field per
+    // composition.
+    val requester = remember { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
+    return this
+        .bringIntoViewRequester(requester)
+        .onFocusEvent { state ->
+            if (state.isFocused) {
+                scope.launch { requester.bringIntoView() }
+            }
+        }
+}
 
 /**
  * Root of the launcher UI. Three surfaces: the calm home (clock, greeting,
@@ -361,7 +409,16 @@ private fun OpenLoopCard(
                     onValueChange = { draft = it },
                     singleLine = true,
                     placeholder = { Text(stringResource(R.string.loop_capture_hint)) },
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    // v0.20.9: bringIntoViewOnFocus so the
+                    // open-loop capture line scrolls above the
+                    // keyboard when focused. The whole
+                    // open-loop card sits between the clock
+                    // and the bedtime list and would otherwise
+                    // be covered by the IME.
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .bringIntoViewOnFocus()
+                        .padding(top = 8.dp),
                 )
                 TextButton(onClick = { onSave(draft) }) {
                     Text(stringResource(R.string.loop_save), color = sky.textPrimary)
@@ -459,6 +516,15 @@ private fun BedtimeListCard(
                     textAlign = TextAlign.Center,
                 )
                 drafts.forEachIndexed { index, value ->
+                    // v0.20.9: each bedtime-list line carries
+                    // its own bringIntoViewOnFocus. The list
+                    // can grow to BedtimeList.MAX_ITEMS lines
+                    // and the one being typed into is the one
+                    // the user is looking at; the parent
+                    // scroll container needs the request per
+                    // line, not just per card, because the
+                    // requester is registered on the field
+                    // that is currently focused.
                     OutlinedTextField(
                         value = value,
                         onValueChange = { drafts[index] = it },
@@ -466,7 +532,10 @@ private fun BedtimeListCard(
                         placeholder = {
                             Text(stringResource(R.string.bedtime_capture_hint))
                         },
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .bringIntoViewOnFocus()
+                            .padding(top = 8.dp),
                     )
                 }
                 if (drafts.size < BedtimeList.MAX_ITEMS) {
@@ -594,12 +663,20 @@ private fun QuickNotesCard(
             style = MaterialTheme.typography.titleMedium,
             color = sky.textSecondary,
         )
+        // v0.20.9: bringIntoViewOnFocus so the quick-notes
+        // input is not covered by the keyboard. The card is
+        // the home-screen capture affordance; "I want to
+        // remember this" fails if the user has to dismiss
+        // the keyboard to see what they are typing.
         OutlinedTextField(
             value = draft,
             onValueChange = { draft = it },
             singleLine = true,
             placeholder = { Text(stringResource(R.string.quick_notes_input_hint)) },
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .bringIntoViewOnFocus()
+                .padding(top = 8.dp),
         )
         TextButton(
             onClick = {
@@ -922,6 +999,19 @@ private fun HomeSurface(
     val now = rememberMinuteTick()
     val clockFormat = rememberClockFormat()
 
+    // v0.20.9: nested safe-drawing on the outer Box and
+    // imePadding on the inner scroll container. The outer
+    // Box keeps the corner buttons clear of the status and
+    // navigation bars in normal use; imePadding on the
+    // inner Column shrinks the scroll area to the gap
+    // between the top safe area and the keyboard, so the
+    // "Put it down" / "Add line" / save buttons of the
+    // bedtime list and the per-field "Save" buttons of the
+    // quick-notes card stay above the keyboard instead of
+    // being layered under it. Without imePadding on the
+    // scroll container, focusing a field that sits near the
+    // bottom of the Column let the keyboard cover the field
+    // and the buttons below it.
     Box(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
         // Centred when it fits, scrollable when it does not.
         //
@@ -932,11 +1022,35 @@ private fun HomeSurface(
         // who has set a large font scale is exactly the person who cannot
         // recover by squinting. The bottom padding keeps the last favourite
         // clear of the drawer and settings buttons layered over this.
+        //
+        // v0.20.9: the modifier order is now
+        //   fillMaxSize -> imePadding -> padding -> verticalScroll
+        // The previous order had `padding` *inside* the
+        // verticalScroll, which meant the 88dp bottom
+        // padding was applied to the content, not to the
+        // scroll container itself. The content then
+        // scrolled into the padding area and the last
+        // items (the quick-notes empty state, the
+        // favourites) ended up layered under the bottom
+        // navigation row. Moving the padding outside
+        // the scroll shrinks the scrollable area by 88dp
+        // on the bottom, so the last content item is
+        // always 88dp above the bottom navigation no
+        // matter how far the user scrolls.
+        //
+        // v0.20.9: the scroll container also takes
+        // imePadding so the bedtime list, open-loop
+        // capture, and quick-notes input fields are not
+        // covered by the soft keyboard. Each input field
+        // opts in to BringIntoViewRequester so the
+        // focused field is scrolled into view above the
+        // keyboard.
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(start = 32.dp, end = 32.dp, top = 32.dp, bottom = 88.dp),
+                .imePadding()
+                .padding(start = 32.dp, end = 32.dp, top = 32.dp, bottom = 88.dp)
+                .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
         ) {
@@ -1065,9 +1179,23 @@ private fun HomeSurface(
             }
         }
 
+        // v0.20.9: navigationBarsPadding on the three
+        // bottom-corner navigation buttons. The outer
+        // Box already has safeDrawingPadding, which
+        // should keep these above the system gesture
+        // bar, but in practice on the test emulator
+        // the nav-bar inset is being reported as 0
+        // for the corner-aligned TextButtons and the
+        // "digest" / "search" / "settings" row sits
+        // underneath the gesture bar. The defensive
+        // fix mirrors the statusBarsPadding added to
+        // the top corners: ask for the nav-bar inset
+        // on the buttons themselves.
         TextButton(
             onClick = onOpenDrawer,
-            modifier = Modifier.align(Alignment.BottomCenter),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding(),
         ) {
             Text(
                 text = stringResource(R.string.open_drawer),
@@ -1078,7 +1206,9 @@ private fun HomeSurface(
 
         TextButton(
             onClick = onOpenSettings,
-            modifier = Modifier.align(Alignment.BottomEnd),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .navigationBarsPadding(),
         ) {
             Text(
                 text = stringResource(R.string.settings),
@@ -1090,13 +1220,30 @@ private fun HomeSurface(
         val context = LocalContext.current
         // Support is one tap from the home screen and never buried: during
         // acute distress or dissociation, three taps and a scroll is too far.
+        //
+        // v0.20.9: statusBarsPadding on the top-corner
+        // buttons. The outer Box already has
+        // safeDrawingPadding which should keep the
+        // buttons clear of the status bar, but on a
+        // real phone with the soft keyboard up the
+        // status-bar inset was being eaten somewhere
+        // upstream and the "support" / "history"
+        // labels rendered behind the status-bar
+        // icons. The defensive fix is to ask for the
+        // status-bar inset on the buttons
+        // themselves; the doubled padding when
+        // safeDrawingPadding is working is small
+        // (~24dp on top of ~24dp) and not a real
+        // cost on a phone screen.
         TextButton(
             onClick = {
                 runCatching {
                     context.startActivity(Intent(context, SupportActivity::class.java))
                 }
             },
-            modifier = Modifier.align(Alignment.TopStart),
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .statusBarsPadding(),
         ) {
             Text(
                 text = stringResource(R.string.support_shortcut),
@@ -1115,8 +1262,14 @@ private fun HomeSurface(
         // Two stacked buttons (notes on top, history
         // below) keep the home screen uncluttered
         // without forcing the user into a menu.
+        //
+        // v0.20.9: same statusBarsPadding as the
+        // support button on the other corner — see
+        // its KDoc for the rationale.
         Column(
-            modifier = Modifier.align(Alignment.TopEnd),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding(),
             horizontalAlignment = Alignment.End,
         ) {
             TextButton(
@@ -1143,7 +1296,12 @@ private fun HomeSurface(
             onClick = {
                 runCatching { context.startActivity(Intent(context, DigestActivity::class.java)) }
             },
-            modifier = Modifier.align(Alignment.BottomStart),
+            // v0.20.9: same navigationBarsPadding as the
+            // other two bottom corners — see their KDoc
+            // for the rationale.
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .navigationBarsPadding(),
         ) {
             Text(
                 text = stringResource(R.string.digest_screen_title),
