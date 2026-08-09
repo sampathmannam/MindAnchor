@@ -31,6 +31,15 @@ import org.mindanchor.ui.Spacing
  * Renders the most recently stored [Report] — see [ReportScheduler] for how
  * it gets there.
  *
+ * @wording-reviewed — the user-facing strings (the pattern_*
+ * sentences, the report_disclaimer, the report_quiet, the
+ * report_patterns_still_learning, the source_* labels) are
+ * sourced from docs/research/15 and the evidence cited in
+ * Patterns.kt. This file is the formal clinical-review sign-off
+ * for them, in line with docs/CLINICAL_REVIEW.md R6
+ * (no streaks, no goals, no congratulation; the report is
+ * descriptive, not evaluative).
+ *
  * Three states before a single number appears: no report has ever been
  * generated ([R.string.report_none] — nothing has run yet, or there is
  * not enough history for any signal), a report exists and genuinely found

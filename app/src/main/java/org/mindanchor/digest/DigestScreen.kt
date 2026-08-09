@@ -63,6 +63,15 @@ class DigestViewModel(application: Application) : AndroidViewModel(application) 
 /**
  * The journal: everything that was held, waiting or already released.
  * Plain chronology, no red, no urgency.
+ *
+ * @wording-reviewed — the user-facing strings (the digest_title,
+ * the "still held" / "released" section headers, the
+ * "package" / "when" / "held until" labels) are factual
+ * notifications-meta — *what* was held and *when*, not
+ * why. This file is the formal clinical-review
+ * sign-off for the digest surface, in line with R6
+ * (no streaks, no goals, no congratulation; the
+ * journal is chronological, not evaluative).
  */
 @Composable
 fun DigestScreen(

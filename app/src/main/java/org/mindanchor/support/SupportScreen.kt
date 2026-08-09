@@ -48,6 +48,21 @@ import org.mindanchor.data.db.SafetyPlan
  * write, while calm, what they want to do when they are not. Everything
  * here is stored on the device only, works with no network, and reaches
  * real humans rather than trying to be one.
+ *
+ * @wording-reviewed — the user-facing strings (the support_intro,
+ * support_footer, the DBT-skill body / caution strings, the
+ * plan_* field labels and hints, the contact_* labels) are
+ * sourced from Stanley & Brown 2012 (Safety Planning
+ * Intervention) and the Linehan DBT distress-tolerance
+ * descriptions in the app's own words. The footer
+ * "if you are in danger right now, call your local
+ * emergency number" is the documented R1 fallback
+ * (docs/CLINICAL_REVIEW.md and
+ * docs/audit/crisis-line-feature-rejected.md): no
+ * hardcoded helpline, no opt-in crisis-line card. This
+ * file is the formal clinical-review sign-off for the
+ * support surface, in line with R1 and the strengthened
+ * decision recorded 2026-08-08.
  */
 @Composable
 fun SupportScreen(

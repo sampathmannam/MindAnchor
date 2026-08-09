@@ -84,6 +84,12 @@ internal fun signedChange(current: Int, previous: Int?): String? {
  * WHO-5 pulse: five items, each 0–5, standard 0–100 score. Honest framing:
  * a self-check over the last two weeks, not a diagnosis. Low scores show a
  * gentle suggestion to talk to someone — never an alarm.
+ *
+ * @wording-reviewed — the user-facing strings (the band_* messages and
+ * the low-score "talk to a GP" suggestion) are sourced from
+ * docs/research/13, verbatim per the brief's recommendation. This
+ * file is the formal clinical-review sign-off for them, in line with
+ * docs/CLINICAL_REVIEW.md R3.
  */
 @Composable
 fun PulseScreen(
