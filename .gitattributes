@@ -1,0 +1,30 @@
+# Line-ending policy for the MindAnchor repo.
+#
+# Why: the v0.20.4 ci-fixup commit regenerated
+# docs/CLINICIAN_PACK.md on Windows, where the python
+# pathlib write default picked up CRLF. The Linux
+# runner wrote it with LF; `git diff --quiet` then
+# saw a difference every run and the CI gate failed.
+# Pin line endings explicitly here so the same file
+# on disk matches the same file in the runner.
+
+# All files default to LF. Markdown, scripts, CI
+# workflows, and Gradle are explicitly LF.
+*           text=auto eol=lf
+*.md        text eol=lf
+*.kts       text eol=lf
+*.kt        text eol=lf
+*.py        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.sh        text eol=lf
+
+# Generated docs are LF so the regenerate-and-check
+# loop in CI does not see a CRLF/LF mismatch.
+docs/CLINICIAN_PACK.md  text eol=lf
+
+# Windows still needs CRLF for these (executable
+# scripts; PowerShell will not run a LF .ps1).
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+*.ps1       text eol=crlf

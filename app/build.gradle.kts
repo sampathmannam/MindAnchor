@@ -8,7 +8,14 @@ plugins {
 
 android {
     namespace = "org.mindanchor"
-    compileSdk = 35
+    // Health Connect 1.1.0 stable requires compileSdk 36+. Bumped
+    // here; targetSdk stays at 35 so the app does not opt into
+    // Android 16 runtime behaviour yet.
+    compileSdk = 36
+    // buildToolsVersion 36.0.0 is what installed compileSdk 36
+    // ships with locally; the CI runner image installs the same
+    // platform via the setup-android step.
+    buildToolsVersion = "36.0.0"
 
     // Pinned to the exact version .github/workflows/probe-ndk.yml proved
     // present on the CI runners — the engine build depends on it, and an
@@ -19,8 +26,8 @@ android {
         applicationId = "org.mindanchor"
         minSdk = 33
         targetSdk = 35
-        versionCode = 21
-        versionName = "0.20.3"
+        versionCode = 22
+        versionName = "0.20.4"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every

@@ -105,7 +105,14 @@ jobs:
           if git diff --name-only "$base_sha" "$head_sha" \
               | grep -q '^app/src/main/res/values/strings\.xml$'; then
             echo "wording_heavy=true" >> "$GITHUB_OUTPUT"
-            echo "Reason: strings.xml modified." >> "$GITHUB_OUTPUT"
+            # GITHUB_OUTPUT expects key=value lines. The key
+            # must be alphanumeric/underscore; the value
+            # may contain spaces and punctuation.
+            # "Reason: strings.xml modified." is not a valid
+            # GITHUB_OUTPUT line and the runner rejects it
+            # with "Invalid format" before the next step
+            # runs.
+            echo "reason=strings.xml modified." >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -118,7 +125,7 @@ jobs:
           if git diff --name-only "$base_sha" "$head_sha" \
               | grep -q '^app/src/main/AndroidManifest\.xml$'; then
             echo "wording_heavy=true" >> "$GITHUB_OUTPUT"
-            echo "Reason: AndroidManifest.xml modified. Manifest changes declare user-consent surfaces." >> "$GITHUB_OUTPUT"
+            echo "reason=AndroidManifest.xml modified. Manifest changes declare user-consent surfaces." >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -137,7 +144,7 @@ jobs:
             esac
             if git show "$head_sha:$f" 2>/dev/null | grep -q '@wording-reviewed'; then
               echo "wording_heavy=true" >> "$GITHUB_OUTPUT"
-              echo "Reason: $f carries the @wording-reviewed tag in the post-change revision." >> "$GITHUB_OUTPUT"
+              echo "reason=$f carries the @wording-reviewed tag in the post-change revision." >> "$GITHUB_OUTPUT"
               exit 0
             fi
             # Treat deleted files as "had the tag":
@@ -148,13 +155,13 @@ jobs:
             # non-zero; the `|| true` handles that.
             if git show "$base_sha:$f" 2>/dev/null | grep -q '@wording-reviewed'; then
               echo "wording_heavy=true" >> "$GITHUB_OUTPUT"
-              echo "Reason: $f carried the @wording-reviewed tag in the pre-change revision." >> "$GITHUB_OUTPUT"
+              echo "reason=$f carried the @wording-reviewed tag in the pre-change revision." >> "$GITHUB_OUTPUT"
               exit 0
             fi
           done < <(git diff --name-only -z "$base_sha" "$head_sha")
 
           echo "wording_heavy=false" >> "$GITHUB_OUTPUT"
-          echo "Reason: no strings.xml, AndroidManifest, or @wording-reviewed file touched." >> "$GITHUB_OUTPUT"
+          echo "reason=no strings.xml, AndroidManifest, or @wording-reviewed file touched." >> "$GITHUB_OUTPUT"
 
       - name: Verify label
         if: steps.detect.outputs.wording_heavy == 'true'
@@ -177,11 +184,17 @@ jobs:
             fi
           done
           if [ "$matched" -ne 1 ]; then
-            echo "::error::This PR touches a wording-heavy surface and is missing the 'clinical-review-approved' label."
-            echo "::error::Reason from the change detector:"
-            echo "::error::${{ steps.detect.outputs.reason }}"
-            echo "::error::The project's docs/CLINICAL_REVIEW.md is the substantive review log; this gate enforces that the review *happened*."
-            echo "::error::Apply the label after the wording is reviewed, then re-run this check."
+            # The annotation parser rejects messages that
+            # start with "Reason: " or carry a leading colon
+            # (it tries to read them as key=value properties).
+            # Keep the headline as ::error:: and emit the
+            # detail lines as plain echo so the parser is
+            # not asked to interpret them.
+            echo "::error message=This PR touches a wording-heavy surface and is missing the 'clinical-review-approved' label."
+            echo "Reason from the change detector:"
+            echo "::warning::${{ steps.detect.outputs.reason }}"
+            echo "The project's docs/CLINICAL_REVIEW.md is the substantive review log; this gate enforces that the review *happened*."
+            echo "Apply the label after the wording is reviewed, then re-run this check."
             exit 1
           fi
           echo "Clinical-review-approved label present (exact match)."

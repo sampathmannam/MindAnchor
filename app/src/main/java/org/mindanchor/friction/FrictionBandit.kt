@@ -235,13 +235,17 @@ object FrictionBandit {
      * (beta += 1) — the conjugate prior is what makes the
      * bandit runnable on a phone without a numerical library.
      *
-     * The reward is the *proceeded-past* signal: true means
-     * the user went through, false means they backed out
-     * (within the 60s window the brief specifies). The
-     * deterministic policy's "this is a working gate" signal
-     * is a different event, surfaced via
-     * [GateLedger.worthMentioning] — the bandit does not
-     * directly use it.
+     * ## Reward sign
+     *
+     * `reward = true` means **the arm did its job** — the
+     * user backed out within the 60s window. `reward = false`
+     * means the user went through. The sign was flipped from
+     * the original "proceeded-past is the reward" reading:
+     * a friction gate is supposed to *make* the user back
+     * out, and a sampler that rewards the most-clicked-
+     * through arm is the sampler that learns to give up.
+     * The FINDING test in `FrictionBanditTest` pins this
+     * reading.
      */
     fun observe(state: BanditState, arm: ArmChoice, reward: Boolean): BanditState =
         when (arm) {
@@ -254,6 +258,11 @@ object FrictionBandit {
      * unit tests in `FrictionBanditTest` can call it
      * directly to exercise the per-arm path; production
      * code goes through [observe].
+     *
+     * Sign convention: `reward = true` is the *success*
+     * signal (the arm did its job, the user backed out).
+     * `alpha += 1` on success, `beta += 1` on failure. The
+     * mean rises toward 1.0 the more often the arm works.
      */
     internal fun update(arm: Arm, reward: Boolean): Arm =
         if (reward) arm.copy(alpha = arm.alpha + 1) else arm.copy(beta = arm.beta + 1)

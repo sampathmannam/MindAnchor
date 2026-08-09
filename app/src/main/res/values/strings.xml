@@ -258,6 +258,7 @@
     <string name="signal_inline_sleep_minutes">time asleep</string>
     <string name="signal_inline_sleep_onset">bedtime</string>
     <string name="signal_inline_steps">step count</string>
+    <string name="signal_inline_mindfulness">mindfulness practice</string>
     <string name="signal_inline_first_unlock">first pickup of the phone</string>
     <string name="signal_inline_screen_time">screen time</string>
     <string name="signal_inline_valence">sense of how things felt</string>
@@ -304,6 +305,7 @@
     <string name="signal_sleep_minutes">Time asleep</string>
     <string name="signal_sleep_onset">When you got to sleep</string>
     <string name="signal_steps">Steps</string>
+    <string name="signal_mindfulness">Mindfulness</string>
     <string name="signal_first_unlock">First pickup</string>
     <string name="signal_screen_time">Screen time</string>
     <string name="signal_valence">How things felt</string>
@@ -525,6 +527,90 @@
     <string name="note_delete_confirm">Delete this note?</string>
     <string name="note_delete_yes">Delete</string>
     <string name="note_delete_no">Keep</string>
+    <string name="quick_notes_section">Notes</string>
+    <string name="quick_notes_input_hint">Jot something down — it saves here, in order, with the time.</string>
+    <string name="quick_notes_save">Save</string>
+    <string name="quick_notes_empty">Nothing yet. The first line you write lands here.</string>
+    <string name="quick_notes_view_all">View all</string>
+    <string name="quick_notes_saved_at">%1$s · %2$s</string>
+
+    <!-- Health Connect permission flow (Phase 2) -->
+    <string name="health_connect_title">Wearable</string>
+    <string name="health_connect_explainer">MindAnchor can read heart rate, sleep, steps, exercise and mindfulness sessions from any watch or app that writes to Health Connect. The data never leaves this phone. You stay in control — grant or revoke each type from the system Health Connect screen at any time.</string>
+    <string name="health_connect_status_loading">Checking what your watch is sharing…</string>
+    <string name="health_connect_status_unavailable">Health Connect is not installed on this phone. Install it from the Play Store to bring your wearable data in.</string>
+    <string name="health_connect_status_not_granted">No data is being read yet. Tap below to choose what to share.</string>
+    <string name="health_connect_status_partial">Reading %1$d of %2$d signal types from your watch. Tap to change.</string>
+    <string name="health_connect_status_full">All %1$d signal types connected.</string>
+    <string name="health_connect_button_connect">Connect to your watch</string>
+    <string name="health_connect_button_change">Change what is shared</string>
+    <string name="health_connect_what_reads_header">What this app reads</string>
+    <string name="health_connect_what_reads_line">%1$s</string>
+    <string name="health_connect_reads_heart_rate">heart rate samples — used to show mean and resting heart rate</string>
+    <string name="health_connect_reads_resting_heart_rate">resting heart rate — used to show recovery from your usual</string>
+    <string name="health_connect_reads_heart_rate_variability">heart rate variability (HRV) — used alongside the camera PPG for a fuller recovery picture</string>
+    <string name="health_connect_reads_sleep">sleep sessions — used for duration and timing</string>
+    <string name="health_connect_reads_steps">step count — used against the 7,000-step threshold from the steps-and-depression meta-analysis</string>
+    <string name="health_connect_reads_exercise">exercise sessions — used for active minutes</string>
+    <string name="health_connect_reads_calories">calories burned — kept for future use; nothing reads it today</string>
+    <string name="health_connect_reads_mindfulness">mindfulness sessions — used to surface practice time next to steps and sleep</string>
+    <string name="health_connect_what_we_dont_header">What this app does NOT do</string>
+    <string name="health_connect_does_not_write">Write back to your watch or any other app. The launcher only reads.</string>
+    <string name="health_connect_does_not_send">Send anything off this phone. There is no network call to a server, ever.</string>
+    <string name="health_connect_does_not_diagnose">Diagnose or interpret. The numbers are shown, not judged.</string>
+    <string name="health_connect_section_data_label">What is arriving</string>
+
+    <!--
+        v0.20.5 wellness surface (N-of-1, from Health Connect).
+
+        @wording-reviewed — clinical-review-required. The wellness
+        surface shows the person's own signals against the person's
+        own baseline. Every word here was chosen to keep the framing
+        personal ("your usual", never the 30-day average), to refuse
+        population language ("normal", "good", "bad" — the launcher
+        does not diagnose), and to be honest about what is not yet
+        computable ("still building a picture" rather than a fake
+        number). See docs/research/08-sensing-architecture.md §3.3
+        for the honesty rule behind the wording.
+
+        The five signals were selected because each has a meaningful
+        mental-health literature behind it (HRV, mindfulness, steps,
+        sleep, resting heart rate — see the citations in
+        WellnessSignals.kt). None of the wording here applies a
+        population threshold to a person; the user can always see
+        their own median.
+    -->
+    <string name="wellness_section">Wellness signals</string>
+    <string name="wellness_subtitle">Today against your own history. No population thresholds, no diagnosis.</string>
+    <string name="wellness_signal_hrv">HRV</string>
+    <string name="wellness_signal_resting_hr">Resting heart rate</string>
+    <string name="wellness_signal_steps">Steps</string>
+    <string name="wellness_signal_sleep">Sleep</string>
+    <string name="wellness_signal_mindfulness">Mindfulness</string>
+    <string name="wellness_dir_at">at your usual</string>
+    <string name="wellness_dir_above">above your usual</string>
+    <string name="wellness_dir_much_above">much above your usual</string>
+    <string name="wellness_dir_below">below your usual</string>
+    <string name="wellness_dir_no_data">—</string>
+    <string name="wellness_vs_usual">vs your usual: %1$s</string>
+    <string name="wellness_baseline_building">still building a picture</string>
+    <string name="wellness_no_value_today">—</string>
+    <string name="wellness_settings_title">Wellness signals</string>
+    <string name="wellness_settings_explainer">Your own history for each signal, shown in the same units your watch or ring writes. None of this is sent off the phone. None of it is compared to anyone else. The launcher never applies a population threshold to a person.</string>
+    <string name="wellness_settings_baseline_building">Still building a picture. Each signal needs 14 days of your own data before the baseline is honest enough to show. The home card and this section appear once it is.</string>
+    <string name="wellness_settings_loading">Reading from your watch…</string>
+    <string name="wellness_settings_no_data">No signal data has been read yet today. Open the Wearable section above to connect your watch, then come back.</string>
+    <string name="wellness_settings_line">%1$s: %2$s</string>
+    <string name="wellness_settings_signal_header">%1$s</string>
+    <string name="wellness_settings_band_at">%1$s — at your usual</string>
+    <string name="wellness_settings_band_above">%1$s — above your usual</string>
+    <string name="wellness_settings_band_much_above">%1$s — much above your usual</string>
+    <string name="wellness_settings_band_below">%1$s — below your usual</string>
+    <string name="wellness_settings_band_no_data">%1$s — no reading today</string>
+    <string name="wellness_settings_z_score">robust z-score: %1$.2f</string>
+    <string name="wellness_settings_baseline_label">your usual</string>
+    <string name="wellness_settings_mad_label">typical spread (MAD)</string>
+    <string name="wellness_settings_privacy_note">The launcher reads from Health Connect and never writes back. The data never leaves this phone. The per-signal rolling history lives in app-private storage and is included in the on-device backup.</string>
 
     <string-array name="who5_items">
         <item>I have felt cheerful and in good spirits</item>

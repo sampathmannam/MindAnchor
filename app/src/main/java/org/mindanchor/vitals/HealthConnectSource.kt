@@ -1,11 +1,18 @@
+@file:OptIn(ExperimentalMindfulnessSessionApi::class)
+
 package org.mindanchor.vitals
 
 import android.content.Context
+import androidx.activity.result.contract.ActivityResultContract
 import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.HealthConnectFeatures
+import androidx.health.connect.client.PermissionController
+import androidx.health.connect.client.feature.ExperimentalMindfulnessSessionApi
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.HeartRateVariabilityRmssdRecord
+import androidx.health.connect.client.records.MindfulnessSessionRecord
 import androidx.health.connect.client.records.Record
 import androidx.health.connect.client.records.RestingHeartRateRecord
 import androidx.health.connect.client.records.SleepSessionRecord
@@ -52,11 +59,16 @@ object HealthConnectSource {
      * signal even though no [DailyVitals] field consumes it yet — it is
      * here so the permission grant does not need revisiting the day a
      * calories field is added.
+     *
+     * [MindfulnessSessionRecord] is the mental-health signal. The
+     * meditation apps that already write to Health Connect (Calm,
+     * Headspace, Samsung Health, etc.) provide total minutes of
+     * practice; the report surfaces it as a separate dimension next
+     * to steps and sleep. Evidence: app-based mindfulness has a
+     * medium effect on stress (g = 0.46) and small-to-medium on
+     * anxiety (g = 0.16–0.40) and depression (g = 0.24–0.43) in a
+     * 34-RCT meta-analysis (Gál et al., J Affect Disord 2020).
      */
-    // NOTE: HealthPermission.getReadPermission(KClass<out Record>): String
-    // is the long-standing shape of this call across connect-client
-    // releases; unverified against the exact 1.1.0-alpha07 artifact used
-    // by this build, so check here first if this file fails to compile.
     val PERMISSIONS: Set<String> = setOf(
         HealthPermission.getReadPermission(HeartRateRecord::class),
         HealthPermission.getReadPermission(RestingHeartRateRecord::class),
@@ -65,7 +77,50 @@ object HealthConnectSource {
         HealthPermission.getReadPermission(StepsRecord::class),
         HealthPermission.getReadPermission(ExerciseSessionRecord::class),
         HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
+        HealthPermission.getReadPermission(MindfulnessSessionRecord::class),
     )
+
+    /**
+     * The subset of [PERMISSIONS] the current provider can actually
+     * supply. Always at least the seven types that do not depend on
+     * a feature flag; the eighth — [MindfulnessSessionRecord] — is
+     * included only when [HealthConnectFeatures.FEATURE_MINDFULNESS_SESSION]
+     * is reported as [HealthConnectFeatures.FEATURE_STATUS_AVAILABLE].
+     *
+     * Returned by [effectivePermissions] and used by the Settings
+     * panel's "change what is shared" flow. A provider that lacks the
+     * feature should not see the permission in the system dialog,
+     * and the wellness surface should not read a record type the
+     * provider cannot return.
+     */
+    fun effectivePermissions(context: Context): Set<String> {
+        val base = PERMISSIONS - HealthPermission.getReadPermission(MindfulnessSessionRecord::class)
+        if (!isAvailable(context)) return base
+        val hcClient = runCatching { client(context) }.getOrNull() ?: return base
+        val features = runCatching { hcClient.features }.getOrNull() ?: return base
+        val status = runCatching { features.getFeatureStatus(HealthConnectFeatures.FEATURE_MINDFULNESS_SESSION) }
+            .getOrDefault(HealthConnectFeatures.FEATURE_STATUS_UNAVAILABLE)
+        return if (status == HealthConnectFeatures.FEATURE_STATUS_AVAILABLE) {
+            PERMISSIONS
+        } else {
+            base
+        }
+    }
+
+    /**
+     * True when the current Health Connect provider advertises
+     * support for [MindfulnessSessionRecord]. False on a missing
+     * provider, a mid-update provider, a 1.1.0 provider that has
+     * not turned the feature on, or any read failure. Used by the
+     * wellness surface to skip the mindfulness read path on
+     * devices that cannot supply it.
+     */
+    fun isMindfulnessSupported(context: Context): Boolean = runCatching {
+        val hcClient = client(context) ?: return@runCatching false
+        val features = hcClient.features
+        features.getFeatureStatus(HealthConnectFeatures.FEATURE_MINDFULNESS_SESSION) ==
+            HealthConnectFeatures.FEATURE_STATUS_AVAILABLE
+    }.getOrDefault(false)
 
     /**
      * Whether Health Connect is installed and usable on this device.
@@ -99,6 +154,41 @@ object HealthConnectSource {
     /** True as soon as any single permission has been granted — enough to read something. */
     suspend fun hasAnyPermissions(context: Context): Boolean =
         grantedPermissions(context).isNotEmpty()
+
+    /**
+     * The ActivityResultContract the Settings UI uses to launch the
+     * system Health Connect permission dialog. Wraps the SDK's
+     * [PermissionController.createRequestPermissionResultContract] so
+     * the call site reads as `requestPermissionsContract().launch(set)`,
+     * matching the other affordances in the launcher.
+     *
+     * The contract is created once per process and the system binds
+     * to the result Intent — the launcher's caller receives a
+     * `Set<String>` of permissions the user granted. Empty set
+     * means deny-all. A subset means a partial grant.
+     */
+    fun requestPermissionsContract(): ActivityResultContract<Set<String>, Set<String>> =
+        PermissionController.createRequestPermissionResultContract()
+
+    /**
+     * A canonical, in-order list of (human-readable label, permission)
+     * pairs the Settings UI iterates to render the "what this app reads"
+     * section. The order matches the order in [PERMISSIONS] so the
+     * two never drift. The labels live in `strings.xml` rather than
+     * here — they are the wording-reviewed surface — so what this
+     * helper really does is hand the UI the permission strings in a
+     * stable order; the UI looks each one up in the resource table.
+     */
+    fun permissionLabelsInOrder(): List<Pair<String, String>> = listOf(
+        "heart_rate" to HealthPermission.getReadPermission(HeartRateRecord::class),
+        "resting_heart_rate" to HealthPermission.getReadPermission(RestingHeartRateRecord::class),
+        "heart_rate_variability" to HealthPermission.getReadPermission(HeartRateVariabilityRmssdRecord::class),
+        "sleep" to HealthPermission.getReadPermission(SleepSessionRecord::class),
+        "steps" to HealthPermission.getReadPermission(StepsRecord::class),
+        "exercise" to HealthPermission.getReadPermission(ExerciseSessionRecord::class),
+        "calories" to HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
+        "mindfulness" to HealthPermission.getReadPermission(MindfulnessSessionRecord::class),
+    )
 
     /**
      * Reads [date]'s vitals in [zone] and reduces them into [DailyVitals].
@@ -137,6 +227,18 @@ object HealthConnectSource {
         val exerciseSessions = readIntervals<ExerciseSessionRecord>(hcClient, range) {
             it.startTime.toEpochMilli() to it.endTime.toEpochMilli()
         }
+        // Mindfulness is gated on a per-provider feature flag in
+        // Health Connect 1.1.0 — older 1.1.0 providers do not advertise
+        // it. Reading the record on an unsupported provider raises an
+        // exception the outer [runCatching] would swallow, but a
+        // defensive skip keeps the call out of the provider entirely.
+        val mindfulnessSessions = if (isMindfulnessSupported(context)) {
+            readIntervals<MindfulnessSessionRecord>(hcClient, range) {
+                it.startTime.toEpochMilli() to it.endTime.toEpochMilli()
+            }
+        } else {
+            emptyList()
+        }
 
         DailyVitals(
             date = date,
@@ -148,6 +250,7 @@ object HealthConnectSource {
             sleepOnset = DailyVitalsReducer.sleepOnset(sleepSessions, zoneOffsetMinutes),
             steps = DailyVitalsReducer.steps(stepCounts),
             activeMinutes = DailyVitalsReducer.activeMinutes(exerciseSessions),
+            mindfulnessMinutes = DailyVitalsReducer.mindfulnessMinutes(mindfulnessSessions),
         )
     }.getOrDefault(DailyVitals.empty(date))
 

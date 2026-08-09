@@ -7,6 +7,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.clickable
@@ -52,18 +53,25 @@ import org.mindanchor.friction.FrictionGate
 import org.mindanchor.friction.FrictionTone
 import org.mindanchor.friction.GateContext
 import org.mindanchor.friction.LoopPhase
+import org.mindanchor.model.Note
+import org.mindanchor.model.NoteActivity
 import org.mindanchor.sleep.BedtimeList
 import org.mindanchor.sleep.BedtimePhase
 import org.mindanchor.report.ReportScreen
 import org.mindanchor.report.ReportStore
 import org.mindanchor.settings.SettingsScreen
 import org.mindanchor.vitals.PpgScreen
+import org.mindanchor.vitals.WellnessDirection
+import org.mindanchor.vitals.WellnessReading
+import org.mindanchor.vitals.WellnessSignal
 import org.mindanchor.support.SupportActivity
 import org.mindanchor.ui.CalmBackground
 import org.mindanchor.ui.SkyContent
 import org.mindanchor.ui.rememberClockFormat
 import org.mindanchor.ui.rememberMinuteTick
+import java.text.DateFormat
 import java.time.format.DateTimeFormatter
+import java.util.Date
 
 private enum class LauncherSurface { Home, Drawer, Settings, Ppg, Report }
 
@@ -81,6 +89,8 @@ fun LauncherRoot(
     val state by viewModel.uiState.collectAsState()
     val openLoop by viewModel.openLoop.collectAsState()
     val bedtimeList by viewModel.bedtimeList.collectAsState()
+    val recentNotes by viewModel.notes.collectAsState()
+    val wellnessReadings by viewModel.wellnessReadings.collectAsState()
     var surface by remember { mutableStateOf(LauncherSurface.Home) }
     var actionsFor by remember { mutableStateOf<DisplayApp?>(null) }
     var gateFor by remember { mutableStateOf<DisplayApp?>(null) }
@@ -109,6 +119,19 @@ fun LauncherRoot(
             surface = LauncherSurface.Home
             viewModel.onQueryChange("")
         }
+    }
+
+    // v0.20.5: refresh wellness on every transition into the
+    // home surface. The readings are cached in the ViewModel
+    // for 5s by WhileSubscribed, but the first composition
+    // after a Health Connect permission grant — the most
+    // likely moment the user opens the launcher — is exactly
+    // the moment the data is freshest. The same goHomeSignal
+    // path that handles "press home from deep in the app"
+    // also handles "press home from settings", which is the
+    // path the user takes after granting permission.
+    LaunchedEffect(goHomeSignal) {
+        if (goHomeSignal >= 0) viewModel.refreshWellness()
     }
 
     BackHandler(enabled = surface != LauncherSurface.Home || gateFor != null) {
@@ -209,6 +232,8 @@ fun LauncherRoot(
                 bedtimeItems = bedtimeList.second,
                 onBedtimeSave = viewModel::saveBedtimeList,
                 onBedtimeClear = viewModel::clearBedtimeList,
+                recentNotes = recentNotes,
+                onAddQuickNote = viewModel::addQuickNote,
                 hasReport = hasReport,
                 onOpenReport = {
                     reportCameFrom = LauncherSurface.Home
@@ -242,6 +267,7 @@ fun LauncherRoot(
                         context.startActivity(historyIntent)
                     }
                 },
+                wellnessReadings = wellnessReadings,
             )
         }
 
@@ -497,6 +523,337 @@ private fun BedtimeListCard(
     }
 }
 
+/**
+ * The home-screen quick-notes card. v0.20.4.
+ *
+ * The launcher already routes the user to
+ * [org.mindanchor.model.NoteActivity] from the
+ * "notes" button in the top-right corner; the full
+ * activity is the right place to read, edit, and
+ * pin a long note. This card is the *capture*
+ * surface — the place to jot one line without
+ * opening anything.
+ *
+ * ## Why always visible
+ *
+ * The brief: "I want to remember this." The whole
+ * notes feature exists for the moment between
+ * noticing a thought and losing it. Two taps
+ * (notes → new) is two taps too many in that
+ * moment. The home card is the launcher-equivalent
+ * of the URL bar in a browser: one place, always
+ * there, one line, type and save.
+ *
+ * ## Why it shows the last three notes
+ *
+ * The save is the moment the user wants to know
+ * worked. Showing the just-saved line land at the
+ * top of a small list is the cheapest possible
+ * "it worked" feedback. Three is the floor that
+ * makes the card feel like a journal (one row
+ * feels like a typo) and the ceiling before the
+ * card would push the favourites off a small
+ * screen at default font scale. The full list —
+ * every note, every timestamp, edit and pin —
+ * is one tap away via "View all".
+ *
+ * ## Why a button, not auto-save
+ *
+ * Notes are user-authored text and an
+ * accidental keystroke (the keyboard popping
+ * up while walking) is a real failure mode.
+ * Auto-save on focus loss would silently
+ * capture typos. The button makes the save
+ * explicit; the placeholder and the disabled-
+ * when-blank button tell the user the surface
+ * is alive without nagging.
+ *
+ * ## Tapping a saved note
+ *
+ * A single tap opens the full [NoteActivity]
+ * for editing. The card never edits inline
+ * (the editing affordance is a different
+ * surface, and inline edit on the home would
+ * make the card a second editor — which the
+ * brief is explicit that it is not).
+ */
+@Composable
+private fun QuickNotesCard(
+    sky: SkyContent,
+    recent: List<Note>,
+    onSave: (String) -> Unit,
+    onOpenAll: () -> Unit,
+) {
+    var draft by remember { mutableStateOf("") }
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = stringResource(R.string.quick_notes_section),
+            style = MaterialTheme.typography.titleMedium,
+            color = sky.textSecondary,
+        )
+        OutlinedTextField(
+            value = draft,
+            onValueChange = { draft = it },
+            singleLine = true,
+            placeholder = { Text(stringResource(R.string.quick_notes_input_hint)) },
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        )
+        TextButton(
+            onClick = {
+                onSave(draft)
+                draft = ""
+            },
+            enabled = draft.isNotBlank(),
+        ) {
+            Text(stringResource(R.string.quick_notes_save), color = sky.textPrimary)
+        }
+        if (recent.isEmpty()) {
+            Text(
+                text = stringResource(R.string.quick_notes_empty),
+                style = MaterialTheme.typography.bodySmall,
+                color = sky.textSecondary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            )
+        } else {
+            recent.forEach { note ->
+                // The note row is intentionally
+                // compact: first line of the body
+                // (the title by convention) plus a
+                // small timestamp. Full body is in
+                // the activity; the home only
+                // surfaces the *fact* the user
+                // wrote it, and the rough when.
+                val title = note.title.ifBlank { note.body.take(60) }
+                val whenText = noteTimeText(note)
+                TextButton(
+                    onClick = onOpenAll,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = stringResource(
+                            R.string.quick_notes_saved_at,
+                            title,
+                            whenText,
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = sky.textSecondary,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+            TextButton(onClick = onOpenAll) {
+                Text(stringResource(R.string.quick_notes_view_all), color = sky.textSecondary)
+            }
+        }
+    }
+}
+
+/**
+ * Format a note's timestamp for the home card.
+ *
+ * The list view uses the absolute date+time; the
+ * home card needs something a person can read at
+ * a glance (where the line is small). Today vs.
+ * yesterday vs. earlier is the right shape: a
+ * note from 2pm today reads "14:00", a note from
+ * yesterday reads "yesterday 22:13", a note from
+ * last week reads the short date. The function
+ * is local to this file because the rule is
+ * display-only and no other surface needs the
+ * same compaction.
+ */
+private fun noteTimeText(note: Note): String {
+    val now = System.currentTimeMillis()
+    val cal = java.util.Calendar.getInstance().apply { timeInMillis = note.createdAt }
+    val nowCal = java.util.Calendar.getInstance().apply { timeInMillis = now }
+    val sameDay = cal.get(java.util.Calendar.YEAR) == nowCal.get(java.util.Calendar.YEAR) &&
+        cal.get(java.util.Calendar.DAY_OF_YEAR) == nowCal.get(java.util.Calendar.DAY_OF_YEAR)
+    if (sameDay) {
+        return DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(note.createdAt))
+    }
+    val yesterdayCal = (nowCal.clone() as java.util.Calendar).apply { add(java.util.Calendar.DAY_OF_YEAR, -1) }
+    val isYesterday = cal.get(java.util.Calendar.YEAR) == yesterdayCal.get(java.util.Calendar.YEAR) &&
+        cal.get(java.util.Calendar.DAY_OF_YEAR) == yesterdayCal.get(java.util.Calendar.DAY_OF_YEAR)
+    if (isYesterday) {
+        val time = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(note.createdAt))
+        return "yesterday $time"
+    }
+    return DateFormat.getDateInstance(DateFormat.SHORT).format(Date(note.createdAt))
+}
+
+/**
+ * The wellness card — per-signal readings for today against the
+ * person's own history, in the same N-of-1 framing the rest of
+ * the launcher uses. The home is a glance surface: one line per
+ * signal, no charts, no diagnosis. A signal the watch had no
+ * data for reads as a dash, not a number; a signal the baseline
+ * has not yet caught up to reads as a still-building note, not a
+ * fake number.
+ *
+ * ## Why direction only, not raw z-score
+ *
+ * The home card is for glancing at, not for analysing. A robust
+ * z-score of 1.4 is a fraction of a personal distribution; a
+ * label of "above your usual" is the same fact in words. The
+ * number is preserved in [WellnessReading.zScore] for the
+ * settings panel and the nightly report, where it is read in
+ * the larger context those surfaces provide.
+ *
+ * ## Why a card at all on a launcher that says "say less"
+ *
+ * The launcher is a quiet place by design, and a card that
+ * updates itself with five lines a day is the kind of thing
+ * that trains a person to look. The compromise: the card is
+ * shown only when at least one signal has a value to show AND
+ * a baseline to compare it to. A user with no Health Connect
+ * source app, or fewer than 14 days of history, sees no card —
+ * the home stays the home.
+ *
+ * ## Why "your usual" rather than "your 30-day average"
+ *
+ * The signal is the personal median, the language is "usual".
+ * "Average" is a population word — it tells a person where
+ * they are against a curve that has nothing to say about
+ * them. "Usual" is a personal word — it tells a person where
+ * they are against themselves. The full machinery is in
+ * [org.mindanchor.vitals.WellnessStats]; the home card is
+ * deliberately understating it.
+ */
+@Composable
+private fun WellnessCard(
+    sky: SkyContent,
+    readings: List<WellnessReading>,
+) {
+    // Hide the card entirely when there is nothing to say.
+    // The home is a glance surface; an empty card is a
+    // standing invitation to look. Two cases:
+    //  - no readings yet (the ViewModel has not refreshed
+    //    — show nothing, do not show a skeleton)
+    //  - every signal is NO_DATA (no wearable, no
+    //    permission, or fewer than 14 days of history)
+    val hasAnything = readings.any { it.today != null && it.direction != WellnessDirection.NO_DATA }
+    if (!hasAnything) return
+    val reportable = readings.any { it.baseline.isReportable }
+    if (!reportable) return
+
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = stringResource(R.string.wellness_section),
+            style = MaterialTheme.typography.titleMedium,
+            color = sky.textSecondary,
+        )
+        Text(
+            text = stringResource(R.string.wellness_subtitle),
+            style = MaterialTheme.typography.bodySmall,
+            color = sky.textSecondary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 2.dp),
+        )
+        readings.forEach { reading ->
+            WellnessLine(sky = sky, reading = reading)
+        }
+    }
+}
+
+/**
+ * One row of the wellness card: the signal's name, today's
+ * value, the direction band, and a small "vs your usual"
+ * anchor.
+ */
+@Composable
+private fun WellnessLine(sky: SkyContent, reading: WellnessReading) {
+    val name = stringResource(wellnessSignalNameRes(reading.signal))
+    val todayText = reading.today?.let { formatWellnessValue(reading.signal, it) }
+        ?: stringResource(R.string.wellness_no_value_today)
+    val directionText = stringResource(wellnessDirectionRes(reading.direction))
+    val medianText = reading.baseline.median?.let { formatWellnessValue(reading.signal, it) }
+        ?: stringResource(R.string.wellness_baseline_building)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 36.dp)
+            .padding(top = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = name,
+            style = MaterialTheme.typography.bodyMedium,
+            color = sky.textPrimary,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = todayText,
+            style = MaterialTheme.typography.bodyMedium,
+            color = sky.textPrimary,
+        )
+        Text(
+            text = "  $directionText",
+            style = MaterialTheme.typography.bodySmall,
+            color = sky.textSecondary,
+        )
+    }
+    Text(
+        text = stringResource(R.string.wellness_vs_usual, medianText),
+        style = MaterialTheme.typography.bodySmall,
+        color = sky.textSecondary,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 0.dp, bottom = 2.dp),
+    )
+}
+
+/**
+ * The display name for a [WellnessSignal]. Local to this file
+ * because the home card is the only place that needs the
+ * short form; the settings panel uses the same resource
+ * directly.
+ */
+private fun wellnessSignalNameRes(signal: WellnessSignal): Int = when (signal) {
+    WellnessSignal.HRV -> R.string.wellness_signal_hrv
+    WellnessSignal.RESTING_HEART_RATE -> R.string.wellness_signal_resting_hr
+    WellnessSignal.STEPS -> R.string.wellness_signal_steps
+    WellnessSignal.SLEEP_MINUTES -> R.string.wellness_signal_sleep
+    WellnessSignal.MINDFULNESS_MINUTES -> R.string.wellness_signal_mindfulness
+}
+
+/**
+ * The wording for a [WellnessDirection] band. Direction-only,
+ * deliberately never labelled "good" or "bad" — see
+ * [WellnessDirection]'s KDoc.
+ */
+private fun wellnessDirectionRes(direction: WellnessDirection): Int = when (direction) {
+    WellnessDirection.NO_DATA -> R.string.wellness_dir_no_data
+    WellnessDirection.AT -> R.string.wellness_dir_at
+    WellnessDirection.ABOVE -> R.string.wellness_dir_above
+    WellnessDirection.MUCH_ABOVE -> R.string.wellness_dir_much_above
+    WellnessDirection.BELOW -> R.string.wellness_dir_below
+}
+
+/**
+ * Render a [WellnessSignal] value for the home card.
+ *
+ * The units match the source data, not the population
+ * literature — steps are integer, sleep is minutes, HRV is
+ * milliseconds, and so on. The format here is the home card's
+ * version: integer when the source is integer, "%.0f ms" for
+ * HRV, "%.0f bpm" for resting heart rate. The settings panel
+ * uses the same formats via [org.mindanchor.report.ValueFormat].
+ */
+private fun formatWellnessValue(signal: WellnessSignal, value: Double): String = when (signal) {
+    WellnessSignal.HRV -> "%.0f ms".format(value)
+    WellnessSignal.RESTING_HEART_RATE -> "%.0f bpm".format(value)
+    WellnessSignal.STEPS -> "%,d".format(value.toLong())
+    WellnessSignal.SLEEP_MINUTES -> "${value.toInt()} min"
+    WellnessSignal.MINDFULNESS_MINUTES -> "${value.toInt()} min"
+}
+
 // combinedClickable, for the long-press on a favourite.
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -538,6 +895,29 @@ private fun HomeSurface(
      * other.
      */
     onOpenCheckInHistory: () -> Unit = {},
+    /**
+     * v0.20.4: the home-screen quick-notes
+     * affordance. The card shows a one-line
+     * input, a save button, and the most recent
+     * notes. The save callback writes to the
+     * same [org.mindanchor.data.NotesPrefs] the
+     * full [org.mindanchor.model.NoteActivity]
+     * reads from — the two surfaces share the
+     * store. [onOpenNotes] is reused to route
+     * the "View all" link and the per-row tap
+     * to the full activity.
+     */
+    recentNotes: List<Note> = emptyList(),
+    onAddQuickNote: (String) -> Unit = {},
+    /**
+     * v0.20.5: the wellness card — per-signal readings for
+     * today against the person's own history. Null is
+     * "still loading", not "no data": the card is hidden
+     * entirely when [wellnessReadings] is null or when
+     * every reading is [WellnessDirection.NO_DATA]. The
+     * home stays the home when there is nothing to show.
+     */
+    wellnessReadings: List<org.mindanchor.vitals.WellnessReading>? = null,
 ) {
     val now = rememberMinuteTick()
     val clockFormat = rememberClockFormat()
@@ -601,6 +981,39 @@ private fun HomeSurface(
                 onSave = onBedtimeSave,
                 onClear = onBedtimeClear,
             )
+
+            // v0.20.4: the quick-notes card. Always
+            // visible — the brief is "I want to
+            // remember this", and the moment the
+            // user thinks it is the moment the card
+            // has to be there. Placed *after* the
+            // conditional OpenLoop / BedtimeList
+            // cards (which are silent most of the
+            // time) and *before* the report link
+            // and favourites, so the capture surface
+            // is between the two summary cards and
+            // the action surface — the rough centre
+            // of the home screen.
+            QuickNotesCard(
+                sky = sky,
+                recent = recentNotes,
+                onSave = onAddQuickNote,
+                onOpenAll = onOpenNotes,
+            )
+
+            // v0.20.5: the wellness card. Same idiom
+            // as the report link — silent when there is
+            // nothing to say, one quiet block when
+            // there is. Hidden entirely (not blanked)
+            // when the wearable has not been paired,
+            // when the user has not granted permission,
+            // or when fewer than 14 days of history
+            // are on file. The card is a glance
+            // surface; an empty card is a standing
+            // invitation to look.
+            wellnessReadings?.let { readings ->
+                WellnessCard(sky = sky, readings = readings)
+            }
 
             // One quiet line, and only when there is genuinely something
             // to read. No badge, no count, no dot — this app has none of

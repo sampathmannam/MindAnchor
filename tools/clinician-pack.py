@@ -42,7 +42,10 @@ GROUPS = [
 
 
 def parse(path):
-    text = path.read_text()
+    # Use utf-8 explicitly: Windows Python's default locale
+    # encoding (cp1252) mis-decodes the smart quotes / em-dashes
+    # that the strings table carries.
+    text = path.read_text(encoding="utf-8")
     out = []
     for m in re.finditer(r'<string name="([^"]+)">(.*?)</string>', text, re.S):
         name, body = m.group(1), m.group(2)
@@ -60,7 +63,15 @@ def bucket(name):
 
 def main():
     strings = parse(STRINGS)
-    digest = hashlib.sha256(STRINGS.read_bytes()).hexdigest()[:12]
+    # Hash the parsed string table, not the raw file bytes.
+    # The raw bytes differ between CRLF (Windows checkouts)
+    # and LF (Linux CI), and a hash over the bytes would
+    # therefore drift on every platform. The parsed table
+    # is the actual content the pack is built from and
+    # gives a stable digest everywhere.
+    digest = hashlib.sha256(
+        "\n".join(f"{n}\t{body}" for n, body in strings).encode("utf-8")
+    ).hexdigest()[:12]
     lines = []
     lines.append("# Clinician review pack\n")
     lines.append(
@@ -93,7 +104,7 @@ def main():
         for name, body in buckets[index]:
             clean = " ".join(body.split())
             lines.append(f"- **`{name}`** — {clean}")
-    OUT.write_text("\n".join(lines) + "\n")
+    OUT.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"wrote {OUT} with {len(strings)} strings, digest {digest}")
 
 

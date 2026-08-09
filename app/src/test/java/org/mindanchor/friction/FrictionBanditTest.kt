@@ -114,6 +114,7 @@ class FrictionBanditTest {
     @Test
     fun `observe updates only the played arm`() {
         val s0 = FrictionBandit.BanditState()
+        // reward = true means "arm did its job" (user backed out)
         val s1 = FrictionBandit.observe(s0, FrictionBandit.ArmChoice.FULL, reward = true)
         assertEquals(2.0, s1.full.alpha, 0.0001)
         assertEquals(1.0, s1.full.beta, 0.0001)
@@ -125,6 +126,7 @@ class FrictionBanditTest {
     @Test
     fun `observe with a failure increments beta, not alpha`() {
         val s0 = FrictionBandit.BanditState()
+        // reward = false means "arm did not work" (user went through)
         val s1 = FrictionBandit.observe(s0, FrictionBandit.ArmChoice.BRIEF, reward = false)
         // BRIEF arm: alpha stays at 1, beta → 2.
         assertEquals(1.0, s1.brief.alpha, 0.0001)
@@ -184,5 +186,54 @@ class FrictionBanditTest {
         assertEquals(5.0, s1.brief.alpha, 0.0001)
         assertEquals(s0.brief.mean, s1.brief.mean, 0.0001) // BRIEF is untouched
         assertEquals(5.0, s1.brief.beta, 0.0001)
+    }
+
+    /**
+     * Pinned behaviour — the bandit must prefer the arm that
+     * is doing its job, not the arm the user is clicking
+     * through. A friction gate is supposed to make the user
+     * back out; a sampler that rewards the most-clicked-
+     * through arm is the sampler that learns to give up.
+     *
+     * The sign convention is: `reward = true` means the arm
+     * did its job (user backed out), `reward = false` means
+     * it did not (user proceeded). See [FrictionBandit.update].
+     */
+    @Test
+    fun `bandit should prefer the arm that works (causes back-out), not the arm that is clicked through`() {
+        // Scenario:
+        //  - FULL is consistently effective: 20 plays, every
+        //    time the user backs out within 60s.
+        //    reward = true on every FULL play → alpha += 1.
+        //  - BRIEF is consistently ineffective: 20 plays,
+        //    every time the user proceeds past the gate.
+        //    reward = false on every BRIEF play → beta += 1.
+        // Expected: the bandit's chosen arm, on a
+        // deterministic path (force the floor out of the
+        // way), is FULL — the arm that is doing the job.
+        val s0 = FrictionBandit.BanditState()
+        var s = s0
+        repeat(20) {
+            s = FrictionBandit.observe(s, FrictionBandit.ArmChoice.FULL, reward = true)
+            s = FrictionBandit.observe(s, FrictionBandit.ArmChoice.BRIEF, reward = false)
+        }
+        val ctx = FrictionBandit.Context(
+            recentAbandonRateBucket = 0,
+            timeOfDayBucket = 1,
+            insideSleepWindow = 0,
+        )
+        // Force the deterministic path. We need a random
+        // whose first nextDouble() returns ≥ 0.10. We probe
+        // a few seeds and pick one that lands above the
+        // floor. The point of the test is the posterior, not
+        // the seed.
+        val seed = (0L..1000L).first { seed ->
+            kotlin.random.Random(seed).nextDouble() >= FrictionBandit.EXPLORATION_FLOOR
+        }
+        val choice = FrictionBandit.choose(s, ctx, random = Random(seed))
+        assertEquals(
+            FrictionBandit.ArmChoice.FULL,
+            choice,
+        )
     }
 }

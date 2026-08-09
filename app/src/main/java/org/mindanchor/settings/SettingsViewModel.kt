@@ -256,6 +256,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     init {
         refreshSleep()
+        // The Health Connect status is read on the first UI
+        // composition of the wearable section rather than here:
+        // the underlying [MutableStateFlow] is declared further
+        // down this class, and Kotlin initialises properties
+        // top-to-bottom before running any [init] block, so an
+        // init-time call to [refreshHealthConnectStatus] would
+        // touch a [StateFlow.setValue] on a still-null field.
+        // The settings UI calls [refreshHealthConnectStatus] from
+        // a [LaunchedEffect] on first composition, which is
+        // strictly after the ViewModel is fully built.
     }
 
     fun hasUsageAccess(): Boolean = sleepRepository.hasUsageAccess()
@@ -380,6 +390,42 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     private val _probing = MutableStateFlow(false)
     val probing: StateFlow<Boolean> = _probing.asStateFlow()
+
+    /**
+     * What Health Connect looks like on this device, for the permission
+     * grant flow. The launcher never reads a byte of wearable data
+     * without the user having first seen the system dialog and tapped
+     * allow — this state drives the "Connect to your watch" button in
+     * the settings UI.
+     */
+    sealed interface HealthConnectStatus {
+        data object Unknown : HealthConnectStatus
+        data object Unavailable : HealthConnectStatus
+        data class Available(val granted: Int, val total: Int) : HealthConnectStatus
+    }
+
+    private val _healthConnectStatus = MutableStateFlow<HealthConnectStatus>(HealthConnectStatus.Unknown)
+    val healthConnectStatus: StateFlow<HealthConnectStatus> = _healthConnectStatus.asStateFlow()
+
+    /**
+     * Recompute the Health Connect permission state. Called on the
+     * settings screen's first composition, after a permission flow
+     * returns, and any time the launcher returns to the foreground.
+     */
+    fun refreshHealthConnectStatus() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val app = getApplication<Application>()
+            _healthConnectStatus.value = if (!HealthConnectSource.isAvailable(app)) {
+                HealthConnectStatus.Unavailable
+            } else {
+                val granted = HealthConnectSource.grantedPermissions(app).size
+                HealthConnectStatus.Available(
+                    granted = granted,
+                    total = HealthConnectSource.PERMISSIONS.size,
+                )
+            }
+        }
+    }
 
     /**
      * Reads yesterday straight from Health Connect, right now.
@@ -532,6 +578,47 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             _modelImportFailed.value = false
             _modelPresent.value = ModelStore.hasModel(context)
             _modelFit.value = ModelStore.fit(context)
+        }
+    }
+
+    // --- Wellness signals (N-of-1, from Health Connect) ---
+    //
+    // The home card and the settings section both read the same flow,
+    // so the two surfaces can never disagree about what is being
+    // shown. The flow is null until the first refresh completes —
+    // a "still loading" state that is not a "no data" state, so the
+    // UI can render a quiet placeholder rather than the more loaded
+    // "no data" state when the device is mid-startup.
+    //
+    // The refresh is launched on every ON_RESUME (via the
+    // [permissionEpoch] pattern used elsewhere on this screen) so
+    // the home card and the settings panel re-read the moment the
+    // launcher comes back to the foreground after a Health Connect
+    // permission grant.
+
+    private val _wellnessReadings = MutableStateFlow<List<org.mindanchor.vitals.WellnessReading>?>(null)
+    val wellnessReadings: StateFlow<List<org.mindanchor.vitals.WellnessReading>?> = _wellnessReadings.asStateFlow()
+
+    /**
+     * The in-flight wellness refresh, if any. Held so a fresh
+     * [refreshWellness] call (e.g. when the settings screen returns
+     * to the foreground, or a Health Connect permission grant
+     * lands) cancels the previous run before starting the new one:
+     * the readings pipeline reads and writes the wellness DataStore
+     * on every call, and the launcher would otherwise run two
+     * `readingsFor` operations in parallel and pick the one that
+     * finished last, regardless of which one started last.
+     */
+    private var wellnessJob: kotlinx.coroutines.Job? = null
+
+    fun refreshWellness() {
+        wellnessJob?.cancel()
+        wellnessJob = viewModelScope.launch(Dispatchers.IO) {
+            val app = getApplication<Application>()
+            val readings = runCatching {
+                org.mindanchor.vitals.WellnessRepository(app).readingsFor(LocalDate.now())
+            }.getOrDefault(emptyList())
+            _wellnessReadings.value = readings
         }
     }
 }
