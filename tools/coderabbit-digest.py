@@ -305,12 +305,126 @@ def action_count(body):
     return int(m.group(1)) if m else None
 
 
-def fmt_digest(review, findings, action_total):
-    """Format a Markdown digest for one review."""
+def parse_submitted_at(review):
+    """Return the review's submitted_at as a POSIX timestamp, or None.
+
+    The GitHub API returns ISO 8601; Python's fromisoformat
+    (3.11+) handles the `Z` suffix and the fractional
+    seconds that `Z` is sometimes paired with.
+    """
+    raw = review.get("submitted_at")
+    if not raw:
+        return None
+    try:
+        from datetime import datetime, timezone
+        # Tolerate the trailing Z.
+        if raw.endswith("Z"):
+            raw = raw[:-1] + "+00:00"
+        return datetime.fromisoformat(raw).timestamp()
+    except (ValueError, TypeError):
+        return None
+
+
+def line_range_start_end(lines):
+    """Parse a CodeRabbit line spec like `34-38` or `42` into (start, end)."""
+    if "-" in lines:
+        a, b = lines.split("-", 1)
+        return int(a), int(b)
+    n = int(lines)
+    return n, n
+
+
+def line_last_touched(file_path, lines, repo_dir, review_time):
+    """Return the commit time of the most recent edit to the
+    cited line range, or None if we can't tell.
+
+    Uses `git blame -L start,end` to find the SHA(s)
+    responsible for the cited lines, then `git log -1
+    --format=%ct` to read each SHA's commit time. The
+    answer is "addressed" if any of those SHAs is later
+    than the review's submitted_at (the line was edited
+    after the review) and "open" if all are earlier.
+
+    This is an approximation: a commit on a different
+    line of the same file will not move the cited line's
+    blame SHA, so we won't get a false "addressed" for
+    edits that don't actually touch the flagged lines.
+    """
+    if not repo_dir or not file_path or not lines:
+        return None
+    start, end = line_range_start_end(lines)
+    try:
+        blame = subprocess.run(
+            ["git", "blame", "-L", f"{start},{end}", "--", file_path],
+            cwd=repo_dir, capture_output=True, text=True, encoding="utf-8",
+            timeout=10,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return None
+    if blame.returncode != 0 or not blame.stdout.strip():
+        return None
+    shas = set()
+    for line in blame.stdout.splitlines():
+        m = re.match(r"^(\w+)", line)
+        if m:
+            shas.add(m.group(1))
+    if not shas:
+        return None
+    most_recent = 0
+    for sha in shas:
+        try:
+            log = subprocess.run(
+                ["git", "log", "-1", "--format=%ct", sha],
+                cwd=repo_dir, capture_output=True, text=True, encoding="utf-8",
+                timeout=5,
+            )
+        except (subprocess.TimeoutExpired, OSError):
+            continue
+        if log.returncode == 0 and log.stdout.strip():
+            try:
+                most_recent = max(most_recent, int(log.stdout.strip()))
+            except ValueError:
+                continue
+    if most_recent == 0:
+        return None
+    return most_recent
+
+
+def address_status(file_path, lines, repo_dir, review_time):
+    """Return one of: 'addressed', 'open', 'unknown'."""
+    touched = line_last_touched(file_path, lines, repo_dir, review_time)
+    if touched is None or review_time is None:
+        return "unknown"
+    if touched > review_time:
+        return "addressed"
+    return "open"
+
+
+def fmt_digest(review, findings, action_total, repo_dir=None):
+    """Format a Markdown digest for one review.
+
+    When `repo_dir` is the path to a git checkout of the
+    repo, the digest also cross-references each finding's
+    file:line with `git blame` to mark it as addressed
+    (touched after the review) or open (last edit
+    pre-dates the review).
+    """
     sev_counts = Counter(f["severity"] for f in findings)
     file_counts = Counter(f["file"] for f in findings)
     state = review.get("state", "COMMENTED")
     submitted = review.get("submitted_at", "?")
+    review_time = parse_submitted_at(review)
+    can_address = bool(repo_dir) and review_time is not None
+
+    if can_address:
+        for f in findings:
+            f["status"] = address_status(f["file"], f["lines"], repo_dir, review_time)
+        open_findings = [f for f in findings if f["status"] == "open"]
+        addressed_findings = [f for f in findings if f["status"] == "addressed"]
+    else:
+        for f in findings:
+            f["status"] = "unknown"
+        open_findings = addressed_findings = []
 
     lines = []
     lines.append(f"### CodeRabbit review \u2014 state `{state}`, submitted `{submitted}`")
@@ -324,22 +438,45 @@ def fmt_digest(review, findings, action_total):
     headline = "Actionable: " + (", ".join(parts) if parts else "none")
     if action_total is not None and action_total != len(findings):
         headline += f"  (header says {action_total})"
+    if can_address:
+        headline += (
+            f"  |  Addressed: {len(addressed_findings)}, Open: {len(open_findings)}"
+            f"  (of {len(findings) - len(open_findings) - len(addressed_findings)} unknown)"
+        )
     lines.append(headline)
     lines.append("")
 
     # Findings table (severity-ordered, then file)
     if findings:
-        lines.append("| Severity | File | Lines | Title |")
-        lines.append("|---|---|---|---|")
+        cols = ["Severity", "File", "Lines", "Title"]
+        if can_address:
+            cols.append("Addressed?")
+        sep = "|" + "|".join(["---"] * len(cols)) + "|"
+        lines.append("| " + " | ".join(cols) + " |")
+        lines.append(sep)
+        sev_emoji = {
+            "Major": "\U0001f7e0 Major",
+            "Minor": "\U0001f7e1 Minor",
+            "Trivial": "\U0001f535 Trivial",
+            "Nitpick": "\U0001f7e3 Nitpick",
+        }
         for f in sorted(findings, key=lambda x: (SEV_RANK.get(x["severity"], 99), x["file"], x["lines"])):
-            sev_short = {
-                "Major": "\U0001f7e0 Major",
-                "Minor": "\U0001f7e1 Minor",
-                "Trivial": "\U0001f535 Trivial",
-                "Nitpick": "\U0001f7e3 Nitpick",
-            }.get(f["severity"], f["severity"])
-            title = f["title"].rstrip(".")
-            lines.append(f"| {sev_short} | `{f['file']}` | `{f['lines']}` | {title} |")
+            row = [
+                sev_emoji.get(f["severity"], f["severity"]),
+                f"`{f['file']}`",
+                f"`{f['lines']}`",
+                f["title"].rstrip("."),
+            ]
+            if can_address:
+                row.append(_status_glyph(f["status"]))
+            lines.append("| " + " | ".join(row) + " |")
+        lines.append("")
+
+    # Open findings (only when addressing is enabled)
+    if can_address and open_findings:
+        lines.append("**Still open:**")
+        for f in open_findings:
+            lines.append(f"- `{f['file']}:{f['lines']}` \u2014 {f['title']}")
         lines.append("")
 
     # File rollup (most-touched first)
@@ -365,16 +502,33 @@ def fmt_digest(review, findings, action_total):
             tldr = "No Majors; Trivial-only \u2014 most are doc/comment fixes"
         else:
             tldr = "All findings are minor"
+        if can_address and open_findings:
+            tldr += f"; {len(open_findings)} still open against current branch"
         lines.append(f"**TL;DR:** {tldr}.")
         lines.append("")
 
     return "\n".join(lines)
 
 
+def _status_glyph(status):
+    if status == "addressed":
+        return "yes"
+    if status == "open":
+        return "no"
+    return "?"
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__.splitlines()[1])
     p.add_argument("--pr", type=int, required=True, help="PR number")
     p.add_argument("--repo", default="sampathmannam/MindAnchor")
+    p.add_argument(
+        "--repo-dir",
+        help="Local git checkout of --repo; enables the "
+        "Addressed? column by cross-referencing each finding's "
+        "file:line with `git blame` against the review's "
+        "submitted_at.",
+    )
     p.add_argument("--run", help="CodeRabbit run ID to filter (e.g. b53d744a-...)")
     p.add_argument("--all", action="store_true", help="Show every CodeRabbit review, oldest first")
     p.add_argument("--json", action="store_true", help="Output raw findings as JSON instead of Markdown")
@@ -412,7 +566,7 @@ def main():
         for r in reviews:
             body = r["body"] or ""
             findings = parse_review(body)
-            print(fmt_digest(r, findings, action_count(body)))
+            print(fmt_digest(r, findings, action_count(body), repo_dir=args.repo_dir))
             print()
         return
 
@@ -420,7 +574,7 @@ def main():
     r = reviews[-1]
     body = r["body"] or ""
     findings = parse_review(body)
-    print(fmt_digest(r, findings, action_count(body)))
+    print(fmt_digest(r, findings, action_count(body), repo_dir=args.repo_dir))
 
 
 if __name__ == "__main__":
