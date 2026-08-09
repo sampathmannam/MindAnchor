@@ -39,6 +39,36 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <!--
+            Health Connect is delivered as a separate APK on Android 14+.
+            Package-visibility filtering on API 30+ means the launcher
+            cannot resolve `com.google.android.apps.healthdata` (or its
+            renamed successor on Android 15+) without an explicit
+            `<queries>` entry. Without this, `HealthConnectClient.getSdkStatus`
+            returns `SDK_UNAVAILABLE` and the launcher never registers
+            itself with Health Connect, so the system Health Connect
+            dialog lists the app as "not a data source" — it never
+            surfaces in the user-facing "Data sources and access" screen
+            at all.
+
+            Both candidate package names are listed because Google
+            renamed the package mid-2024 (`com.google.android.healthconnect`
+            on newer builds). The first match wins; the second is a
+            no-op when not present.
+
+            The intent queries below let the launcher resolve the
+            rationale + privacy activities exported by the HC provider
+            (see also the two activity-alias blocks further down).
+        -->
+        <package android:name="com.google.android.apps.healthdata" />
+        <package android:name="com.google.android.healthconnect" />
+        <intent>
+            <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+            <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+        </intent>
     </queries>
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
