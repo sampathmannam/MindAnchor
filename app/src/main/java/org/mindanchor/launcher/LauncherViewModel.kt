@@ -126,6 +126,31 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun nextNoteId(): Long = idCounter.incrementAndGet()
+
+    /**
+     * v0.22.0 (WP-10 step 2): the "what makes this different"
+     * callout. Shown strictly fewer than
+     * [org.mindanchor.data.LauncherPrefs.INTRO_CALLOUT_LAUNCHES]
+     * times; hidden forever after.
+     *
+     * The home surface records a launch on every display
+     * (see [recordHomeLaunch]); the callout is the one
+     * affordance the home surface renders conditionally
+     * on this flag.
+     */
+    val showIntroCallout: StateFlow<Boolean> = prefs.showIntroCallout
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    /**
+     * Increments the home-launch counter. Called from the
+     * home surface on every display (not on every home button
+     * press — the surface is the unit, because the callout
+     * lives on the surface and one display = one chance to
+     * see it).
+     */
+    fun recordHomeLaunch() {
+        viewModelScope.launch { prefs.recordHomeLaunch() }
+    }
     /**
      * The friction-gate concerns, extracted into
      * [FrictionViewModel] as part of the senior-architect

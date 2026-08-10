@@ -19,6 +19,11 @@ import org.mindanchor.ui.MindAnchorTheme
 /**
  * Onboarding decides what the app becomes for this person, so it has to
  * hand back exactly what they chose — and nothing they did not.
+ *
+ * v0.22.0: WP-10 step 1 reduced the flow from 4 screens (welcome →
+ * goals → chronotype → plan) to 3 screens (welcome → pick → plan).
+ * The "pick" screen has both goals (4 checkboxes) and chronotype
+ * (4 radios) under one "What fits?" heading.
  */
 @RunWith(AndroidJUnit4::class)
 class OnboardingFlowTest {
@@ -43,40 +48,22 @@ class OnboardingFlowTest {
         rule.waitForIdle()
     }
 
-    // The OnboardingScreen body is wrapped in a verticalScroll
-    // (see OnboardingScreen.kt), and on the MindAnchorTest AVD the
-    // "continue" button is below the fold on the chronotype step
-    // (the step's body text pushes the button off-screen). A bare
-    // ``performClick()`` taps wherever the node's coordinates land --
-    // visible or not -- and the test fails with "Failed to inject
-    // touch input" / no node found. The SemanticsTest onboarding
-    // walk already handles this with ``performScrollTo().performClick()``;
-    // we mirror it here.
+    // The OnboardingScreen body is wrapped in a verticalScroll,
+    // and on the MindAnchorTest AVD the "continue" button is
+    // below the fold on the pick step. A bare performClick() taps
+    // wherever the node's coordinates land, and a node that is
+    // off-screen cannot be tapped. performScrollTo() first.
     private fun clickContinue() {
         rule.onNodeWithText("continue").performScrollTo().performClick()
     }
 
-    private fun continueToGoals() {
-        // 0 (welcome) -> 1 (goals). Caller is expected to be at step 0.
+    private fun continueToPick() {
+        // 0 (welcome) → 1 (pick). Caller is expected to be at step 0.
         clickContinue()
     }
 
-    private fun continuePastGoals() {
-        // 1 (goals) -> 2 (chronotype). Caller is expected to be at
-        // step 1 -- ``continueToGoals()`` is the entry to step 1.
-        // (The previous version of these helpers was cumulative from
-        // step 0 -- ``continuePastGoals`` clicked twice, ``continuePastChronotype``
-        // three times -- which overran the plan step on every
-        // chained call and surfaced as "Failed to inject touch input
-        // / could not find 'continue'" on the chronotype step. The
-        // plan step has "begin", not "continue", so any extra click
-        // after step 3 lands on a node that does not exist.)
-        clickContinue()
-    }
-
-    private fun continuePastChronotype() {
-        // 2 (chronotype) -> 3 (plan). Caller is expected to be at
-        // step 2 -- ``continuePastGoals()`` is the entry to step 2.
+    private fun continuePastPick() {
+        // 1 (pick) → 2 (plan). Caller is expected to be at step 1.
         clickContinue()
     }
 
@@ -84,12 +71,11 @@ class OnboardingFlowTest {
     fun chosenStrugglesAreCarriedThroughToThePlan() {
         start()
         rule.onNodeWithText("Welcome to MindAnchor").assertIsDisplayed()
-        continueToGoals()
+        continueToPick()
 
         rule.onNodeWithText("Constant interruptions").performClick()
         rule.onNodeWithText("My phone keeps me up at night").performClick()
-        continuePastGoals()
-        continuePastChronotype()
+        continuePastPick()
 
         // The plan names the features that match what was chosen.
         rule.onNodeWithText("Your plan — switch each on when ready:").assertIsDisplayed()
@@ -104,11 +90,8 @@ class OnboardingFlowTest {
         start()
         // Walk through every step without making a selection, then
         // verify the launcher was handed back empty + Chronotype.UNKNOWN.
-        // The helpers are sequential (each does 1 click) so the
-        // test must call them in order from step 0 -> step 3.
-        continueToGoals()
-        continuePastGoals()
-        continuePastChronotype()
+        continueToPick()
+        continuePastPick()
         rule.onNodeWithText("begin").performClick()
         rule.waitForIdle()
 
@@ -123,20 +106,36 @@ class OnboardingFlowTest {
     @Test
     fun chosenChronotypeIsCarriedThroughToCompletion() {
         start()
-        // Walk to the chronotype step, pick NIGHT_OWL, then carry on.
-        continueToGoals()
-        continuePastGoals()
+        continueToPick()
         // Tap the night-owl row. The label text is the inline string,
         // so we click on it and trust the row's selectable semantics
         // to make the entire row the target.
         rule.onNodeWithText("At my best in the evening, asleep after midnight")
             .performScrollTo()
             .performClick()
-        continuePastChronotype()
+        continuePastPick()
         rule.onNodeWithText("begin").performClick()
         rule.waitForIdle()
 
         assertNotNull(completedWithGoals)
         assertEquals(Chronotype.NIGHT_OWL, completedWithChronotype)
+    }
+
+    @Test
+    fun pickScreenShowsBothGoalsAndChronotypeOnOneScreen() {
+        // v0.22.0: the pick screen combines goals and chronotype.
+        // A regression that splits them back into two screens
+        // would have to re-introduce a step number and break
+        // this test. (The 3-screen count is also a test
+        // invariant — any "go to step 2" code that lands on
+        // something other than the plan screen is a regression.)
+        start()
+        continueToPick()
+        rule.onNodeWithText("Constant interruptions").assertIsDisplayed()
+        rule.onNodeWithText("Asleep by 21:00, up before 06:00").assertIsDisplayed()
+        // Both sections on one screen — clicking "continue"
+        // once should land on the plan step.
+        continuePastPick()
+        rule.onNodeWithText("Your plan — switch each on when ready:").assertIsDisplayed()
     }
 }

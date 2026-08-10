@@ -64,15 +64,12 @@ fun OnboardingScreen(
         ) {
             when (step) {
                 0 -> WelcomeStep(onNext = { step = 1 })
-                1 -> GoalsStep(
-                    selected = selected,
-                    onChange = { selected = it },
+                1 -> PickStep(
+                    selectedGoals = selected,
+                    onGoalsChange = { selected = it },
+                    selectedChronotype = chronotype,
+                    onChronotypeChange = { chronotype = it },
                     onNext = { step = 2 },
-                )
-                2 -> ChronotypeStep(
-                    selected = chronotype,
-                    onChange = { chronotype = it },
-                    onNext = { step = 3 },
                 )
                 else -> PlanStep(
                     selected = selected,
@@ -104,50 +101,52 @@ private fun WelcomeStep(onNext: () -> Unit) {
 
 @Suppress("FunctionNaming")
 @Composable
-private fun GoalsStep(
-    selected: Set<Goal>,
-    onChange: (Set<Goal>) -> Unit,
+private fun PickStep(
+    selectedGoals: Set<Goal>,
+    onGoalsChange: (Set<Goal>) -> Unit,
+    selectedChronotype: Chronotype,
+    onChronotypeChange: (Chronotype) -> Unit,
     onNext: () -> Unit,
 ) {
+    // v0.22.0: WP-10 step 1. Goals and chronotype used to be
+    // two separate screens; combined into one because the only
+    // thing the chronotype screen added was one more "continue"
+    // tap for a question that is part of "what fits?". Three
+    // total screens now: welcome, pick, plan. Under 60 seconds
+    // is the WP-10 acceptance target (see
+    // docs/qa/3rd-party-onboarding-test.md).
     Text(
-        text = stringResource(R.string.onboarding_goals_title),
+        text = stringResource(R.string.onboarding_pick_title),
         style = MaterialTheme.typography.headlineSmall,
-        modifier = Modifier.padding(bottom = 16.dp),
-    )
-    GoalRow(Goal.INTERRUPTIONS, R.string.goal_interruptions, selected, onChange)
-    GoalRow(Goal.COMPULSIVE_APPS, R.string.goal_compulsive, selected, onChange)
-    GoalRow(Goal.SLEEP, R.string.goal_sleep, selected, onChange)
-    GoalRow(Goal.MEASUREMENT, R.string.goal_measurement, selected, onChange)
-    TextButton(
-        onClick = onNext,
-        modifier = Modifier.padding(top = 16.dp),
-    ) {
-        Text(stringResource(R.string.onboarding_continue))
-    }
-}
-
-@Suppress("FunctionNaming")
-@Composable
-private fun ChronotypeStep(
-    selected: Chronotype,
-    onChange: (Chronotype) -> Unit,
-    onNext: () -> Unit,
-) {
-    Text(
-        text = stringResource(R.string.onboarding_chronotype_title),
-        style = MaterialTheme.typography.headlineSmall,
-        modifier = Modifier.padding(bottom = 8.dp),
+        modifier = Modifier.padding(bottom = 4.dp),
     )
     Text(
-        text = stringResource(R.string.onboarding_chronotype_body),
+        text = stringResource(R.string.onboarding_pick_body),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(bottom = 16.dp),
     )
-    ChronotypeRow(Chronotype.MORNING_LARK, R.string.chronotype_morning_lark, selected, onChange)
-    ChronotypeRow(Chronotype.NEUTRAL, R.string.chronotype_neutral, selected, onChange)
-    ChronotypeRow(Chronotype.NIGHT_OWL, R.string.chronotype_night_owl, selected, onChange)
-    ChronotypeRow(Chronotype.SHIFT_WORKER, R.string.chronotype_shift_worker, selected, onChange)
+
+    Text(
+        text = stringResource(R.string.onboarding_goals_title),
+        style = MaterialTheme.typography.titleSmall,
+        modifier = Modifier.padding(bottom = 4.dp),
+    )
+    GoalRow(Goal.INTERRUPTIONS, R.string.goal_interruptions, selectedGoals, onGoalsChange)
+    GoalRow(Goal.COMPULSIVE_APPS, R.string.goal_compulsive, selectedGoals, onGoalsChange)
+    GoalRow(Goal.SLEEP, R.string.goal_sleep, selectedGoals, onGoalsChange)
+    GoalRow(Goal.MEASUREMENT, R.string.goal_measurement, selectedGoals, onGoalsChange)
+
+    Text(
+        text = stringResource(R.string.onboarding_chronotype_title),
+        style = MaterialTheme.typography.titleSmall,
+        modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
+    )
+    ChronotypeRow(Chronotype.MORNING_LARK, R.string.chronotype_morning_lark, selectedChronotype, onChronotypeChange)
+    ChronotypeRow(Chronotype.NEUTRAL, R.string.chronotype_neutral, selectedChronotype, onChronotypeChange)
+    ChronotypeRow(Chronotype.NIGHT_OWL, R.string.chronotype_night_owl, selectedChronotype, onChronotypeChange)
+    ChronotypeRow(Chronotype.SHIFT_WORKER, R.string.chronotype_shift_worker, selectedChronotype, onChronotypeChange)
+
     TextButton(
         onClick = onNext,
         modifier = Modifier.padding(top = 16.dp),

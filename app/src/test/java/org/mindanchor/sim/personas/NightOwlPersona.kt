@@ -45,11 +45,12 @@ class NightOwlPersona : Persona {
             // Mon..Fri = work days, Sat..Sun = free days.
             val dow = date.dayOfWeek
             val isWorkDay = dow.value in 1..5
-            // Work days: sleep onset ~01:00 (i.e. very late, 7h after 18:00).
+            // [DailyVitals.sleepOnset] is "minutes after 18:00".
+            // Work days: sleep onset ~01:00 = 7h after 18:00 = 420.
             // Free days: sleep onset ~01:30, but *more* sleep
-            // (compensation per Wittmann 2006).
-            val onsetWork = (7 * 60 + rng.nextGaussian(0.0, 30.0).roundToInt())
-            val onsetFree = (7 * 60 + 30 + rng.nextGaussian(0.0, 30.0).roundToInt())
+            // (compensation per Wittmann 2006) = 7.5h after 18:00 = 450.
+            val onsetWork = (420 + rng.nextGaussian(0.0, 30.0).roundToInt())
+            val onsetFree = (450 + rng.nextGaussian(0.0, 30.0).roundToInt())
             val sleepOnset = (if (isWorkDay) onsetWork else onsetFree).coerceIn(0, 1000)
             // Free days: +60 min sleep (compensation).
             val baseSleep = if (isWorkDay) 360 else 420

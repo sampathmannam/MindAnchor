@@ -265,6 +265,7 @@ fun LauncherRoot(
 
     when (surface) {
         LauncherSurface.Home -> CalmBackground { sky ->
+            val showIntroCallout by viewModel.showIntroCallout.collectAsState()
             HomeSurface(
                 sky = sky,
                 favorites = state.favorites,
@@ -316,6 +317,8 @@ fun LauncherRoot(
                     }
                 },
                 wellnessReadings = wellnessReadings,
+                showIntroCallout = showIntroCallout,
+                onRecordLaunch = viewModel::recordHomeLaunch,
             )
         }
 
@@ -933,6 +936,7 @@ private fun formatWellnessValue(signal: WellnessSignal, value: Double): String =
 
 // combinedClickable, for the long-press on a favourite.
 @OptIn(ExperimentalFoundationApi::class)
+@Suppress("FunctionNaming", "LongMethod", "LongParameterList")
 @Composable
 private fun HomeSurface(
     sky: SkyContent,
@@ -995,6 +999,18 @@ private fun HomeSurface(
      * home stays the home when there is nothing to show.
      */
     wellnessReadings: List<org.mindanchor.vitals.WellnessReading>? = null,
+    /**
+     * v0.22.0 (WP-10 step 2): the "what makes this different"
+     * callout. Renders a single line of small text below
+     * the greeting for the first
+     * [org.mindanchor.data.LauncherPrefs.INTRO_CALLOUT_LAUNCHES]
+     * home-surface displays, then disappears forever. The
+     * parent is expected to call [onRecordLaunch] once on
+     * every home-surface display so the callout can know
+     * when to hide.
+     */
+    showIntroCallout: Boolean = false,
+    onRecordLaunch: () -> Unit = {},
 ) {
     val now = rememberMinuteTick()
     val clockFormat = rememberClockFormat()
@@ -1072,6 +1088,24 @@ private fun HomeSurface(
                 style = MaterialTheme.typography.titleMedium,
                 color = sky.textSecondary,
             )
+
+            // v0.22.0 (WP-10 step 2): the "what makes this
+            // different" callout. One line of small text
+            // pointing at the friction gate, shown for the
+            // first 3 launches and then never again. The
+            // recording fires on a side effect so the
+            // callout is one launch closer to hidden on
+            // every display, regardless of which side of
+            // the threshold this display is on.
+            if (showIntroCallout) {
+                LaunchedEffect(Unit) { onRecordLaunch() }
+                Text(
+                    text = stringResource(R.string.intro_callout),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = sky.textSecondary,
+                    modifier = Modifier.padding(vertical = 4.dp),
+                )
+            }
 
             OpenLoopCard(
                 sky = sky,

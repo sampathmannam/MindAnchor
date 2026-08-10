@@ -9,7 +9,9 @@ import java.time.LocalDate
 /**
  * A per-persona summary of the simulation: the distribution of
  * direction bands per signal, the persona's per-signal median,
- * and a one-line research-anchored verdict.
+ * the [WellnessSimulationRunner.summarize] cross-cutting
+ * output (sleep window suggestion), and a one-line
+ * research-anchored verdict.
  *
  * The report is the WP-5 deliverable. It is not the issue tracker
  * (that lives in `tools/sim/issues.json` in production; for the
@@ -42,6 +44,7 @@ object SimulationReport {
         val summaries: Map<WellnessSignal, SignalSummary>,
         val openLoopCaptureCount: Int,
         val bedtimeCaptureCount: Int,
+        val sleepSuggestion: String,
     )
 
     fun report(
@@ -64,12 +67,27 @@ object SimulationReport {
                     baselineMedian = if (medians.isEmpty()) null else medians.average(),
                 )
             }
+            // The cross-cutting summary (the sleep window suggestion
+            // driven by the persona's 14 days of sleep onsets) is
+            // the v0.22.0 addition: the runner now exercises
+            // [org.mindanchor.sleep.SleepWindowOptimizer] end-to-end
+            // on each persona, and the report surfaces what the
+            // user would see in the settings → suggested wind-down
+            // card. SparseData under 5 nights is the one
+            // expectation: the optimizer returns null and the
+            // report shows "no suggestion yet".
+            val summary = WellnessSimulationRunner.summarize(persona, start, seed)
+            val sleepSuggestion = summary.suggestedWindow?.let { s ->
+                "median=${s.medianOnset}  start=${s.startTime}  end=${s.endTime}  (from ${s.nightsUsed} nights)"
+            } ?: "no suggestion yet (under 5 nights of usable data)"
+
             out.add(
                 PersonaReport(
                     persona = persona,
                     summaries = summaries,
                     openLoopCaptureCount = days.count { it.openLoopPhase.name == "CAPTURE" },
                     bedtimeCaptureCount = days.count { it.bedtimeListPhase.name == "CAPTURE" },
+                    sleepSuggestion = sleepSuggestion,
                 ),
             )
         }
@@ -96,6 +114,7 @@ object SimulationReport {
             }
             println("  open-loop CAPTURE  = ${pr.openLoopCaptureCount} / 14 days")
             println("  bedtime CAPTURE    = ${pr.bedtimeCaptureCount} / 14 days")
+            println("  sleep suggestion   = ${pr.sleepSuggestion}")
         }
     }
 }

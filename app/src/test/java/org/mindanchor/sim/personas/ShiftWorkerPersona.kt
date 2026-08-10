@@ -44,7 +44,7 @@ class ShiftWorkerPersona : Persona {
 
     override fun schedule(start: LocalDate, seed: Long): List<DailyVitals> {
         val rng = PersonaRng(seed, id)
-        // 14-day rotation: 4 day, 4 evening, 4 night, 2 off.
+        // 14-day rotation: 4 day, 4 evening, 6 night, 2 off.
         // This is a coarse 14-day window; the point is variation,
         // not a real rotation policy.
         val shiftPattern = listOf(
@@ -56,11 +56,22 @@ class ShiftWorkerPersona : Persona {
         return (0 until 14).map { dayIndex ->
             val date = start.plusDays(dayIndex.toLong())
             val shift = shiftPattern[dayIndex]
+            // [DailyVitals.sleepOnset] is "minutes after 18:00"
+            // (the [org.mindanchor.sleep.Deviation.minutesAfterSixPm]
+            // convention). Convert each shift's bedtime:
+            //   - DAY shift: sleep at 23:00 = 5h after 18:00 = 300
+            //   - EVENING shift: sleep at 02:00 = 8h after 18:00 = 480
+            //   - NIGHT shift: sleep at 09:00 = 15h after 18:00 = 900
+            //   - OFF day: sleep at 08:00 = 14h after 18:00 = 840
+            // The persona's previous version used raw minute-of-day
+            // values here, which made the median onset land 6 hours
+            // off the comment's intent — see
+            // [org.mindanchor.sim.WellnessSimulationRunner.summarize].
             val params = when (shift) {
-                "DAY" -> Quad(7 * 60, 380, 64.0, 42.0)        // sleep 23:00, wake 06:20
-                "EVENING" -> Quad(2 * 60, 360, 65.0, 40.0)   // sleep 02:00, wake 08:00
-                "NIGHT" -> Quad(9 * 60, 320, 67.0, 35.0)     // sleep 09:00, wake 14:20
-                else -> Quad(8 * 60, 360, 63.0, 42.0)        // off day
+                "DAY" -> Quad(300, 380, 64.0, 42.0)        // sleep 23:00, wake 06:20
+                "EVENING" -> Quad(480, 360, 65.0, 40.0)   // sleep 02:00, wake 08:00
+                "NIGHT" -> Quad(900, 320, 67.0, 35.0)     // sleep 09:00, wake 14:20
+                else -> Quad(840, 360, 63.0, 42.0)        // off day
             }
             val onsetBase = params.onsetBase
             val sleepBase = params.sleepBase

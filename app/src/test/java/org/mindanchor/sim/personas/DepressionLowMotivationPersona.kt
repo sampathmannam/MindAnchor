@@ -55,7 +55,14 @@ class DepressionLowMotivationPersona : Persona {
             val date = start.plusDays(dayIndex.toLong())
             // Sleep is the most variable of the five personas —
             // 6h30m to 7h30m, onset 23:00 to 02:00.
-            val sleepOnset = (23 * 60 + rng.nextGaussian(0.0, 90.0).roundToInt())
+            // [DailyVitals.sleepOnset] is "minutes after 18:00":
+            // 23:00 = 5h after 18:00 = 300, 02:00 = 8h after 18:00
+            // = 480. The persona's previous version used raw
+            // minute-of-day (23*60=1380) which was out of range and
+            // put the median onset 18 hours in the future — see
+            // [org.mindanchor.sim.WellnessSimulationRunner.summarize].
+            // Mid-point: 5.5h after 18:00 = 330, ±90 min noise.
+            val sleepOnset = (330 + rng.nextGaussian(0.0, 90.0).roundToInt())
                 .coerceIn(0, 1400)
             val sleepMinutes = (420 + rng.nextGaussian(0.0, 30.0).roundToInt())
                 .coerceIn(300, 540)

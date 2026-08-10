@@ -4,6 +4,19 @@
     <string name="greeting_morning">A quiet morning.</string>
     <string name="greeting_day">Here, now.</string>
     <string name="greeting_evening">Winding down.</string>
+    <!--
+        v0.22.0 (WP-10 step 2): the home-screen intro callout.
+        One line of small text below the greeting, shown for
+        the first 3 home-surface displays and never again. The
+        callout points at the friction gate (the headline
+        feature) without naming it — the gate is the magic a
+        3rd-party walkthrough should be able to find in under
+        60 seconds (see docs/qa/3rd-party-onboarding-test.md).
+        The wording avoids "best" and "powerful"; the gate is a
+        pause, not a feature, and "long-press any app" is the
+        actual affordance, not a metaphor for one.
+    -->
+    <string name="intro_callout">Long-press any app to add a one-breath pause before it opens.</string>
 
     <string name="open_drawer">search</string>
     <string name="search_hint">Type to find an app…</string>
@@ -398,22 +411,20 @@
     <string name="plan_none">Explore at your own pace — every feature lives in settings and long-press menus, all off by default.</string>
     <string name="onboarding_begin">begin</string>
     <!--
-        Chronotype onboarding step (Roenneberg 2007, Wittmann 2006,
-        Åkerstedt 2003, Kecklund 2016). One-tap answer to "when are
-        you most awake?" — the launcher's default quiet-hours window
-        is set from it (see SunsetPrefs.setChronotype). "Not set" is
-        offered by leaving every option unselected; the screen passes
-        Chronotype.UNKNOWN through and the launcher keeps the 22:00
-        → 07:00 placeholder rather than a guess.
-
-        The strings are short, written in the first person, and avoid
-        the word "best" — "best" is comparative and reads as a value
-        judgement on the person picking, when chronotype is just a
-        description of their day. The four options are the four
-        populations the cited research distinguishes.
+        v0.22.0: WP-10 step 1. The "pick" screen combines the
+        goal-elicitation step (CHI 2024 ReDD: naming your own
+        struggle and matching tools to it beats any fixed toolset;
+        CHI 2026 Going Light: imposed minimalism fails, self-
+        endorsed structure works) and the chronotype step
+        (Roenneberg 2007, Wittmann 2006, Åkerstedt 2003 +
+        Kecklund 2016 for shift work) into one screen, reducing
+        total onboarding from 4 screens to 3. Nothing is enabled
+        for the user — they choose, and the closing screen points
+        to where each choice is switched on.
     -->
+    <string name="onboarding_pick_title">What fits? Pick what helps, skip what doesn\'t.</string>
+    <string name="onboarding_pick_body">Both questions are optional. Whatever you skip, the launcher leaves off. You can change either one in settings.</string>
     <string name="onboarding_chronotype_title">When are you most awake?</string>
-    <string name="onboarding_chronotype_body">One tap — the wind-down window will start from there. You can change either one in settings.</string>
     <string name="chronotype_morning_lark">Asleep by 21:00, up before 06:00</string>
     <string name="chronotype_neutral">Somewhere in between</string>
     <string name="chronotype_night_owl">At my best in the evening, asleep after midnight</string>

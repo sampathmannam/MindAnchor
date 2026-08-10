@@ -47,10 +47,17 @@ class InsomniacPersona : Persona {
         val rng = PersonaRng(seed, id)
         return (0 until 14).map { dayIndex ->
             val date = start.plusDays(dayIndex.toLong())
-            // Onset drifts between 02:00 and 04:00. Some nights
-            // (1 in 4) the rumination wins and onset is 04:30.
+            // Onset drifts between 02:00 and 04:00, on the
+            // [DailyVitals.sleepOnset] convention "minutes after
+            // 18:00": 02:00 is 8h after 18:00 = 480, 04:30 is
+            // 10.5h after 18:00 = 630. The persona's previous
+            // version used raw minute-of-day here, which made the
+            // median onset land at 21:00 (the inverse) and broke
+            // every downstream consumer — see
+            // [org.mindanchor.sim.WellnessSimulationRunner.summarize].
             val isBadNight = dayIndex % 4 == 1
-            val onsetBase = if (isBadNight) (4 * 60 + 30) else (3 * 60)
+            // Mid-03:00 = 540 (typical night). 04:30 = 630 (bad night).
+            val onsetBase = if (isBadNight) 630 else 540
             val sleepOnset = (onsetBase + rng.nextGaussian(0.0, 30.0).roundToInt())
                 .coerceIn(0, 1400)
             // Short total sleep: 270-330 min.

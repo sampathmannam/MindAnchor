@@ -5,12 +5,17 @@ import org.mindanchor.friction.OpenLoop
 import org.mindanchor.sim.personas.Persona
 import org.mindanchor.sleep.BedtimeList
 import org.mindanchor.sleep.BedtimePhase
+import org.mindanchor.sleep.SleepWindow
+import org.mindanchor.sleep.SleepWindowOptimizer
 import org.mindanchor.vitals.DailyVitals
 import org.mindanchor.vitals.WellnessReading
 import org.mindanchor.vitals.WellnessSignal
 import org.mindanchor.vitals.WellnessStats
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZoneId
+import java.time.ZoneOffset
 
 /**
  * One day's simulated outcome: the wellness reading per signal, the
@@ -26,6 +31,26 @@ data class SimulationDay(
     val readings: Map<WellnessSignal, WellnessReading>,
     val openLoopPhase: LoopPhase,
     val bedtimeListPhase: BedtimePhase,
+)
+
+/**
+ * Per-persona cross-cutting summary. The simulation
+ * [WellnessSimulationRunner.run] covers the per-day band math; this
+ * covers the whole-window features that need more than one day to
+ * be meaningful.
+ *
+ * Currently surfaces:
+ *
+ *  - [suggestedWindow] — what [SleepWindowOptimizer.suggest] would
+ *    offer the user, given the persona's 14 days of synthetic
+ *    sleep onsets. Anchored in Windred 2024 (regularity over
+ *    duration) and the citation chain that the optimizer ships
+ *    with. Null when the persona has fewer than
+ *    [SleepWindowOptimizer.MIN_NIGHTS] of usable onset data.
+ */
+data class SimulationSummary(
+    val personaId: String,
+    val suggestedWindow: SleepWindowOptimizer.Suggestion?,
 )
 
 /**
@@ -119,6 +144,87 @@ object WellnessSimulationRunner {
 
     /** XOR salt to make the warmup noise different from the test noise. */
     private const val WARMUP_SEED_SALT: Long = 0x6D696E6463687220L  // "mindchr"
+
+    /**
+     * The zone the personas are simulated in. The launcher is
+     * per-device, but the persona's [DailyVitals.sleepOnset] is
+     * "minutes after 18:00," a value that does not depend on the
+     * device's zone; UTC is the simplest, fully-deterministic
+     * choice for the runner.
+     */
+    private val SIM_ZONE: ZoneId = ZoneOffset.UTC
+
+    /**
+     * Per-persona cross-cutting summary. The simulation
+     * [run] covers the per-day band math; this covers the
+     * whole-window features that need more than one day to
+     * be meaningful.
+     *
+     * Currently surfaces what [SleepWindowOptimizer.suggest]
+     * would offer the user, given the persona's 14 days of
+     * synthetic sleep onsets. Anchored in Windred 2024
+     * (regularity over duration) and the citation chain that
+     * the optimizer ships with. Null when the persona has
+     * fewer than [SleepWindowOptimizer.MIN_NIGHTS] of usable
+     * onset data — same floor [Deviation.worthShowing] uses.
+     *
+     * The runner is the *only* place where this end-to-end
+     * check happens. Without it, the optimizer ships
+     * untested against the persona library and a future
+     * persona whose onsets are in the wrong shape (a
+     * null-returning suggestion for a regular sleeper) would
+     * not be caught.
+     */
+    fun summarize(
+        persona: Persona,
+        start: LocalDate,
+        seed: Long,
+    ): SimulationSummary {
+        val schedule = persona.schedule(start, seed)
+        val windows = windowsFromPersona(schedule)
+        return SimulationSummary(
+            personaId = persona.id,
+            suggestedWindow = SleepWindowOptimizer.suggest(windows, SIM_ZONE),
+        )
+    }
+
+    /**
+     * Convert a persona's 14-day schedule into the
+     * [SleepWindow] shape [SleepWindowOptimizer.suggest] reads.
+     *
+     * The persona's [DailyVitals.sleepOnset] is "minutes after
+     * 18:00" (the same convention [Deviation.minutesAfterSixPm]
+     * uses); the optimizer wants epoch-millis on a
+     * `ZoneId`-anchored `LocalDateTime`. A 270-min onset on
+     * `2026-01-05` means the person fell asleep at 22:30 on
+     * `2026-01-04`, the night whose wake date is `2026-01-05`.
+     *
+     * The conversion is deterministic and zone-aware so a
+     * runner in any zone produces the same median for a
+     * given persona + seed.
+     */
+    private fun windowsFromPersona(schedule: List<DailyVitals>): List<SleepWindow> {
+        return schedule.mapNotNull { day ->
+            val date = day.date ?: return@mapNotNull null
+            val onset = day.sleepOnset ?: return@mapNotNull null
+            // The wake date is `date`; the sleep started the
+            // night before. Convert "minutes after 18:00 on
+            // the previous day" back to an absolute instant.
+            val previousDay = date.minusDays(1)
+            val eighteenHundred = previousDay.atTime(18, 0)
+            val onsetInstant = eighteenHundred.plusMinutes(onset.toLong())
+                .atZone(SIM_ZONE)
+                .toInstant()
+            val endInstant = onsetInstant.plusSeconds(DEFAULT_SLEEP_DURATION_SECONDS)
+            SleepWindow(
+                wakeDate = date,
+                startMillis = onsetInstant.toEpochMilli(),
+                endMillis = endInstant.toEpochMilli(),
+            )
+        }
+    }
+
+    private const val DEFAULT_SLEEP_DURATION_SECONDS: Long = 8L * 60L * 60L
 
     /**
      * Build the 5-signal reading map for [today] given [prior] history.
