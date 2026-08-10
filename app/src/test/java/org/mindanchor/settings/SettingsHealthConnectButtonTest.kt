@@ -56,13 +56,32 @@ class SettingsHealthConnectButtonTest {
 
     @Test
     fun `the file declares a Health Connect permission launcher bound to the source contract`() {
+        // v0.23.0: the contract factory is cached in a `remember`
+        // block before the launcher site. The pre-fix inline call
+        // (a new ActivityResultContract instance every
+        // recomposition) was the silent-failure shape — the click
+        // was sent to a launcher no longer in the activity's
+        // ActivityResultRegistry. Caching the contract makes the
+        // launcher stable across recompositions. See
+        // [HealthConnectLauncherCacheTest] for the regression
+        // shape of that bug.
         assertTrue(
-            "SettingsScreen.kt must declare a " +
-                "rememberLauncherForActivityResult with contract = " +
-                "HealthConnectSource.requestPermissionsContract(). " +
-                "Without this the 'Connect to your watch' button is " +
-                "wired to nothing.",
-            screen.contains("contract = HealthConnectSource.requestPermissionsContract()"),
+            "SettingsScreen.kt must declare a cached " +
+                "`healthConnectPermissionContract = remember { ... }` val " +
+                "and pass it as `contract = healthConnectPermissionContract` " +
+                "to rememberLauncherForActivityResult. The pre-fix inline " +
+                "call `contract = HealthConnectSource.requestPermissionsContract()` " +
+                "created a new ActivityResultContract every recomposition, " +
+                "which made the launcher re-register and the click drift to " +
+                "a stale launcher. Without the cache, the 'Connect to your " +
+                "watch' button is wired to nothing on a slow result pipeline.",
+            screen.contains("val healthConnectPermissionContract = remember {") ||
+                screen.contains("val healthConnectPermissionContract = remember("),
+        )
+        assertTrue(
+            "The Health Connect launcher site must use the cached " +
+                "val as the contract, not the inline factory call.",
+            screen.contains("contract = healthConnectPermissionContract"),
         )
     }
 
@@ -91,12 +110,16 @@ class SettingsHealthConnectButtonTest {
         // — otherwise the button stays labelled "Connect to your
         // watch" even after a grant, and the launcher looks broken
         // even though the data is flowing.
+        // v0.23.0: the launcher is keyed on the cached contract
+        // `healthConnectPermissionContract`, not the inline factory
+        // call. Look for the cached form.
         val launcherBlock = Regex(
-            """contract\s*=\s*HealthConnectSource\.requestPermissionsContract\(\),\s*\)\s*\{[^}]*\}""",
+            """contract\s*=\s*healthConnectPermissionContract,\s*\)\s*\{[^}]*\}""",
             RegexOption.DOT_MATCHES_ALL,
         ).find(screen)?.value ?: error(
             "Could not locate the rememberLauncherForActivityResult " +
-                "block in SettingsScreen.kt",
+                "block in SettingsScreen.kt (looking for " +
+                "`contract = healthConnectPermissionContract`).",
         )
         assertTrue(
             "The launcher callback must call " +

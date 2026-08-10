@@ -1783,17 +1783,43 @@ fun SettingsScreen(
 
             // The request-permissions launcher. Created here so the
             // contract lives as long as the measuring section is on
-            // screen; the contract is stable across recompositions
-            // because of the rememberLauncherForActivityResult call.
-            // Renamed to [healthConnectPermissionLauncher] to avoid
-            // shadowing the outer [permissionLauncher] declared for
-            // the notification-batching POST_NOTIFICATIONS request
-            // (line ~345) — the two contracts are different shapes,
-            // but a same-named local would silently bind to the
-            // wrong one the next time a maintainer added a button
-            // in this block.
+            // screen.
+            //
+            // v0.23.0 — silent-failure fix: the contract factory was
+            // being called inline (line 1796 of the previous
+            // revision), which means every recomposition produced a
+            // new ActivityResultContract instance. Compose's
+            // rememberLauncherForActivityResult keys on the contract
+            // *instance*, not the class, so a new contract every
+            // recomposition forced the launcher to re-register with
+            // the activity's ActivityResultRegistry. On a phone
+            // with a slightly slower result pipeline — particularly
+            // the Tamil Nadu Police test device behind a
+            // corporate-managed ActivityManager that buffers
+            // dispatches — the onClick lambda drifted from the
+            // registered launcher between recomposition and tap.
+            // The click went to a launcher that was no longer in the
+            // registry; the system returned
+            // `ActivityResultCallback not registered`; the click
+            // was silently swallowed. No exception, no log line, no
+            // dialog. Same shape as the v0.22.1 EMA / Batching
+            // silent-toggle bug.
+            //
+            // The fix is to cache the contract instance with
+            // `remember`. The key is then stable across
+            // recompositions, the launcher is stable, the click is
+            // stable. Renamed to [healthConnectPermissionLauncher]
+            // to avoid shadowing the outer [permissionLauncher]
+            // declared for the notification-batching
+            // POST_NOTIFICATIONS request (line ~345) — the two
+            // contracts are different shapes, but a same-named
+            // local would silently bind to the wrong one the next
+            // time a maintainer added a button in this block.
+            val healthConnectPermissionContract = remember {
+                HealthConnectSource.requestPermissionsContract()
+            }
             val healthConnectPermissionLauncher = rememberLauncherForActivityResult(
-                contract = HealthConnectSource.requestPermissionsContract(),
+                contract = healthConnectPermissionContract,
             ) { _ ->
                 // Whether the user granted, denied, or partially
                 // granted, the only honest response is to re-read the
