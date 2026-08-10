@@ -357,6 +357,26 @@
     <string name="sleep_regularity">Regularity: %1$d/100</string>
     <string name="sleep_window_row">%1$s — about %2$s h quiet</string>
     <string name="sleep_regularity_note">This is an estimate of how consistent your nightly phone-quiet window is — regular timing, not total hours, is what the research links to better mood and sleep.</string>
+    <!--
+        Wind-down suggestion. Opt-in: the optimizer reads the user's
+        own recent sleep onsets and proposes a window, the user reads
+        the suggestion and either accepts it (one tap) or ignores it.
+        Nothing is set automatically. The copy avoids the word
+        "should" — the suggestion is the launcher's best read of the
+        data, not a recommendation, and a person who sleeps at a
+        time that the data does not fit can always nudge the window
+        by hand.
+
+        Windred et al. 2024 (SLEEP 47(1):zsad285, DOI
+        10.1093/sleep/zsad285) is the citation: the UK Biobank
+        Sleep Regularity Index is the strongest single predictor of
+        mental-health and metabolic outcomes, more so than duration.
+        The default 8h sleep length is the launcher design choice,
+        not a research finding.
+    -->
+    <string name="sleep_suggestion_heading">Suggested wind-down</string>
+    <string name="sleep_suggestion_line">From your last %1$d nights, your nights cluster around %2$s. A wind-down at %3$s would land an hour and a half before that.</string>
+    <string name="sleep_suggestion_apply">Use this</string>
 
     <string name="set_default_launcher">Set MindAnchor as your home screen</string>
     <string name="is_default_launcher">MindAnchor is your home screen.</string>

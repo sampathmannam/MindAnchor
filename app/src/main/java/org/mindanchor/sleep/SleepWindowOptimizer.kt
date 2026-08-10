@@ -73,6 +73,16 @@ object SleepWindowOptimizer {
      */
     const val DEFAULT_SLEEP_HOURS = 8L
 
+    private const val MINUTES_PER_DAY = 1440
+    private const val MINUTES_PER_HOUR = 60
+
+    /**
+     * 18:00 in minutes-from-midnight. The origin [Deviation.minutesAfterSixPm]
+     * uses, kept here as a constant so the + 18 * 60 arithmetic reads
+     * as a back-conversion rather than as a magic number.
+     */
+    private const val SIX_PM_MINUTE = 18 * MINUTES_PER_HOUR
+
     /**
      * A suggested wind-down window, or null when there is not
      * enough data to suggest anything.
@@ -94,20 +104,20 @@ object SleepWindowOptimizer {
         // medianAfterSix is a count of minutes past 18:00, in [0, 1440).
         // Convert back to minute-of-day for LocalTime.of, but with the
         // correct wrap (e.g. 390 = 18:00 + 390 = 00:30, not 18:30).
-        val median = (medianAfterSix + 18 * 60) % 1440
-        val startMinute = ((median - WIND_DOWN_LEAD_MINUTES).toInt() + 1440) % 1440
-        val endMinute = (median + DEFAULT_SLEEP_HOURS.toInt() * 60) % 1440
+        val median = (medianAfterSix + SIX_PM_MINUTE) % MINUTES_PER_DAY
+        val startMinute = ((median - WIND_DOWN_LEAD_MINUTES).toInt() + MINUTES_PER_DAY) % MINUTES_PER_DAY
+        val endMinute = (median + DEFAULT_SLEEP_HOURS.toInt() * MINUTES_PER_HOUR) % MINUTES_PER_DAY
         return Suggestion(
-            medianOnset = LocalTime.of(median / 60, median % 60),
-            startTime = LocalTime.of(startMinute / 60, startMinute % 60),
-            endTime = LocalTime.of(endMinute / 60, endMinute % 60),
+            medianOnset = LocalTime.of(median / MINUTES_PER_HOUR, median % MINUTES_PER_HOUR),
+            startTime = LocalTime.of(startMinute / MINUTES_PER_HOUR, startMinute % MINUTES_PER_HOUR),
+            endTime = LocalTime.of(endMinute / MINUTES_PER_HOUR, endMinute % MINUTES_PER_HOUR),
             nightsUsed = windows.size,
         )
     }
 
     private fun minuteOfDay(millis: Long, zone: ZoneId): Int {
         val dateTime = Instant.ofEpochMilli(millis).atZone(zone).toLocalDateTime()
-        return dateTime.hour * 60 + dateTime.minute
+        return dateTime.hour * MINUTES_PER_HOUR + dateTime.minute
     }
 
     /**

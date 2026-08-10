@@ -1287,6 +1287,33 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 4.dp),
                     )
+                    // Suggested wind-down, opt-in. Built from the user's
+                    // own sleep onsets (Windred et al. 2024 — regularity
+                    // over duration). The button is the entire "apply"
+                    // surface: a tap writes the window, a lack of a tap
+                    // does nothing. The wording above avoids the word
+                    // "should" — the suggestion is the launcher's best
+                    // read of the data, not a prescription.
+                    val suggestion by viewModel.sleepSuggestion.collectAsState()
+                    suggestion?.let { s ->
+                        Text(
+                            text = stringResource(R.string.sleep_suggestion_heading),
+                            style = MaterialTheme.typography.titleSmall,
+                            modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
+                        )
+                        Text(
+                            text = stringResource(
+                                R.string.sleep_suggestion_line,
+                                s.nightsUsed,
+                                s.medianOnset.format(HOUR_MINUTE),
+                                s.startTime.format(HOUR_MINUTE),
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        TextButton(onClick = { viewModel.applySleepSuggestion(s) }) {
+                            Text(stringResource(R.string.sleep_suggestion_apply))
+                        }
+                    }
                 }
             }
         }
