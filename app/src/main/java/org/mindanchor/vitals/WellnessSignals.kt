@@ -213,11 +213,23 @@ data class WellnessReading(
  * MAD by 0.6745, work out to roughly +/- 1.48 raw MADs and
  * +/- 2.96 raw MADs at the cut-offs. The MAD-scaling lives in
  * [PersonalBaseline.ROBUST_Z_NORMALISER] so a value of +1.0
- * here reads as "one robust z-score above the median" rather
- * than "one raw MAD", which is the wording the Iglewicz and
- * Hoaglin "mild / moderate / extreme" outlier cut-offs use
- * (How to Detect and Handle Outliers, ASQC Basic References
- * in Quality Control: Statistical Techniques, 1993).
+ * here reads as "one robust z-score above the median".
+ *
+ * The robust z-score machinery (median + MAD + 0.6745 normaliser) is
+ * Iglewicz & Hoaglin 1993, "How to Detect and Handle Outliers",
+ * ASQC Basic References in Quality Control: Statistical Techniques,
+ * Volume 16. The 3.5 outlier threshold in that book is for the
+ * outlier-detection use case and is *not* used here — the launcher's
+ * direction bands (1.0 and 2.0) are design choices for N-of-1
+ * personal monitoring, where the goal is to surface "a bit different
+ * from your usual" to "very different from your usual" rather than
+ * to flag statistical outliers. Iglewicz 3.5 is documented here for
+ * traceability; the threshold and band names are not from a
+ * specific paper. The mindLAMP team's digital-phenotyping
+ * work (Jacobson 2019, J Nerv Ment Dis 207:893-6) uses the same
+ * robust-z machinery with anomaly cut-offs of 2.0-2.5 per signal,
+ * which is the closest published reference for the band magnitudes
+ * chosen here.
  */
 enum class WellnessDirection {
     /** No reading today, or baseline not yet reportable. */
@@ -235,14 +247,19 @@ enum class WellnessDirection {
     companion object {
 
         /**
-         * The robust z-score cut-offs. -1, +1, +2 are the Iglewicz
-         * and Hoaglin "mild / moderate / extreme" outlier bands,
-         * adapted here as one-sided above-the-median bands and
-         * mirrored below. The asymmetry (a single BELOW band, three
-         * ABOVE bands) is deliberate: for the signals the launcher
-         * surfaces, the "interesting" extreme is high (long sleep,
-         * high HRV, lots of steps, lots of practice). Long sleep is
-         * usually good; little sleep is just little sleep.
+         * The robust z-score cut-offs. -1, +1, +2 are *design choices*
+         * for N-of-1 personal monitoring, not from a specific paper.
+         * The asymmetry (a single BELOW band, three ABOVE bands) is
+         * deliberate: for the signals the launcher surfaces, the
+         * "interesting" extreme is high (long sleep, high HRV, lots
+         * of steps, lots of practice). Long sleep is usually good;
+         * little sleep is just little sleep. The closest published
+         * reference is Jacobson 2019 (J Nerv Ment Dis 207:893-6)
+         * on per-person anomaly cut-offs in the 2.0-2.5 range for
+         * digital-phenotyping signals.
+         *
+         * The underlying robust-z method is Iglewicz & Hoaglin 1993.
+         * See [WellnessDirection] KDoc for the citation.
          */
         private const val ABOVE_THRESHOLD = 1.0
         private const val MUCH_ABOVE_THRESHOLD = 2.0
