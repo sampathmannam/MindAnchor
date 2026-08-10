@@ -121,16 +121,18 @@ object WellnessSimulationRunner {
     private const val WARMUP_SEED_SALT: Long = 0x6D696E6463687220L  // "mindchr"
 
     /**
-     * The 5 wellness readings for [today] given a [prior] history.
-     * Today is *not* included in the baseline — see [WellnessStats.reading].
+     * Build the 5-signal reading map for [today] given [prior] history.
      *
-     * Each reading is *clamped* so its [WellnessReading.direction] is
-     * NO_DATA when the baseline is not reportable (sampleCount < 14).
-     * This matches the home card's gate in `HomeScreen.kt`, which
-     * suppresses the wellness card entirely until at least one signal
-     * has a reportable baseline. The runner's contract is "what
-     * would the home card show", not "what does the math say
-     * in isolation".
+     * Today is excluded from the prior — the z-score is computed
+     * from the days strictly before today, so a particularly high
+     * HRV day does not call itself a "much above" day by
+     * definition. See [WellnessStats.reading].
+     *
+     * Each reading is clamped to NO_DATA when the baseline is not
+     * reportable (sampleCount < 14). This matches the home card's
+     * `isReportable` gate in `HomeScreen.kt`; the runner's contract
+     * is "what would the home card show", not "what does the math
+     * say in isolation".
      */
     private fun readingsFor(
         today: DailyVitals,
