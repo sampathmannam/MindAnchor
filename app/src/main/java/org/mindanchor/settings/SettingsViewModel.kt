@@ -34,6 +34,7 @@ import org.mindanchor.report.ReportScheduler
 import org.mindanchor.sleep.Deviation
 import org.mindanchor.sleep.SleepRepository
 import org.mindanchor.sleep.SleepSummary
+import org.mindanchor.sleep.SleepWindowOptimizer
 import org.mindanchor.sunset.Chronotype
 import org.mindanchor.sunset.SunsetController
 import org.mindanchor.vitals.DailyVitals
@@ -347,6 +348,37 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun refreshSleep() {
         viewModelScope.launch(Dispatchers.IO) {
             sleepState.value = sleepRepository.estimate()
+        }
+    }
+
+    /**
+     * A wind-down window suggested from the user's own recent sleep
+     * onsets, or null when there is not enough data to suggest
+     * anything.
+     *
+     * Built on the regularity-not-duration finding (Windred et al.
+     * 2024, *SLEEP* 47(1):zsad285). The suggestion is opt-in: the
+     * settings panel renders it as a one-line "your nights cluster
+     * around X" with a single button to apply it. Nothing is set
+     * automatically.
+     */
+    val sleepSuggestion: StateFlow<SleepWindowOptimizer.Suggestion?> =
+        sleepState.map { summary ->
+            summary?.let {
+                SleepWindowOptimizer.suggest(it.windows, java.time.ZoneId.systemDefault())
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /**
+     * Applies the optimizer's suggested window. Sets the customised
+     * flag, so a later chronotype change will not stomp on it.
+     */
+    fun applySleepSuggestion(suggestion: SleepWindowOptimizer.Suggestion) {
+        viewModelScope.launch {
+            sunsetPrefs.setWindow(suggestion.startTime, suggestion.endTime)
+            if (sunsetPrefs.isEnabled()) {
+                SunsetController.ensureScheduled(getApplication())
+            }
         }
     }
 
