@@ -93,7 +93,8 @@ class PostNotificationsRollbackTest {
         // this wiring is removed, the launcher callback becomes a no-op
         // and the bug returns.
         val batchingBlock = Regex(
-            """toggleable\(value = batchingEnabled[\s\S]*?pendingRollback\s*=\s*\{\s*viewModel\.setBatchingEnabled\(false\)""",
+            "toggleable\\(value = batchingEnabled[\\s\\S]*?" +
+                "pendingRollback\\s*=\\s*\\{\\s*viewModel\\.setBatchingEnabled\\(false\\)",
         ).find(screen)?.value ?: error(
             "Could not locate the batchingEnabled toggle's pendingRollback assignment",
         )
@@ -109,7 +110,8 @@ class PostNotificationsRollbackTest {
     @Test
     fun `the EMA toggle registers a rollback that calls setEmaEnabled(false)`() {
         val emaBlock = Regex(
-            """toggleable\(value = emaEnabled[\s\S]*?pendingRollback\s*=\s*\{\s*viewModel\.setEmaEnabled\(false\)""",
+            "toggleable\\(value = emaEnabled[\\s\\S]*?" +
+                "pendingRollback\\s*=\\s*\\{\\s*viewModel\\.setEmaEnabled\\(false\\)",
         ).find(screen)?.value ?: error(
             "Could not locate the emaEnabled toggle's pendingRollback assignment",
         )
