@@ -191,6 +191,15 @@
     <string name="time_nudger_row">%1$s %2$s</string>
     <string name="sunset_section">Sunset mode</string>
     <string name="sunset_explainer">Through your quiet hours the phone goes priority-only: starred contacts and repeat callers still reach you, everything else waits for morning. Set the hours to your night, not to a default — shift work and being on call are the norm, not the exception.</string>
+    <!--
+        Chronotype setting (Roenneberg 2007, Wittmann 2006, Åkerstedt
+        2003, Kecklund 2016). The radio list mirrors the onboarding
+        step. Changing the answer here overwrites the default
+        wind-down window only if the user has not yet picked a window
+        by hand (see SunsetPrefs.setChronotype).
+    -->
+    <string name="chronotype_section">Your hours</string>
+    <string name="chronotype_explainer">When you are most awake. The wind-down window starts from here unless you have already picked your own times.</string>
     <string name="grant_dnd_access">Grant Do Not Disturb access to enable sunset</string>
     <string name="sunset_toggle">Wind down through the quiet hours</string>
 
@@ -368,6 +377,29 @@
     <string name="plan_measurement">• The wellbeing pulse (settings): a 2-minute check-in every two weeks, scored honestly.</string>
     <string name="plan_none">Explore at your own pace — every feature lives in settings and long-press menus, all off by default.</string>
     <string name="onboarding_begin">begin</string>
+    <!--
+        Chronotype onboarding step (Roenneberg 2007, Wittmann 2006,
+        Åkerstedt 2003, Kecklund 2016). One-tap answer to "when are
+        you most awake?" — the launcher's default quiet-hours window
+        is set from it (see SunsetPrefs.setChronotype). "Not set" is
+        offered by leaving every option unselected; the screen passes
+        Chronotype.UNKNOWN through and the launcher keeps the 22:00
+        → 07:00 placeholder rather than a guess.
+
+        The strings are short, written in the first person, and avoid
+        the word "best" — "best" is comparative and reads as a value
+        judgement on the person picking, when chronotype is just a
+        description of their day. The four options are the four
+        populations the cited research distinguishes.
+    -->
+    <string name="onboarding_chronotype_title">When are you most awake?</string>
+    <string name="onboarding_chronotype_body">One tap — the wind-down window will start from there. You can change either one in settings.</string>
+    <string name="chronotype_morning_lark">Asleep by 21:00, up before 06:00</string>
+    <string name="chronotype_neutral">Somewhere in between</string>
+    <string name="chronotype_night_owl">At my best in the evening, asleep after midnight</string>
+    <string name="chronotype_shift_worker">I work shifts and sleep during the day</string>
+    <string name="chronotype_unknown">Not set</string>
+    <string name="plan_chronotype">• Wind-down default set for your hours: %1$s</string>
 
     <string name="pulse_section">Wellbeing pulse</string>
     <!--

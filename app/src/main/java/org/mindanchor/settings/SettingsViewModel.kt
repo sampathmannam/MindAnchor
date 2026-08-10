@@ -34,6 +34,7 @@ import org.mindanchor.report.ReportScheduler
 import org.mindanchor.sleep.Deviation
 import org.mindanchor.sleep.SleepRepository
 import org.mindanchor.sleep.SleepSummary
+import org.mindanchor.sunset.Chronotype
 import org.mindanchor.sunset.SunsetController
 import org.mindanchor.vitals.DailyVitals
 import org.mindanchor.vitals.HealthConnectSource
@@ -267,6 +268,28 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 end.plusMinutes(endMinutes),
             )
             if (moved) SunsetController.ensureScheduled(getApplication())
+        }
+    }
+
+    /**
+     * The user's chronotype, or [Chronotype.UNKNOWN] before the
+     * onboarding question has been answered. Surfaced in settings so
+     * the answer can be edited without re-running onboarding.
+     *
+     * Drives the default quiet-hours window: a new answer overwrites
+     * the window unless the user has already picked one of their own
+     * (see [SunsetPrefs.setChronotype]). The auto-update is the whole
+     * point of the question.
+     */
+    val chronotype = sunsetPrefs.chronotype
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Chronotype.UNKNOWN)
+
+    fun setChronotype(chronotype: Chronotype) {
+        viewModelScope.launch {
+            sunsetPrefs.setChronotype(chronotype)
+            if (sunsetPrefs.isEnabled()) {
+                SunsetController.ensureScheduled(getApplication())
+            }
         }
     }
 

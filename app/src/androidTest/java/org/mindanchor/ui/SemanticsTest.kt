@@ -167,7 +167,7 @@ class SemanticsTest {
 
     @Test
     fun onboarding() {
-        set { OnboardingScreen(onDone = {}) }
+        set { OnboardingScreen(onDone = { _, _ -> }) }
         walk("onboarding welcome")
         scrollAndClick(R.string.onboarding_continue)
         walk("onboarding goals")

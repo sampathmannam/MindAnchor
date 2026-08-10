@@ -10,10 +10,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import org.mindanchor.data.SunsetPrefs
 import org.mindanchor.friction.SessionManager
 import org.mindanchor.launcher.LauncherRoot
 import org.mindanchor.onboarding.OnboardingPrefs
 import org.mindanchor.onboarding.OnboardingScreen
+import org.mindanchor.sunset.SunsetController
 import org.mindanchor.ui.CalmBackground
 import org.mindanchor.ui.MindAnchorTheme
 
@@ -36,6 +38,7 @@ class HomeActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val onboardingPrefs = OnboardingPrefs(applicationContext)
+        val sunsetPrefs = SunsetPrefs(applicationContext)
         setContent {
             MindAnchorTheme {
                 val done by onboardingPrefs.done.collectAsState(initial = null)
@@ -48,8 +51,19 @@ class HomeActivity : ComponentActivity() {
                     null -> CalmBackground { }
 
                     false -> OnboardingScreen(
-                        onDone = { goals ->
-                            scope.launch { onboardingPrefs.complete(goals) }
+                        onDone = { goals, chronotype ->
+                            scope.launch {
+                                onboardingPrefs.complete(goals)
+                                // setChronotype only writes the default
+                                // window if the user has not already picked
+                                // one — first run, the window has never
+                                // been touched, so the chronotype's default
+                                // becomes the launcher's default.
+                                sunsetPrefs.setChronotype(chronotype)
+                                if (sunsetPrefs.isEnabled()) {
+                                    SunsetController.ensureScheduled(applicationContext)
+                                }
+                            }
                         },
                     )
 

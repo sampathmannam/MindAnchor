@@ -68,6 +68,7 @@ import org.mindanchor.report.MeasureSource
 import org.mindanchor.report.Signal
 import org.mindanchor.onboarding.GoalMap
 import org.mindanchor.onboarding.SettingsSection
+import org.mindanchor.sunset.Chronotype
 import org.mindanchor.vitals.HealthConnectSource
 import org.mindanchor.vitals.coros.CorosConnectionState
 import org.mindanchor.vitals.coros.CorosSyncWorker
@@ -327,6 +328,48 @@ private fun Goal.labelRes(): Int = when (this) {
     Goal.COMPULSIVE_APPS -> R.string.goal_compulsive
     Goal.SLEEP -> R.string.goal_sleep
     Goal.MEASUREMENT -> R.string.goal_measurement
+}
+
+private fun Chronotype.labelRes(): Int = when (this) {
+    Chronotype.MORNING_LARK -> R.string.chronotype_morning_lark
+    Chronotype.NEUTRAL -> R.string.chronotype_neutral
+    Chronotype.NIGHT_OWL -> R.string.chronotype_night_owl
+    Chronotype.SHIFT_WORKER -> R.string.chronotype_shift_worker
+    Chronotype.UNKNOWN -> R.string.chronotype_unknown
+}
+
+/**
+ * One chronotype radio row. The whole row is the target, not just the
+ * radio dot — see [GoalRow] for the same accessibility reasoning.
+ * 48dp tall, screen-reader role is RadioButton, label and selected
+ * state are one node.
+ */
+@Suppress("FunctionNaming")
+@Composable
+private fun ChronotypeRadioRow(
+    chronotype: Chronotype,
+    selected: Chronotype,
+    onChange: (Chronotype) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .selectable(
+                selected = selected == chronotype,
+                role = Role.RadioButton,
+                onClick = { onChange(chronotype) },
+            )
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = selected == chronotype, onClick = null)
+        Text(
+            text = stringResource(chronotype.labelRes()),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(start = 8.dp),
+        )
+    }
 }
 
 /**
@@ -1037,6 +1080,38 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+
+            // Chronotype picker (Roenneberg 2007, Wittmann 2006, Åkerstedt
+            // 2003, Kecklund 2016). The first answer came from onboarding;
+            // this lets the user change it without re-running onboarding,
+            // and changes here overwrite the default window the same way
+            // — only if the user has not already picked their own.
+            val chronotype by viewModel.chronotype.collectAsState()
+            Text(
+                text = stringResource(R.string.chronotype_section),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
+            )
+            Text(
+                text = stringResource(R.string.chronotype_explainer),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            ChronotypeRadioRow(Chronotype.MORNING_LARK, chronotype) {
+                viewModel.setChronotype(it)
+            }
+            ChronotypeRadioRow(Chronotype.NEUTRAL, chronotype) {
+                viewModel.setChronotype(it)
+            }
+            ChronotypeRadioRow(Chronotype.NIGHT_OWL, chronotype) {
+                viewModel.setChronotype(it)
+            }
+            ChronotypeRadioRow(Chronotype.SHIFT_WORKER, chronotype) {
+                viewModel.setChronotype(it)
+            }
+            ChronotypeRadioRow(Chronotype.UNKNOWN, chronotype) {
+                viewModel.setChronotype(it)
+            }
 
             // The window used to be hardcoded to 22:00 → 07:00. That is
             // somebody else's bedtime: wrong for shift workers, wrong for

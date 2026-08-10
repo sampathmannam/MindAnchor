@@ -2,6 +2,7 @@ package org.mindanchor.sunset
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mindanchor.data.SunsetPrefs
@@ -116,5 +117,33 @@ class SunsetControllerTest {
         // bedtime half an hour earlier means 23:45, not 00:00.
         assertEquals(LocalTime.of(23, 45), LocalTime.of(0, 15).plusMinutes(-30))
         assertEquals(LocalTime.of(0, 15), LocalTime.of(23, 45).plusMinutes(30))
+    }
+
+    @Test
+    fun `setChronotype returns a default window when the user has not set one`() {
+        // First run / never-touched-by-hand: a chronotype set should
+        // also install that chronotype's default window. Otherwise
+        // the onboarding answer would have no visible effect and the
+        // user would assume the question was decorative.
+        assertEquals(
+            Chronotype.NIGHT_OWL.defaultWindow(),
+            SunsetPrefs.newWindowFor(Chronotype.NIGHT_OWL, isWindowCustomized = false),
+        )
+        assertEquals(
+            Chronotype.SHIFT_WORKER.defaultWindow(),
+            SunsetPrefs.newWindowFor(Chronotype.SHIFT_WORKER, isWindowCustomized = false),
+        )
+    }
+
+    @Test
+    fun `setChronotype does not stomp a window the user has set by hand`() {
+        // The whole point of the guard: someone picked 21:30 six
+        // months ago, and is now answering the chronotype question
+        // for unrelated reasons. Returning null from newWindowFor
+        // means setChronotype leaves the stored window alone, and
+        // the user's bedtime does not move without warning.
+        assertNull(SunsetPrefs.newWindowFor(Chronotype.NIGHT_OWL, isWindowCustomized = true))
+        assertNull(SunsetPrefs.newWindowFor(Chronotype.SHIFT_WORKER, isWindowCustomized = true))
+        assertNull(SunsetPrefs.newWindowFor(Chronotype.NEUTRAL, isWindowCustomized = true))
     }
 }

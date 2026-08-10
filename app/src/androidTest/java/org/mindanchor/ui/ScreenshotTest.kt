@@ -138,7 +138,7 @@ class ScreenshotTest {
     fun home() = shoot("home") { LauncherRoot() }
 
     @Test
-    fun onboarding() = shoot("onboarding") { OnboardingScreen(onDone = {}) }
+    fun onboarding() = shoot("onboarding") { OnboardingScreen(onDone = { _, _ -> }) }
 
     @Test
     fun support() = shoot("support") { SupportScreen(onClose = {}) }
