@@ -460,9 +460,20 @@ fun SettingsScreen(
     val activityLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { }
+    // v0.22.1 — fix: when the user toggles a feature on that needs
+    // POST_NOTIFICATIONS and then denies the permission, the in-app toggle
+    // used to stay ON with no notifications actually delivered, no
+    // explanation, and no way to know the reason. Capture a rollback
+    // callback for the duration of the request and invoke it if the result
+    // comes back false. The pre-fix launcher was a no-op `{}`, so the
+    // toggle stayed optimistic even on deny.
+    var pendingRollback by remember { mutableStateOf<(() -> Unit)?>(null) }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
-    ) { }
+    ) { granted ->
+        if (!granted) pendingRollback?.invoke()
+        pendingRollback = null
+    }
 
     val batchingEnabled by viewModel.batchingEnabled.collectAsState()
     val batchedApps by viewModel.batchedApps.collectAsState()
@@ -865,9 +876,15 @@ fun SettingsScreen(
                         .heightIn(min = 48.dp)
                         .toggleable(value = batchingEnabled, role = Role.Switch) { enabled ->
                             if (enabled) {
+                                // v0.22.1: arm the rollback so a denied
+                                // permission request leaves the toggle OFF
+                                // instead of stuck ON with no notifications.
+                                pendingRollback = { viewModel.setBatchingEnabled(false) }
                                 permissionLauncher.launch(
                                     android.Manifest.permission.POST_NOTIFICATIONS,
                                 )
+                            } else {
+                                pendingRollback = null
                             }
                             viewModel.setBatchingEnabled(enabled)
                         }
@@ -1605,7 +1622,14 @@ fun SettingsScreen(
                     .heightIn(min = 48.dp)
                     .toggleable(value = emaEnabled, role = Role.Switch) { enabled ->
                         if (enabled) {
+                            // v0.22.1: same rollback as batching — without
+                            // POST_NOTIFICATIONS granted, EMA has no way to
+                            // actually prompt the user, so the toggle should
+                            // not stay ON after a deny.
+                            pendingRollback = { viewModel.setEmaEnabled(false) }
                             permissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            pendingRollback = null
                         }
                         viewModel.setEmaEnabled(enabled)
                     }
