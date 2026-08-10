@@ -1,11 +1,12 @@
 package org.mindanchor.sim
 
+import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.mindanchor.sim.personas.PersonaLibrary
 import org.mindanchor.vitals.WellnessSignal
 
 /**
- * The simulation report — runs all 5 personas and asserts the
+ * The simulation report — runs all 8 personas and asserts the
  * shape of the launcher's output matches the persona's
  * research-anchored prediction.
  *
@@ -48,17 +49,38 @@ class SimulationReportTest {
     }
 
     @Test
-    fun `morning lark has the highest mean HRV across the 5 personas`() {
+    fun `morning lark has the highest mean HRV across the 5 research-anchored personas`() {
         val reports = SimulationReport.report()
         val byMedian: Map<String, Double> = reports.associate { pr ->
             pr.persona.id to (pr.summaries[WellnessSignal.HRV]?.baselineMedian ?: 0.0)
         }
+        // Compare only the 5 research-anchored personas. The 3
+        // adversarial personas are designed to test edge cases
+        // (high variance, zero variance, sparse data) — they
+        // can land anywhere on the HRV axis depending on the
+        // seed, and that is correct.
+        val anchored = listOf(
+            "morning_lark_healthy",
+            "night_owl_healthy",
+            "shift_worker_rotating",
+            "insomnia_anxious",
+            "depression_low_motivation",
+        )
         val morningLarkHrv = byMedian["morning_lark_healthy"]!!
-        val others = byMedian.filterKeys { it != "morning_lark_healthy" }.values
-        assert(others.all { it < morningLarkHrv }) {
-            "Morning lark HRV ($morningLarkHrv) should be the highest; " +
-                "others: ${byMedian.filterKeys { it != "morning_lark_healthy" }}"
+        val anchoredOthers = byMedian.filterKeys { it in anchored && it != "morning_lark_healthy" }
+        assert(anchoredOthers.values.all { it < morningLarkHrv }) {
+            "Morning lark HRV ($morningLarkHrv) should be the " +
+                "highest among the 5 anchored personas; " +
+                "others: $anchoredOthers"
         }
+        // The sparse-data persona should surface as 0.0 (no
+        // baseline readable in 14 days) — the runner falls
+        // back to 0.0 in the report when median is null.
+        assertEquals(
+            "Sparse persona has no HRV history in 14 days; " +
+                "median should surface as 0.0",
+            0.0, byMedian["sparse_data_partial_wearable"] ?: -1.0, 0.0,
+        )
     }
 
     @Test

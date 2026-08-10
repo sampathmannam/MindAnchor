@@ -16,13 +16,16 @@ package org.mindanchor.sim.personas
  */
 object PersonaLibrary {
 
-    /** All five personas, in the order the simulation runs them. */
+    /** All personas, in the order the simulation runs them. */
     val all: List<Persona> = listOf(
         MorningLarkPersona(),
         NightOwlPersona(),
         ShiftWorkerPersona(),
         InsomniacPersona(),
         DepressionLowMotivationPersona(),
+        NoisySignalPersona(),
+        PerfectlyRegularPersona(),
+        SparseDataPersona(),
     )
 
     /** Look up a persona by its [Persona.id]. */

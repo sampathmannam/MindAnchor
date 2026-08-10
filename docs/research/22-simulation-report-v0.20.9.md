@@ -21,6 +21,8 @@ is not yet reportable surfaces as `NO_DATA`, never as `AT` / `ABOVE` /
 
 ## The 5 personas
 
+The 5 anchored-in-research personas the launcher is tested against:
+
 | Persona | Anchored in | Key shape |
 |---|---|---|
 | Morning lark | Roenneberg 2007; Windred 2024 | HRV mean ~55, steps mean ~8,500 |
@@ -28,6 +30,16 @@ is not yet reportable surfaces as `NO_DATA`, never as `AT` / `ABOVE` /
 | Shift worker | Åkerstedt 2003; Kecklund 2016 | HRV mean ~40, irregular sleep |
 | Insomniac | Harvey 2002; Baglioni 2016 | HRV mean ~35, sleep ~5h |
 | Depression | Dimidjian 2006; Brosschot 2006 | HRV mean ~32, steps ~2,000 |
+
+## The 3 adversarial personas
+
+Added in WP-6 to exercise edge cases the anchored personas never reach:
+
+| Persona | Why it exists | What it catches |
+|---|---|---|
+| `noisy_signal_high_variance` | 4x normal noise; the personal MAD should absorb it | A regression where the band cut-offs (1.0, 2.0) are too tight and over-fire ABOVE/MUCH_ABOVE |
+| `perfectly_regular_zero_variance` | Every signal has the same value on every day; MAD = 0 | The "z = (x − median) / 0" NaN/Infinity bug. The launcher must refuse to surface a z-score and return NO_DATA |
+| `sparse_data_partial_wearable` | 4/7 watch days; no HRV, no sleep, no mindfulness | Sparse-data realism (e.g., a COROS Pacer 3 user). The runner must not invent values for null days, and a signal the watch does not write must always be NO_DATA |
 
 ## Headline numbers (seed 42, start 2026-01-05)
 

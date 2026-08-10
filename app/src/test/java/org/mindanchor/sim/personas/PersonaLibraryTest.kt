@@ -26,14 +26,17 @@ class PersonaLibraryTest {
     private val seed: Long = 42L
 
     @Test
-    fun `library contains all 5 personas`() {
-        assertEquals(5, PersonaLibrary.all.size)
+    fun `library contains all 8 personas`() {
+        assertEquals(8, PersonaLibrary.all.size)
         val ids = PersonaLibrary.all.map { it.id }
         assertTrue(ids.contains("morning_lark_healthy"))
         assertTrue(ids.contains("night_owl_healthy"))
         assertTrue(ids.contains("shift_worker_rotating"))
         assertTrue(ids.contains("insomnia_anxious"))
         assertTrue(ids.contains("depression_low_motivation"))
+        assertTrue(ids.contains("noisy_signal_high_variance"))
+        assertTrue(ids.contains("perfectly_regular_zero_variance"))
+        assertTrue(ids.contains("sparse_data_partial_wearable"))
     }
 
     @Test
