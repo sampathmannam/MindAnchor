@@ -179,10 +179,25 @@ fun ReportScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            current.isEmpty -> Text(
-                text = stringResource(R.string.report_quiet),
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            current.isEmpty -> {
+                // v0.22.2 P3 fix: when the report is empty AND today's
+                // facts are also empty, "Nothing stood out" is a lie
+                // of omission. The pattern search had no data to look
+                // for, so nothing was *available* to stand out — the
+                // honest answer is the facts-empty line below, which
+                // already says "Nothing arrived that day". The
+                // report_quiet line only earns its place when the
+                // search actually ran and found nothing, which is
+                // exactly the case where facts is non-empty.
+                if (facts != null && facts.isNotEmpty()) {
+                    Text(
+                        text = stringResource(R.string.report_quiet),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                // else: silently skip — the facts-empty message below
+                // is the only honest thing the screen can say.
+            }
 
             else -> current.sections.forEach { section -> ReportSectionCard(section) }
         }
