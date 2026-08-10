@@ -56,12 +56,16 @@ class ShiftWorkerPersona : Persona {
         return (0 until 14).map { dayIndex ->
             val date = start.plusDays(dayIndex.toLong())
             val shift = shiftPattern[dayIndex]
-            val (onsetBase, sleepBase, rhrBase, hrvBase) = when (shift) {
+            val params = when (shift) {
                 "DAY" -> Quad(7 * 60, 380, 64.0, 42.0)        // sleep 23:00, wake 06:20
                 "EVENING" -> Quad(2 * 60, 360, 65.0, 40.0)   // sleep 02:00, wake 08:00
                 "NIGHT" -> Quad(9 * 60, 320, 67.0, 35.0)     // sleep 09:00, wake 14:20
                 else -> Quad(8 * 60, 360, 63.0, 42.0)        // off day
             }
+            val onsetBase = params.onsetBase
+            val sleepBase = params.sleepBase
+            val rhrBase = params.rhrBase
+            val hrvBase = params.hrvBase
             val sleepOnset = (onsetBase + rng.nextGaussian(0.0, 30.0).roundToInt())
                 .coerceIn(0, 1400)
             val sleepMinutes = (sleepBase + rng.nextGaussian(0.0, 30.0).roundToInt())

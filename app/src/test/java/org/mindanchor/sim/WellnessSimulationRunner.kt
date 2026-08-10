@@ -180,7 +180,7 @@ object WellnessSimulationRunner {
      */
     private fun openLoopFor(
         today: DailyVitals,
-        prior: List<DailyVitals>,
+        @Suppress("UNUSED_PARAMETER") prior: List<DailyVitals>,
         now: LocalTime,
         sunsetStart: LocalTime,
         sunsetEnd: LocalTime,
@@ -204,7 +204,7 @@ object WellnessSimulationRunner {
      */
     private fun bedtimeFor(
         today: DailyVitals,
-        prior: List<DailyVitals>,
+        @Suppress("UNUSED_PARAMETER") prior: List<DailyVitals>,
         now: LocalTime,
         sunsetStart: LocalTime,
         sunsetEnd: LocalTime,
