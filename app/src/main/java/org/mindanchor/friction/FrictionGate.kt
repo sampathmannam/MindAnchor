@@ -47,10 +47,38 @@ import org.mindanchor.ui.CalmBackground
 import org.mindanchor.ui.SkyContent
 
 /**
- * The one sec-style gate (Grüning et al., PNAS 2023): a single ~6-second
- * guided breath, then "what are you here to do?" with a time-boxed choice.
- * "Never mind" is always available — the 36%-abandonment door is the whole
- * point, and leaving must never feel like failing.
+ * The one sec-style gate (Grüning et al. 2023, PNAS 120(8):e2213114120,
+ * DOI 10.1073/pnas.2213114120): a single ~9-second guided breath,
+ * then "what are you here to do?" with a time-boxed choice. "Never
+ * mind" is always available — the 36%-abandonment door (Grüning 2023,
+ * the 6-week field study where 36% of target-app opens were
+ * abandoned after the gate) is the whole point, and leaving must
+ * never feel like failing.
+ *
+ * The habit framing is Lally et al. 2010, *Eur. J. Soc. Psychol.*
+ * 40(6):998-1009 (DOI 10.1002/ejsp.674): the pause is the first rep,
+ * automaticity asymptotes at a median of 66 days (range 18-254),
+ * and missing one day does not derail the process. The gate is
+ * shipped knowing that the user will need many reaches before the
+ * pause becomes invisible — the cost is paid in those first days,
+ * and a gate that asks more gently on day 10 than on day 1 is what
+ * `FrictionTone.FEATHER` is for.
+ *
+ * The if-then plan affordance is Gollwitzer 1999, *Am. Psychol.*
+ * 54(7):493-503 (DOI 10.1037/0003-066X.54.7.493); meta-analytic
+ * evidence: Gollwitzer & Sheeran 2006, d=0.65 across 94 studies
+ * and >8,000 participants. The user's own cue and response, surfaced
+ * at the moment of friction, is the cheapest anti-habituation fix
+ * the SOTA brief (docs/research/15 §8) names.
+ *
+ * The breathing is the physiological sigh (Balban et al. 2023,
+ * *Cell Reports Medicine* 4(1):100895, DOI 10.1016/j.xcrm.2022.100895):
+ * 2s nasal inhale, 1s "sip" inhale to reinflate alveoli, 6s slow
+ * mouth exhale. The slow-exhale mechanism (Bernardi et al. 2001,
+ * *J. Hypertens.* 19(12):2221-2229, DOI 10.1097/00004872-200112000-00016):
+ * slow breathing at 6 breaths/min depressed chemoreflex response
+ * and increased baroreflex sensitivity. See `BreathingProtocol`
+ * for the timing constants.
  *
  * @wording-reviewed — every contentDescription on this Composable
  * is clinical-review-required (the mental-health population
@@ -142,6 +170,9 @@ fun FrictionGate(
 ) {
     // The breath is skipped entirely below FULL rather than shortened.
     // A hurried version of a calming ritual is not calming.
+    // The 2-1-6 timing comes from `BreathingProtocol`, which cites
+    // Balban et al. 2023 (the cyclic-sighing RCT) and Bernardi et al.
+    // 2001 (the slow-breathing baroreflex mechanism).
     var breathDone by remember(tone) { mutableStateOf(tone != FrictionTone.FULL) }
 
     CalmBackground { sky ->
@@ -271,12 +302,13 @@ private fun BreathingPause(sky: SkyContent, onFinished: () -> Unit, onNeverMind:
     // was over — burning frames, and leaving the UI permanently non-idle.
     //
     // The protocol is the physiological sigh (Balban et al. 2023,
-    // Cell Reports Medicine 4(1):100895): a 2s nasal inhale, a 1s
-    // "sip" inhale to fully reinflate the alveoli, then a 6s slow
-    // mouth exhale. The double-inhale is what makes it a sigh; the
-    // long exhale is the active ingredient for parasympathetic
-    // drive (Bernardi 2018, J Physiol 596(8):1449–1464). See
-    // BreathingProtocol for the citations.
+    // Cell Reports Medicine 4(1):100895, DOI 10.1016/j.xcrm.2022.100895):
+    // a 2s nasal inhale, a 1s "sip" inhale to fully reinflate the
+    // alveoli, then a 6s slow mouth exhale. The double-inhale is what
+    // makes it a sigh; the long exhale is the active ingredient for
+    // parasympathetic drive (Bernardi et al. 2001, J. Hypertens.
+    // 19(12):2221-2229, DOI 10.1097/00004872-200112000-00016). See
+    // `BreathingProtocol` for the citations.
     val scale = remember { Animatable(1f) }
     LaunchedEffect(Unit) {
         // First haptic on inhale start. The user feels the breath

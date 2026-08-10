@@ -739,9 +739,12 @@ fun SettingsScreen(
             // Neff 2003 Self-Compassion Break: at the moment of
             // reaching for a doomscroll app, optionally surface
             // a phrase the user has previously written — their
-            // own words, never the launcher's. Linardon 2020
-            // (J Clin Psychol meta of 27 RCTs, PMID 32586436)
-            // reports small-to-moderate effects on distress.
+            // own words, never the launcher's. Linardon 2020,
+            // Behavior Therapy 51(4):646-658 (DOI 10.1016/j.beth.2019.10.002)
+            // — meta-analysis of 27 RCTs of smartphone apps for
+            // acceptance / mindfulness / self-compassion. Reports
+            // g = −0.32 (95% CI −0.48 to −0.16) for distress and
+            // g = 0.31 (95% CI 0.07-0.56) for self-compassion.
             // Same "only their own words" fence as small things;
             // same shape; same cap (six phrases is enough for
             // a rotation without any one becoming wallpaper).

@@ -16,10 +16,36 @@ private val Context.dataStore by preferencesDataStore(name = "sunset")
  * Sunset (wind-down) configuration.
  *
  * The window was hardcoded to 22:00 → 07:00, with "editable times come
- * later" written next to it. 22:00 is somebody else's bedtime: it is wrong
- * for shift workers, wrong for anyone on call, wrong for night staff, and
- * a wind-down that begins three hours after you have gone to bed is not a
- * wind-down. It is stored now, and still defaults to 22:00 → 07:00.
+ * later" written next to it. 22:00 is somebody else's bedtime: it is
+ * wrong for shift workers, wrong for anyone on call, wrong for night
+ * staff, and a wind-down that begins three hours after you have gone
+ * to bed is not a wind-down. It is stored now, and still defaults to
+ * 22:00 → 07:00.
+ *
+ * The "22:00 is somebody else's bedtime" framing rests on two
+ * verified findings, listed in the launcher's research index
+ * (`docs/research/22-research-index.md`):
+ *
+ * - **Roenneberg et al. 2007, *Sleep Med. Rev.* 11(6):429-438,
+ *   DOI 10.1016/j.smrv.2007.07.005.** The Munich Chronotype
+ *   Questionnaire paper — chronotype is age- and sex-dependent, and
+ *   the population distribution of "preferred bedtime" is wide
+ *   enough that no single 22:00 default is the right one for most
+ *   people. The launcher's default of 22:00 → 07:00 is a
+ *   *placeholder*, not a recommendation: the right window is
+ *   whatever the user actually sleeps on.
+ * - **Åkerstedt 2003, *Occup. Med.* 53(2):89-94, DOI
+ *   10.1093/occmed/kqg046.** Difficulty initiating sleep, shortened
+ *   sleep, and somnolence during work hours are the principal acute
+ *   symptoms of shift work. A 22:00 → 07:00 window applied to a
+ *   shift worker is the wrong window by hours, and the launcher
+ *   making the window editable is the only correct response.
+ *
+ * Out of scope for the verified index: the launcher's notion of a
+ * "wind-down" itself is a design choice, not a research finding.
+ * The two citations above justify making the window editable; they
+ * do not justify a specific default length. The default length is
+ * the launcher's choice.
  */
 class SunsetPrefs(private val context: Context) {
 

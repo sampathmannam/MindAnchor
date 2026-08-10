@@ -20,21 +20,33 @@ enum class LoopPhase {
  * ## The two findings this joins
  *
  * The Zeigarnik effect: unfinished tasks intrude on cognition until they
- * are closed. Masicampo & Baumeister (2011) found the release valve —
- * *writing a plan* for the unfinished task removes the intrusion about as
- * well as finishing it does. Separately, sleep regularity is the
- * strongest-evidenced target a phone can act on at all (Windred et al.,
- * ~60k people), and it is wrecked by exactly this.
+ * are closed. Masicampo & Baumeister (2011, *J. Pers. Soc. Psychol.*
+ * 101(4):667-683, DOI 10.1037/a0024192) found the release valve —
+ * *writing a plan* for the unfinished task removes the intrusion about
+ * as well as finishing it does. The "open loop" does not need to be
+ * closed; it needs to be anchored.
  *
- * Nobody has put the two together at the point where phones actually cost
- * people sleep. The 1am scroll is frequently not a craving for the feed;
- * it is one open loop that will not close, and the feed is what is to hand
- * while it is open.
+ * Separately, the mind-wanders-→-unhappy finding: Killingsworth &
+ * Gilbert (2010, *Science* 330(6006):932, DOI 10.1126/science.1192439)
+ * found people were less happy in 46.9% of waking samples (mind
+ * wandering) than in the non-wandering samples, in every activity
+ * category. The 1am scroll is frequently not a craving for the feed;
+ * it is one open loop that will not close, and the feed is what is to
+ * hand while it is open.
  *
- * So: in the quiet hours, one line — what is still open? Written down, put
- * away, and handed back in the morning at a time the person can do
- * something about it. Two evidence-based mechanisms, joined at a moment
- * only a launcher can stand in.
+ * And: sleep regularity is the strongest-evidenced target a phone
+ * can act on at all. Windred et al. (2024, *SLEEP* 47(1):zsad285,
+ * DOI 10.1093/sleep/zsad285), N=60,977 UK Biobank participants,
+ * >10 million hours of wrist accelerometry: higher sleep regularity
+ * was associated with 20-48% lower all-cause mortality, and was a
+ * stronger predictor than sleep duration. Regularity beats duration.
+ * The 1am-doomscroll pattern is exactly the thing that wrecks it.
+ *
+ * Nobody has put these together at the point where phones actually cost
+ * people sleep. So: in the quiet hours, one line — what is still open?
+ * Written down, put away, and handed back in the morning at a time
+ * the person can do something about it. Two evidence-based mechanisms,
+ * joined at a moment only a launcher can stand in.
  *
  * ## What it will not do
  *

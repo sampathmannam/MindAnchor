@@ -29,8 +29,10 @@ class BreathingProtocolTest {
     @Test
     fun `the exhale is at least as long as the inhale, by design`() {
         // The slow-exhale component is the parasympathetic-drive
-        // lever (Bernardi 2018, J Physiol 596(8):1449–1464; Zhang
-        // 2025). A short exhale inverts the mechanism.
+        // lever (Bernardi et al. 2001, J. Hypertens. 19(12):2221-2229,
+        // DOI 10.1097/00004872-200112000-00016 — slow breathing at
+        // 6 breaths/min depressed chemoreflex response and increased
+        // baroreflex sensitivity). A short exhale inverts the mechanism.
         assert(BreathingProtocol.EXHALE_MILLIS >= BreathingProtocol.INHALE_MILLIS) {
             "exhale shorter than inhale"
         }
