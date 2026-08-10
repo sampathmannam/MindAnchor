@@ -57,7 +57,7 @@ The following papers and book chapters have been verified by direct lookup again
 
 ### Expressive writing
 
-- **Pennebaker, J. W. (1997) — *Opening up: The healing power of expressing emotions*. New York: Guilford Press. ISBN 1-57230-238-0.** Trade book summarising the expressive-writing programme. The empirical paper is Pennebaker, J. W. (1997) "Writing about emotional experiences as a therapeutic process," *Psychol. Sci.* 8(3):162-166. Basis for the future "expressive writing prompt at the end of a check-in" feature (WP-8 in the 10/10 roadmap).
+- **Pennebaker, J. W. (1997) — *Opening up: The healing power of expressing emotions*. New York: Guilford Press. ISBN 1-57230-238-0.** Trade book summarising the expressive-writing programme. The empirical paper is Pennebaker, J. W. (1997) "Writing about emotional experiences as a therapeutic process," *Psychol. Sci.* 8(3):162-166. The original four-day, 15-minute-per-day writing trial is in Pennebaker & Stone 1977, *J. Abnorm. Psychol.* 86(2):162-169, DOI 10.1037/0021-843X.86.2.162. Basis for the launcher's optional reflection field on the check-in (one minute of free text, never required, never interpreted). The launcher stores the words and returns them in the history view; it does not summarise, tag a mood, or feed the text into a model.
 
 ---
 

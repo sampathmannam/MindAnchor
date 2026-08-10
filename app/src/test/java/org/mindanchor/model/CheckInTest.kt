@@ -56,6 +56,37 @@ class CheckInTest {
         }
     }
 
+    @Test fun `empty reflection is a legal check-in, not a missing one`() {
+        // Pennebaker 1997 is opt-in: a check-in without a reflection
+        // is a real check-in, not an incomplete one. The launcher
+        // stores the empty string and the history view shows the
+        // row with the rating, never prompting the user to "fill in
+        // a reflection later". Without this contract, a
+        // field that interprets the empty string as "missing" would
+        // be a quiet judgement on the user's choice to skip.
+        val c = CheckIn(rating = 3, reflection = "", atMillis = 1000L)
+        val decoded = CheckInStore.decode(CheckInStore.encode(listOf(c)))
+        assertEquals(1, decoded.size)
+        assertEquals("", decoded[0].reflection)
+        assertEquals(3, decoded[0].rating)
+    }
+
+    @Test fun `the reflection is stored verbatim, not summarised`() {
+        // The launcher never derives a mood tag or a category from
+        // the reflection text — Pennebaker 1997 is the act of
+        // writing, not the launcher reading it back as a feature.
+        // If a future refactor starts computing a "mood" or
+        // "summary" from the reflection, this test fails: the
+        // round-trip preserves every byte, including punctuation,
+        // whitespace, and unicode. The history view is the only
+        // place the words appear, and they appear as the user
+        // wrote them.
+        val text = "Today was hard.\nHarder than yesterday.\nI don't know why.\n"
+        val c = CheckIn(rating = 2, reflection = text, atMillis = 1000L)
+        val decoded = CheckInStore.decode(CheckInStore.encode(listOf(c)))
+        assertEquals(text, decoded[0].reflection)
+    }
+
     @Test fun `atMillis zero rejected`() {
         try {
             CheckIn(rating = 3, atMillis = 0L)
