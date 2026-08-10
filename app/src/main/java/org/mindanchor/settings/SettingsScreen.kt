@@ -1678,22 +1678,31 @@ fun SettingsScreen(
                 viewModel.refreshHealthConnectStatus()
             }
 
-            // Show the connect/change button only when Health Connect
-            // is actually available. If it is missing, the explainer
-            // already says so and the right next step is a Play Store
-            // install — which the user does on their own.
+            // Show the connect/change button only when the launcher
+            // has actually probed the source AND Health Connect is
+            // present. The previous guard was `!is Unavailable`,
+            // which also rendered the button for the `Unknown`
+            // initial state — a window of a few hundred milliseconds
+            // between the composable first appearing and the
+            // `LaunchedEffect` coroutine finishing its
+            // [HealthConnectSource.isAvailable] check. A tap in that
+            // window invoked [healthConnectPermissionLauncher.launch]
+            // before the source had been probed; on a phone without
+            // Health Connect the launch dispatched an Intent for a
+            // package that didn't exist and the dialog never opened.
+            // The user saw the button, tapped it, and nothing
+            // happened — the silent-failure shape this whole
+            // permission flow is supposed to avoid.
+            //
             // The local [s] capture is required because [hcStatus] is a
             // delegated property and Kotlin cannot smart-cast across
             // the [is] check; capturing it into a non-delegated [val]
             // restores the smart-cast.
             val s = hcStatus
-            if (s !is SettingsViewModel.HealthConnectStatus.Unavailable) {
-                val buttonLabelRes = when (s) {
-                    is SettingsViewModel.HealthConnectStatus.Available ->
-                        if (s.granted == 0) R.string.health_connect_button_connect
-                        else R.string.health_connect_button_change
-                    else -> R.string.health_connect_button_connect
-                }
+            if (s is SettingsViewModel.HealthConnectStatus.Available) {
+                val buttonLabelRes =
+                    if (s.granted == 0) R.string.health_connect_button_connect
+                    else R.string.health_connect_button_change
                 TextButton(
                     onClick = {
                         healthConnectPermissionLauncher.launch(
