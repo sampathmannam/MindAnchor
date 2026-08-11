@@ -47,4 +47,26 @@ class LetterSurfaceWiringFindingTest {
         val hasReader = cls.declaredMethods.any { it.name == "LetterReader" }
         assertTrue(hasReader)
     }
+
+    @Test fun `HomeScreen has a letters TextButton at the top of the TopEnd Column`() {
+        // Task 6 (v0.25.2-A): the launcher home surface gets a
+        // "letters" TextButton at the top of the existing TopEnd
+        // Column (above notes + history). It must be wired to
+        // the onOpenLetters callback the home screen accepts.
+        // File-shape: same Column that holds notes + history
+        // must also hold a "letters" TextButton whose onClick is
+        // onOpenLetters. The onOpenLetters callback is the
+        // bridge to the new LauncherSurface.Letter branch.
+        val screen = checkNotNull(
+            java.io.File("app/src/main/java/org/mindanchor/launcher/HomeScreen.kt")
+                .takeIf { it.isFile }
+                ?: java.io.File("../app/src/main/java/org/mindanchor/launcher/HomeScreen.kt")
+                    .takeIf { it.isFile }
+                    ?: error("HomeScreen.kt not found"),
+        ).readText()
+        assertTrue(
+            "HomeScreen must have a 'letters' TextButton wired to onOpenLetters",
+            screen.contains("onClick = onOpenLetters") && screen.contains("Text(\"letters\")"),
+        )
+    }
 }

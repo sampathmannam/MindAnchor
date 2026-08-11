@@ -62,8 +62,12 @@ import org.mindanchor.friction.FrictionGate
 import org.mindanchor.friction.FrictionTone
 import org.mindanchor.friction.GateContext
 import org.mindanchor.friction.LoopPhase
+import org.mindanchor.letters.Letter
+import org.mindanchor.letters.LetterScreen
+import org.mindanchor.letters.LetterStore
 import org.mindanchor.model.Note
 import org.mindanchor.model.NoteActivity
+import org.mindanchor.reader.ReadingSize
 import org.mindanchor.sleep.BedtimeList
 import org.mindanchor.sleep.BedtimePhase
 import org.mindanchor.report.ReportScreen
@@ -79,10 +83,11 @@ import org.mindanchor.ui.SkyContent
 import org.mindanchor.ui.rememberClockFormat
 import org.mindanchor.ui.rememberMinuteTick
 import java.text.DateFormat
+import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Date
 
-private enum class LauncherSurface { Home, Drawer, Settings, Ppg, Report }
+private enum class LauncherSurface { Home, Drawer, Settings, Ppg, Report, Letter }
 
 /**
  * v0.20.9: Modifier extension that auto-scrolls the nearest
@@ -150,6 +155,14 @@ fun LauncherRoot(
     // sending somebody who came from home into settings would be a small
     // daily disorientation.
     var reportCameFrom by remember { mutableStateOf(LauncherSurface.Settings) }
+    // v0.25.2-A (Task 6): the letter inbox + reader. Same shape as
+    // reportCameFrom — selected date is null on the inbox, non-null
+    // in the reader; cameFrom remembers where the user came from so
+    // the inbox's back button returns there. Two entry points: the
+    // new "letters" TopEnd corner on the home surface, and the
+    // (later) Reading sub-section in Settings.
+    var letterSelectedDate by remember { mutableStateOf<LocalDate?>(null) }
+    var letterCameFrom by remember { mutableStateOf(LauncherSurface.Home) }
     val context = LocalContext.current
     val reportStore = remember(context) { ReportStore(context.applicationContext) }
     val storedReport by reportStore.stored.collectAsState(initial = null)
@@ -326,6 +339,17 @@ fun LauncherRoot(
                         context.startActivity(historyIntent)
                     }
                 },
+                // v0.25.2-A (Task 6): the "letters" TopEnd
+                // corner. Wired here so the lambda body has
+                // access to the letter state (selectedDate,
+                // cameFrom) and the surface dispatcher. The
+                // Settings entry will pass a sibling lambda
+                // with cameFrom = LauncherSurface.Settings.
+                onOpenLetters = {
+                    letterSelectedDate = null
+                    letterCameFrom = LauncherSurface.Home
+                    surface = LauncherSurface.Letter
+                },
                 wellnessReadings = wellnessReadings,
                 showIntroCallout = showIntroCallout,
                 onRecordLaunch = viewModel::recordHomeLaunch,
@@ -368,6 +392,42 @@ fun LauncherRoot(
             // who tapped the line on the home screen into settings would
             // be a small, daily disorientation.
             ReportScreen(onBack = { surface = reportCameFrom })
+        }
+
+        // v0.25.2-A (Task 6): the letter inbox + reader. Dispatched
+        // here because the parent (HomeScreen) holds the
+        // letterSelectedDate / letterCameFrom state — the
+        // LetterScreen Composable is otherwise stateless on which
+        // date is selected. The back button clears the selected
+        // date when in the reader (back to inbox) and falls back
+        // to letterCameFrom when in the inbox. Letters and
+        // modelFits are stubs pending Task 9's SettingsViewModel
+        // fields; the call site does not depend on them being
+        // real flows today.
+        LauncherSurface.Letter -> Surface(modifier = Modifier.fillMaxSize()) {
+            val letters: List<Letter> = remember { emptyList() }
+            val modelFits = remember { mutableStateOf(false) }
+            val letterSize = remember { mutableStateOf(ReadingSize.MEDIUM) }
+            val letterStore = remember(context.applicationContext) {
+                LetterStore(context.applicationContext)
+            }
+            val letterScope = rememberCoroutineScope()
+            LetterScreen(
+                letters = letters,
+                modelFits = modelFits.value,
+                date = letterSelectedDate,
+                size = letterSize.value,
+                onSelect = { date -> letterSelectedDate = date },
+                onBack = {
+                    if (letterSelectedDate != null) {
+                        letterSelectedDate = null
+                    } else {
+                        surface = letterCameFrom
+                    }
+                },
+                onDelete = { date -> letterScope.launch { letterStore.delete(date) } },
+                onSetSize = { size -> letterSize.value = size },
+            )
         }
     }
 
@@ -997,6 +1057,18 @@ private fun HomeSurface(
      */
     onOpenCheckInHistory: () -> Unit = {},
     /**
+     * v0.25.2-A (Task 6): route to the
+     * letter inbox + reader (LauncherSurface.Letter).
+     * Wired to the new "letters" TextButton at
+     * the top of the TopEnd Column (above notes
+     * + history). Mirrors the [onOpenReport]
+     * pattern: the lambda body lives at the
+     * call site in [LauncherRoot] and sets the
+     * letter state (selectedDate, cameFrom) and
+     * the surface dispatcher.
+     */
+    onOpenLetters: () -> Unit = {},
+    /**
      * v0.20.4: the home-screen quick-notes
      * affordance. The card shows a one-line
      * input, a save button, and the most recent
@@ -1327,6 +1399,18 @@ private fun HomeSurface(
         // v0.20.9: same statusBarsPadding as the
         // support button on the other corner — see
         // its KDoc for the rationale.
+        //
+        // v0.25.2-A (Task 6): a third stacked button
+        // — "letters" — sits at the top of this
+        // Column, above notes + history. The
+        // Column's existing 8dp end padding (Bug 6
+        // fix from v0.25.1) already applies, so the
+        // new button inherits the same touch-target
+        // breathing room without a per-button
+        // re-pad. The brief: a letter is the one
+        // thing the launcher writes for the user —
+        // it must be one tap from the home surface
+        // the same way notes and history are.
         Column(
             modifier = Modifier
                 .align(Alignment.TopEnd)
@@ -1344,6 +1428,7 @@ private fun HomeSurface(
                 .padding(end = 8.dp),
             horizontalAlignment = Alignment.End,
         ) {
+            TextButton(onClick = onOpenLetters) { Text("letters") }
             TextButton(
                 onClick = onOpenNotes,
             ) {
