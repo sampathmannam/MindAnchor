@@ -93,7 +93,7 @@
     <string name="grant_notification_access">Grant notification access to enable batching</string>
     <string name="batching_toggle">Batch notifications</string>
     <string name="batching_times_explainer">When the batches arrive. The default three follow the trial this is drawn from, not anything about your day — move them to where you can actually take an interruption.</string>
-    <string name="batching_time_slot">Arrives at %1$s</string>
+    <string name="batching_time_slot">Arrives at</string>
     <string name="batching_choose_apps">Apps to batch:</string>
 
     <string name="digest_channel_name">Digest</string>

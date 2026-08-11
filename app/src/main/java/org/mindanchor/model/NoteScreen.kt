@@ -9,14 +9,18 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import java.time.LocalDate
 import java.time.ZoneId
@@ -26,6 +30,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -466,36 +471,24 @@ fun NoteScreen(
                                             style = MaterialTheme.typography.bodyLarge,
                                             modifier = Modifier.weight(1f),
                                         )
-                                        // v0.25.0: the type chip. A
-                                        // small colored surface with
-                                        // the type name. Only shown
-                                        // when the note has a type
-                                        // (i.e., the model has
-                                        // classified it). Untyped
-                                        // notes — the model isn't on
-                                        // the phone, or classification
-                                        // is still running — show no
-                                        // chip.
-                                        note.type?.let { noteType ->
-                                            Surface(
-                                                color = noteTypeColor(noteType),
-                                                shape = MaterialTheme.shapes.small,
-                                                modifier = Modifier
-                                                    .padding(start = 8.dp),
-                                            ) {
-                                                Text(
-                                                    text = stringResource(
-                                                        noteTypeLabel(noteType)
-                                                    ),
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.onSurface,
-                                                    modifier = Modifier.padding(
-                                                        horizontal = 6.dp,
-                                                        vertical = 2.dp,
-                                                    ),
-                                                )
-                                            }
-                                        }
+                                        // v0.25.0: the type chip, or
+                                        // a small shimmer placeholder
+                                        // while the classifier is
+                                        // running. Three states:
+                                        //  - typed note: a small
+                                        //    colored surface with the
+                                        //    type name;
+                                        //  - untyped note, recently
+                                        //    saved: a thin indeterminate
+                                        //    progress bar, signalling
+                                        //    "the model is still
+                                        //    thinking";
+                                        //  - untyped note, save older
+                                        //    than the shimmer window:
+                                        //    no badge at all (the
+                                        //    model isn't on the phone,
+                                        //    or it failed silently).
+                                        NoteTypeBadge(note = note, now = System.currentTimeMillis())
                                     }
                                     IconButton(
                                         onClick = { onTogglePinned(note.id) },
@@ -534,11 +527,7 @@ fun NoteScreen(
                                 // and the same note in the list
                                 // reads the same string.
                                 Text(
-                                    text = noteTimestampFormatter.format(
-                                        java.time.Instant.ofEpochMilli(note.updatedAt)
-                                            .atZone(zone)
-                                            .toLocalDateTime()
-                                    ),
+                                    text = formatNoteTimestamp(note, zone, noteTimestampFormatter),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -627,3 +616,127 @@ private const val GENERAL_CHIP_COLOR: Long = 0xFFE0E0E0
 private const val TASK_CHIP_COLOR: Long = 0xFFBBDEFB
 private const val REMINDER_CHIP_COLOR: Long = 0xFFFFE0B2
 private const val JOURNAL_CHIP_COLOR: Long = 0xFFE1BEE7
+
+/**
+ * v0.25.0: the per-row type badge. Three states:
+ *  - **typed note** — a small colored surface with
+ *    the type name.
+ *  - **untyped note, recently saved** — a thin
+ *    indeterminate [LinearProgressIndicator]. The
+ *    classifier is running; the chip will appear
+ *    once it writes back.
+ *  - **untyped note, save older than the shimmer
+ *    window** — no badge. The classifier isn't on
+ *    the phone, or it failed silently; the user
+ *    can re-classify via Settings.
+ *
+ * The shimmer is the "the model is thinking"
+ * affordance the spec calls for. Without it, a
+ * newly-saved note looks identical to a note saved
+ * yesterday that has no type — the user cannot
+ * tell the model is running. With it, the user
+ * sees activity for the [SHIMMER_DURATION_MS]
+ * window after save, then either a chip (success)
+ * or nothing (failure / no model).
+ *
+ * The [now] parameter is passed in rather than
+ * read from [System.currentTimeMillis] so the
+ * helper is testable.
+ */
+@Suppress("FunctionNaming") // @Composable: PascalCase is the Compose convention.
+@Composable
+private fun NoteTypeBadge(note: Note, now: Long) {
+    val type = note.type
+    if (type != null) {
+        Surface(
+            color = noteTypeColor(type),
+            shape = MaterialTheme.shapes.small,
+            modifier = Modifier.padding(start = 8.dp),
+        ) {
+            Text(
+                text = stringResource(noteTypeLabel(type)),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+            )
+        }
+    } else if (isClassifying(note, now)) {
+        // A thin indeterminate progress bar. The
+        // animation runs for as long as the bar is
+        // composed; when [isClassifying] flips to
+        // false (model wrote a type, or the window
+        // elapsed), recomposition removes the
+        // bar and renders nothing (or a chip, if
+        // the type is now set).
+        LinearProgressIndicator(
+            modifier = Modifier
+                .padding(start = 8.dp)
+                .width(SHIMMER_WIDTH_DP)
+                .height(SHIMMER_HEIGHT_DP),
+            color = noteTypeColor(NoteType.GENERAL),
+            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+        )
+    }
+    // else: nothing.
+}
+
+/**
+ * v0.25.1: the date+time stamp under each note
+ * row. The list view used to render `note.updatedAt`,
+ * the home card renders `note.createdAt` — the
+ * same note showed two different timestamps on two
+ * screens. This helper pins the list view to
+ * `createdAt` so the two surfaces read the same
+ * string. `internal` so the JVM unit tests can
+ * reach it.
+ *
+ * Why createdAt, not updatedAt: the moment of
+ * capture is the more meaningful anchor for a
+ * wellness app — "when did I write this?" is a
+ * question the user can usefully ask themselves,
+ * "when did I last edit it?" rarely is. The home
+ * card already uses createdAt (see
+ * [org.mindanchor.launcher.HomeScreen.noteTimeText])
+ * and the list view now matches.
+ */
+internal fun formatNoteTimestamp(
+    note: Note,
+    zone: java.time.ZoneId,
+    formatter: java.time.format.DateTimeFormatter,
+): String =
+    formatter.format(
+        java.time.Instant.ofEpochMilli(note.createdAt)
+            .atZone(zone)
+            .toLocalDateTime()
+    )
+
+/**
+ * v0.25.0: true when [note] is untyped and was
+ * saved within the [SHIMMER_DURATION_MS] window.
+ *
+ * The check is "within the window, inclusive on
+ * both ends". A note saved exactly
+ * [SHIMMER_DURATION_MS] ago still shows the
+ * shimmer; a note saved one millisecond after
+ * the window does not. The inclusive upper bound
+ * keeps the shimmer visible for the full duration
+ * the user is told to expect.
+ *
+ * Pure function; the [now] parameter is the test
+ * seam. Production callers pass
+ * [System.currentTimeMillis].
+ *
+ * `internal` so the JVM unit tests can reach it
+ * without making the helper part of the public
+ * API. The visible-to-tests surface is the same
+ * as the visible-to-the-screen surface.
+ */
+internal fun isClassifying(note: Note, now: Long): Boolean {
+    if (note.type != null) return false
+    val elapsed = now - note.updatedAt
+    return elapsed in 0..SHIMMER_DURATION_MS
+}
+
+internal const val SHIMMER_DURATION_MS: Long = 10_000L
+private val SHIMMER_WIDTH_DP = 32.dp
+private val SHIMMER_HEIGHT_DP = 4.dp

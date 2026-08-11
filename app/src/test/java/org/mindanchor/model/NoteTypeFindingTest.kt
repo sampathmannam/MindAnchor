@@ -1,9 +1,11 @@
 package org.mindanchor.model
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -200,5 +202,83 @@ class NoteTypeFindingTest {
         ))
         val same = state.clearAllTypes()
         assertSame(state, same)
+    }
+
+    // v0.25.0 follow-up: the shimmer that shows
+    // for untyped notes saved in the last 10s. The
+    // helper is `internal` so the JVM unit tests can
+    // reach it. Each test pins a specific edge of
+    // the window so a regression on either bound
+    // is caught.
+
+    @Test
+    fun `isClassifying is false for a typed note regardless of age`() {
+        val typed = Note(
+            id = 1L,
+            body = "x",
+            createdAt = 1L,
+            updatedAt = 1L,
+            type = NoteType.TASK,
+        )
+        // Type is set, so no shimmer — even at "just
+        // saved" timing.
+        assertFalse(isClassifying(typed, now = 1L))
+        assertFalse(isClassifying(typed, now = 1L + SHIMMER_DURATION_MS))
+    }
+
+    @Test
+    fun `isClassifying is true at the start of the window`() {
+        val justSaved = Note(
+            id = 1L,
+            body = "x",
+            createdAt = 1000L,
+            updatedAt = 1000L,
+            type = null,
+        )
+        assertTrue(isClassifying(justSaved, now = 1000L))
+    }
+
+    @Test
+    fun `isClassifying is true at the end of the window inclusive`() {
+        val note = Note(
+            id = 1L,
+            body = "x",
+            createdAt = 1000L,
+            updatedAt = 1000L,
+            type = null,
+        )
+        // Exactly at the boundary: still classified.
+        assertTrue(isClassifying(note, now = 1000L + SHIMMER_DURATION_MS))
+    }
+
+    @Test
+    fun `isClassifying is false one millisecond past the window`() {
+        val note = Note(
+            id = 1L,
+            body = "x",
+            createdAt = 1000L,
+            updatedAt = 1000L,
+            type = null,
+        )
+        assertFalse(isClassifying(note, now = 1000L + SHIMMER_DURATION_MS + 1L))
+    }
+
+    @Test
+    fun `isClassifying is false for a note updated in the future`() {
+        // A clock skew would put `now` before
+        // `updatedAt`. The check is "in the window,
+        // inclusive on both ends" — a future
+        // `updatedAt` is not in the window, so the
+        // shimmer is off. A future-dated note is
+        // either a test artefact or a clock issue;
+        // neither should produce a shimmer.
+        val future = Note(
+            id = 1L,
+            body = "x",
+            createdAt = 2000L,
+            updatedAt = 2000L,
+            type = null,
+        )
+        assertFalse(isClassifying(future, now = 1000L))
     }
 }

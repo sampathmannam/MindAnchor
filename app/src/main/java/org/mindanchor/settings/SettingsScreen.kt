@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -507,6 +508,21 @@ fun SettingsScreen(
     // group's own screen in its place.
     var group by remember { mutableStateOf<SettingsGroup?>(null) }
 
+    // Back closes an open group first and only leaves the
+    // screen on a second press. Without this, the global
+    // back handler in [HomeScreen] would short-circuit to
+    // the home surface the moment a group is open and the
+    // user would lose the index. The visible "back" text
+    // button below has the same predicate, so both paths
+    // behave identically.
+    BackHandler(enabled = true) {
+        if (group != null) {
+            group = null
+        } else {
+            onBack()
+        }
+    }
+
     // COROS bridge form state. Held at the screen level so
     // the input fields survive recomposition while the user
     // types; the [remember] keys are the fields' identity,
@@ -923,7 +939,15 @@ fun SettingsScreen(
                         // slot label *and* the time on the
                         // same line — see timeNudgerRow KDoc.
                         timeNudgerRow(
-                            label = stringResource(R.string.batching_time_slot, time.format(HOUR_MINUTE)),
+                            // v0.25.1: the time moved out of
+                            // the label slot — `batching_time_slot`
+                            // is just "Arrives at" now, and the
+                            // time lives in the value slot. The
+                            // pre-fix call passed `time.format` to
+                            // both, which the `time_nudger_row`
+                            // format string rendered as
+                            // "Arrives at 08:00 08:00".
+                            label = stringResource(R.string.batching_time_slot),
                             value = time.format(HOUR_MINUTE),
                             onEarlier = { viewModel.nudgeReleaseTime(slot, -BatchSchedule.NUDGE_MINUTES) },
                             onLater = { viewModel.nudgeReleaseTime(slot, BatchSchedule.NUDGE_MINUTES) },
@@ -955,8 +979,17 @@ fun SettingsScreen(
                                         )
                                     }
                                 },
+                                modifier = Modifier.padding(vertical = 4.dp),
                             ) {
-                                Text(stringResource(R.string.exact_alarms_grant))
+                                // Trailing chevron so the affordance
+                                // reads as a button, not a label.
+                                // The launcher has no other right-arrow
+                                // icons; this is the one place the user
+                                // is being asked to leave the app, and
+                                // the cue is worth the one glyph.
+                                Text(
+                                    text = stringResource(R.string.exact_alarms_grant) + "  →",
+                                )
                             }
                         }
                     }

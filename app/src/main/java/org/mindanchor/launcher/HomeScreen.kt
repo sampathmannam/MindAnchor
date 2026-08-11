@@ -46,7 +46,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusEvent
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -182,7 +184,15 @@ fun LauncherRoot(
         if (goHomeSignal >= 0) viewModel.refreshWellness()
     }
 
-    BackHandler(enabled = surface != LauncherSurface.Home || gateFor != null) {
+    // Settings has its own [BackHandler] now: when a
+    // group is open, the first back closes the group
+    // and the second leaves Settings for Home. Leaving
+    // surface==Settings in the predicate means our
+    // global back does not steal the press from the
+    // settings screen — every prior version did, which
+    // is why the section index used to disappear on
+    // the way out.
+    BackHandler(enabled = (surface != LauncherSurface.Home && surface != LauncherSurface.Settings) || gateFor != null) {
         gateFor = null
         surface = LauncherSurface.Home
         viewModel.onQueryChange("")
@@ -657,6 +667,15 @@ private fun QuickNotesCard(
     onOpenAll: () -> Unit,
 ) {
     var draft by remember { mutableStateOf("") }
+    // A small haptic tick on save, so the user feels
+    // the capture even if the note disappears under
+    // the keyboard or the screen is dim. LongPress is
+    // the shortest available tick (≈5ms on most
+    // devices) — short enough not to interrupt
+    // typing, long enough to register. The user
+    // pressed a button; the button is allowed to
+    // answer.
+    val haptics = LocalHapticFeedback.current
     Column(
         modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -685,6 +704,7 @@ private fun QuickNotesCard(
             onClick = {
                 onSave(draft)
                 draft = ""
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
             },
             enabled = draft.isNotBlank(),
         ) {
@@ -1242,7 +1262,14 @@ private fun HomeSurface(
             onClick = onOpenSettings,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .navigationBarsPadding(),
+                .navigationBarsPadding()
+                // Same defensive end padding as the
+                // top-right Column: keeps the
+                // TextButton's right edge inside the
+                // screen on rounded-corner devices and
+                // on emulators that crop the last
+                // pixel.
+                .padding(end = 8.dp),
         ) {
             Text(
                 text = stringResource(R.string.settings),
@@ -1303,7 +1330,18 @@ private fun HomeSurface(
         Column(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .statusBarsPadding(),
+                .statusBarsPadding()
+                // Defensive 8dp end padding so the
+                // TextButton's right edge sits inside
+                // the screen on rounded-corner devices
+                // and on emulators that crop the last
+                // pixel. Without this the touchable
+                // area can be partially clipped and
+                // the "notes" / "history" buttons
+                // miss taps at the very right of the
+                // screen. The 8dp is small enough not
+                // to shift the visible label position.
+                .padding(end = 8.dp),
             horizontalAlignment = Alignment.End,
         ) {
             TextButton(
