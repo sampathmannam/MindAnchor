@@ -1,6 +1,8 @@
 package org.mindanchor.model
 
 import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.Locale
 
 /**
@@ -240,6 +242,56 @@ object NoteStore {
         val byUpdated = compareByDescending<Note> { it.updatedAt }
         return pinned.sortedWith(byUpdated) + unpinned.sortedWith(byUpdated)
     }
+
+    /**
+     * Group notes by the day they were last touched, returning a
+     * list of (day, sorted notes for that day) pairs in
+     * descending order of the day's most-recently-touched note.
+     *
+     * v0.23.0: a single LazyColumn of day sections. The list
+     * view is the same data shape the home screen uses; the
+     * group ordering is `pinned notes stay at the top of the
+     * day they were most recently touched`, with day-of-week
+     * sorting as the tiebreaker for the inner sort. Days are
+     * *not* pinned to the day the body was written — a note
+     * edited today stays in today even if it was first written
+     * last week, because the user is looking for "the note I
+     * touched most recently" not "the note I wrote first".
+     *
+     * Pinned notes are *not* promoted to a separate "pinned"
+     * section here — they sit at the top of the day they were
+     * most recently touched. A user looking for a pinned note
+     * looks in the day they last touched it. The home screen
+     * still surfaces pinned notes via the existing
+     * `sortedForList` flow; this helper is for the notes-list
+     * surface only.
+     *
+     * Pure function. The conversion from epoch millis to
+     * `LocalDate` uses the system default zone because the
+     * launcher's "today" is the user's local today, not UTC.
+     */
+    fun groupedByDay(
+        notes: List<Note>,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): List<Pair<LocalDate, List<Note>>> {
+        val sorted = sortedForList(notes)
+        if (sorted.isEmpty()) return emptyList()
+        val byDay = sorted.groupBy { it.updatedAtToLocalDate(zone) }
+        // The day's most-recently-touched note is the first note
+        // in the inner-sorted list. Sort the days by that.
+        return byDay.entries
+            .sortedByDescending { it.value.first().updatedAt }
+            .map { it.key to it.value }
+    }
+
+    /**
+     * The local date this note was last touched, in the
+     * launcher's default zone. The millis-to-date conversion
+     * is on the data layer so the UI does not have to think
+     * about it.
+     */
+    private fun Note.updatedAtToLocalDate(zone: ZoneId): LocalDate =
+        Instant.ofEpochMilli(updatedAt).atZone(zone).toLocalDate()
 
     /**
      * Search notes for a query. The query is matched

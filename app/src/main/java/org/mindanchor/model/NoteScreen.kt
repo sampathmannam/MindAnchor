@@ -16,6 +16,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.text.KeyboardOptions
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
@@ -178,6 +182,22 @@ fun NoteScreen(
     }
 
     val sorted = NoteStore.sortedForList(notes.notes)
+    // v0.23.0: notes are grouped by day, latest day on top. The
+    // existing [NoteStore.sortedForList] sorts the inner list per
+    // day; [NoteStore.groupedByDay] produces the (day, sorted
+    // notes for that day) list, ordered by the day's
+    // most-recently-touched note. The list view renders one
+    // section header per day and the notes underneath. The
+    // [today] is captured at composition start so the label
+    // ("Today" / "Yesterday" / day-of-week / absolute date) is
+    // consistent within one screen render and does not drift if
+    // the user has the screen open across midnight.
+    val grouped = remember(sorted) { NoteStore.groupedByDay(sorted) }
+    val today = remember { LocalDate.now(ZoneId.systemDefault()) }
+    val zone = remember { ZoneId.systemDefault() }
+    val noteTimestampFormatter = remember {
+        DateTimeFormatter.ofPattern("MMM d, h:mm a", Locale.getDefault())
+    }
 
     // Back handler: if the user is mid-edit on a
     // note, back exits edit mode (and saves the
@@ -304,91 +324,114 @@ fun NoteScreen(
                         .fillMaxSize()
                         .padding(horizontal = 16.dp),
                 ) {
-                    items(sorted, key = { it.id }) { note ->
-                        val isEditing = editingNoteId == note.id
+                    grouped.forEach { (day, dayNotes) ->
+                        // Day header. A label, not a button. The
+                        // padding around it keeps a small visual
+                        // gap between the section above and the
+                        // first note in this section.
+                        item(key = "header-$day") {
+                            Text(
+                                text = daySectionLabel(day, today),
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(
+                                    top = 16.dp,
+                                    bottom = 4.dp,
+                                ),
+                            )
+                        }
+                        items(dayNotes, key = { it.id }) { note ->
+                            val isEditing = editingNoteId == note.id
 
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                        ) {
-                            Row(
+                            Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable {
-                                        if (isEditing) {
-                                            onEdit(note.id, editorBody)
-                                            editingNoteId = null
-                                            editorBody = ""
-                                        } else {
-                                            editingNoteId = note.id
-                                            editorBody = note.body
-                                        }
-                                    }
-                                    .padding(vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
+                                    .padding(vertical = 4.dp),
                             ) {
-                                if (isEditing) {
-                                    // v0.20.9: bringIntoViewOnFocus
-                                    // on the inline editor so the
-                                    // note being edited scrolls into
-                                    // view above the keyboard. The
-                                    // note is in a LazyColumn and
-                                    // the field can be many rows down
-                                    // — without the requester the
-                                    // field was at the same Y as
-                                    // the keyboard and the user
-                                    // could not see what they were
-                                    // typing.
-                                    OutlinedTextField(
-                                        value = editorBody,
-                                        onValueChange = {
-                                            if (it.length <= Note.MAX_BODY) {
-                                                editorBody = it
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            if (isEditing) {
+                                                onEdit(note.id, editorBody)
+                                                editingNoteId = null
+                                                editorBody = ""
+                                            } else {
+                                                editingNoteId = note.id
+                                                editorBody = note.body
+                                            }
+                                        }
+                                        .padding(vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    if (isEditing) {
+                                        OutlinedTextField(
+                                            value = editorBody,
+                                            onValueChange = {
+                                                if (it.length <= Note.MAX_BODY) {
+                                                    editorBody = it
+                                                }
+                                            },
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .heightIn(min = 80.dp)
+                                                .bringIntoViewOnFocus(),
+                                            keyboardOptions = KeyboardOptions(
+                                                capitalization = KeyboardCapitalization.Sentences,
+                                            ),
+                                        )
+                                    } else {
+                                        Text(
+                                            text = note.body.lineSequence().firstOrNull() ?: "",
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { onTogglePinned(note.id) },
+                                        modifier = Modifier.semantics {
+                                            contentDescription = if (note.pinned) {
+                                                "Unpin this note"
+                                            } else {
+                                                "Pin this note"
                                             }
                                         },
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .heightIn(min = 80.dp)
-                                            .bringIntoViewOnFocus(),
-                                        keyboardOptions = KeyboardOptions(
-                                            capitalization = KeyboardCapitalization.Sentences,
-                                        ),
-                                    )
-                                } else {
-                                    Text(
-                                        text = note.body.lineSequence().firstOrNull() ?: "",
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        modifier = Modifier.weight(1f),
-                                    )
+                                    ) {
+                                        Text(
+                                            text = if (note.pinned) "★" else "☆",
+                                            style = MaterialTheme.typography.titleLarge,
+                                            fontWeight = if (note.pinned) FontWeight.Bold else FontWeight.Normal,
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { pendingDeleteId = note.id },
+                                        modifier = Modifier.semantics {
+                                            contentDescription = "Delete this note"
+                                        },
+                                    ) {
+                                        Text(
+                                            text = "×",
+                                            style = MaterialTheme.typography.titleLarge,
+                                        )
+                                    }
                                 }
-                                IconButton(
-                                    onClick = { onTogglePinned(note.id) },
-                                    modifier = Modifier.semantics {
-                                        contentDescription = if (note.pinned) {
-                                            "Unpin this note"
-                                        } else {
-                                            "Pin this note"
-                                        }
-                                    },
-                                ) {
-                                    Text(
-                                        text = if (note.pinned) "★" else "☆",
-                                        style = MaterialTheme.typography.titleLarge,
-                                        fontWeight = if (note.pinned) FontWeight.Bold else FontWeight.Normal,
-                                    )
-                                }
-                                IconButton(
-                                    onClick = { pendingDeleteId = note.id },
-                                    modifier = Modifier.semantics {
-                                        contentDescription = "Delete this note"
-                                    },
-                                ) {
-                                    Text(
-                                        text = "×",
-                                        style = MaterialTheme.typography.titleLarge,
-                                    )
-                                }
+                                // v0.23.0: date+time stamp under the
+                                // body, in the launcher's standard
+                                // "MMM d, h:mm a" format. The
+                                // format is consistent with the
+                                // home-screen note preview, so a
+                                // user looking at a note on home
+                                // and the same note in the list
+                                // reads the same string.
+                                Text(
+                                    text = noteTimestampFormatter.format(
+                                        java.time.Instant.ofEpochMilli(note.updatedAt)
+                                            .atZone(zone)
+                                            .toLocalDateTime()
+                                    ),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                             }
                         }
                     }

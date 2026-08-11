@@ -105,6 +105,37 @@ class NetworkCallsForbiddenTest {
     )
 
     /**
+     * The WebDAV backup bridge files. v0.23.0 added a
+     * second opt-in outbound channel: the user enables
+     * the bridge in Settings, types in their own WebDAV
+     * URL + app-password, and the launcher uploads
+     * AES-256-GCM-encrypted backup blobs. Off by default.
+     *
+     * Like the COROS bridge, this is a *user-consent
+     * surface*: the URL and the password are the user's
+     * own, the data is wrapped before it leaves the
+     * device, and the bridge is silent until turned on.
+     * Every other file in the app must stay call-free.
+     */
+    private val webDavBackupFiles = setOf(
+        "app/src/main/java/org/mindanchor/backup/WebDavBackupTarget.kt",
+        "app/src/main/java/org/mindanchor/backup/WebDavCredentialStore.kt",
+        "app/src/main/java/org/mindanchor/backup/EncryptedBackupCodec.kt",
+        "app/src/main/java/org/mindanchor/backup/KeystoreAesKey.kt",
+    )
+
+    /**
+     * The WebDAV bridge's own tests live under
+     * `app/src/test/java/org/mindanchor/backup/`. The
+     * tests have to use [okhttp3.mockwebserver] to
+     * exercise the API; the test directory is matched
+     * the same way as the COROS bridge, so a test
+     * file under backup/ that uses an outbound API is
+     * not surfaced as a forbidden reference.
+     */
+    private val webDavBackupTestDir = "app/src/test/java/org/mindanchor/backup"
+
+    /**
      * The COROS bridge's own tests live under
      * `app/src/test/java/org/mindanchor/vitals/coros/`.
      * The tests have to use [okhttp3.mockwebserver] to
@@ -194,19 +225,21 @@ class NetworkCallsForbiddenTest {
 
     /**
      * Every .kt file in the project is in exactly one
-     * of three buckets:
+     * of four buckets:
      *  - VpnService subsystem (captured loopback only)
      *  - COROS bridge (opt-in outbound, single package)
+     *  - WebDAV backup bridge (opt-in outbound, encrypted)
      *  - Everything else (no network, no exceptions)
      *
      * The classification is the *file's* identity — not
-     * the patterns it uses — so adding a new COROS file
-     * requires explicitly listing it in corosBridgeFiles,
-     * which is a clinical-review-surface change.
+     * the patterns it uses — so adding a new COROS or
+     * WebDAV file requires explicitly listing it in
+     * corosBridgeFiles / webDavBackupFiles, which is a
+     * clinical-review-surface change.
      */
     @Test
     @Suppress("NestedBlockDepth")
-    fun `no source file outside the VpnService and COROS subsystems references a network API`() {
+    fun `no source file outside the VpnService, COROS, and WebDAV subsystems references a network API`() {
         val offenders = mutableListOf<String>()
         for (dir in listOf(appSrc, testSrc)) {
             val root = File(dir)
@@ -229,7 +262,11 @@ class NetworkCallsForbiddenTest {
                     val inVpnSubsystem = f.path in vpnSubsystemFiles
                     val inCorosBridge = f.path in corosBridgeFiles
                     val inCorosTestDir = f.path.startsWith("$corosBridgeTestDir/")
-                    if (!inVpnSubsystem && !inCorosBridge && !inCorosTestDir) {
+                    val inWebDavBridge = f.path in webDavBackupFiles
+                    val inWebDavTestDir = f.path.startsWith("$webDavBackupTestDir/")
+                    val inSubsystem = inVpnSubsystem || inCorosBridge || inCorosTestDir ||
+                        inWebDavBridge || inWebDavTestDir
+                    if (!inSubsystem) {
                         // Non-subsystem files: any
                         // network pattern fails the
                         // build, full stop.
@@ -237,7 +274,7 @@ class NetworkCallsForbiddenTest {
                             if (f.readText().contains(pattern)) {
                                 offenders.add(
                                     "${f.path}: references forbidden pattern '$pattern' " +
-                                        "outside the VpnService and COROS subsystems",
+                                        "outside the VpnService, COROS, and WebDAV subsystems",
                                 )
                             }
                         }
@@ -248,8 +285,8 @@ class NetworkCallsForbiddenTest {
             "These files reference a network API, which would break the " +
                 "no-outbound-calls privacy promise of Going Light v1.1.\n" +
                 "Either remove the network reference, or add it to one of the " +
-                "subsystem allowlists (vpnSubsystemFiles / corosBridgeFiles) " +
-                "with explicit clinical-review sign-off.\n" +
+                "subsystem allowlists (vpnSubsystemFiles / corosBridgeFiles / " +
+                "webDavBackupFiles) with explicit clinical-review sign-off.\n" +
                 offenders.joinToString("\n") { "  $it" },
             offenders.isEmpty(),
         )
@@ -278,6 +315,18 @@ class NetworkCallsForbiddenTest {
             "corosBridgeFiles drift. Got: $corosBridgeFiles",
             5,
             corosBridgeFiles.size,
+        )
+    }
+
+    @Test
+    fun `webDavBackupFiles set contains only the expected WebDAV files`() {
+        // Same pinning as the COROS bridge allowlist. A new
+        // file under backup/ that uses an outbound channel
+        // requires an explicit re-pin.
+        assertEquals(
+            "webDavBackupFiles drift. Got: $webDavBackupFiles",
+            4,
+            webDavBackupFiles.size,
         )
     }
 

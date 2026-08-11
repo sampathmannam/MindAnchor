@@ -1600,6 +1600,13 @@ fun SettingsScreen(
                     Text(stringResource(R.string.model_clear))
                 }
             }
+            // v0.23.0: one-tap Phi-4 mini download.
+            // The download runs through the system
+            // DownloadManager; when it finishes, the
+            // launcher listens for
+            // ACTION_DOWNLOAD_COMPLETE and prompts the
+            // user with a Yes-then-import.
+            Phi4ModelDownloadSection(viewModel = viewModel)
         }
 
         if (group == SettingsGroup.MEASURING) {
@@ -2487,6 +2494,12 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+
+            // v0.23.0: opt-in WebDAV backup. The
+            // section is its own composable so the
+            // shape of the field state does not
+            // bloat the parent SettingsScreen.
+            WebDavBackupSettingsSection(context = context)
 
             Text(
                 text = stringResource(R.string.about_text),

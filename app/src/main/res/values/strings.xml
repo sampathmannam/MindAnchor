@@ -270,6 +270,19 @@
     <string name="model_clear">Remove the model</string>
     <string name="model_import_failed">That file could not be copied.</string>
     <!--
+        v0.23.0: opt-in Phi-4 mini download. The button
+        enqueues a system download via DownloadManager;
+        when the system fires ACTION_DOWNLOAD_COMPLETE,
+        the launcher prompts the user with a one-tap
+        "Use this as the narrate model?" Yes-then-import.
+    -->
+    <string name="model_download">Download Phi-4 mini (Q4_K_M, 2.49 GB)</string>
+    <string name="model_download_enqueued">Download started. MindAnchor will prompt you when the file has landed.</string>
+    <string name="model_download_failed">The system refused the download. Check the network or storage and try again.</string>
+    <string name="model_download_prompt">Phi-4 mini downloaded. Use this as the narrate model?</string>
+    <string name="model_download_use">Use this model</string>
+    <string name="model_download_dismiss">Not now</string>
+    <!--
         Inline forms, for the pattern sentence.
 
         The names above are headings: standalone, capitalised, read on
@@ -545,6 +558,37 @@
     <string name="backup_restored">Restored.</string>
     <string name="backup_not_a_backup">That file isn\'t a MindAnchor copy, or it came from a newer version. Nothing was changed.</string>
     <string name="backup_failed">Couldn\'t read or write that file. Nothing was changed.</string>
+    <!--
+        v0.23.0: opt-in WebDAV backup. The bridge
+        encrypts the JSON with AES-256-GCM (key in the
+        phone\'s Keystore) and uploads the ciphertext
+        to a folder the user owns. Off by default; the
+        user enables it with a one-time confirmation.
+    -->
+    <string name="webdav_section">WebDAV backup (opt-in)</string>
+    <string name="webdav_explainer">A second, automatic copy — encrypted before it leaves this phone. The cloud never sees the plaintext. Off until you turn it on.</string>
+    <string name="webdav_url_hint">WebDAV folder URL</string>
+    <string name="webdav_username_hint">Username</string>
+    <string name="webdav_password_hint">App password</string>
+    <string name="webdav_test">Test connection</string>
+    <string name="webdav_save">Save</string>
+    <string name="webdav_saved">Saved.</string>
+    <string name="webdav_test_ok">Connection works. The folder is reachable and the credentials are accepted.</string>
+    <string name="webdav_test_unauthorized">The server rejected the credentials. Check the username and app password.</string>
+    <string name="webdav_test_not_found">The folder wasn\'t found, or the server does not have WebDAV at that path. Create the folder first, then test again.</string>
+    <string name="webdav_test_insecure">Refusing: WebDAV requires HTTPS so the password does not travel in plain headers.</string>
+    <string name="webdav_test_network">Couldn\'t reach the server. Check the URL and the network.</string>
+    <string name="webdav_backup_now">Back up now</string>
+    <string name="webdav_backup_uploaded">Uploaded. The remote copy is encrypted with the same key as the local one.</string>
+    <string name="webdav_upload_failed">Upload failed. The local copy is still on this phone; nothing was lost.</string>
+    <string name="webdav_restore_section">Restore from WebDAV</string>
+    <string name="webdav_restore_listing">Loading the remote list…</string>
+    <string name="webdav_restore_empty">No encrypted copies on the server yet.</string>
+    <string name="webdav_restore_failed">Couldn\'t list the remote folder.</string>
+    <string name="webdav_restore_decrypt_failed">Downloaded, but this phone cannot decrypt the file. The key on this device is not the one that wrapped the remote copy. Was this phone factory-reset?</string>
+    <string name="webdav_clear">Forget this server</string>
+    <string name="webdav_cleared">Forgot the server. Existing remote copies are still there; turn the bridge back on to reach them.</string>
+    <string name="webdav_not_configured">Add a WebDAV folder to enable this.</string>
     <string name="about_text">MindAnchor is an open-source, research-backed launcher. It has no accounts, no server and no analytics — by default, your data never leaves this phone. The one opt-in exception is the COROS Training Hub bridge under Settings → Measuring: when you connect it, the launcher fetches HRV and resting heart rate from COROS, over an encrypted connection, with your COROS password held in this phone\'s secure Keystore. The connection is off until you turn it on. It is a wellness tool, not a medical device, and it is no substitute for talking to someone.</string>
 
     <!--

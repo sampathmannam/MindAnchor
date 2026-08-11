@@ -236,4 +236,121 @@ class NoteTest {
         assertEquals(1000L, state.byId(1L)?.updatedAt)
         assertFalse(state.byId(1L)!!.pinned)
     }
+
+    // v0.23.0: day-grouping tests for the notes list view.
+    // The list is a LazyColumn of day sections; the data layer
+    // is responsible for the grouping, the UI is responsible
+    // for the section headers. These tests pin the data layer
+    // so a refactor that re-introduces a flat list is caught.
+
+    @Test
+    fun `groupedByDay returns one section per day, latest day first`() {
+        val zone = java.time.ZoneId.of("UTC")
+        val today = java.time.LocalDate.of(2026, 8, 10)
+        val threeDaysAgo = today.minusDays(3)
+        val eightDaysAgo = today.minusDays(8)
+        fun millisAt(date: java.time.LocalDate, hour: Int): Long =
+            date.atTime(hour, 0).atZone(zone).toInstant().toEpochMilli()
+        val notes = listOf(
+            // Three days ago, morning.
+            Note(id = 1L, body = "old", createdAt = millisAt(threeDaysAgo, 9), updatedAt = millisAt(threeDaysAgo, 9)),
+            // Today, late.
+            Note(id = 2L, body = "today late", createdAt = millisAt(today, 22), updatedAt = millisAt(today, 22)),
+            // Today, early.
+            Note(id = 3L, body = "today early", createdAt = millisAt(today, 8), updatedAt = millisAt(today, 8)),
+            // Eight days ago.
+            Note(
+                id = 4L,
+                body = "very old",
+                createdAt = millisAt(eightDaysAgo, 12),
+                updatedAt = millisAt(eightDaysAgo, 12),
+            ),
+        )
+        val grouped = NoteStore.groupedByDay(notes, zone)
+        assertEquals(3, grouped.size)
+        // The day with the most-recently-touched note (today
+        // late, hour 22) is first.
+        assertEquals(today, grouped[0].first)
+        assertEquals(threeDaysAgo, grouped[1].first)
+        assertEquals(eightDaysAgo, grouped[2].first)
+    }
+
+    @Test
+    fun `groupedByDay keeps the inner sort pinned-first then updatedAt desc`() {
+        val zone = java.time.ZoneId.of("UTC")
+        val today = java.time.LocalDate.of(2026, 8, 10)
+        fun millisAt(date: java.time.LocalDate, hour: Int): Long =
+            date.atTime(hour, 0).atZone(zone).toInstant().toEpochMilli()
+        val notes = listOf(
+            Note(
+                id = 1L,
+                body = "today unpinned early",
+                createdAt = millisAt(today, 8),
+                updatedAt = millisAt(today, 8),
+                pinned = false,
+            ),
+            Note(
+                id = 2L,
+                body = "today pinned",
+                createdAt = millisAt(today, 7),
+                updatedAt = millisAt(today, 7),
+                pinned = true,
+            ),
+            Note(
+                id = 3L,
+                body = "today unpinned late",
+                createdAt = millisAt(today, 22),
+                updatedAt = millisAt(today, 22),
+                pinned = false,
+            ),
+        )
+        val grouped = NoteStore.groupedByDay(notes, zone)
+        assertEquals(1, grouped.size)
+        val (_, dayNotes) = grouped[0]
+        // Pinned first (sorted by updatedAt desc), then
+        // unpinned (sorted by updatedAt desc).
+        assertEquals(2L, dayNotes[0].id) // pinned
+        assertEquals(3L, dayNotes[1].id) // unpinned late
+        assertEquals(1L, dayNotes[2].id) // unpinned early
+    }
+
+    @Test
+    fun `groupedByDay on an empty list returns an empty list`() {
+        val zone = java.time.ZoneId.of("UTC")
+        assertEquals(emptyList<Pair<java.time.LocalDate, List<Note>>>(), NoteStore.groupedByDay(emptyList(), zone))
+    }
+
+    @Test
+    fun `daySectionLabel returns Today for the user's local today`() {
+        val today = java.time.LocalDate.of(2026, 8, 10)
+        assertEquals("Today", daySectionLabel(today, today))
+    }
+
+    @Test
+    fun `daySectionLabel returns Yesterday for the day before today`() {
+        val today = java.time.LocalDate.of(2026, 8, 10)
+        assertEquals("Yesterday", daySectionLabel(today.minusDays(1), today))
+    }
+
+    @Test
+    fun `daySectionLabel returns day-of-week for the past week`() {
+        val today = java.time.LocalDate.of(2026, 8, 10) // Monday
+        val threeDaysAgo = today.minusDays(3) // Friday
+        // Locale-dependent: the test is locale-aware. We assert
+        // that the label is the day-of-week name (not "Today",
+        // not "Yesterday", not the absolute date).
+        val label = daySectionLabel(threeDaysAgo, today)
+        assertTrue("got '$label'", label != "Today" && label != "Yesterday")
+        assertFalse("got '$label'", label.contains("8") || label.contains("August"))
+    }
+
+    @Test
+    fun `daySectionLabel returns absolute date for anything older than a week`() {
+        val today = java.time.LocalDate.of(2026, 8, 10)
+        val eightDaysAgo = today.minusDays(8)
+        val label = daySectionLabel(eightDaysAgo, today)
+        // Locale-dependent: assert the absolute date is in
+        // there. "August 2" or "2 August" or similar.
+        assertTrue("got '$label'", label.contains("August") || label.contains("2"))
+    }
 }
