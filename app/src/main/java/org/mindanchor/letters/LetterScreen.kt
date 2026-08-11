@@ -31,8 +31,6 @@ import org.mindanchor.R
 import org.mindanchor.reader.ReadingSize
 import org.mindanchor.ui.Spacing
 
-private const val MAX_PREVIEW_CHARS = 60
-
 /**
  * The letter surface, dispatched between an inbox list and a single
  * reader. `date == null` shows the inbox; a non-null date shows the
@@ -77,7 +75,7 @@ fun LetterScreen(
     }
 }
 
-@Suppress("FunctionNaming", "LongMethod")
+@Suppress("FunctionNaming")
 @Composable
 private fun LetterInbox(
     letters: List<Letter>,
@@ -87,11 +85,13 @@ private fun LetterInbox(
     onDelete: (LocalDate) -> Unit,
     onBack: () -> Unit,
 ) {
-    val today = LocalDate.now()
-    // The dialog belongs to the inbox, not the row: only one confirm
-    // can be open at a time, and dismissing it must clear the state
-    // cleanly. The row's × button sets this; the dialog's confirm
-    // button calls onDelete and clears it.
+    // The dialog belongs to the inbox, not the row: only one
+    // confirm can be open at a time, and dismissing it must clear
+    // the state cleanly. The row's × button sets the pending date;
+    // the dialog's confirm button calls onDelete and clears it.
+    // The content Composable takes a request-callback rather than
+    // touching pendingDelete directly, so the dialog host stays
+    // in this function and the content stays layout-only.
     val pendingDelete = remember { mutableStateOf<LocalDate?>(null) }
     Column(
         modifier = Modifier
@@ -100,83 +100,131 @@ private fun LetterInbox(
             .verticalScroll(rememberScrollState())
             .padding(Spacing.Edge),
     ) {
-        TextButton(onClick = onBack) {
-            Text(stringResource(R.string.action_back))
-        }
-        Text(
-            text = stringResource(R.string.letters_inbox_title),
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(vertical = Spacing.Comfortable),
+        LetterInboxContent(
+            letters = letters,
+            modelFits = modelFits,
+            size = size,
+            onBack = onBack,
+            onSelect = onSelect,
+            onDeleteRequest = { pendingDelete.value = it },
         )
+    }
+    val pendingDeleteDate = pendingDelete.value
+    if (pendingDeleteDate != null) {
+        LetterDeleteDialog(
+            date = pendingDeleteDate,
+            onConfirm = { onDelete(pendingDeleteDate); pendingDelete.value = null },
+            onDismiss = { pendingDelete.value = null },
+        )
+    }
+}
+
+/**
+ * The visible body of [LetterInbox]: header, list (or empty
+ * state), and the Generate-now action. Lifted out of [LetterInbox]
+ * to keep that function under the LongMethod threshold and to
+ * make the dialog-host split obvious in the file. The
+ * [onDeleteRequest] callback is what links a row's × tap back
+ * to the inbox's `pendingDelete` state — the content doesn't
+ * know about the dialog.
+ */
+@Suppress("FunctionNaming")
+@Composable
+private fun LetterInboxContent(
+    letters: List<Letter>,
+    modelFits: Boolean,
+    size: ReadingSize,
+    onBack: () -> Unit,
+    onSelect: (LocalDate) -> Unit,
+    onDeleteRequest: (LocalDate) -> Unit,
+) {
+    val today = LocalDate.now()
+    TextButton(onClick = onBack) {
+        Text(stringResource(R.string.action_back))
+    }
+    Text(
+        text = stringResource(R.string.letters_inbox_title),
+        style = MaterialTheme.typography.headlineMedium,
+        modifier = Modifier.padding(vertical = Spacing.Comfortable),
+    )
+    Text(
+        text = stringResource(R.string.letters_inbox_explainer),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(bottom = Spacing.Loose),
+    )
+    if (letters.isEmpty()) {
+        val emptyRes = if (modelFits) R.string.letters_empty else R.string.letters_empty_no_model
         Text(
-            text = stringResource(R.string.letters_inbox_explainer),
+            text = stringResource(emptyRes),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = Spacing.Loose),
         )
-        if (letters.isEmpty()) {
-            val emptyRes = if (modelFits) R.string.letters_empty else R.string.letters_empty_no_model
+    } else {
+        // Newest first: store gives oldest first; the inbox shows
+        // newest first. Group by friendly-date so "Today" sits
+        // above "Yesterday" above the rest.
+        val grouped = letters.reversed()
+            .groupBy { friendlyLetterDate(it.date, today) }
+        grouped.forEach { (label, sameDay) ->
             Text(
-                text = stringResource(emptyRes),
-                style = MaterialTheme.typography.bodyMedium,
+                text = label,
+                style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Spacing.Loose, bottom = Spacing.Tight),
             )
-        } else {
-            // Newest first: store gives oldest first; the inbox shows
-            // newest first. Group by friendly-date so "Today" sits
-            // above "Yesterday" above the rest.
-            val grouped = letters.reversed()
-                .groupBy { friendlyLetterDate(it.date, today) }
-            grouped.forEach { (label, sameDay) ->
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = Spacing.Loose, bottom = Spacing.Tight),
+            sameDay.forEach { letter ->
+                LetterRow(
+                    letter = letter,
+                    size = size,
+                    onSelect = onSelect,
+                    onDelete = onDeleteRequest,
                 )
-                sameDay.forEach { letter ->
-                    LetterRow(
-                        letter = letter,
-                        size = size,
-                        onSelect = onSelect,
-                        onDelete = { pendingDelete.value = letter.date },
-                    )
-                }
             }
         }
-        // Generate-now is opt-in: the user has to ask for one even
-        // when the model is installed. The button is always visible
-        // so a user who doesn't know about the daily alarm can still
-        // request a letter.
-        TextButton(
-            enabled = modelFits,
-            onClick = { /* wired in Task 10 */ },
-            modifier = Modifier.padding(top = Spacing.Loose),
-        ) {
-            Text(stringResource(R.string.letters_run_now))
-        }
     }
+    // Generate-now is opt-in: the user has to ask for one even
+    // when the model is installed. The button is always visible
+    // so a user who doesn't know about the daily alarm can still
+    // request a letter.
+    TextButton(
+        enabled = modelFits,
+        onClick = { /* wired in Task 10 */ },
+        modifier = Modifier.padding(top = Spacing.Loose),
+    ) {
+        Text(stringResource(R.string.letters_run_now))
+    }
+}
 
-    if (pendingDelete.value != null) {
-        val pendingDeleteDate = pendingDelete.value!!
-        AlertDialog(
-            onDismissRequest = { pendingDelete.value = null },
-            title = { Text(stringResource(R.string.letters_delete_confirm)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    onDelete(pendingDeleteDate)
-                    pendingDelete.value = null
-                }) {
-                    Text(stringResource(R.string.letters_delete_button))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingDelete.value = null }) {
-                    Text(stringResource(R.string.letters_cancel))
-                }
-            },
-        )
-    }
+/**
+ * The delete-confirm surface. Lives in the same file as [LetterInbox]
+ * because the call site (the inbox's row × button) is what makes the
+ * dialog appear. [date] is reserved for v0.25.2-B: the dialog body
+ * will eventually show "Delete the letter from {date}?". For now the
+ * date is plumbed through so the call site doesn't have to restructure
+ * when the body lands.
+ */
+@Suppress("FunctionNaming", "UnusedParameter")
+@Composable
+private fun LetterDeleteDialog(
+    date: LocalDate,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.letters_delete_confirm)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.letters_delete_button))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.letters_cancel))
+            }
+        },
+    )
 }
 
 @Suppress("FunctionNaming")
@@ -188,8 +236,8 @@ private fun LetterRow(
     onDelete: (LocalDate) -> Unit,
 ) {
     val firstLine = letter.body.lineSequence().firstOrNull().orEmpty()
-    val preview = if (firstLine.length > MAX_PREVIEW_CHARS) {
-        firstLine.take(MAX_PREVIEW_CHARS) + "…"
+    val preview = if (firstLine.length > 60) {
+        firstLine.take(60) + "…"
     } else {
         firstLine
     }

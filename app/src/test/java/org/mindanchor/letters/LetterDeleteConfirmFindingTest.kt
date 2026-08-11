@@ -30,10 +30,8 @@ class LetterDeleteConfirmFindingTest {
             "src/main/java/org/mindanchor/letters/LetterScreen.kt"
         ).readText()
         assertTrue(
-            "LetterRow preview must truncate at 60 chars with '…' for > 60 char first lines",
-            src.contains("MAX_PREVIEW_CHARS = 60") &&
-                src.contains("take(MAX_PREVIEW_CHARS)") &&
-                src.contains("…")
+            "LetterRow preview must truncate with '…' for > 60 char first lines",
+            src.contains("take(60)") && src.contains("…")
         )
     }
 
@@ -48,16 +46,19 @@ class LetterDeleteConfirmFindingTest {
     }
 
     @Test fun `delete confirm calls onDelete exactly once on confirm`() {
-        // File-shape: the AlertDialog's confirmButton onClick calls
-        // onDelete(pendingDeleteDate) once. We pin the onDelete call
-        // site inside the confirm-button lambda.
+        // File-shape: the dialog is now extracted as LetterDeleteDialog
+        // (date, onConfirm, onDismiss). The onConfirm lambda is supplied
+        // at the call site in LetterInbox, and calls
+        // onDelete(pendingDeleteDate) followed by clearing the state.
+        // The dialog itself is a generic container (TextButton onClick
+        // = onConfirm); the delete-call contract lives in the inbox.
         val src = java.io.File(
             "src/main/java/org/mindanchor/letters/LetterScreen.kt"
         ).readText()
-        // confirmButton { TextButton(onClick = { onDelete(pendingDeleteDate); pendingDelete = null }) }
+        // onConfirm = { onDelete(pendingDeleteDate); pendingDelete.value = null }
         assertTrue(
-            "AlertDialog confirm must call onDelete and clear pendingDelete",
-            Regex("""onClick\s*=\s*\{\s*onDelete\(pendingDeleteDate\)""")
+            "LetterInbox must wire onConfirm to onDelete(pendingDeleteDate)",
+            Regex("""onConfirm\s*=\s*\{\s*onDelete\(pendingDeleteDate\)""")
                 .containsMatchIn(src)
         )
     }
