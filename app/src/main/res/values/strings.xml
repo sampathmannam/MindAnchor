@@ -794,6 +794,30 @@
     <string name="wellness_settings_mad_label">typical spread (MAD)</string>
     <string name="wellness_settings_privacy_note">The launcher reads from Health Connect and never writes back. The data never leaves this phone. The per-signal rolling history lives in app-private storage and is included in the on-device backup.</string>
 
+    <!-- v0.25.2: letter inbox + reader + reader-mode. New strings, all
+         v0.25.2-A unless tagged v0.25.2-B. -->
+    <string name="letters_inbox_title">A letter from your week</string>
+    <string name="letters_inbox_explainer">Written on this phone each morning by the same model that writes the nightly report. Tap any letter to read it.</string>
+    <string name="letters_inbox_label">letters</string>
+    <string name="letters_section">Daily letter</string>
+    <string name="letters_explainer">A short letter, written on this phone by the Phi-4 model, each morning at the time you choose. Tap the notification to read it.</string>
+    <string name="letters_toggle">Send me a letter each morning</string>
+    <string name="letters_time">Time: %1$02d:%2$02d</string>
+    <string name="letters_run_now">Generate now</string>
+    <string name="letters_running_now">Generating…</string>
+    <string name="letters_open_inbox">Open inbox (%1$d)</string>
+    <string name="letters_empty">No letters yet. The first arrives at 8 AM, once enough days have passed.</string>
+    <string name="letters_empty_no_model">No letters yet. Phi-4 isn\'t installed — open Settings → Model to install it.</string>
+    <string name="letters_delete">Delete this letter</string>
+    <string name="letters_delete_confirm">Delete this letter?</string>
+    <string name="letters_reader_missing">This letter is no longer on the phone.</string>
+    <string name="letters_disclaimer">A letter is what your own data looked like to a model on this phone. It is not advice.</string>
+    <string name="letters_delete_button">Delete</string>
+    <string name="letters_cancel">Cancel</string>
+    <!-- v0.25.2-B: reader-mode -->
+    <string name="reading_size_section">Reading size</string>
+    <string name="reading_size_explainer">How large the text reads on the letter. Large is the largest size that still fits every letter without clipping or hiding controls.</string>
+
     <string-array name="who5_items">
         <item>I have felt cheerful and in good spirits</item>
         <item>I have felt calm and relaxed</item>
