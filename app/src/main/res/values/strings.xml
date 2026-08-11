@@ -283,6 +283,14 @@
     <string name="model_download_use">Use this model</string>
     <string name="model_download_dismiss">Not now</string>
     <!--
+        v0.24.0: opt-in daily letter. Reuses the
+        v0.23.0 Phi-4 mini on-device engine; runs at
+        user-chosen time; gated on the model being
+        installed and runnable.
+    -->
+    <string name="letters_channel_name">Daily letter</string>
+    <string name="letters_notification_title">A letter from your week</string>
+    <!--
         Inline forms, for the pattern sentence.
 
         The names above are headings: standalone, capitalised, read on
