@@ -19,6 +19,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Typography
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import java.time.LocalDate
 import org.mindanchor.R
 import org.mindanchor.reader.ReadingSize
@@ -253,11 +256,12 @@ private fun LetterRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = friendlyLetterDate(letter.date, LocalDate.now()),
-                style = readerTitleStyle(size),
+                style = readerTitleStyle(MaterialTheme.typography, size),
             )
+            val bodyStyle = readerBodyStyle(MaterialTheme.typography, size)
             Text(
                 text = preview,
-                style = readerBodyStyle(size).copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                style = bodyStyle.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
             )
         }
         IconButton(onClick = { onDelete(letter.date) }) {
@@ -304,17 +308,17 @@ private fun LetterReader(
         } else {
             Text(
                 text = friendlyLetterDate(letter.date, LocalDate.now()),
-                style = readerTitleStyle(size),
+                style = readerTitleStyle(MaterialTheme.typography, size),
                 modifier = Modifier.padding(vertical = Spacing.Comfortable),
             )
             Text(
                 text = letter.body,
-                style = readerBodyStyle(size),
+                style = readerBodyStyle(MaterialTheme.typography, size),
                 modifier = Modifier.padding(bottom = Spacing.Loose),
             )
             Text(
                 text = stringResource(R.string.letters_disclaimer),
-                style = readerDisclaimerStyle(size),
+                style = readerDisclaimerStyle(MaterialTheme.typography, size),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -408,40 +412,64 @@ private fun LetterReaderDeleteDialog(
 }
 
 /**
- * v0.25.2-B: reader title style scales with [size]. Tasks 14/16
- * fill in the real style matrix; for now we return the same
- * default the rest of the app uses for sub-headings. `@Composable`
- * because [MaterialTheme.typography] reads from the active theme.
- * [size] is reserved for the v0.25.2-B style matrix; the stub
- * ignores it intentionally.
+ * Reader title style. `headlineMedium` shape with `fontSize = size.sp * 1.75f`
+ * and `fontWeight = Light`. The `headlineMedium` baseline is the same shape
+ * the launcher already uses for top-of-screen headings, so a person who has
+ * the reader open at MEDIUM sees a title that's about 32sp tall — comfortably
+ * larger than the body's 18sp without overwhelming the page.
+ *
+ * The 1.75x ratio is deliberate: a 14sp body (SMALL) needs a ~24sp title to
+ * read as a heading; 18sp body needs ~32sp; 32sp body needs ~56sp. The ratio
+ * is what keeps the title larger than the body at every size.
+ *
+ * v0.25.2-B spec 2 §"3 sizes" — WCAG 2.2 SC 1.4.4 (Resize Text) requires
+ * that text scale up to 200% without loss of content or functionality. The
+ * LARGE size here (32sp body) is exactly 200% of the 16sp reference body —
+ * the maximum the SC explicitly permits — and the 1.75x title ratio lands
+ * at 56sp, well below the screen-height line where vertical scrolling would
+ * be required to see the title.
+ *
+ * The [typography] parameter is the active [androidx.compose.material3.Typography];
+ * the call site (always inside a `@Composable` function) passes
+ * `MaterialTheme.typography` so the title inherits font family and other
+ * shape fields from the theme. The function is **not** `@Composable` itself
+ * — accepting the Typography as a parameter keeps the size math pure and
+ * testable from a regular JUnit test, without the Compose runtime overhead
+ * of `runComposeUiTest`.
  */
-@Suppress("UnusedParameter")
-@Composable
-internal fun readerTitleStyle(size: ReadingSize): TextStyle =
-    MaterialTheme.typography.titleSmall
+internal fun readerTitleStyle(typography: Typography, size: ReadingSize): TextStyle =
+    typography.headlineMedium.copy(
+        fontSize = (size.sp * 1.75f).sp,
+        fontWeight = FontWeight.Light,
+    )
 
 /**
- * v0.25.2-B: reader body style scales with [size]. Tasks 14/16
- * fill in the real style matrix; for now we return the same
- * default the rest of the app uses for body text. `@Composable`
- * because [MaterialTheme.typography] reads from the active theme.
- * [size] is reserved for the v0.25.2-B style matrix; the stub
- * ignores it intentionally.
+ * Reader body style. `bodyLarge` shape with `fontSize = size.sp` (the size
+ * IS the font — that's the whole point of the user-toggle) and
+ * `lineHeight = size.sp * 1.45f` (the typography guideline for sustained
+ * reading: ~1.4-1.5x line height keeps the eye moving down the column
+ * without the lines feeling cramped).
+ *
+ * Not `@Composable` — see [readerTitleStyle] for why Typography is a
+ * parameter rather than a runtime read.
  */
-@Suppress("UnusedParameter")
-@Composable
-internal fun readerBodyStyle(size: ReadingSize): TextStyle =
-    MaterialTheme.typography.bodyMedium
+internal fun readerBodyStyle(typography: Typography, size: ReadingSize): TextStyle =
+    typography.bodyLarge.copy(
+        fontSize = size.sp.sp,
+        lineHeight = (size.sp * 1.45f).sp,
+    )
 
 /**
- * v0.25.2-B: reader disclaimer style scales with [size]. Tasks 14/16
- * fill in the real style matrix; for now we return the same default
- * the rest of the app uses for fine print. `@Composable` because
- * [MaterialTheme.typography] reads from the active theme. [size] is
- * reserved for the v0.25.2-B style matrix; the stub ignores it
- * intentionally.
+ * Reader disclaimer style (the "this is not a substitute for…" line under
+ * every letter body). `bodySmall` shape with `fontSize = size.sp * 0.85f` —
+ * a hair smaller than the body, just enough to read as fine print without
+ * crossing into "too small to read" territory. The 0.85x ratio holds across
+ * the three sizes so the disclaimer always reads as a fraction quieter than
+ * the body, never as a different surface.
+ *
+ * Not `@Composable` — see [readerTitleStyle].
  */
-@Suppress("UnusedParameter")
-@Composable
-internal fun readerDisclaimerStyle(size: ReadingSize): TextStyle =
-    MaterialTheme.typography.bodySmall
+internal fun readerDisclaimerStyle(typography: Typography, size: ReadingSize): TextStyle =
+    typography.bodySmall.copy(
+        fontSize = (size.sp * 0.85f).sp,
+    )
