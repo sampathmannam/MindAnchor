@@ -3,6 +3,7 @@ package org.mindanchor.letters
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -277,7 +278,133 @@ private fun LetterReader(
     onDelete: () -> Unit,
     onSetSize: (ReadingSize) -> Unit,
 ) {
-    // TODO(task-5): replace with LetterReader implementation.
+    // The pending-delete flag lives here, not in the screen or
+    // the inbox: only one confirm can be open at a time, and
+    // dismissing it must clear the state cleanly. The header's
+    // × button sets the flag; the dialog's confirm button calls
+    // onDelete and clears it. The date is implicit in the
+    // screen's state, so a Boolean is enough — the inbox's
+    // `LocalDate?` model doesn't translate. `onSetSize` is
+    // unused for now: Task 18 wires it into the size-control
+    // slot in [LetterReaderHeader].
+    val pendingDelete = remember { mutableStateOf(false) }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .safeDrawingPadding()
+            .verticalScroll(rememberScrollState())
+            .padding(Spacing.Edge),
+    ) {
+        LetterReaderHeader(
+            onBack = onBack,
+            onDeleteRequest = { pendingDelete.value = true },
+        )
+        if (letter == null) {
+            LetterReaderMissing(onBack = onBack)
+        } else {
+            Text(
+                text = friendlyLetterDate(letter.date, LocalDate.now()),
+                style = readerTitleStyle(size),
+                modifier = Modifier.padding(vertical = Spacing.Comfortable),
+            )
+            Text(
+                text = letter.body,
+                style = readerBodyStyle(size),
+                modifier = Modifier.padding(bottom = Spacing.Loose),
+            )
+            Text(
+                text = stringResource(R.string.letters_disclaimer),
+                style = readerDisclaimerStyle(size),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+    if (pendingDelete.value) {
+        LetterReaderDeleteDialog(
+            onConfirm = {
+                pendingDelete.value = false
+                onDelete()
+            },
+            onDismiss = { pendingDelete.value = false },
+        )
+    }
+}
+
+/**
+ * The top row of [LetterReader]: back on the left, a placeholder
+ * slot in the middle for the v0.25.2-B size control (Task 18),
+ * and the delete × on the right. Extracted from [LetterReader]
+ * to keep that function under the LongMethod threshold and to
+ * make the size-control slot obvious in the file.
+ */
+@Suppress("FunctionNaming")
+@Composable
+private fun LetterReaderHeader(
+    onBack: () -> Unit,
+    onDeleteRequest: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.Tight),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        TextButton(onClick = onBack) { Text(stringResource(R.string.action_back)) }
+        Spacer(modifier = Modifier.weight(1f))
+        // Size control slot (filled by Task 18).
+        Spacer(modifier = Modifier.weight(1f))
+        IconButton(onClick = onDeleteRequest) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = stringResource(R.string.letters_delete),
+            )
+        }
+    }
+}
+
+/**
+ * The soft empty state for when the letter was deleted while the
+ * reader was open. No retry, no recovery — just a clear signpost
+ * back to the inbox.
+ */
+@Suppress("FunctionNaming")
+@Composable
+private fun LetterReaderMissing(onBack: () -> Unit) {
+    Text(
+        text = stringResource(R.string.letters_reader_missing),
+        style = MaterialTheme.typography.bodyLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    TextButton(onClick = onBack) {
+        Text(stringResource(R.string.action_back))
+    }
+}
+
+/**
+ * The reader-level delete confirm. Mirrors the inbox's
+ * [LetterDeleteDialog] shape; separated so the
+ * `pendingDelete: Boolean` state lives entirely in [LetterReader]
+ * (the dialog doesn't need to know what kind of state is
+ * tracking the pending action).
+ */
+@Suppress("FunctionNaming")
+@Composable
+private fun LetterReaderDeleteDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.letters_delete_confirm)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.letters_delete_button))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.letters_cancel))
+            }
+        },
+    )
 }
 
 /**
@@ -305,3 +432,16 @@ internal fun readerTitleStyle(size: ReadingSize): TextStyle =
 @Composable
 internal fun readerBodyStyle(size: ReadingSize): TextStyle =
     MaterialTheme.typography.bodyMedium
+
+/**
+ * v0.25.2-B: reader disclaimer style scales with [size]. Tasks 14/16
+ * fill in the real style matrix; for now we return the same default
+ * the rest of the app uses for fine print. `@Composable` because
+ * [MaterialTheme.typography] reads from the active theme. [size] is
+ * reserved for the v0.25.2-B style matrix; the stub ignores it
+ * intentionally.
+ */
+@Suppress("UnusedParameter")
+@Composable
+internal fun readerDisclaimerStyle(size: ReadingSize): TextStyle =
+    MaterialTheme.typography.bodySmall
