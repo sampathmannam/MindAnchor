@@ -28,6 +28,9 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
@@ -72,6 +75,7 @@ import org.mindanchor.report.MeasureSource
 import org.mindanchor.report.Signal
 import org.mindanchor.onboarding.GoalMap
 import org.mindanchor.onboarding.SettingsSection
+import org.mindanchor.reader.ReadingSize
 import org.mindanchor.sunset.Chronotype
 import org.mindanchor.vitals.HealthConnectSource
 import org.mindanchor.vitals.coros.CorosConnectionState
@@ -1569,6 +1573,42 @@ fun SettingsScreen(
                 onClick = onOpenLetters,
             ) {
                 Text(stringResource(R.string.letters_open_inbox, unreadCount))
+            }
+        }
+
+        if (group == SettingsGroup.READING) {
+            // --- Reading size (v0.25.2-B) ---
+            //
+            // The A- / A / A+ control. Mirrors the segmented control
+            // in the reader's top row (Task 18) so a person who has
+            // not yet opened a letter can still pick a size. The
+            // A- / A / A+ labels are locale-safe and RTL-safe; the
+            // control is the same on every device, every locale.
+            SectionHeading(R.string.reading_size_section, SettingsSection.PULSE, goals)
+            Text(
+                text = stringResource(R.string.reading_size_explainer),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            val letterSize by viewModel.letterSize.collectAsState()
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.padding(top = 8.dp)) {
+                listOf(ReadingSize.SMALL, ReadingSize.MEDIUM, ReadingSize.LARGE)
+                    .forEachIndexed { i, s ->
+                        SegmentedButton(
+                            selected = letterSize == s,
+                            onClick = { viewModel.setLetterSize(s) },
+                            shape = SegmentedButtonDefaults.itemShape(index = i, count = 3),
+                        ) {
+                            Text(
+                                text = when (s) {
+                                    ReadingSize.SMALL  -> "A-"
+                                    ReadingSize.MEDIUM -> "A"
+                                    ReadingSize.LARGE  -> "A+"
+                                    else -> "A"
+                                },
+                            )
+                        }
+                    }
             }
         }
 
