@@ -743,9 +743,53 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val letterSize: StateFlow<ReadingSize> = readerPrefs.size
         .stateIn(viewModelScope, SharingStarted.Eagerly, ReadingSize.MEDIUM)
 
+    /**
+     * The hour-of-day the user chose to receive the daily letter,
+     * exposed as a [StateFlow] so the Reading sub-section can render
+     * the current value and survive recomposition without re-reading
+     * the DataStore.
+     *
+     * Backed by [LetterStore.time] — same flow as the
+     * [org.mindanchor.letters.LetterScheduler] reads. Initial value is
+     * 08:00 (the spec's default — see [LetterStore]); a user who
+     * opens the settings screen before the first DataStore emission
+     * sees the default rather than a value jump, same posture as
+     * [letterSize] above. [SharingStarted.Eagerly] matches the
+     * pattern used by [unreadLetterCount] and [letterSize] because
+     * the upstream is a small DataStore read and the value is needed
+     * as soon as the settings screen binds.
+     */
+    val lettersTime: StateFlow<Pair<Int, Int>> = letterStore.time
+        .stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            LetterStore.DEFAULT_HOUR to LetterStore.DEFAULT_MINUTE,
+        )
+
+    /**
+     * Whether the user has switched the daily letter on.
+     *
+     * The toggle on the Reading sub-section binds to this; the
+     * [org.mindanchor.letters.LetterScheduler] reads the same
+     * [LetterStore.enabled] source. Initial value is `false` — the
+     * spec is "off by default; opt-in" — and matches the default
+     * [LetterStore] falls back to when no value has been persisted
+     * yet, so a user who opens the screen before the first
+     * DataStore emission does not see a value jump.
+     * [SharingStarted.Eagerly] matches the pattern used by
+     * [unreadLetterCount], [letterSize], and [lettersTime] above.
+     */
+    val lettersEnabled: StateFlow<Boolean> = letterStore.enabled
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     /** Pass-through to [LetterStore.setEnabled]. */
     fun setLettersEnabled(enabled: Boolean) {
         viewModelScope.launch { letterStore.setEnabled(enabled) }
+    }
+
+    /** Pass-through to [LetterStore.setTime]. */
+    fun setLettersTime(hour: Int, minute: Int) {
+        viewModelScope.launch { letterStore.setTime(hour, minute) }
     }
 
     /** Pass-through to [ReaderPrefs.setSize]. */

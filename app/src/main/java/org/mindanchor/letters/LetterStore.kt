@@ -131,7 +131,17 @@ class LetterStore(private val context: Context) {
         }
     }
 
-    private companion object {
+    /**
+     * Defaults and bounds for the time-of-day field.
+     *
+     * [DEFAULT_TIME] is the wire format the DataStore stores;
+     * [DEFAULT_HOUR] / [DEFAULT_MINUTE] are the same default in
+     * numeric form, exposed so callers building their own
+     * [kotlinx.coroutines.flow.StateFlow] over [time] can use the
+     * same initial value [LetterStore] falls back to, without
+     * re-hardcoding "8" in a second place.
+     */
+    companion object {
         /** 08:00 local — the spec's default. */
         const val DEFAULT_TIME = "08:00"
         const val DEFAULT_HOUR = 8

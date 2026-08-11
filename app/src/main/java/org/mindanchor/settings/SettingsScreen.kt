@@ -26,12 +26,15 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -374,6 +377,54 @@ private fun ChronotypeRadioRow(
 }
 
 /**
+ * v0.25.2-A (Task 10): the dialog for picking the daily letter's
+ * time. Lives in its own sub-Composable so the parent
+ * [SettingsScreen] does not grow past the detekt [LongMethod]
+ * threshold — the dialog's [rememberTimePickerState] + [TimePicker]
+ * + [AlertDialog] wiring is the part the parent would otherwise
+ * inline.
+ *
+ * 24-hour because the spec is local-time-of-day, and a user who
+ * has just chosen "08:00" in the toggle row should not have to
+ * translate AM/PM in a second control. The confirm button hands
+ * the picked [TimePickerState.hour] / [TimePickerState.minute]
+ * straight back to the caller; nothing in here writes to the
+ * store, so the dialog is safe to open, dismiss, and reopen
+ * without ever touching [org.mindanchor.letters.LetterStore.setTime].
+ */
+@Suppress("FunctionNaming")
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LetterTimePickerDialog(
+    initialHour: Int,
+    initialMinute: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (hour: Int, minute: Int) -> Unit,
+) {
+    val state = rememberTimePickerState(
+        initialHour = initialHour,
+        initialMinute = initialMinute,
+        is24Hour = true,
+    )
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = { onConfirm(state.hour, state.minute) }) {
+                Text(stringResource(R.string.action_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_close))
+            }
+        },
+        text = {
+            TimePicker(state = state)
+        },
+    )
+}
+
+/**
  * The six places settings actually falls into, replacing one scroll of
  * eighteen sections where the thing somebody came for was never on
  * screen when they arrived. A settings screen you have to scan before
@@ -454,8 +505,18 @@ fun SettingsScreen(
     onOpenPpg: () -> Unit = {},
     /** Opens last night's report on its own surface. */
     onOpenReport: () -> Unit = {},
-    viewModel: SettingsViewModel = viewModel(),
+    /**
+     * v0.25.2-A (Task 10): opens the letter inbox + reader on its
+     * own surface. Wired from the home screen with the same
+     * `cameFrom = LauncherSurface.Settings` discipline as
+     * [onOpenReport] — the back button on the letter surface
+     * returns here, not to the home, because the user came from
+     * here. The button is also reachable from the new Daily letter
+     * sub-section below; both paths converge on the same callback.
+     */
+    onOpenLetters: () -> Unit = {},
 ) {
+    val viewModel: SettingsViewModel = viewModel()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val activityLauncher = rememberLauncherForActivityResult(
@@ -1418,6 +1479,96 @@ fun SettingsScreen(
                 },
             ) {
                 Text(stringResource(R.string.pulse_take))
+            }
+        }
+
+        if (group == SettingsGroup.READING) {
+            // --- Daily letter (v0.25.2-A) ---
+            //
+            // The headline entry on the Reading surface. The
+            // toggle is always editable, on purpose: a person who
+            // has not yet imported a model needs to be able to
+            // *say* they want a letter without the row being
+            // dead, and the daily alarm is held by the
+            // [org.mindanchor.letters.LetterScheduler] which
+            // already does the right thing when the model is
+            // missing (a quiet "nothing today" — see
+            // [org.mindanchor.letters.LetterScheduler.onFire]).
+            // The "Generate now" button is the one row that
+            // gates on `modelFits`, because pushing a button
+            // that visibly does nothing is its own small
+            // dishonesty. The inbox count gates on
+            // `unreadCount > 0` for the same reason — a button
+            // that says "Open inbox (0)" reads as a stat
+            // rather than an affordance.
+            SectionHeading(R.string.letters_section, SettingsSection.PULSE, goals)
+            Text(
+                text = stringResource(R.string.letters_explainer),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            val modelFits by viewModel.modelFits.collectAsState()
+            val lettersEnabled by viewModel.lettersEnabled.collectAsState()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .toggleable(value = lettersEnabled, role = Role.Switch) {
+                        viewModel.setLettersEnabled(it)
+                    }
+                    .padding(top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.letters_toggle),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(checked = lettersEnabled, onCheckedChange = null)
+            }
+            val lettersTime by viewModel.lettersTime.collectAsState()
+            var showLetterTimePicker by remember { mutableStateOf(false) }
+            TextButton(
+                enabled = lettersEnabled,
+                onClick = { showLetterTimePicker = true },
+            ) {
+                Text(
+                    stringResource(
+                        R.string.letters_time,
+                        lettersTime.first,
+                        lettersTime.second,
+                    ),
+                )
+            }
+            if (showLetterTimePicker) {
+                LetterTimePickerDialog(
+                    initialHour = lettersTime.first,
+                    initialMinute = lettersTime.second,
+                    onDismiss = { showLetterTimePicker = false },
+                    onConfirm = { hour, minute ->
+                        viewModel.setLettersTime(hour, minute)
+                        showLetterTimePicker = false
+                    },
+                )
+            }
+            val letterRunning by viewModel.letterRunning.collectAsState()
+            TextButton(
+                enabled = !letterRunning && lettersEnabled && modelFits,
+                onClick = viewModel::runLetterNow,
+            ) {
+                Text(
+                    stringResource(
+                        if (letterRunning) R.string.letters_running_now
+                        else R.string.letters_run_now,
+                    ),
+                )
+            }
+            val unreadCount by viewModel.unreadLetterCount.collectAsState()
+            TextButton(
+                enabled = unreadCount > 0,
+                onClick = onOpenLetters,
+            ) {
+                Text(stringResource(R.string.letters_open_inbox, unreadCount))
             }
         }
 

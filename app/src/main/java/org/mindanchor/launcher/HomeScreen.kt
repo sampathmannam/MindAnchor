@@ -410,6 +410,19 @@ fun LauncherRoot(
                     reportCameFrom = LauncherSurface.Settings
                     surface = LauncherSurface.Report
                 },
+                // v0.25.2-A (Task 10): the Daily letter
+                // sub-section in Settings has an "Open inbox"
+                // button. Routing is the same shape as
+                // onOpenReport above — flag the cameFrom so
+                // the letter surface's back button returns
+                // to Settings rather than to the home screen,
+                // and let the letter state default to the
+                // inbox (no letter is preselected).
+                onOpenLetters = {
+                    letterSelectedDate = null
+                    letterCameFrom = LauncherSurface.Settings
+                    surface = LauncherSurface.Letter
+                },
             )
         }
 
