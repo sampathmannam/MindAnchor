@@ -646,6 +646,27 @@
     <string name="note_delete_confirm">Delete this note?</string>
     <string name="note_delete_yes">Delete</string>
     <string name="note_delete_no">Keep</string>
+    <!-- v0.25.0: type filter chips above the notes list. -->
+    <string name="note_filter_all">All</string>
+    <string name="note_type_general">General</string>
+    <string name="note_type_task">Task</string>
+    <string name="note_type_reminder">Reminder</string>
+    <string name="note_type_journal">Journal</string>
+    <!-- v0.25.0: empty-state strings when the active
+         type filter has no matches. -->
+    <string name="note_filter_empty_general">No general notes yet.</string>
+    <string name="note_filter_empty_task">No tasks yet.</string>
+    <string name="note_filter_empty_reminder">No reminders yet.</string>
+    <string name="note_filter_empty_journal">No journal entries yet.</string>
+    <!-- v0.25.0: re-classify-all settings section. -->
+    <string name="note_reclassify_title">Re-classify notes</string>
+    <string name="note_reclassify_explainer">Reset every note\'s type and run the on-device model over them again. Use this after upgrading the model, or if a note has the wrong type.</string>
+    <string name="note_reclassify_button">Re-classify all notes</string>
+    <string name="note_reclassify_running">Re-classifying…</string>
+    <string name="note_reclassify_confirm_title">Re-classify every note?</string>
+    <string name="note_reclassify_confirm_body">This resets every note\'s type and runs the on-device model over them again. It is slow — several minutes for a few hundred notes — and runs in the background; you can leave the screen.</string>
+    <string name="note_reclassify_confirm_yes">Re-classify</string>
+    <string name="note_reclassify_confirm_no">Cancel</string>
     <string name="quick_notes_section">Notes</string>
     <string name="quick_notes_input_hint">Jot something down — it saves here, in order, with the time.</string>
     <string name="quick_notes_save">Save</string>

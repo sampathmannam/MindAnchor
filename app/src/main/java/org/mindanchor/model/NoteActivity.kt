@@ -7,10 +7,10 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.mindanchor.data.NotesPrefs
+import org.mindanchor.note.ClassifierEnqueuer
 import org.mindanchor.ui.MindAnchorTheme
 
 /**
@@ -129,6 +129,23 @@ class NoteActivity : ComponentActivity() {
                 kotlinx.coroutines.Dispatchers.IO,
         )
 
+        // v0.25.0: the on-device classifier. The
+        // enqueuer owns its own scope (see
+        // ClassifierEnqueuer KDoc) so a model
+        // call cannot interrupt a notes write.
+        val classifier = ClassifierEnqueuer(applicationContext)
+
+        // v0.25.0: one-time upgrade pass. On the
+        // first run of a build that includes
+        // v0.25.0, every pre-existing note has
+        // `type = null`. Enqueue them all for
+        // classification; the pass is
+        // idempotent (a flag in SharedPreferences
+        // is set once the queue is drained) and
+        // runs on the enqueuer's own scope. No-op
+        // on subsequent launches.
+        classifier.runUpgradePassIfNeeded()
+
         setContent {
             MindAnchorTheme {
                 val state by prefs.notes.collectAsState(initial = NotesState())
@@ -141,22 +158,41 @@ class NoteActivity : ComponentActivity() {
                         // millisecond do not collide
                         // (brief §A5).
                         val now = System.currentTimeMillis()
+                        val note = Note(
+                            id = nextId(),
+                            body = body,
+                            createdAt = now,
+                            updatedAt = now,
+                            pinned = false,
+                        )
                         appScope.launch {
-                            runCatching {
-                                prefs.add(
-                                    Note(
-                                        id = nextId(),
-                                        body = body,
-                                        createdAt = now,
-                                        updatedAt = now,
-                                        pinned = false,
-                                    ),
-                                )
-                            }
+                            runCatching { prefs.add(note) }
                         }
+                        // v0.25.0: enqueue for
+                        // classification. Fire-and-
+                        // forget; the list view
+                        // will recompose when the
+                        // type is written back.
+                        classifier.enqueue(note)
                     },
                     onEdit = { id, body ->
                         appScope.launch { runCatching { prefs.edit(id, body) } }
+                        // v0.25.0: re-classify on
+                        // body edit. The classifier
+                        // reads the new body and
+                        // writes a new type; if the
+                        // model isn't available,
+                        // the type stays as the
+                        // previous value.
+                        appScope.launch {
+                            runCatching {
+                                val all = prefs.notes.first()
+                                val edited = all.notes.firstOrNull { it.id == id }
+                                if (edited != null) {
+                                    classifier.enqueue(edited.copy(body = body))
+                                }
+                            }
+                        }
                     },
                     onTogglePinned = { id ->
                         appScope.launch { runCatching { prefs.togglePinned(id) } }

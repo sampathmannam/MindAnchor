@@ -76,6 +76,25 @@ data class Note(
      * — pinned is a single boolean.
      */
     val pinned: Boolean = false,
+    /**
+     * The kind of note this is. Set by the on-device
+     * classifier (v0.25.0) on save; re-classified on
+     * body edit. Null when:
+     *  - the model is not on the phone (no Phi-4 mini
+     *    installed),
+     *  - the note was saved before v0.25.0 and the
+     *    one-time background pass hasn't reached it,
+     *  - the classifier failed for this note (rare;
+     *    covered by a finding test).
+     *
+     * The launcher is type-less by design: this field
+     * is set by the LLM, never by the user. The chip
+     * on the row reflects whatever value is here; a
+     * null value means "no chip" (the model is not
+     * available, or the note is still being
+     * classified).
+     */
+    val type: NoteType? = null,
 ) {
     /**
      * The first line of the body, with leading and
@@ -103,7 +122,8 @@ data class Note(
 
     /**
      * The note as a single text line for storage.
-     * The format is `id\tpinned\tcreatedAt\tupdatedAt\tbase64(body)`
+     * The format is
+     * `id\tpinned\tcreatedAt\tupdatedAt\ttype\tbase64(body)`
      * — tab-separated, body *base64-encoded* so the body
      * can contain tabs, newlines, and any other character
      * without breaking the line-delimited format.
@@ -121,10 +141,21 @@ data class Note(
      * codec is plaintext and is sealed by the HMAC layer
      * (item D). It is a *format* feature: the body is
      * text, the line is the line.
+     *
+     * ## v0.25.0 wire format change
+     *
+     * The v0.24.0 format was 5 tab-separated fields
+     * (no `type`). v0.25.0 inserts the `type` field
+     * between `updatedAt` and the body. Existing
+     * v0.24.0 lines still decode — [decodeLine] treats
+     * 5 fields as "no type" and 6 fields as "v0.25.0".
+     * The migration is one-way: a v0.24.0 line that
+     * is later edited and re-classified is written in
+     * the v0.25.0 shape on the next save.
      */
     fun encode(): String {
         val s = sanitised()
-        val prefix = "${s.id}\t${if (s.pinned) "1" else "0"}\t${s.createdAt}\t${s.updatedAt}"
+        val prefix = "${s.id}\t${if (s.pinned) "1" else "0"}\t${s.createdAt}\t${s.updatedAt}\t${s.type?.name ?: ""}"
         val bodyB64 = java.util.Base64.getEncoder()
             .encodeToString(s.body.toByteArray(Charsets.UTF_8))
         return "$prefix\t$bodyB64"
@@ -138,60 +169,144 @@ data class Note(
          * Returns null if the line is malformed (wrong
          * number of fields, non-numeric id / timestamps,
          * body too long, body not valid base64, body
-         * does not decode to valid UTF-8). The caller
-         * is expected to skip nulls — the codec is
-         * *dumb*.
+         * does not decode to valid UTF-8, unknown
+         * [NoteType] name). The caller is expected to
+         * skip nulls — the codec is *dumb*.
+         *
+         * Accepts both the v0.24.0 wire format
+         * (5 tab-separated fields, no `type`) and the
+         * v0.25.0 format (6 fields, with `type`). A 5-field
+         * line is decoded with `type = null`; a 6-field
+         * line with an empty `type` slot is also
+         * `type = null`; a 6-field line with an
+         * unrecognised `type` is rejected (the line is
+         * treated as corrupt and skipped).
          */
         fun decodeLine(line: String): Note? {
             if (line.isEmpty()) return null
-            // The body is everything after the 4th tab.
-            // Use indexOf 4 times rather than split('\t')
-            // so the body can contain tabs (the base64
-            // alphabet includes / and + but never \t).
-            var idx = -1
-            val tabPositions = IntArray(4)
-            for (i in 0 until 4) {
-                idx = line.indexOf('\t', idx + 1)
-                if (idx < 0) return null
-                tabPositions[i] = idx
-            }
-            val idStr = line.substring(0, tabPositions[0])
-            val pinnedStr = line.substring(tabPositions[0] + 1, tabPositions[1])
-            val createdStr = line.substring(tabPositions[1] + 1, tabPositions[2])
-            val updatedStr = line.substring(tabPositions[2] + 1, tabPositions[3])
-            val bodyB64 = line.substring(tabPositions[3] + 1)
-            val id = idStr.toLongOrNull() ?: return null
-            val pinned = when (pinnedStr) {
+            val parsed = parseFields(line) ?: return null
+            val idLong = parsed.id.toLongOrNull() ?: return null
+            val pinnedBool = when (parsed.pinned) {
                 "1" -> true
                 "0" -> false
                 else -> return null
             }
-            val createdAt = createdStr.toLongOrNull() ?: return null
-            val updatedAt = updatedStr.toLongOrNull() ?: return null
-            // Decode the body. A malformed base64 line
-            // returns null; a valid base64 line that
-            // decodes to a non-UTF-8 byte sequence
-            // throws — both are "this line is corrupt,
-            // skip it" cases.
+            val createdLong = parsed.createdAt.toLongOrNull() ?: return null
+            val updatedLong = parsed.updatedAt.toLongOrNull() ?: return null
+            val typeValue = if (parsed.typeToken.isEmpty()) {
+                null
+            } else {
+                decodeTypeName(parsed.typeToken) ?: return null
+            }
+            val body = decodeBody(parsed.bodyB64) ?: return null
+            if (body.length > MAX_BODY) return null
+            return Note(
+                id = idLong,
+                body = body,
+                createdAt = createdLong,
+                updatedAt = updatedLong,
+                pinned = pinnedBool,
+                type = typeValue,
+            )
+        }
+
+        /**
+         * Split [line] on tabs and return the six
+         * string fields. Returns null if the line has
+         * the wrong number of fields (anything other
+         * than v0.24.0's 5 or v0.25.0's 6).
+         */
+        private fun parseFields(line: String): V250Fields? {
+            // The body is base64-encoded; the base64
+            // alphabet has no tab character, so the
+            // tab count is a reliable field separator.
+            val parts = line.split('\t')
+            return when (parts.size) {
+                V240_FIELD_COUNT -> V250Fields(
+                    id = parts[0],
+                    pinned = parts[1],
+                    createdAt = parts[2],
+                    updatedAt = parts[3],
+                    typeToken = "",
+                    bodyB64 = parts[4],
+                )
+                V250_FIELD_COUNT -> V250Fields(
+                    id = parts[0],
+                    pinned = parts[1],
+                    createdAt = parts[2],
+                    updatedAt = parts[3],
+                    typeToken = parts[4],
+                    bodyB64 = parts[5],
+                )
+                else -> null
+            }
+        }
+
+        /**
+         * Decode a base64 string into UTF-8 text. Returns
+         * null if the input is not valid base64, the
+         * decoded bytes are not valid UTF-8, or the
+         * result exceeds [MAX_BODY] characters. A
+         * non-UTF-8 byte sequence is "this line is
+         * corrupt, skip it" — the same as malformed
+         * base64.
+         */
+        private fun decodeBody(bodyB64: String): String? {
             val bodyBytes = try {
                 java.util.Base64.getDecoder().decode(bodyB64)
             } catch (e: IllegalArgumentException) {
                 return null
             }
-            val body = try {
+            return try {
                 String(bodyBytes, Charsets.UTF_8)
             } catch (e: java.nio.charset.MalformedInputException) {
-                return null
+                null
             }
-            if (body.length > MAX_BODY) return null
-            return Note(
-                id = id,
-                body = body,
-                createdAt = createdAt,
-                updatedAt = updatedAt,
-                pinned = pinned,
-            )
         }
+
+        /**
+         * Parse a [NoteType] name. Returns null if the
+         * string is not a known enum name. The names
+         * are the upper-case enum constants; the codec
+         * is case-sensitive so a renamed or lower-cased
+         * type name round-trips only if the user
+         * doesn't edit the sealed file.
+         */
+        private fun decodeTypeName(name: String): NoteType? = when (name) {
+            "GENERAL" -> NoteType.GENERAL
+            "TASK" -> NoteType.TASK
+            "REMINDER" -> NoteType.REMINDER
+            "JOURNAL" -> NoteType.JOURNAL
+            else -> null
+        }
+
+        /**
+         * The six string fields of a v0.25.0 line,
+         * named for the on-disk order. The constructor
+         * is private — fields are unboxed, not trusted.
+         */
+        private data class V250Fields(
+            val id: String,
+            val pinned: String,
+            val createdAt: String,
+            val updatedAt: String,
+            val typeToken: String,
+            val bodyB64: String,
+        )
+
+        // The v0.24.0 and v0.25.0 wire-format field
+        // counts. The codec accepts both: 5 fields
+        // decodes as a v0.24.0 line with no type, 6
+        // as a v0.25.0 line. Anything else is corrupt.
+        // A user who downgrades from v0.25.0 to
+        // v0.24.0 will see all their typed notes lose
+        // the type slot on next edit; the body is
+        // still intact. A user who upgrades from
+        // v0.24.0 to v0.25.0 sees every old note
+        // start with `type = null` until the one-time
+        // upgrade pass classifies it.
+        const val V240_FIELD_COUNT = 5
+        const val V250_FIELD_COUNT = 6
     }
 }
 
@@ -372,4 +487,29 @@ data class NotesState(
      */
     fun delete(id: Long): NotesState =
         copy(notes = notes.filter { it.id != id })
+
+    /**
+     * v0.25.0: set the [Note.type] field on the
+     * note with the matching [id]. Pure function.
+     * Returns the same instance (and is therefore
+     * a no-op) if the id is not in the store —
+     * the caller can use `next === current` to
+     * detect the no-op.
+     */
+    fun setType(id: Long, type: NoteType?): NotesState {
+        val match = notes.firstOrNull { it.id == id } ?: return this
+        if (match.type == type) return this
+        return copy(notes = notes.map { if (it.id == id) it.copy(type = type) else it })
+    }
+
+    /**
+     * v0.25.0: set every note's [Note.type] to
+     * null. Used by the "Re-classify all" settings
+     * action. Pure function. Returns the same
+     * instance if every note is already untyped.
+     */
+    fun clearAllTypes(): NotesState {
+        if (notes.none { it.type != null }) return this
+        return copy(notes = notes.map { it.copy(type = null) })
+    }
 }

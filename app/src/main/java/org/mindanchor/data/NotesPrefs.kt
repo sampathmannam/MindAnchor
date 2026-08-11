@@ -73,11 +73,60 @@ class NotesPrefs(private val context: Context) {
      * Edit an existing note. The note with the
      * matching id is replaced; updatedAt is
      * bumped to [editTimestamp] (default: now).
+     *
+     * v0.25.0: the existing type is preserved on
+     * edit. The classifier runs in the background
+     * and overwrites the type via [setType] once
+     * the new body is read. If the classifier
+     * isn't available, the type stays as the
+     * previous value — same as a v0.24.0 note with
+     * no type. The user can re-classify via
+     * Settings.
      */
     suspend fun edit(id: Long, body: String, editTimestamp: Long = System.currentTimeMillis()) {
         context.notesDataStore.edit { prefs ->
             val current = SealedCodecs.decodeNotes(prefs[notesKey].orEmpty())
             val next = current.edit(id, body, editTimestamp)
+            prefs[notesKey] = SealedCodecs.encodeNotes(next)
+        }
+    }
+
+    /**
+     * v0.25.0: write back the classified type for
+     * a single note. The body and timestamps are
+     * untouched; only the [org.mindanchor.model.Note.type]
+     * field changes. Called by the
+     * [org.mindanchor.note.ClassifierEnqueuer] after
+     * a successful classify.
+     *
+     * A no-op if the id is not in the store — the
+     * note may have been deleted between enqueue
+     * and completion. The write is best-effort
+     * because the call site is fire-and-forget.
+     */
+    suspend fun setType(id: Long, type: org.mindanchor.model.NoteType) {
+        context.notesDataStore.edit { prefs ->
+            val current = SealedCodecs.decodeNotes(prefs[notesKey].orEmpty())
+            val next = current.setType(id, type)
+            if (next === current) return@edit // id not found
+            prefs[notesKey] = SealedCodecs.encodeNotes(next)
+        }
+    }
+
+    /**
+     * v0.25.0: reset every note's type to null.
+     * Used by the "Re-classify all" settings
+     * action. The function does not enqueue —
+     * the caller re-enqueues after, so the
+     * re-classification is visible as a chip
+     * appearing on each row over the next
+     * several minutes.
+     */
+    suspend fun clearAllTypes() {
+        context.notesDataStore.edit { prefs ->
+            val current = SealedCodecs.decodeNotes(prefs[notesKey].orEmpty())
+            val next = current.clearAllTypes()
+            if (next === current) return@edit // nothing to do
             prefs[notesKey] = SealedCodecs.encodeNotes(next)
         }
     }

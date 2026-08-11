@@ -2,6 +2,7 @@ package org.mindanchor.model
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import java.time.LocalDate
 import java.time.ZoneId
@@ -22,6 +24,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -43,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusEvent
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -165,6 +169,15 @@ fun NoteScreen(
     // mid-dialog should not auto-confirm a delete.
     var pendingDeleteId by remember { mutableStateOf<Long?>(null) }
 
+    // v0.25.0: the active type filter. null = "All"
+    // (no filter). Set to a [NoteType] to narrow the
+    // list to notes of that type. remember (not
+    // rememberSaveable) is correct: a config change
+    // resets the filter, same as the search field
+    // does not survive in the current build (the
+    // search field is local to the screen).
+    var filter by remember { mutableStateOf<NoteType?>(null) }
+
     // The composer's focus requester. The
     // "directly" affordance: the user lands on the
     // notes screen and the keyboard is already up.
@@ -193,6 +206,21 @@ fun NoteScreen(
     // consistent within one screen render and does not drift if
     // the user has the screen open across midnight.
     val grouped = remember(sorted) { NoteStore.groupedByDay(sorted) }
+    // v0.25.0: filter the grouped list by the active
+    // type. Days with no matching notes are removed
+    // entirely (a day header with no notes is noise).
+    // The filter is in-memory; a config change
+    // resets it, same as the search field.
+    val visible = remember(grouped, filter) {
+        if (filter == null) {
+            grouped
+        } else {
+            grouped.mapNotNull { (day, dayNotes) ->
+                val matching = dayNotes.filter { it.type == filter }
+                if (matching.isEmpty()) null else day to matching
+            }
+        }
+    }
     val today = remember { LocalDate.now(ZoneId.systemDefault()) }
     val zone = remember { ZoneId.systemDefault() }
     val noteTimestampFormatter = remember {
@@ -300,6 +328,40 @@ fun NoteScreen(
                 }
             }
 
+            // v0.25.0: the type-filter chip row. A
+            // horizontal scroll of [FilterChip]s —
+            // "All" plus one per [NoteType]. The
+            // active chip is visually selected;
+            // tapping the active chip clears the
+            // filter (back to "All"). The row is
+            // hidden when there are no notes yet,
+            // since "All" is the only meaningful
+            // state and a row of one chip is noise.
+            if (sorted.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    FilterChip(
+                        selected = filter == null,
+                        onClick = { filter = null },
+                        label = { Text(stringResource(R.string.note_filter_all)) },
+                    )
+                    NoteType.values().forEach { noteType ->
+                        FilterChip(
+                            selected = filter == noteType,
+                            onClick = {
+                                filter = if (filter == noteType) null else noteType
+                            },
+                            label = { Text(stringResource(noteTypeLabel(noteType))) },
+                        )
+                    }
+                }
+            }
+
             if (sorted.isEmpty()) {
                 // Empty state. A single line, no
                 // illustration — the home screen
@@ -318,13 +380,31 @@ fun NoteScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+            } else if (visible.isEmpty()) {
+                // v0.25.0: notes exist, but the
+                // current filter has no matches.
+                // One short line; the chip row
+                // is the affordance to clear the
+                // filter.
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(32.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = stringResource(filterEmptyLabel(filter)),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             } else {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 16.dp),
                 ) {
-                    grouped.forEach { (day, dayNotes) ->
+                    visible.forEach { (day, dayNotes) ->
                         // Day header. A label, not a button. The
                         // padding around it keeps a small visual
                         // gap between the section above and the
@@ -386,6 +466,36 @@ fun NoteScreen(
                                             style = MaterialTheme.typography.bodyLarge,
                                             modifier = Modifier.weight(1f),
                                         )
+                                        // v0.25.0: the type chip. A
+                                        // small colored surface with
+                                        // the type name. Only shown
+                                        // when the note has a type
+                                        // (i.e., the model has
+                                        // classified it). Untyped
+                                        // notes — the model isn't on
+                                        // the phone, or classification
+                                        // is still running — show no
+                                        // chip.
+                                        note.type?.let { noteType ->
+                                            Surface(
+                                                color = noteTypeColor(noteType),
+                                                shape = MaterialTheme.shapes.small,
+                                                modifier = Modifier
+                                                    .padding(start = 8.dp),
+                                            ) {
+                                                Text(
+                                                    text = stringResource(
+                                                        noteTypeLabel(noteType)
+                                                    ),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    modifier = Modifier.padding(
+                                                        horizontal = 6.dp,
+                                                        vertical = 2.dp,
+                                                    ),
+                                                )
+                                            }
+                                        }
                                     }
                                     IconButton(
                                         onClick = { onTogglePinned(note.id) },
@@ -459,3 +569,61 @@ fun NoteScreen(
         )
     }
 }
+
+/**
+ * v0.25.0: the string resource for a [NoteType]'s
+ * display name. Used by both the chip on the row
+ * and the filter chip above the list. Keeping
+ * the mapping in one place means the chip and
+ * the filter can never drift apart.
+ */
+private fun noteTypeLabel(type: NoteType): Int = when (type) {
+    NoteType.GENERAL -> R.string.note_type_general
+    NoteType.TASK -> R.string.note_type_task
+    NoteType.REMINDER -> R.string.note_type_reminder
+    NoteType.JOURNAL -> R.string.note_type_journal
+}
+
+/**
+ * v0.25.0: the string resource for the empty-
+ * state message when the active filter has no
+ * matches. A user on "Tasks" with no tasks sees
+ * "No tasks yet." Same shape as the existing
+ * [R.string.note_list_empty], narrowed by type.
+ */
+private fun filterEmptyLabel(filter: NoteType?): Int = when (filter) {
+    null -> R.string.note_list_empty
+    NoteType.GENERAL -> R.string.note_filter_empty_general
+    NoteType.TASK -> R.string.note_filter_empty_task
+    NoteType.REMINDER -> R.string.note_filter_empty_reminder
+    NoteType.JOURNAL -> R.string.note_filter_empty_journal
+}
+
+/**
+ * v0.25.0: the per-type chip background colour.
+ * Pastel-tinted, drawn from the existing launcher
+ * palette (no new colours introduced). The colours
+ * are picked to be distinguishable in the list
+ * view at the chip's small size without
+ * dominating the note body.
+ */
+private fun noteTypeColor(type: NoteType): Color = when (type) {
+    // Neutral grey for general; matches the
+    // unclassified default.
+    NoteType.GENERAL -> Color(GENERAL_CHIP_COLOR)
+    // Blue tint for tasks — same family as the
+    // EMA "above usual" indicator.
+    NoteType.TASK -> Color(TASK_CHIP_COLOR)
+    // Orange tint for reminders — the time-bound
+    // signal. Matches the EMA "below usual".
+    NoteType.REMINDER -> Color(REMINDER_CHIP_COLOR)
+    // Purple tint for journal — reflective, the
+    // quietest of the four. The letter's reading-
+    // card accent colour.
+    NoteType.JOURNAL -> Color(JOURNAL_CHIP_COLOR)
+}
+
+private const val GENERAL_CHIP_COLOR: Long = 0xFFE0E0E0
+private const val TASK_CHIP_COLOR: Long = 0xFFBBDEFB
+private const val REMINDER_CHIP_COLOR: Long = 0xFFFFE0B2
+private const val JOURNAL_CHIP_COLOR: Long = 0xFFE1BEE7

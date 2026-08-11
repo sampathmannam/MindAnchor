@@ -133,12 +133,54 @@ class WeekDataCollector(private val context: Context) {
             val count = inWindow.size
             val recent = inWindow.maxByOrNull { it.updatedAt }
             val preview = recent?.body?.take(PREVIEW_CHARS)?.replace("\n", " ").orEmpty()
-            if (preview.isBlank()) {
-                "$count note${if (count == 1) "" else "s"} this week."
+            val typed = typedCountsLine(inWindow)
+            // v0.25.0: if at least one note in the
+            // window has a type, the line carries
+            // the per-type counts. Otherwise the
+            // model isn't on the phone (or hasn't
+            // reached the user's notes yet) and we
+            // fall back to the original line.
+            if (typed == null) {
+                if (preview.isBlank()) {
+                    "$count note${if (count == 1) "" else "s"} this week."
+                } else {
+                    "$count note${if (count == 1) "" else "s"} this week. " +
+                        "Most recent: \"$preview\"."
+                }
             } else {
-                "$count note${if (count == 1) "" else "s"} this week. Most recent: \"$preview\"."
+                val suffix = if (preview.isBlank()) "" else " Most recent: \"$preview\"."
+                "$count note${if (count == 1) "" else "s"} this week: $typed.$suffix"
             }
         }.getOrDefault("").orEmpty()
+    }
+
+    /**
+     * v0.25.0: build a "N tasks, M reminders, K journal"
+     * line for the notes in [notes]. Returns null if
+     * every note in the window has `type = null` (the
+     * model isn't on the phone, or the upgrade pass
+     * hasn't reached these notes) — the caller falls
+     * back to the v0.24.0 line in that case.
+     *
+     * The four types are listed in a fixed order
+     * (general / task / reminder / journal) regardless
+     * of which is most common. The order matches the
+     * filter chip row in the notes screen and the
+     * [org.mindanchor.model.NoteType] enum, so the
+     * prompt is the same shape the user sees.
+     */
+    private fun typedCountsLine(notes: List<org.mindanchor.model.Note>): String? {
+        val typed = notes.filter { it.type != null }
+        if (typed.isEmpty()) return null
+        val counts = org.mindanchor.model.NoteType.values().associateWith { 0 }.toMutableMap()
+        for (n in typed) {
+            val t = n.type ?: continue
+            counts[t] = (counts[t] ?: 0) + 1
+        }
+        val parts = counts.entries
+            .filter { it.value > 0 }
+            .map { (type, c) -> "$c ${type.name.lowercase()}${if (c == 1) "" else "s"}" }
+        return parts.joinToString(", ")
     }
 
     private fun collectSleepSummary(start: LocalDate, end: LocalDate): String {

@@ -2501,6 +2501,14 @@ fun SettingsScreen(
             // bloat the parent SettingsScreen.
             WebDavBackupSettingsSection(context = context)
 
+            // v0.25.0: re-classify every note on
+            // demand. Sits after the backup section
+            // because both are "do something to
+            // existing data" affordances; the
+            // backup is "send it elsewhere", the
+            // re-classify is "refresh derived data".
+            NoteReclassifySection()
+
             Text(
                 text = stringResource(R.string.about_text),
                 style = MaterialTheme.typography.bodySmall,
