@@ -150,6 +150,11 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
+        // Preserve Kotlin parameter names in the bytecode so
+        // reflection-based finding tests (e.g. v0.25.2-A's
+        // LetterSurfaceWiringFindingTest) can pin a Composable's
+        // parameter shape without guessing at arg2 / arg3.
+        javaParameters = true
     }
 
     buildFeatures {
