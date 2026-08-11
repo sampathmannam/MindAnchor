@@ -1,58 +1,75 @@
 package org.mindanchor.reader
 
 import android.content.Context
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 /**
- * v0.25.2-B stub; replaced in Task 13.
+ * The text size used by every long-form reading surface. v0.25.2-B
+ * ships this for the letter; the report will reuse the same
+ * [ReaderPrefs] in v0.25.3.
  *
- * Persists the user's chosen letter-reading text size across
- * launches. Task 9 wires the settings view model to the
- * read/write surface; Task 13 widens the value-class, the SCALE
- * list (SMALL / MEDIUM / LARGE / XLARGE) and the sp-per-step
- * mapping. This stub is deliberately *just* enough for Task 9
- * to compile and run: a single [ReadingSize] held in
- * [SharedPreferences], exposed as a [StateFlow] so the view
- * model can `collectAsState` it without a DataStore round-trip.
+ * Three sizes, pinned by [org.mindanchor.reader.ReadingSizeDefaultsFindingTest]:
+ *   SMALL  = 14sp  (88% of 16sp baseline)
+ *   MEDIUM = 18sp  (default; 113% of 16sp baseline)
+ *   LARGE  = 32sp  (exactly 200% of 16sp baseline; the WCAG 2.2 SC
+ *                    1.4.4 maximum compliant size)
+ */
+data class ReadingSize(val sp: Int) {
+    companion object {
+        val SMALL = ReadingSize(14)
+        val MEDIUM = ReadingSize(18)
+        val LARGE = ReadingSize(32)
+    }
+}
+
+/**
+ * Persists the user's chosen [ReadingSize] across app restarts.
  *
- * The default is [ReadingSize.MEDIUM] — matching the v0.25.2-B
- * reader copy so the wire-through is invisible until the user
- * opts in to a different size.
+ * v0.25.2-B (this file). Replaces the v0.25.2-A stub that held the
+ * value in [android.content.SharedPreferences]. The DataStore-backed
+ * version is a [Flow] (not a [kotlinx.coroutines.flow.StateFlow])
+ * because DataStore's read API is fundamentally a flow, and the
+ * Settings view model already wraps it in
+ * `.stateIn(viewModelScope, SharingStarted.Eagerly, MEDIUM)` —
+ * Task 9 made that conversion forward-compatible with this widening.
  *
- * The underlying storage is a private-mode [SharedPreferences]
- * file (not the encrypted store): reading text size is not
- * sensitive, and the DataStore dependency would be a Task-13
- * concern that this stub does not want to import.
+ * Distinct from [org.mindanchor.letters.LetterStore] so a fresh
+ * install (no letters yet) still has a size set, and so future
+ * reading surfaces (the report, planned for v0.25.3) can share the
+ * same DataStore.
  */
 class ReaderPrefs(private val context: Context) {
 
-    private val store = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private val sizeKey = intPreferencesKey("reading_size_sp")
 
-    private val _size = MutableStateFlow(read())
+    val size: Flow<ReadingSize> = context.readerDataStore.data
+        .map { prefs -> prefs[sizeKey]?.let(::ReadingSize) ?: ReadingSize.MEDIUM }
 
-    /** The user's chosen letter-reading text size, in sp. */
-    val size: StateFlow<ReadingSize> = _size.asStateFlow()
-
-    /**
-     * Persists [newSize] and publishes it to [size]. No
-     * validation here — the [ReadingSize] value-class is the
-     * guard, and the v0.25.2-B stub only has [ReadingSize.MEDIUM]
-     * anyway. Task 13 will widen both sides.
-     */
-    suspend fun setSize(newSize: ReadingSize) {
-        store.edit().putInt(KEY_SIZE, newSize.sp).apply()
-        _size.value = newSize
+    suspend fun setSize(size: ReadingSize) {
+        context.readerDataStore.edit { it[sizeKey] = size.sp }
     }
 
-    private fun read(): ReadingSize {
-        val sp = store.getInt(KEY_SIZE, ReadingSize.MEDIUM.sp)
-        return ReadingSize(sp = sp)
+    /**
+     * Clears every key in the underlying DataStore. Test-only — used
+     * by [org.mindanchor.reader.ReaderPrefsRoundTripFindingTest]'s
+     * `@Before` to isolate tests in the same class (DataStore is a
+     * process-wide singleton keyed on the preferences name, so two
+     * tests in the same class share state without an explicit reset).
+     *
+     * `internal` so the test (same module) can call it, but the rest
+     * of the app and any third-party callers cannot. Production code
+     * does not need to clear the store; the "default" is the
+     * in-memory fallback in the `size` flow.
+     */
+    internal suspend fun reset() {
+        context.readerDataStore.edit { it.clear() }
     }
 
     private companion object {
-        const val PREFS = "reader_prefs"
-        const val KEY_SIZE = "size_sp"
+        private val Context.readerDataStore by preferencesDataStore(name = "reader_prefs")
     }
 }

@@ -263,6 +263,22 @@ dependencies {
     // Mockito for the CorosAuthTest's stub of the
     // CorosCredentialStore's parent constructor argument.
     testImplementation(libs.mockito.core)
+    // Robolectric for the ReaderPrefsRoundTripFindingTest — a JVM
+    // test that needs a real Android Context to exercise the
+    // DataStore round-trip (set, then re-read). Without Robolectric
+    // the test would need to be an androidTest, which means a
+    // connected device or emulator per run. Robolectric runs the
+    // test in a sandboxed JVM with a real Context, no emulator.
+    // 4.13 is the highest 4.x that compiles cleanly against the
+    // project's compileSdk 36 + AGP 8.9.1; later 4.x lines pull
+    // in SDK 35 native binaries that conflict with the project's
+    // SDK 33 minSdk toolchain.
+    testImplementation(libs.robolectric)
+    // androidx.test:core-ktx for ApplicationProvider, used by the
+    // ReaderPrefs round-trip test to get a real Android Context
+    // inside the Robolectric sandbox. Same version as the catalog
+    // entry; the Robolectric test would fail to compile without it.
+    testImplementation(libs.androidx.test.core)
 
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.androidx.test.junit)
