@@ -2,6 +2,7 @@ package org.mindanchor.settings
 
 import android.app.Application
 import android.app.NotificationManager
+import android.content.Context
 import android.net.Uri
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.AndroidViewModel
@@ -19,10 +20,16 @@ import kotlinx.coroutines.launch
 import org.mindanchor.corpus.CorpusImport
 import org.mindanchor.corpus.CorpusStore
 import org.mindanchor.data.AppearancePrefs
+import org.mindanchor.letters.Letter
+import org.mindanchor.letters.LetterStore
+import org.mindanchor.letters.LetterWriter
+import org.mindanchor.letters.WeekDataCollector
 import org.mindanchor.narrate.ModelSlot
 import org.mindanchor.narrate.ModelStore
 import org.mindanchor.data.NotificationPrefs
 import org.mindanchor.data.SunsetPrefs
+import org.mindanchor.reader.ReaderPrefs
+import org.mindanchor.reader.ReadingSize
 import org.mindanchor.ui.NatureScene
 import org.mindanchor.notifications.BatchAlarms
 import org.mindanchor.notifications.BatchSchedule
@@ -625,6 +632,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             val context = getApplication<Application>()
             _modelPresent.value = ModelStore.hasModel(context)
             _modelFit.value = ModelStore.fit(context)
+            // Keep the new boolean StateFlow in sync with the
+            // detailed fit enum, so a UI consuming [modelFits] sees
+            // the same answer the model card does — both are read
+            // off the same model file on the same disk.
+            ModelStore.refreshFit(context)
         }
     }
 
@@ -643,6 +655,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             _modelImportFailed.value = !imported
             _modelPresent.value = ModelStore.hasModel(context)
             _modelFit.value = ModelStore.fit(context)
+            ModelStore.refreshFit(context)
         }
     }
 
@@ -654,7 +667,136 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             _modelImportFailed.value = false
             _modelPresent.value = ModelStore.hasModel(context)
             _modelFit.value = ModelStore.fit(context)
+            ModelStore.refreshFit(context)
         }
+    }
+
+    // --- Letters (the v0.25.2 morning letter) ---
+    //
+    // The fields here drive both the letter inbox (Task 6) and the
+    // future Reading sub-section of the settings screen (Task 10).
+    // They default to safe values so the screen renders even before
+    // the first refresh completes: modelFits is "no, the model is
+    // not on file yet", letterRunning is "no generation in flight",
+    // and the size / count / enabled flags come from DataStore
+    // flows that emit their persisted value the moment they are
+    // collected.
+
+    private val letterStore = LetterStore(application)
+
+    private val readerPrefs = ReaderPrefs(application)
+
+    /**
+     * Whether the model on file would actually run on this phone,
+     * exposed as a plain [Boolean] for the letter inbox's
+     * "Generate now" enablement and the empty-state copy.
+     *
+     * Backed by the same probe as [modelFit], just rephrased — see
+     * [ModelStore.fitFlow] for why the StateFlow is held on the
+     * store rather than re-asked on every recomposition.
+     */
+    val modelFits: StateFlow<Boolean> = ModelStore.fitFlow()
+
+    private val _letterRunning = MutableStateFlow(false)
+
+    /**
+     * True while a "Generate now" letter is in flight. Flipped back
+     * to false in a [finally], so a generation that throws still
+     * leaves the UI re-enabled. Mirrors the
+     * [org.mindanchor.report.ReportScheduler] `runReportNow` shape
+     * that this view model already uses for the nightly report.
+     */
+    val letterRunning: StateFlow<Boolean> = _letterRunning.asStateFlow()
+
+    /**
+     * Letters dated on or after the user's install date.
+     *
+     * v0.25.2 stand-in for a per-letter `read` flag (v0.25.3). The
+     * install date is the boundary that has the right behaviour for
+     * the question "is the user more likely to have seen this?": a
+     * letter generated after the user installed the app is one the
+     * user has had a chance to read, but may not have opened; a
+     * letter generated on a previous install is something the user
+     * has lived with and can be treated as background. A fresh
+     * install returns today, so the count is 0 until tomorrow.
+     */
+    val unreadLetterCount: StateFlow<Int> = letterStore.letters
+        .map { list -> list.count { it.date >= installDate() } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
+    /** The user's chosen letter-reading text size, in sp. */
+    val letterSize: StateFlow<ReadingSize> = readerPrefs.size
+
+    /** Pass-through to [LetterStore.setEnabled]. */
+    fun setLettersEnabled(enabled: Boolean) {
+        viewModelScope.launch { letterStore.setEnabled(enabled) }
+    }
+
+    /** Pass-through to [ReaderPrefs.setSize]. */
+    fun setLetterSize(size: ReadingSize) {
+        viewModelScope.launch { readerPrefs.setSize(size) }
+    }
+
+    /**
+     * Generates a letter on demand, using the same call shape as
+     * the daily alarm ([org.mindanchor.letters.LetterScheduler.onFire])
+     * but without the notification post and the re-arm.
+     *
+     * The notification belongs to the alarm — a person who pressed
+     * "Generate now" is already looking at the result on the
+     * settings screen, and a duplicate notification for the same
+     * letter is the kind of small noise that trains people to
+     * ignore the channel. The re-arm is also a no-op: the alarm is
+     * already held by [org.mindanchor.letters.LetterScheduler] at
+     * the user's chosen time, and re-arming it on every manual
+     * generation would only move the trigger by the time the
+     * function takes to return.
+     *
+     * Never throws. A missing model, a sparse week, a generation
+     * the safety filter rejects — all of those are a quiet
+     * "nothing today", same as the daily alarm.
+     */
+    fun runLetterNow() {
+        viewModelScope.launch(Dispatchers.IO) {
+            _letterRunning.value = true
+            try {
+                runCatching {
+                    val week = WeekDataCollector(getApplication()).collectLastWeek()
+                    val writer = LetterWriter(getApplication())
+                    val body = writer.write(week) ?: return@runCatching
+                    letterStore.save(Letter(date = LocalDate.now(), body = body))
+                }
+            } finally {
+                _letterRunning.value = false
+            }
+        }
+    }
+
+    /**
+     * The day the user first installed the app, persisted in
+     * private-mode [SharedPreferences] under the key
+     * [INSTALL_KEY].
+     *
+     * First call writes today and returns it; subsequent calls
+     * return the original install date. A read failure (corrupt
+     * prefs, no Context) returns [LocalDate.MIN], which counts
+     * every letter as unread — the same safe default the brief
+     * suggests and the same posture a corrupted store would
+     * otherwise land in. SharedPreferences rather than DataStore
+     * because the install date is one read per UI recomposition,
+     * never a flow, and the latency of a DataStore round-trip
+     * would be paid for nothing.
+     */
+    private fun installDate(): LocalDate {
+        val prefs = getApplication<Application>()
+            .getSharedPreferences(INSTALL_PREFS, Context.MODE_PRIVATE)
+        val stored = prefs.getString(INSTALL_KEY, null)
+        if (stored != null) {
+            return runCatching { LocalDate.parse(stored) }.getOrDefault(LocalDate.MIN)
+        }
+        val today = LocalDate.now()
+        runCatching { prefs.edit().putString(INSTALL_KEY, today.toString()).apply() }
+        return today
     }
 
     // --- Wellness signals (N-of-1, from Health Connect) ---
@@ -845,3 +987,6 @@ data class CorpusImportReport(
     val truncated: Boolean = false,
     val unreadable: Boolean = false,
 )
+
+private const val INSTALL_PREFS = "install_marker"
+private const val INSTALL_KEY = "first_install_date"

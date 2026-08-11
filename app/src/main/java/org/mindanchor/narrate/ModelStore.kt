@@ -4,6 +4,9 @@ import android.app.ActivityManager
 import android.content.Context
 import android.net.Uri
 import java.io.File
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Stores an imported GGUF model file in app-private storage, and answers
@@ -127,4 +130,39 @@ object ModelStore {
             isLowRamDevice = activityManager.isLowRamDevice,
         )
     }.getOrDefault(ModelSlot.Fit.TOO_LARGE)
+
+    /**
+     * The cached "model would actually run" state, exposed as a
+     * [StateFlow] so a UI can observe it without re-running the
+     * [ActivityManager] probe on every recomposition.
+     *
+     * Initialised to `false` because there is no [Context] available
+     * at object-construction time to ask [fit] for a real answer. The
+     * first call to [refreshFit] — typically from
+     * [org.mindanchor.settings.SettingsViewModel.refreshModel] on
+     * settings-screen entry — replaces the default with the real
+     * value. A UI that shows up before that first refresh sees
+     * `modelFits = false`, which is the same refuse-by-default
+     * posture the absence of a model warrants anyway.
+     *
+     * The same refuse-by-default value is what [ModelStore.fit] falls
+     * back to when it cannot read the device, so a transient
+     * [refreshFit] failure leaves the UI in the same state as
+     * "no model" — never "yes, run a 12 GB model on a 4 GB phone".
+     */
+    private val _fitState = MutableStateFlow(false)
+
+    /** The observable [StateFlow] form of [ModelSlot.runnable] applied to [fit]. */
+    fun fitFlow(): StateFlow<Boolean> = _fitState.asStateFlow()
+
+    /**
+     * Recomputes the [fit] answer for [context] and publishes the
+     * runnable form to [fitFlow]. Callers (the settings view model)
+     * invoke this after importing or clearing a model so any observer
+     * of [fitFlow] sees the new value without having to re-probe the
+     * device itself.
+     */
+    fun refreshFit(context: Context) {
+        _fitState.value = ModelSlot.runnable(fit(context))
+    }
 }
