@@ -140,6 +140,23 @@ fun LauncherRoot(
     viewModel: LauncherViewModel = viewModel(),
     /** Bumped whenever the home button is pressed; see HomeActivity. */
     goHomeSignal: Int = 0,
+    /**
+     * v0.25.2-A (Task 8): when the user taps a letter notification,
+     * HomeActivity writes the letter's date here. The launcher navigates
+     * to the reader for that date, then signals back via
+     * [onLetterDateConsumed] so the activity clears the value. The
+     * reset is what makes a re-tap for the same date work — without
+     * it, the flow would not re-emit and the second tap would be a
+     * silent no-op.
+     */
+    letterDateSignal: LocalDate? = null,
+    /**
+     * v0.25.2-A (Task 8): invoked after the launcher has applied a
+     * [letterDateSignal]. HomeActivity uses this to clear its
+     * `MutableStateFlow` so a configuration change does not re-trigger
+     * the same navigation.
+     */
+    onLetterDateConsumed: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
     val openLoop by viewModel.openLoop.collectAsState()
@@ -159,8 +176,9 @@ fun LauncherRoot(
     // reportCameFrom — selected date is null on the inbox, non-null
     // in the reader; cameFrom remembers where the user came from so
     // the inbox's back button returns there. Two entry points: the
-    // new "letters" TopEnd corner on the home surface, and the
-    // (later) Reading sub-section in Settings.
+    // new "letters" TopEnd corner on the home surface, the (later)
+    // Reading sub-section in Settings, and the letter notification
+    // (Task 8), which writes letterDateSignal from HomeActivity.
     var letterSelectedDate by remember { mutableStateOf<LocalDate?>(null) }
     var letterCameFrom by remember { mutableStateOf(LauncherSurface.Home) }
     val context = LocalContext.current
@@ -195,6 +213,22 @@ fun LauncherRoot(
     // path the user takes after granting permission.
     LaunchedEffect(goHomeSignal) {
         if (goHomeSignal >= 0) viewModel.refreshWellness()
+    }
+
+    // v0.25.2-A (Task 8): letter notification side-channel. When the
+    // user taps a letter notification, HomeActivity writes the letter's
+    // date into letterDateSignal. We navigate to the letter reader
+    // for that date, then clear the signal so a configuration change
+    // does not re-trigger the same navigation and so a re-tap of the
+    // same date emits a fresh value. Same shape as the goHomeSignal
+    // LaunchedEffect above — an activity-owned flow the launcher
+    // reacts to on every recomposition.
+    LaunchedEffect(letterDateSignal) {
+        val date = letterDateSignal ?: return@LaunchedEffect
+        letterSelectedDate = date
+        letterCameFrom = LauncherSurface.Home
+        surface = LauncherSurface.Letter
+        onLetterDateConsumed()
     }
 
     // Settings has its own [BackHandler] now: when a
