@@ -17,6 +17,9 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Typography
@@ -288,9 +291,7 @@ private fun LetterReader(
     // × button sets the flag; the dialog's confirm button calls
     // onDelete and clears it. The date is implicit in the
     // screen's state, so a Boolean is enough — the inbox's
-    // `LocalDate?` model doesn't translate. `onSetSize` is
-    // unused for now: Task 18 wires it into the size-control
-    // slot in [LetterReaderHeader].
+    // `LocalDate?` model doesn't translate.
     val pendingDelete = remember { mutableStateOf(false) }
     Column(
         modifier = Modifier
@@ -300,7 +301,9 @@ private fun LetterReader(
             .padding(Spacing.Edge),
     ) {
         LetterReaderHeader(
+            size = size,
             onBack = onBack,
+            onSetSize = onSetSize,
             onDeleteRequest = { pendingDelete.value = true },
         )
         if (letter == null) {
@@ -335,16 +338,25 @@ private fun LetterReader(
 }
 
 /**
- * The top row of [LetterReader]: back on the left, a placeholder
- * slot in the middle for the v0.25.2-B size control (Task 18),
- * and the delete × on the right. Extracted from [LetterReader]
- * to keep that function under the LongMethod threshold and to
- * make the size-control slot obvious in the file.
+ * The top row of [LetterReader]: back on the left, the
+ * `A-` / `A` / `A+` size toggle in the middle, and the delete
+ * × on the right. Extracted from [LetterReader] to keep that
+ * function under the LongMethod threshold and to make the
+ * size-control slot obvious in the file.
+ *
+ * The toggle labels are A- / A / A+ — locale-safe (no string
+ * resources), RTL-safe (the symbols mirror), and immediately
+ * legible as "smaller / default / larger" without translation.
+ * A real "Small / Medium / Large" would have needed three
+ * string resources and a per-locale translation pass; A- / A / A+
+ * is the same affordance at zero translation cost.
  */
 @Suppress("FunctionNaming")
 @Composable
 private fun LetterReaderHeader(
+    size: ReadingSize,
     onBack: () -> Unit,
+    onSetSize: (ReadingSize) -> Unit,
     onDeleteRequest: () -> Unit,
 ) {
     Row(
@@ -353,7 +365,26 @@ private fun LetterReaderHeader(
     ) {
         TextButton(onClick = onBack) { Text(stringResource(R.string.action_back)) }
         Spacer(modifier = Modifier.weight(1f))
-        // Size control slot (filled by Task 18).
+        SingleChoiceSegmentedButtonRow {
+            listOf(ReadingSize.SMALL, ReadingSize.MEDIUM, ReadingSize.LARGE)
+                .forEachIndexed { i, s ->
+                    SegmentedButton(
+                        selected = size == s,
+                        onClick = { onSetSize(s) },
+                        shape = SegmentedButtonDefaults.itemShape(index = i, count = 3),
+                    ) {
+                        Text(
+                            text = when (s) {
+                                ReadingSize.SMALL  -> "A-"
+                                ReadingSize.MEDIUM -> "A"
+                                ReadingSize.LARGE  -> "A+"
+                                else -> "A"
+                            },
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                    }
+                }
+        }
         Spacer(modifier = Modifier.weight(1f))
         IconButton(onClick = onDeleteRequest) {
             Icon(
