@@ -1,21 +1,37 @@
 package org.mindanchor.letters
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.dp
 import java.time.LocalDate
 import org.mindanchor.R
 import org.mindanchor.reader.ReadingSize
 import org.mindanchor.ui.Spacing
+
+private const val MAX_PREVIEW_CHARS = 60
 
 /**
  * The letter surface, dispatched between an inbox list and a single
@@ -61,7 +77,7 @@ fun LetterScreen(
     }
 }
 
-@Suppress("FunctionNaming")
+@Suppress("FunctionNaming", "LongMethod")
 @Composable
 private fun LetterInbox(
     letters: List<Letter>,
@@ -72,6 +88,11 @@ private fun LetterInbox(
     onBack: () -> Unit,
 ) {
     val today = LocalDate.now()
+    // The dialog belongs to the inbox, not the row: only one confirm
+    // can be open at a time, and dismissing it must clear the state
+    // cleanly. The row's × button sets this; the dialog's confirm
+    // button calls onDelete and clears it.
+    val pendingDelete = remember { mutableStateOf<LocalDate?>(null) }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -114,7 +135,12 @@ private fun LetterInbox(
                     modifier = Modifier.padding(top = Spacing.Loose, bottom = Spacing.Tight),
                 )
                 sameDay.forEach { letter ->
-                    LetterRow(letter = letter, size = size, onSelect = onSelect, onDelete = onDelete)
+                    LetterRow(
+                        letter = letter,
+                        size = size,
+                        onSelect = onSelect,
+                        onDelete = { pendingDelete.value = letter.date },
+                    )
                 }
             }
         }
@@ -130,9 +156,30 @@ private fun LetterInbox(
             Text(stringResource(R.string.letters_run_now))
         }
     }
+
+    if (pendingDelete.value != null) {
+        val pendingDeleteDate = pendingDelete.value!!
+        AlertDialog(
+            onDismissRequest = { pendingDelete.value = null },
+            title = { Text(stringResource(R.string.letters_delete_confirm)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDelete(pendingDeleteDate)
+                    pendingDelete.value = null
+                }) {
+                    Text(stringResource(R.string.letters_delete_button))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete.value = null }) {
+                    Text(stringResource(R.string.letters_cancel))
+                }
+            },
+        )
+    }
 }
 
-@Suppress("FunctionNaming", "UnusedParameter")
+@Suppress("FunctionNaming")
 @Composable
 private fun LetterRow(
     letter: Letter,
@@ -140,7 +187,37 @@ private fun LetterRow(
     onSelect: (LocalDate) -> Unit,
     onDelete: (LocalDate) -> Unit,
 ) {
-    // TODO(task-4): replace with LetterRow implementation.
+    val firstLine = letter.body.lineSequence().firstOrNull().orEmpty()
+    val preview = if (firstLine.length > MAX_PREVIEW_CHARS) {
+        firstLine.take(MAX_PREVIEW_CHARS) + "…"
+    } else {
+        firstLine
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clickable { onSelect(letter.date) }
+            .padding(vertical = Spacing.Snug),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = friendlyLetterDate(letter.date, LocalDate.now()),
+                style = readerTitleStyle(size),
+            )
+            Text(
+                text = preview,
+                style = readerBodyStyle(size).copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+            )
+        }
+        IconButton(onClick = { onDelete(letter.date) }) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = stringResource(R.string.letters_delete),
+            )
+        }
+    }
 }
 
 @Suppress("FunctionNaming", "UnusedParameter")
@@ -152,5 +229,31 @@ private fun LetterReader(
     onDelete: () -> Unit,
     onSetSize: (ReadingSize) -> Unit,
 ) {
-    // TODO(task-4): replace with LetterReader implementation.
+    // TODO(task-5): replace with LetterReader implementation.
 }
+
+/**
+ * v0.25.2-B: reader title style scales with [size]. Tasks 14/16
+ * fill in the real style matrix; for now we return the same
+ * default the rest of the app uses for sub-headings. `@Composable`
+ * because [MaterialTheme.typography] reads from the active theme.
+ * [size] is reserved for the v0.25.2-B style matrix; the stub
+ * ignores it intentionally.
+ */
+@Suppress("UnusedParameter")
+@Composable
+internal fun readerTitleStyle(size: ReadingSize): TextStyle =
+    MaterialTheme.typography.titleSmall
+
+/**
+ * v0.25.2-B: reader body style scales with [size]. Tasks 14/16
+ * fill in the real style matrix; for now we return the same
+ * default the rest of the app uses for body text. `@Composable`
+ * because [MaterialTheme.typography] reads from the active theme.
+ * [size] is reserved for the v0.25.2-B style matrix; the stub
+ * ignores it intentionally.
+ */
+@Suppress("UnusedParameter")
+@Composable
+internal fun readerBodyStyle(size: ReadingSize): TextStyle =
+    MaterialTheme.typography.bodyMedium
