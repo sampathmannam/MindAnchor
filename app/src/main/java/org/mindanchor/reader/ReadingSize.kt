@@ -19,6 +19,6 @@ data class ReadingSize(val sp: Int) {
         // the v0.25.2-B reader-mode text size — chosen to match the
         // existing body copy so Task 15's wire-through is invisible
         // until the user opts in to a different size.
-        val MEDIUM = ReadingSize(sp = 16)
+        val MEDIUM = ReadingSize(sp = 18)
     }
 }

@@ -724,8 +724,24 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         .map { list -> list.count { it.date >= installDate() } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
-    /** The user's chosen letter-reading text size, in sp. */
+    /**
+     * The user's chosen letter-reading text size, in sp.
+     *
+     * The consumer does the [StateFlow] conversion via [stateIn] so
+     * the source of truth can stay a plain [kotlinx.coroutines.flow.Flow]
+     * (Task 13's `ReaderPrefs` widens the read-side to a `Flow` to
+     * cover the `DataStore` and SCALE-list paths). The initial value
+     * is [ReadingSize.MEDIUM] — the same default [ReaderPrefs] falls
+     * back to when no value has been persisted yet, so a user who
+     * opens the screen before [ReaderPrefs] has emitted does not see
+     * a value jump. [SharingStarted.Eagerly] matches the pattern
+     * used by [unreadLetterCount] above: the upstream is a tiny
+     * SharedPreferences read, the value is needed as soon as the
+     * settings screen binds, and the cost of holding the latest
+     * emission is one `ReadingSize` reference.
+     */
     val letterSize: StateFlow<ReadingSize> = readerPrefs.size
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ReadingSize.MEDIUM)
 
     /** Pass-through to [LetterStore.setEnabled]. */
     fun setLettersEnabled(enabled: Boolean) {
