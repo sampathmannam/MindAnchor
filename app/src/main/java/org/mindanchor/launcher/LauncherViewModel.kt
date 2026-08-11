@@ -22,6 +22,8 @@ import org.mindanchor.friction.OpenLoop
 import org.mindanchor.friction.PerAppSessionLength
 import org.mindanchor.model.Note
 import org.mindanchor.model.NoteStore
+import org.mindanchor.reader.ReaderPrefs
+import org.mindanchor.reader.ReadingSize
 import org.mindanchor.sleep.BedtimeList
 import org.mindanchor.sleep.BedtimePhase
 import kotlinx.coroutines.flow.flow
@@ -57,6 +59,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val sunsetPrefs = SunsetPrefs(application)
     private val frictionPrefs = FrictionPrefs(application)
     private val wellnessRepository = org.mindanchor.vitals.WellnessRepository(application)
+    private val readerPrefs = ReaderPrefs(application)
     /**
      * The notes DataStore. The home screen surfaces
      * a quick-capture card (one input + a list of
@@ -466,5 +469,20 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
      */
     fun launchTimed(app: DisplayApp, minutes: Long?, banditArm: FrictionBandit.ArmChoice? = null) {
         friction.launchTimed(app, minutes, banditArm) { launch(it) }
+    }
+
+    // --- Letter reading size (v0.25.2-B Task 15) --------------------
+    //
+    // Mirrors [org.mindanchor.settings.SettingsViewModel.letterSize]:
+    // both VMs read from the same DataStore-backed [ReaderPrefs] source,
+    // so the launcher's letter reader and the Settings → Reading
+    // sub-section see the same value. `.stateIn(Eagerly, MEDIUM)` keeps
+    // the initial emission off the data path (no value jump for a
+    // freshly-launched reader).
+    val letterSize: StateFlow<ReadingSize> = readerPrefs.size
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ReadingSize.MEDIUM)
+
+    fun setLetterSize(size: ReadingSize) {
+        viewModelScope.launch { readerPrefs.setSize(size) }
     }
 }

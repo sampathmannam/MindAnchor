@@ -454,7 +454,10 @@ fun LauncherRoot(
         LauncherSurface.Letter -> Surface(modifier = Modifier.fillMaxSize()) {
             val letters: List<Letter> = remember { emptyList() }
             val modelFits = remember { mutableStateOf(false) }
-            val letterSize = remember { mutableStateOf(ReadingSize.MEDIUM) }
+            // v0.25.2-B (Task 15): letter size is read from the
+            // LauncherViewModel (mirrors the SettingsViewModel.letterSize
+            // from Task 9 — both VMs read from the same DataStore source).
+            val letterSize by viewModel.letterSize.collectAsState()
             val letterStore = remember(context.applicationContext) {
                 LetterStore(context.applicationContext)
             }
@@ -463,7 +466,7 @@ fun LauncherRoot(
                 letters = letters,
                 modelFits = modelFits.value,
                 date = letterSelectedDate,
-                size = letterSize.value,
+                size = letterSize,
                 onSelect = { date -> letterSelectedDate = date },
                 onBack = {
                     if (letterSelectedDate != null) {
@@ -473,7 +476,7 @@ fun LauncherRoot(
                     }
                 },
                 onDelete = { date -> letterScope.launch { letterStore.delete(date) } },
-                onSetSize = { size -> letterSize.value = size },
+                onSetSize = { size -> viewModel.setLetterSize(size) },
             )
         }
     }
