@@ -57,6 +57,11 @@ object LetterScheduler {
 
     private const val CHANNEL_ID = "letters"
     private const val ACTION_FIRE = "org.mindanchor.LETTER_FIRE"
+    /**
+     * Action used by the letter notification's contentIntent. Read by
+     * HomeActivity to route to the letter reader.
+     */
+    const val ACTION_OPEN_LETTER = "org.mindanchor.letters.OPEN_LETTER"
     private const val REQUEST_CODE = 80
     private const val NOTIFICATION_ID = 85
 
@@ -144,14 +149,15 @@ object LetterScheduler {
             val writer = LetterWriter(appContext)
             val body = writer.write(week)
             if (body != null) {
-                store.save(Letter(date = LocalDate.now(), body = body))
-                postNotification(appContext, body)
+                val date = LocalDate.now()
+                store.save(Letter(date = date, body = body))
+                postNotification(appContext, date, body)
             }
         }
         ensureScheduled(appContext)
     }
 
-    private fun postNotification(context: Context, body: String) {
+    private fun postNotification(context: Context, date: LocalDate, body: String) {
         if (ContextCompat.checkSelfPermission(
                 context, android.Manifest.permission.POST_NOTIFICATIONS,
             ) != PackageManager.PERMISSION_GRANTED
@@ -168,8 +174,10 @@ object LetterScheduler {
         )
         val openIntent = PendingIntent.getActivity(
             context,
-            0,
-            context.packageManager.getLaunchIntentForPackage(context.packageName),
+            NOTIFICATION_ID,
+            Intent(context, org.mindanchor.HomeActivity::class.java)
+                .setAction(ACTION_OPEN_LETTER)
+                .putExtra("letter_date", date.toString()),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         // First 1-2 lines, the spec's preview shape. The launcher
