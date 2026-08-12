@@ -13,17 +13,49 @@ import org.mindanchor.vitals.Measurement
  *
  * ## Why this exists
  *
- * Cloud backup is refused outright, because a safety plan has no business
- * on someone else's server. The honest consequence is that a lost or reset
- * phone takes the safety plan, the chosen contacts and the mood history
- * with it, permanently — and those are exactly the things a person wrote
- * down while calm so that a future, worse version of themselves would not
- * have to remember them.
+ * The default save destination is the system file picker: a person
+ * chooses the location, the file lands there, no upload happens
+ * automatically, and no storage permission is involved. This is the
+ * same posture the launcher has had since v0.17.0 — a safety plan has
+ * no business on a server the user did not pick.
  *
- * So the copy is made deliberately, by the person, to a location they pick
- * through the system file picker. Nothing is automatic, nothing is
- * uploaded, and no storage permission is involved. The privacy promise is
- * unchanged: data leaves this device only when someone chooses to move it.
+ * v0.23.0 added a second, opt-in outbound channel: a WebDAV bridge
+ * to the user's own bucket (Nextcloud, ownCloud, anything WebDAV-capable),
+ * AES-256-GCM wrapped, HTTPS-only, off until the user turns it on in
+ * Settings. The architecture is "user's own cloud" — not a third-party
+ * backup service. See `## Outbound channels` below.
+ *
+ * The honest consequence of the local-only default is still true: a lost
+ * or reset phone that has no WebDAV bridge armed takes the safety plan,
+ * the chosen contacts and the mood history with it, permanently — and
+ * those are exactly the things a person wrote down while calm so that
+ * a future, worse version of themselves would not have to remember them.
+ * The opt-in WebDAV bridge is the answer for a person who would rather
+ * not rely on a remembered file path.
+ *
+ * ## Outbound channels
+ *
+ * Two paths leave the device. Both are deliberate, both are gated on a
+ * user gesture, neither is automatic.
+ *
+ *  - **Local (default, always on).** The system file picker. The user
+ *    picks the folder, the file lands there as plain JSON, no network
+ *    call is made, no storage permission is required. The privacy
+ *    promise is: data leaves this device only when someone chooses to
+ *    move it.
+ *
+ *  - **WebDAV (opt-in, off by default, v0.23.0+).** The user arms it in
+ *    Settings → WebDAV backup, provides a folder URL, a username, and
+ *    an app password, and the launcher wraps each backup in
+ *    AES-256-GCM ([org.mindanchor.backup.EncryptedBackupCodec]) before
+ *    it travels. The cloud sees an opaque 12-byte IV prefix, a
+ *    ciphertext of the JSON, and a 16-byte auth tag — it never sees
+ *    the plaintext. The transport ([org.mindanchor.backup.WebDavBackupTarget])
+ *    is HTTPS-only (a non-https URL is refused outright before the
+ *    request goes out), uses HTTP Basic Auth, and PUTs the wrapped
+ *    file to a folder the user controls. There is no third-party
+ *    dependency: the bridge talks to any WebDAV-capable server the
+ *    user points it at.
  *
  * ## What is in it, and what is not
  *
