@@ -3,6 +3,8 @@ package org.mindanchor.backup
 import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.scan
@@ -10,6 +12,7 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import okhttp3.OkHttpClient
 import org.mindanchor.data.NotesPrefs
 import org.mindanchor.letters.LetterStore
 import org.mindanchor.model.Note
@@ -195,6 +198,19 @@ class BackupScheduler(
                     NotesDiffState(previous = state.current, current = current.notes, newOnes = newOnes)
                 }
                 .collect { state ->
+                    // v0.25.6+ WP-1: the auto-sync toggle
+                    // is the gate. Before this fix the
+                    // toggle's onCheckedChange was a no-op
+                    // (settings bug), so the DataStore
+                    // value was never written and the
+                    // on-write trigger fired on every
+                    // save regardless of the user's
+                    // preference. The snapshot read is
+                    // cheap; one DataStore read per notes
+                    // emission.
+                    val autoSyncOn = runCatching { backupPrefs.autoSyncNotes.first() }
+                        .getOrDefault(false)
+                    if (!autoSyncOn) return@collect
                     for (note in state.newOnes) {
                         val entry = BackupEntry(date = LocalDate.now().toString(), body = note.body)
                         // v0.25.5 WP-H: a [NetworkError] no longer
@@ -215,6 +231,13 @@ class BackupScheduler(
                     LettersDiffState(previous = state.current, current = current, newOnes = newOnes)
                 }
                 .collect { state ->
+                    // v0.25.6+ WP-1: same toggle gate
+                    // as the notes collector. Letters
+                    // have their own toggle; the two
+                    // are independent.
+                    val autoSyncOn = runCatching { backupPrefs.autoSyncLetters.first() }
+                        .getOrDefault(false)
+                    if (!autoSyncOn) return@collect
                     for (letter in state.newOnes) {
                         val entry = BackupEntry(date = letter.date.toString(), body = letter.body)
                         encryptAndAppend(ContentType.Letters, entry)
@@ -373,5 +396,85 @@ class BackupScheduler(
 
     companion object {
         private const val LOG_TAG = "MindAnchor/BackupSched"
+
+        /**
+         * v0.25.6+ WP-1: the application-scoped
+         * supervisor job the on-write trigger
+         * runs on. The scope outlives any single
+         * activity (a [HomeActivity] can be
+         * destroyed and recreated on every config
+         * change); the trigger must keep running
+         * while the process is alive so a new
+         * note written in one activity is picked
+         * up by the trigger in the next.
+         */
+        private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+        /**
+         * v0.25.6+ WP-1: a guard against double-
+         * start. The scheduler is started once at
+         * [HomeActivity] creation; the activity
+         * can be recreated any number of times
+         * (config change, process resurrection)
+         * and the second [startIfNeeded] is a
+         * no-op. The flag is [Volatile] so the
+         * common case (single-threaded UI
+         * thread) reads the latest value without
+         * a fence.
+         */
+        @Volatile
+        private var started: Boolean = false
+
+        /**
+         * v0.25.6+ WP-1: starts the on-write
+         * trigger exactly once per process. Called
+         * from [HomeActivity.onCreate] — the
+         * activity is the cheapest place to wire
+         * the trigger because the activity is the
+         * one that becomes visible when the user
+         * opens the launcher, and a trigger that
+         * runs only while the launcher is in the
+         * foreground is the right shape (the
+         * scope outlives the activity via
+         * [appScope]).
+         *
+         * The trigger itself is a no-op when both
+         * auto-sync toggles are off (the collectors
+         * check the toggle on every emission), so
+         * a user who has never signed in with
+         * Google pays the cost of one DataStore
+         * read per notes / letters emission. The
+         * alternative — reading the sign-in state
+         * and only starting the trigger after
+         * sign-in — is a future improvement that
+         * also has to handle the "user signs in,
+         * then signs out" path.
+         */
+        fun startIfNeeded(context: Context) {
+            if (started) return
+            synchronized(this) {
+                if (started) return
+                val appContext = context.applicationContext
+                val auth = GoogleDriveAuth(appContext)
+                val client = OkHttpClient()
+                val notesTarget = GoogleDriveBackupTarget(
+                    client = client,
+                    auth = auth,
+                    type = ContentType.Notes,
+                )
+                val lettersTarget = GoogleDriveBackupTarget(
+                    client = client,
+                    auth = auth,
+                    type = ContentType.Letters,
+                )
+                val scheduler = BackupScheduler(
+                    context = appContext,
+                    notesTarget = notesTarget,
+                    lettersTarget = lettersTarget,
+                )
+                scheduler.start(appScope)
+                started = true
+            }
+        }
     }
 }

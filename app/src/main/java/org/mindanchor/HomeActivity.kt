@@ -8,6 +8,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
+import org.mindanchor.backup.BackupScheduler
 import java.time.LocalDate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -56,6 +57,17 @@ class HomeActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // v0.25.6+ WP-1: the on-write Drive backup
+        // trigger was unwired before this call. The
+        // scheduler's startIfNeeded is idempotent —
+        // a second call (e.g. after a config change
+        // re-creates the activity) is a no-op. The
+        // trigger's own collectors are a no-op
+        // when both auto-sync toggles are off, so a
+        // user who has never opted in pays only the
+        // cost of one DataStore read per notes /
+        // letters emission.
+        BackupScheduler.startIfNeeded(applicationContext)
         val onboardingPrefs = OnboardingPrefs(applicationContext)
         val sunsetPrefs = SunsetPrefs(applicationContext)
         // v0.25.2-A (Task 8): if the activity was cold-launched from a

@@ -112,6 +112,7 @@ internal fun GoogleDriveBackupSettingsSection(
             )
         } else {
             SignedInContent(
+                viewModel = viewModel,
                 email = email,
                 autoSyncNotes = autoSyncNotes,
                 autoSyncLetters = autoSyncLetters,
@@ -179,8 +180,9 @@ private fun SignedOutContent(onSignIn: () -> Unit) {
  * the v0.25.4-WP-D [BackupScheduler].
  */
 @Composable
-@Suppress("FunctionNaming")
+@Suppress("FunctionNaming", "LongMethod")
 private fun SignedInContent(
+    viewModel: SettingsViewModel,
     email: String,
     autoSyncNotes: Boolean,
     autoSyncLetters: Boolean,
@@ -197,12 +199,26 @@ private fun SignedInContent(
     GoogleDriveAutoSyncRow(
         labelRes = R.string.drive_auto_sync_notes,
         checked = autoSyncNotes,
-        onCheckedChange = { /* WP-D scheduler reads the same DataStore; toggle is the gate */ },
+        onCheckedChange = { enabled ->
+            // v0.25.6+ WP-1: the toggle is the gate the
+            // on-write trigger reads at write time. Before
+            // this fix the change handler was a no-op —
+            // the user could flip the Switch and the
+            // preference was never written, so the
+            // on-write trigger (which reads the same
+            // DataStore) never fired. The ViewModel
+            // setter hits the DataStore; the
+            // on-write collector on the same DataStore
+            // picks up the change on the next emission.
+            viewModel.setAutoSyncNotes(enabled)
+        },
     )
     GoogleDriveAutoSyncRow(
         labelRes = R.string.drive_auto_sync_letters,
         checked = autoSyncLetters,
-        onCheckedChange = { /* WP-D scheduler reads the same DataStore; toggle is the gate */ },
+        onCheckedChange = { enabled ->
+            viewModel.setAutoSyncLetters(enabled)
+        },
     )
     // v0.25.4-WP-D: the manual full-reupload
     // path. The scheduler is created on
