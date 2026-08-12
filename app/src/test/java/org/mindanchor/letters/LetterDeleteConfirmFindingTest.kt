@@ -52,13 +52,18 @@ class LetterDeleteConfirmFindingTest {
         // onDelete(pendingDeleteDate) followed by clearing the state.
         // The dialog itself is a generic container (TextButton onClick
         // = onConfirm); the delete-call contract lives in the inbox.
+        //
+        // v0.25.5-WP-G: a haptic call was added to the lambda before
+        // the onDelete — the regex allows the haptic line between `{`
+        // and `onDelete(pendingDeleteDate)` so the test pins the
+        // delete-call contract without coupling to the haptic shape.
         val src = java.io.File(
             "src/main/java/org/mindanchor/letters/LetterScreen.kt"
         ).readText()
-        // onConfirm = { onDelete(pendingDeleteDate); pendingDelete.value = null }
+        // onConfirm = { ... onDelete(pendingDeleteDate); pendingDelete.value = null }
         assertTrue(
             "LetterInbox must wire onConfirm to onDelete(pendingDeleteDate)",
-            Regex("""onConfirm\s*=\s*\{\s*onDelete\(pendingDeleteDate\)""")
+            Regex("""onConfirm\s*=\s*\{[\s\S]*?onDelete\(pendingDeleteDate\)""")
                 .containsMatchIn(src)
         )
     }

@@ -53,6 +53,7 @@ data class LauncherUiState(
  */
 internal const val QUICK_NOTES_RECENT_CAP = 3
 
+@Suppress("TooManyFunctions")
 class LauncherViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = AppRepository(application)

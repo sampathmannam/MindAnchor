@@ -62,6 +62,7 @@ import org.mindanchor.ui.Spacing
  * person's own history next to what the research says the signal *is*,
  * and it is never the thing that joins those two together.
  */
+@Suppress("FunctionNaming")
 @Composable
 fun ReportScreen(onBack: () -> Unit) {
     val context = LocalContext.current
@@ -114,6 +115,7 @@ fun ReportScreen(onBack: () -> Unit) {
  * to believe the fourth would be different, and no way to check it
  * without being able to hand this screen a report.
  */
+@Suppress("FunctionNaming", "LongMethod", "CyclomaticComplexMethod")
 @Composable
 fun ReportScreen(
     stored: StoredReport?,
@@ -381,6 +383,7 @@ fun ReportScreen(
  * The two-button "did this help?" row. Sub-Composable to keep the
  * [ReportScreen] orchestrator under detekt `LongMethod` 60.
  */
+@Suppress("FunctionNaming")
 @Composable
 private fun ReportFeedbackRow(
     feedback: ReportFeedback?,

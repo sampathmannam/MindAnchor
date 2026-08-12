@@ -120,13 +120,25 @@ object OpenLoop {
         // moment, but the comparison has to be against a stable point
         // in time, which is what Instant gives us across DST shifts
         // and timezone changes.
-        if (written && postponedAt != null && postponedAt.isAfter(now)) return LoopPhase.POSTPONED
-        if (quietHours) return if (written) LoopPhase.NONE else LoopPhase.CAPTURE
-        if (!written) return LoopPhase.NONE
+        val postponed = written && postponedAt != null && postponedAt.isAfter(now)
+        if (postponed) return LoopPhase.POSTPONED
+        // A note from three weeks ago is not an open loop, it is
+        // clutter, and being shown it is being reminded of something
+        // already let go. Only notes dated today or yesterday
+        // survive into the morning return window.
         val day = notedDay?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
-            ?: return LoopPhase.NONE
-        // Written last night, or earlier today before the window ended.
-        return if (day == today || day == today.minusDays(1)) LoopPhase.RETURN else LoopPhase.NONE
+        val inWindow = day != null && (day == today || day == today.minusDays(1))
+        // A single expression that covers all four phases. The
+        // priority is: postponed > quiet-hours > return-window >
+        // silence, and any priority without a precondition falls
+        // through to the next.
+        return when {
+            postponed -> LoopPhase.POSTPONED
+            quietHours -> if (written) LoopPhase.NONE else LoopPhase.CAPTURE
+            !written -> LoopPhase.NONE
+            inWindow -> LoopPhase.RETURN
+            else -> LoopPhase.NONE
+        }
     }
 
     /** Trims and caps. Blank in means nothing stored. */

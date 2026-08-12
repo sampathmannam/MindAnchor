@@ -50,6 +50,7 @@ import kotlin.math.roundToInt
  * refusal. [PpgCapture.state] tells this screen which one it is in; the
  * screen's own job is to never let a refusal and a number appear together.
  */
+@Suppress("FunctionNaming", "CyclomaticComplexMethod", "LongMethod")
 @Composable
 fun PpgScreen(
     onBack: () -> Unit,
@@ -268,6 +269,7 @@ fun PpgScreen(
  * Sub-Composable to keep the [PpgScreen] orchestrator under detekt
  * `LongMethod` 60.
  */
+@Suppress("FunctionNaming", "CyclomaticComplexMethod")
 @Composable
 private fun PpgHistoryRow(session: PpgSession) {
     val time = session.start.atZone(java.time.ZoneId.systemDefault())

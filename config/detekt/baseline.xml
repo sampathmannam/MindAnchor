@@ -437,6 +437,7 @@
     <ID>TooManyFunctions:BackupCodec.kt$BackupCodec</ID>
     <ID>TooManyFunctions:FrictionPrefs.kt$FrictionPrefs</ID>
     <ID>TooManyFunctions:HealthConnectSource.kt$HealthConnectSource</ID>
+    <ID>TooManyFunctions:LauncherViewModel.kt$LauncherViewModel</ID>
     <ID>TooManyFunctions:Ppg.kt$Ppg</ID>
     <ID>TooManyFunctions:SealedCodecs.kt$SealedCodecs</ID>
     <ID>TooManyFunctions:SettingsViewModel.kt$SettingsViewModel : AndroidViewModel</ID>

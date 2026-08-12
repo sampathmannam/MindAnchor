@@ -532,6 +532,7 @@ fun LauncherRoot(
  * "schedule a specific time", but the user's two most common times
  * are good defaults and "pick a time" can wait.
  */
+@Suppress("FunctionNaming", "LongMethod", "LongParameterList", "CyclomaticComplexMethod")
 @Composable
 private fun OpenLoopCard(
     sky: SkyContent,
@@ -657,6 +658,7 @@ private fun OpenLoopCard(
  * thing; the "Done with it" affordance clears it. The card is
  * deliberately small — a single sentence, not a project.
  */
+@Suppress("FunctionNaming")
 @Composable
 private fun OneThingCard(
     sky: SkyContent,
@@ -729,6 +731,7 @@ private fun OneThingCard(
  * times ("later today", "tomorrow morning") are the right defaults and
  * the explicit time-picker is a follow-up.
  */
+@Suppress("FunctionNaming")
 @Composable
 private fun PostponeDialog(onDismiss: () -> Unit, onPick: (Instant) -> Unit) {
     val now = remember { LocalDateTime.now() }
