@@ -167,8 +167,13 @@ object ReportScheduler {
         alarmManager: AlarmManager,
         decision: ReportSchedule.Decision,
     ) {
-        val at = ReportSchedule.nextRun(LocalDateTime.now(), decision)
-        val triggerAt = at.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        // v0.25.5: nextRun now takes the wall-clock-to-instant math as
+        // its own parameter, so the zone is re-read at the moment the
+        // answer is computed. A DST shift or a timezone change between
+        // armings is handled here, not in a cached offset.
+        val triggerAt = ReportSchedule
+            .nextRun(Instant.now(), ZoneId.systemDefault(), decision)
+            .toEpochMilli()
         val pending = pendingIntent(context)
         val canExact =
             Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()

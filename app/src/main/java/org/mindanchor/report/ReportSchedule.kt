@@ -1,6 +1,8 @@
 package org.mindanchor.report
 
+import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneId
 
 /**
  * When the nightly report may run, and what to do when it may not.
@@ -40,6 +42,19 @@ import java.time.LocalDateTime
  * Charging means it costs no battery anyone notices. Not interactive
  * means the screen is off and nobody is mid-task. Either alone would let
  * this run while somebody is using the phone.
+ *
+ * ## Why `nextRun` is `Instant` × `ZoneId`, not `LocalDateTime` (v0.25.5)
+ *
+ * The v0.23.0 version returned a [LocalDateTime] and the caller converted
+ * to an [Instant] with `ZoneId.systemDefault()`. That worked until a
+ * DST shift or a timezone change made the conversion ambiguous: on
+ * spring-forward day, a `LocalDateTime` of `2:30` does not exist, and
+ * the conversion silently picked the post-transition offset, putting
+ * the alarm at a wall-clock the user did not pick. The fix: do the
+ * wall-clock math in [ZoneId] at the moment the answer is needed, and
+ * return the [Instant] the caller will hand to AlarmManager. A
+ * `LocalDateTime` returned from a function carries no zone; an
+ * [Instant] is UTC by definition. Two findings, one rule.
  */
 object ReportSchedule {
 
@@ -106,15 +121,43 @@ object ReportSchedule {
      * alarm being armed is the one after it. Nothing here ever leaves
      * AlarmManager holding no alarm at all, which is the failure mode
      * that ends the feature silently rather than loudly.
+     *
+     * v0.25.5: the [now] is an [Instant] and [zone] is explicit. The
+     * wall-clock math runs in [zone] at the moment the answer is
+     * computed, so a spring-forward day or a timezone change does not
+     * push the alarm to a wall-clock the user did not pick.
      */
-    fun nextRun(now: LocalDateTime, decision: Decision): LocalDateTime = when (decision) {
-        Decision.RETRY -> now.plusHours(1)
-        Decision.RUN, Decision.WAIT_FOR_TOMORROW -> nextNight(now)
+    fun nextRun(now: Instant, zone: ZoneId, decision: Decision): Instant = when (decision) {
+        Decision.RETRY -> now.plusSeconds(3600)
+        Decision.RUN, Decision.WAIT_FOR_TOMORROW -> nextNight(now, zone)
     }
 
-    /** The next occurrence of [RUN_HOUR], which may be later today. */
-    private fun nextNight(now: LocalDateTime): LocalDateTime {
-        val tonight = now.toLocalDate().atTime(RUN_HOUR, 0)
-        return if (tonight.isAfter(now)) tonight else tonight.plusDays(1)
+    /**
+     * The next occurrence of [RUN_HOUR] in [zone], expressed as the
+     * [Instant] that wall-clock maps to. A `RUN_HOUR` of 3 is what the
+     * user picked, and a DST shift does not change that. A timezone
+     * change does not change that either: the call re-reads
+     * [ZoneId.systemDefault] at the moment of the call, not at the
+     * moment the alarm was first armed.
+     *
+     * Spring-forward: the next `3:00` after `now` is found via
+     * `atTime(3, 0).atZone(zone)`, which the JDK resolves to the
+     * post-transition `3:00` if `2:00–3:00` does not exist. The instant
+     * is correct, and the wall-clock is still `3:00` — what the user
+     * picked.
+     *
+     * Fall-back: the same `atTime(3, 0).atZone(zone)` resolves the
+     * ambiguous `1:00–2:00` window to the *later* offset, the post-fall
+     * `3:00` EST, so the alarm fires once at the user's wall-clock, not
+     * twice (once for each ambiguous offset). This is the conservative
+     * reading: a report that fires once is better than a report that
+     * fires twice in the same hour.
+     */
+    private fun nextNight(now: Instant, zone: ZoneId): Instant {
+        val nowLocal = now.atZone(zone)
+        val tonightLocal = nowLocal.toLocalDate().atTime(RUN_HOUR, 0).atZone(zone)
+        val tonightInstant = tonightLocal.toInstant()
+        return if (tonightInstant.isAfter(now)) tonightInstant
+        else nowLocal.toLocalDate().plusDays(1).atTime(RUN_HOUR, 0).atZone(zone).toInstant()
     }
 }

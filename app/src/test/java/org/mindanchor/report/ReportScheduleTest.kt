@@ -1,6 +1,9 @@
 package org.mindanchor.report
 
+import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.ZoneOffset
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -11,10 +14,17 @@ import org.junit.Test
  * [ReportSchedule]'s own KDoc for why that trade was made; these are the
  * tests that make the replacement worth having, because a scheduler's
  * constraints could not be tested and this can.
+ *
+ * v0.25.5: [ReportSchedule.nextRun] now takes the [Instant] and
+ * [ZoneId] as parameters and returns the [Instant] the caller hands to
+ * AlarmManager. The tests below use UTC so the wall-clock is a direct
+ * function of the input — the DST-safety behaviour is pinned separately
+ * in [ReportScheduleDstSafetyFindingTest].
  */
 class ReportScheduleTest {
 
     private val today = "2026-08-07"
+    private val utc: ZoneId = ZoneOffset.UTC
 
     private fun decide(
         charging: Boolean = true,
@@ -83,10 +93,10 @@ class ReportScheduleTest {
 
     @Test
     fun `a retry is an hour out`() {
-        val now = LocalDateTime.of(2026, 8, 7, 4, 30)
+        val now = LocalDateTime.of(2026, 8, 7, 4, 30).toInstant(ZoneOffset.UTC)
         assertEquals(
-            LocalDateTime.of(2026, 8, 7, 5, 30),
-            ReportSchedule.nextRun(now, ReportSchedule.Decision.RETRY),
+            LocalDateTime.of(2026, 8, 7, 5, 30).toInstant(ZoneOffset.UTC),
+            ReportSchedule.nextRun(now, utc, ReportSchedule.Decision.RETRY),
         )
     }
 
@@ -94,10 +104,10 @@ class ReportScheduleTest {
     fun `after running, the next alarm is tomorrow night rather than nothing`() {
         // An alarm that arms nothing ends the feature silently, which is
         // the worst way for it to end.
-        val now = LocalDateTime.of(2026, 8, 7, 3, 0)
+        val now = LocalDateTime.of(2026, 8, 7, 3, 0).toInstant(ZoneOffset.UTC)
         assertEquals(
-            LocalDateTime.of(2026, 8, 8, ReportSchedule.RUN_HOUR, 0),
-            ReportSchedule.nextRun(now, ReportSchedule.Decision.RUN),
+            LocalDateTime.of(2026, 8, 8, ReportSchedule.RUN_HOUR, 0).toInstant(ZoneOffset.UTC),
+            ReportSchedule.nextRun(now, utc, ReportSchedule.Decision.RUN),
         )
     }
 
@@ -106,19 +116,19 @@ class ReportScheduleTest {
         // ensureScheduled arms WAIT_FOR_TOMORROW from the settings
         // switch, and at 2pm "tomorrow" must mean the coming night, not
         // the one after it.
-        val afternoon = LocalDateTime.of(2026, 8, 7, 14, 0)
+        val afternoon = LocalDateTime.of(2026, 8, 7, 14, 0).toInstant(ZoneOffset.UTC)
         assertEquals(
-            LocalDateTime.of(2026, 8, 8, ReportSchedule.RUN_HOUR, 0),
-            ReportSchedule.nextRun(afternoon, ReportSchedule.Decision.WAIT_FOR_TOMORROW),
+            LocalDateTime.of(2026, 8, 8, ReportSchedule.RUN_HOUR, 0).toInstant(ZoneOffset.UTC),
+            ReportSchedule.nextRun(afternoon, utc, ReportSchedule.Decision.WAIT_FOR_TOMORROW),
         )
     }
 
     @Test
     fun `switched on after midnight, the first attempt is hours away not a day`() {
-        val smallHours = LocalDateTime.of(2026, 8, 7, 1, 0)
+        val smallHours = LocalDateTime.of(2026, 8, 7, 1, 0).toInstant(ZoneOffset.UTC)
         assertEquals(
-            LocalDateTime.of(2026, 8, 7, ReportSchedule.RUN_HOUR, 0),
-            ReportSchedule.nextRun(smallHours, ReportSchedule.Decision.WAIT_FOR_TOMORROW),
+            LocalDateTime.of(2026, 8, 7, ReportSchedule.RUN_HOUR, 0).toInstant(ZoneOffset.UTC),
+            ReportSchedule.nextRun(smallHours, utc, ReportSchedule.Decision.WAIT_FOR_TOMORROW),
         )
     }
 
@@ -128,13 +138,13 @@ class ReportScheduleTest {
         // alarm set in the past fires immediately, and an immediate
         // refire is a loop rather than a schedule.
         val moments = listOf(0, 1, 3, 4, 7, 8, 12, 18, 23).map {
-            LocalDateTime.of(2026, 8, 7, it, 0)
+            LocalDateTime.of(2026, 8, 7, it, 0).toInstant(ZoneOffset.UTC)
         }
         moments.forEach { now ->
             ReportSchedule.Decision.entries.forEach { decision ->
                 assertTrue(
                     "$decision at $now armed an alarm in the past",
-                    ReportSchedule.nextRun(now, decision).isAfter(now),
+                    ReportSchedule.nextRun(now, utc, decision).isAfter(now),
                 )
             }
         }
