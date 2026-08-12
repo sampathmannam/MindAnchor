@@ -89,6 +89,14 @@ class BackupScheduler(
     private val lettersTarget: BackupTarget,
     private val notesPrefs: NotesPrefs = NotesPrefs(context),
     private val letterStore: LetterStore = LetterStore(context),
+    /**
+     * v0.25.5 WP-H: the prefs the on-write trigger enqueues
+     * failed [PendingBackup]s into. Defaulted to a fresh one
+     * so the test surface can pass a controlled instance and
+     * so older callers (and older tests) keep their public
+     * surface.
+     */
+    private val backupPrefs: BackupPrefs = BackupPrefs(context),
 ) {
 
     private val json = Json {
@@ -189,6 +197,12 @@ class BackupScheduler(
                 .collect { state ->
                     for (note in state.newOnes) {
                         val entry = BackupEntry(date = LocalDate.now().toString(), body = note.body)
+                        // v0.25.5 WP-H: a [NetworkError] no longer
+                        // costs the user the entry — it is enqueued
+                        // for the [BackupRetryWorker]'s next
+                        // CONNECTED run. The on-write trigger still
+                        // does not block the UI; the enqueue is a
+                        // fire-and-forget on the same coroutine.
                         encryptAndAppend(ContentType.Notes, entry)
                     }
                 }
@@ -246,7 +260,24 @@ class BackupScheduler(
             ContentType.Notes -> notesTarget
             ContentType.Letters -> lettersTarget
         }
-        return target.append(type, cipher)
+        val result = target.append(type, cipher)
+        // v0.25.5 WP-H: a NetworkError (or any non-Ok result) on
+        // the best-effort on-write path enqueues the entry for
+        // the next [BackupRetryWorker] run. The enqueue is
+        // itself fail-soft; a storage hiccup here is not worth
+        // turning a failed backup into a crash.
+        if (result !is AppendResult.Ok) {
+            runCatching {
+                backupPrefs.enqueuePending(
+                    PendingBackup(
+                        type = type,
+                        payload = cipher,
+                        queuedAt = java.time.Instant.now(),
+                    ),
+                )
+            }
+        }
+        return result
     }
 
     /**
