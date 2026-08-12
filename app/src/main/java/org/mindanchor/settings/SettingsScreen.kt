@@ -4,6 +4,7 @@ import android.app.role.RoleManager
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.util.Log
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -2049,15 +2050,16 @@ fun SettingsScreen(
             val healthConnectPermissionContract = remember {
                 HealthConnectSource.requestPermissionsContract()
             }
+            // v0.25.3-WP-B: hcLaunchError surfaces a launch-dispatch
+            // failure (ActivityNotFoundException, SecurityException,
+            // send-cancel) instead of swallowing it. Result handler
+            // clears it on a real callback.
+            var hcLaunchError by remember { mutableStateOf<String?>(null) }
             val healthConnectPermissionLauncher = rememberLauncherForActivityResult(
                 contract = healthConnectPermissionContract,
-            ) { _ ->
-                // Whether the user granted, denied, or partially
-                // granted, the only honest response is to re-read the
-                // current state. The result Set is a subset of what
-                // we asked for; we deliberately do not act on it
-                // because the launcher is not allowed to do anything
-                // in response to "no" except try again later.
+            ) { granted ->
+                Log.w("MindAnchor/HealthConnect", "permission result: " + granted.size + " granted")
+                hcLaunchError = null
                 viewModel.refreshHealthConnectStatus()
             }
 
@@ -2088,12 +2090,30 @@ fun SettingsScreen(
                     else R.string.health_connect_button_change
                 TextButton(
                     onClick = {
-                        healthConnectPermissionLauncher.launch(
-                            HealthConnectSource.effectivePermissions(context),
-                        )
+                        // v0.25.3-WP-B: runCatching surfaces a launch
+                        // failure instead of swallowing it. The Log.w
+                        // gives a known handle for adb logcat.
+                        Log.w("MindAnchor/HealthConnect", "launch requested")
+                        runCatching {
+                            healthConnectPermissionLauncher.launch(
+                                HealthConnectSource.effectivePermissions(context),
+                            )
+                        }.onFailure { t ->
+                            Log.e("MindAnchor/HealthConnect", "launch failed: " + t.javaClass.simpleName, t)
+                            hcLaunchError = t.javaClass.simpleName
+                        }
                     },
                 ) {
                     Text(stringResource(buttonLabelRes))
+                }
+                val launchError = hcLaunchError
+                if (launchError != null) {
+                    Text(
+                        text = stringResource(R.string.health_connect_launch_failed),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
                 }
             }
 

@@ -682,6 +682,7 @@
     <string name="health_connect_status_not_granted">No data is being read yet. Tap below to choose what to share.</string>
     <string name="health_connect_status_partial">Reading %1$d of %2$d signal types from your watch. Tap to change.</string>
     <string name="health_connect_status_full">All %1$d signal types connected.</string>
+    <string name="health_connect_launch_failed">Couldn\'t open Health Connect. The app may be missing, disabled, or may not have responded in time. Check it is installed and enabled, then try again.</string>
     <string name="health_connect_button_connect">Connect to your watch</string>
     <string name="health_connect_button_change">Change what is shared</string>
     <string name="health_connect_what_reads_header">What this app reads</string>
