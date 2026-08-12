@@ -105,41 +105,10 @@ class NetworkCallsForbiddenTest {
     )
 
     /**
-     * The WebDAV backup bridge files. v0.23.0 added a
-     * second opt-in outbound channel: the user enables
-     * the bridge in Settings, types in their own WebDAV
-     * URL + app-password, and the launcher uploads
-     * AES-256-GCM-encrypted backup blobs. Off by default.
-     *
-     * Like the COROS bridge, this is a *user-consent
-     * surface*: the URL and the password are the user's
-     * own, the data is wrapped before it leaves the
-     * device, and the bridge is silent until turned on.
-     * Every other file in the app must stay call-free.
-     */
-    private val webDavBackupFiles = setOf(
-        "app/src/main/java/org/mindanchor/backup/WebDavBackupTarget.kt",
-        "app/src/main/java/org/mindanchor/backup/WebDavCredentialStore.kt",
-        "app/src/main/java/org/mindanchor/backup/EncryptedBackupCodec.kt",
-        "app/src/main/java/org/mindanchor/backup/KeystoreAesKey.kt",
-    )
-
-    /**
-     * The WebDAV bridge's own tests live under
-     * `app/src/test/java/org/mindanchor/backup/`. The
-     * tests have to use [okhttp3.mockwebserver] to
-     * exercise the API; the test directory is matched
-     * the same way as the COROS bridge, so a test
-     * file under backup/ that uses an outbound API is
-     * not surfaced as a forbidden reference.
-     */
-    private val webDavBackupTestDir = "app/src/test/java/org/mindanchor/backup"
-
-    /**
      * The Google Drive backup bridge files. v0.25.4
      * replaces the v0.23.0 WebDAV bridge with a Drive
      * path that uses the user's own Google account.
-     * Same consent shape as the WebDAV bridge:
+     * Same consent shape as the old WebDAV bridge:
      * opt-in (Settings → Reading → Google Drive),
      * the user picks their account, every payload is
      * wrapped with AES-256-GCM via
@@ -151,7 +120,7 @@ class NetworkCallsForbiddenTest {
      * enables it. The set is the *complete* list of
      * allowed files; a new file under backup/ that
      * uses an outbound channel requires an explicit
-     * re-pin (see [googleDriveBackupFiles set size]
+     * re-pin (see the `googleDriveBackupFiles` size-pin
      * test below).
      */
     private val googleDriveBackupFiles = setOf(
@@ -163,15 +132,17 @@ class NetworkCallsForbiddenTest {
 
     /**
      * The Google Drive bridge's own tests live under
-     * `app/src/test/java/org/mindanchor/backup/`,
-     * alongside the v0.23.0 WebDAV tests (which
-     * [webDavBackupTestDir] already covers). v0.25.4
-     * adds new test files in the same directory; the
-     * existing `webDavBackupTestDir` allowlist is
-     * sufficient because the WebDAV removal (WP-E)
-     * keeps the same path. No separate test-dir
-     * allowlist is needed for Drive.
+     * `app/src/test/java/org/mindanchor/backup/`. The
+     * tests have to use [okhttp3.mockwebserver] to
+     * exercise the Drive REST API; the test directory
+     * is matched the same way as the COROS bridge,
+     * so a test file under backup/ that uses an
+     * outbound API is not surfaced as a forbidden
+     * reference. (The same allowlist previously
+     * covered the v0.23.0 WebDAV tests; v0.25.4
+     * reuses the path.)
      */
+    private val driveBackupTestDir = "app/src/test/java/org/mindanchor/backup"
 
     /**
      * The COROS bridge's own tests live under
@@ -275,22 +246,23 @@ class NetworkCallsForbiddenTest {
     /**
      * Classifies a file as belonging to one of the
      * opt-in network subsystems (VpnService, COROS,
-     * WebDAV, Google Drive). Extracted from the
-     * no-network test to keep that test's complexity
-     * at one decision (in-subsystem or not) instead
-     * of six. The body is the union of the
-     * subsystem-specific allowlists; a new
-     * subsystem is added by listing its file set /
-     * test dir here AND declaring the set above.
+     * Google Drive). Extracted from the no-network
+     * test to keep that test's complexity at one
+     * decision (in-subsystem or not) instead of six.
+     * The body is the union of the subsystem-specific
+     * allowlists; a new subsystem is added by listing
+     * its file set / test dir here AND declaring the
+     * set above. The v0.23.0 WebDAV bridge has been
+     * removed in v0.25.4; the per-type Drive bridge
+     * reuses the same test dir.
      */
     private fun isInSubsystem(f: File): Boolean {
         val inVpn = f.path in vpnSubsystemFiles
         val inCoros = f.path in corosBridgeFiles
         val inCorosTest = f.path.startsWith("$corosBridgeTestDir/")
-        val inWebDav = f.path in webDavBackupFiles
-        val inWebDavTest = f.path.startsWith("$webDavBackupTestDir/")
         val inDrive = f.path in googleDriveBackupFiles
-        return inVpn || inCoros || inCorosTest || inWebDav || inWebDavTest || inDrive
+        val inDriveTest = f.path.startsWith("$driveBackupTestDir/")
+        return inVpn || inCoros || inCorosTest || inDrive || inDriveTest
     }
 
     /**
@@ -349,7 +321,7 @@ class NetworkCallsForbiddenTest {
                 "no-outbound-calls privacy promise of Going Light v1.1.\n" +
                 "Either remove the network reference, or add it to one of the " +
                 "subsystem allowlists (vpnSubsystemFiles / corosBridgeFiles / " +
-                "webDavBackupFiles / googleDriveBackupFiles) with explicit " +
+                "googleDriveBackupFiles) with explicit " +
                 "clinical-review sign-off.\n" +
                 offenders.joinToString("\n") { "  $it" },
             offenders.isEmpty(),
@@ -383,23 +355,12 @@ class NetworkCallsForbiddenTest {
     }
 
     @Test
-    fun `webDavBackupFiles set contains only the expected WebDAV files`() {
-        // Same pinning as the COROS bridge allowlist. A new
-        // file under backup/ that uses an outbound channel
-        // requires an explicit re-pin.
-        assertEquals(
-            "webDavBackupFiles drift. Got: $webDavBackupFiles",
-            4,
-            webDavBackupFiles.size,
-        )
-    }
-
-    @Test
     fun `googleDriveBackupFiles set contains only the expected Drive files`() {
-        // Same pinning pattern as the WebDAV allowlist. A
-        // new file under backup/ that uses an outbound
-        // channel for the Drive path requires an explicit
-        // re-pin (clinical-review-required: this is a
+        // Same pinning pattern as the v0.23.0 WebDAV
+        // allowlist (removed in v0.25.4). A new file
+        // under backup/ that uses an outbound channel
+        // for the Drive path requires an explicit re-pin
+        // (clinical-review-required: this is a
         // user-consent surface, not a carve-out for
         // convenience).
         assertEquals(

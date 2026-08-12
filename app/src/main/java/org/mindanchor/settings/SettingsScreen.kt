@@ -2752,11 +2752,14 @@ fun SettingsScreen(
                 )
             }
 
-            // v0.23.0: opt-in WebDAV backup. The
-            // section is its own composable so the
-            // shape of the field state does not
-            // bloat the parent SettingsScreen.
-            WebDavBackupSettingsSection(context = context)
+            // v0.23.0 WebDAV backup has been
+            // removed in v0.25.4. The local file
+            // picker (the "Save a copy…" / "Restore
+            // from a copy…" buttons above) is the
+            // default backup path; the Google Drive
+            // path lives in the Reading group
+            // (see GoogleDriveBackupSettingsSection
+            // at the bottom of the Reading sub-sections).
 
             // v0.25.0: re-classify every note on
             // demand. Sits after the backup section

@@ -19,11 +19,13 @@ import org.mindanchor.vitals.Measurement
  * same posture the launcher has had since v0.17.0 — a safety plan has
  * no business on a server the user did not pick.
  *
- * v0.23.0 added a second, opt-in outbound channel: a WebDAV bridge
- * to the user's own bucket (Nextcloud, ownCloud, anything WebDAV-capable),
- * AES-256-GCM wrapped, HTTPS-only, off until the user turns it on in
- * Settings. The architecture is "user's own cloud" — not a third-party
- * backup service. See `## Outbound channels` below.
+ * v0.25.4 added a second, opt-in outbound channel: a Google Drive bridge
+ * to the user's own account, per-type file routing
+ * (`MindAnchor-Notes.txt`, `MindAnchor-Letters.txt`), AES-256-GCM
+ * wrapped, off until the user signs in with Google in Settings. The
+ * v0.23.0 WebDAV bridge has been removed; the architecture is
+ * "user's own account" — not a third-party backup service. See
+ * `## Outbound channels` below.
  *
  * The honest consequence of the local-only default is still true: a lost
  * or reset phone that has no WebDAV bridge armed takes the safety plan,
@@ -44,18 +46,20 @@ import org.mindanchor.vitals.Measurement
  *    promise is: data leaves this device only when someone chooses to
  *    move it.
  *
- *  - **WebDAV (opt-in, off by default, v0.23.0+).** The user arms it in
- *    Settings → WebDAV backup, provides a folder URL, a username, and
- *    an app password, and the launcher wraps each backup in
- *    AES-256-GCM ([org.mindanchor.backup.EncryptedBackupCodec]) before
- *    it travels. The cloud sees an opaque 12-byte IV prefix, a
- *    ciphertext of the JSON, and a 16-byte auth tag — it never sees
- *    the plaintext. The transport ([org.mindanchor.backup.WebDavBackupTarget])
- *    is HTTPS-only (a non-https URL is refused outright before the
- *    request goes out), uses HTTP Basic Auth, and PUTs the wrapped
- *    file to a folder the user controls. There is no third-party
- *    dependency: the bridge talks to any WebDAV-capable server the
- *    user points it at.
+ *  - **Google Drive (opt-in, off by default, v0.25.4+).** The user
+ *    signs in with Google in Settings → Reading → Google Drive, the
+ *    launcher requests the narrowest per-file scope
+ *    (`drive.file`), and every new note / letter is wrapped in
+ *    AES-256-GCM ([org.mindanchor.backup.EncryptedBackupCodec]) and
+ *    appended to the per-type file in the user's Drive root. The
+ *    cloud sees an opaque 12-byte IV prefix, a ciphertext, and an
+ *    auth tag — no information about the plaintext. The transport
+ *    ([org.mindanchor.backup.GoogleDriveBackupTarget]) uses raw
+ *    Drive REST over HTTPS, with the OAuth bearer from
+ *    [org.mindanchor.backup.GoogleDriveAuth]. Per-type routing is
+ *    the v0.25.4 model: one Drive file per
+ *    [org.mindanchor.backup.ContentType] value (Notes, Letters for
+ *    v0.25.4). The v0.23.0 WebDAV bridge has been removed.
  *
  * ## What is in it, and what is not
  *
