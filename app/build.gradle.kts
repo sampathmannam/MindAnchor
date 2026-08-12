@@ -219,6 +219,14 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.androidx.security.crypto)
     implementation(libs.androidx.work.runtime.ktx)
+    // Google Sign-In: the OAuth entry point for v0.25.4's
+    // Google Drive backup. The `drive.file` scope is
+    // requested at sign-in; the resulting `GoogleSignInAccount`
+    // is exchanged for an access token via `GoogleAuthUtil`
+    // on every Drive API call. The raw Drive REST is then
+    // hit via the existing `okhttp` dep — no
+    // `play-services-drive` AAR (see libs.versions.toml note).
+    implementation(libs.play.services.auth)
     // Device-agnostic wearable ingestion. Integrating with Health Connect
     // rather than with any one watch's app is what makes changing watches
     // a non-event: whatever writes there is readable, and nothing in this
