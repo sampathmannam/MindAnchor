@@ -656,6 +656,7 @@
     <string name="quick_notes_section">Notes</string>
     <string name="quick_notes_input_hint">Jot something down — it saves here, in order, with the time.</string>
     <string name="quick_notes_save">Save</string>
+    <string name="quick_notes_clear">Clear</string>
     <string name="quick_notes_empty">Nothing yet. The first line you write lands here.</string>
     <string name="quick_notes_view_all">View all</string>
     <string name="quick_notes_saved_at">%1$s · %2$s</string>

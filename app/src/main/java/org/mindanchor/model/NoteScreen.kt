@@ -52,6 +52,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusEvent
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -541,11 +543,19 @@ fun NoteScreen(
 
     if (pendingDeleteId != null) {
         val id = pendingDeleteId!!
+        // v0.25.5 WP-G: a confirmation pulse when a note is
+        // actually deleted. Brewster CHI 2007: rich tactile
+        // feedback for distinct actions. LongPress is the same
+        // shape the QuickNotesCard save uses — the user is
+        // committing a destructive action, the same feedback
+        // type fits.
+        val haptics = LocalHapticFeedback.current
         AlertDialog(
             onDismissRequest = { pendingDeleteId = null },
             title = { Text(stringResource(R.string.note_delete_confirm)) },
             confirmButton = {
                 TextButton(onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     onDelete(id)
                     pendingDeleteId = null
                 }) { Text(stringResource(R.string.note_delete_yes)) }

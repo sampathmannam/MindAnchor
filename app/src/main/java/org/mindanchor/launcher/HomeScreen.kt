@@ -815,6 +815,9 @@ private fun BedtimeListCard(
     onSave: (List<String>) -> Unit,
     onClear: () -> Unit,
 ) {
+    // v0.25.5 WP-G: haptic confirmation on save (Brewster CHI
+    // 2007 — distinct tactile feedback for distinct actions).
+    val haptics = LocalHapticFeedback.current
     when (phase) {
         BedtimePhase.NONE -> Unit
 
@@ -892,7 +895,14 @@ private fun BedtimeListCard(
                     )
                 }
                 TextButton(
-                    onClick = { onSave(drafts.toList()) },
+                    onClick = {
+                        // v0.25.5 WP-G: confirmation pulse on save,
+                        // same shape as the QuickNotesCard save. The
+                        // user is parking the list for the morning —
+                        // the same confirmation fits.
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onSave(drafts.toList())
+                    },
                     enabled = drafts.any { it.isNotBlank() },
                 ) {
                     Text(stringResource(R.string.bedtime_save), color = sky.textPrimary)
@@ -1032,6 +1042,23 @@ private fun QuickNotesCard(
             enabled = draft.isNotBlank(),
         ) {
             Text(stringResource(R.string.quick_notes_save), color = sky.textPrimary)
+        }
+        // v0.25.5 WP-G: a "Clear" affordance with a distinct
+        // tactile shape (TextHandleMove — the soft "whoosh" of
+        // moving text out of the way). The four haptic types
+        // Brewster CHI 2007 distinguishes are all in use across
+        // the launcher now: save and the destructive actions are
+        // LongPress (a confirmation pulse); clear is
+        // TextHandleMove (a softer, distinct shape). A user
+        // who can feel the difference will not wonder which
+        // they pressed.
+        if (draft.isNotBlank()) {
+            TextButton(onClick = {
+                draft = ""
+                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            }) {
+                Text(stringResource(R.string.quick_notes_clear), color = sky.textSecondary)
+            }
         }
         if (recent.isEmpty()) {
             Text(
