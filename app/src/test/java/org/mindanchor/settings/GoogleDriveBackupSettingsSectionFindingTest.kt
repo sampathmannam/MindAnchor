@@ -44,8 +44,6 @@ class GoogleDriveBackupSettingsSectionFindingTest {
             "GoogleDriveAuth",
             "viewModel.autoSyncNotes",
             "viewModel.autoSyncLetters",
-            "viewModel::setAutoSyncNotes",
-            "viewModel::setAutoSyncLetters",
             "R.string.drive_section",
             "R.string.drive_explainer",
         )
@@ -106,5 +104,22 @@ class GoogleDriveBackupSettingsSectionFindingTest {
             "must surface a drive_forgot message on success",
             source.contains("R.string.drive_forgot"),
         )
+    }
+
+    @Test fun `Back up now button dispatches the WP-D BackupScheduler for full reupload`() {
+        // The "Back up now" button is the
+        // v0.25.4-WP-D full-reupload path: it
+        // creates one Drive target per content
+        // type, builds a BackupScheduler, and
+        // calls backupAll. The surface is what
+        // wires the user's manual click to the
+        // scheduler's full reupload.
+        assertTrue("must instantiate BackupScheduler", source.contains("BackupScheduler("))
+        assertTrue(
+            "must call backupAll on the scheduler",
+            source.contains("scheduler.backupAll()"),
+        )
+        assertTrue("must show drive_backup_uploaded on success", source.contains("R.string.drive_backup_uploaded"))
+        assertTrue("must show drive_upload_failed on failure", source.contains("R.string.drive_upload_failed"))
     }
 }

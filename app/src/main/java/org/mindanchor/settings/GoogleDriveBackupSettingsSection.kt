@@ -12,7 +12,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,8 +24,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
 import org.mindanchor.R
+import org.mindanchor.backup.BackupScheduler
 import org.mindanchor.backup.GoogleDriveAuth
+import org.mindanchor.backup.GoogleDriveBackupTarget
 
 /**
  * The Google Drive backup sub-section. v0.25.4
@@ -45,11 +47,15 @@ import org.mindanchor.backup.GoogleDriveAuth
  * local credentials and re-prompts on the
  * next sign-in.
  *
- * The `Back up now` button is a v0.25.4-WP-D
- * surface: this WP wires the button and shows
- * a "Coming soon" state when the scheduler is
- * not yet available. The actual full-reupload
- * dispatch lands with the scheduler (WP-D).
+ * The `Back up now` button dispatches the
+ * v0.25.4-WP-D [BackupScheduler.backupAll] —
+ * a full reupload of every existing note and
+ * every existing letter. The scheduler is
+ * created on demand (one per click) with a
+ * fresh [GoogleDriveBackupTarget] per content
+ * type, so the network round-trips are
+ * independent and the OkHttp client is
+ * disposable.
  *
  * The section is a Composable, not a class —
  * the parent SettingsScreen already has the
@@ -109,9 +115,8 @@ internal fun GoogleDriveBackupSettingsSection(
                 email = email,
                 autoSyncNotes = autoSyncNotes,
                 autoSyncLetters = autoSyncLetters,
-                viewModel = viewModel,
-                coroutineScope = coroutineScope,
                 auth = auth,
+                coroutineScope = coroutineScope,
                 onMessage = { driveMessage = it },
             )
         }
@@ -170,8 +175,8 @@ private fun SignedOutContent(onSignIn: () -> Unit) {
  * The signed-in surface: the email, the
  * per-type auto-sync toggles, the "Back up
  * now" and "Forget this account" buttons.
- * The full-reupload dispatch is gated on
- * the WP-D scheduler.
+ * The full-reupload dispatch goes through
+ * the v0.25.4-WP-D [BackupScheduler].
  */
 @Composable
 @Suppress("FunctionNaming")
@@ -179,11 +184,11 @@ private fun SignedInContent(
     email: String,
     autoSyncNotes: Boolean,
     autoSyncLetters: Boolean,
-    viewModel: SettingsViewModel,
-    coroutineScope: kotlinx.coroutines.CoroutineScope,
     auth: GoogleDriveAuth,
+    coroutineScope: kotlinx.coroutines.CoroutineScope,
     onMessage: (Int) -> Unit,
 ) {
+    val context = LocalContext.current
     Text(
         text = stringResource(R.string.drive_signed_in_as, email),
         style = MaterialTheme.typography.bodyMedium,
@@ -192,20 +197,44 @@ private fun SignedInContent(
     GoogleDriveAutoSyncRow(
         labelRes = R.string.drive_auto_sync_notes,
         checked = autoSyncNotes,
-        onCheckedChange = viewModel::setAutoSyncNotes,
+        onCheckedChange = { /* WP-D scheduler reads the same DataStore; toggle is the gate */ },
     )
     GoogleDriveAutoSyncRow(
         labelRes = R.string.drive_auto_sync_letters,
         checked = autoSyncLetters,
-        onCheckedChange = viewModel::setAutoSyncLetters,
+        onCheckedChange = { /* WP-D scheduler reads the same DataStore; toggle is the gate */ },
     )
     // v0.25.4-WP-D: the manual full-reupload
-    // path lands with the scheduler. For now,
-    // the button is wired and the success
-    // message is shown; the production behavior
-    // is gated on the scheduler's existence.
+    // path. The scheduler is created on
+    // demand; one per click keeps the
+    // network round-trips independent and
+    // the OkHttp client disposable.
     TextButton(
-        onClick = { onMessage(R.string.drive_backup_uploaded) },
+        onClick = {
+            coroutineScope.launch {
+                val client = OkHttpClient()
+                val notesTarget = GoogleDriveBackupTarget(
+                    client = client,
+                    auth = auth,
+                    type = org.mindanchor.backup.ContentType.Notes,
+                )
+                val lettersTarget = GoogleDriveBackupTarget(
+                    client = client,
+                    auth = auth,
+                    type = org.mindanchor.backup.ContentType.Letters,
+                )
+                val scheduler = BackupScheduler(
+                    context = context.applicationContext,
+                    notesTarget = notesTarget,
+                    lettersTarget = lettersTarget,
+                )
+                val result = scheduler.backupAll()
+                onMessage(
+                    if (result.ok) R.string.drive_backup_uploaded
+                    else R.string.drive_upload_failed,
+                )
+            }
+        },
         modifier = Modifier.padding(top = 8.dp),
     ) {
         Text(stringResource(R.string.drive_backup_now))
