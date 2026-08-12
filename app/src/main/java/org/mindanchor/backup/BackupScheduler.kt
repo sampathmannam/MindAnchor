@@ -267,7 +267,7 @@ class BackupScheduler(
         // itself fail-soft; a storage hiccup here is not worth
         // turning a failed backup into a crash.
         if (result !is AppendResult.Ok) {
-            runCatching {
+            val enqueued = runCatching {
                 backupPrefs.enqueuePending(
                     PendingBackup(
                         type = type,
@@ -275,6 +275,19 @@ class BackupScheduler(
                         queuedAt = java.time.Instant.now(),
                     ),
                 )
+            }.isSuccess
+            // v0.25.6: schedule the worker on the
+            // CONNECTED-constrained WorkManager queue
+            // whenever the queue is touched. The worker
+            // is event-driven (kicked by every enqueue)
+            // rather than periodic (a periodic run that
+            // finds an empty queue wastes the user's
+            // battery on a no-op round-trip). The
+            // schedule is itself fail-soft — a
+            // WorkManager hiccup is not worth losing
+            // the user's enqueued backup.
+            if (enqueued) {
+                runCatching { BackupRetryWorker.enqueueIfNeeded(context) }
             }
         }
         return result
