@@ -20,6 +20,7 @@ class LauncherPrefs(private val context: Context) {
     private val favoritesKey = stringPreferencesKey("favorites_ordered")
     private val hiddenKey = stringSetPreferencesKey("hidden")
     private val renamesKey = stringPreferencesKey("renames")
+    private val oneThingKey = stringPreferencesKey("one_thing")
 
     /**
      * How many times the home surface has been displayed.
@@ -118,6 +119,27 @@ class LauncherPrefs(private val context: Context) {
         }
     }
 
+    // --- Today's one thing (v0.25.5 WP-F) ---------------------------------
+    //
+    // A single, narrow, today's-action text on the home corner.
+    // Martell 2013 review of goal-setting: a single named action
+    // outperforms a list of goals on follow-through. The card is
+    // silent when the field is null (the default). Setting it
+    // shows the card; clearing it (Done button) hides it.
+
+    /** The user's chosen one thing for today, or null when nothing is set. */
+    val oneThing: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[oneThingKey]?.takeIf { it.isNotBlank() }
+    }
+
+    suspend fun setOneThing(text: String?) {
+        val cleaned = text?.trim()?.take(MAX_ONE_THING_LENGTH)?.ifEmpty { null }
+        context.dataStore.edit { prefs ->
+            if (cleaned == null) prefs.remove(oneThingKey)
+            else prefs[oneThingKey] = cleaned
+        }
+    }
+
     // --- Intro callout -----------------------------------------------------
     //
     // The callout is "what makes this different" — one line at the top of
@@ -163,5 +185,8 @@ class LauncherPrefs(private val context: Context) {
 
         /** The number of home-surface displays after which the intro callout hides. */
         const val INTRO_CALLOUT_LAUNCHES = 3
+
+        /** Long enough for a sentence, short enough not to become a project. */
+        const val MAX_ONE_THING_LENGTH = 140
     }
 }

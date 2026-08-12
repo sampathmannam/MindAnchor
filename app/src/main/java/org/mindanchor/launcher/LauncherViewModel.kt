@@ -510,4 +510,21 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun setLetterSize(size: ReadingSize) {
         viewModelScope.launch { readerPrefs.setSize(size) }
     }
+
+    // --- Today's one thing (v0.25.5 WP-F) -------------------------------
+    //
+    // A single, narrow, today's-action text on the home corner.
+    // Martell 2013: a single named action outperforms a list of
+    // goals on follow-through. The card is silent when the field
+    // is null (the default); setting it shows the card; clearing
+    // it (Done button) hides it. The flow is exposed as a
+    // StateFlow so the home screen can collectAsState it the
+    // same way it does the open loop and the bedtime list.
+
+    val oneThing: StateFlow<String?> = prefs.oneThing
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun setOneThing(text: String?) {
+        viewModelScope.launch { prefs.setOneThing(text) }
+    }
 }

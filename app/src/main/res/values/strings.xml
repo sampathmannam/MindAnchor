@@ -166,6 +166,10 @@
     <string name="loop_postpone_cancel">Cancel</string>
     <string name="loop_postponed_back_at">Back at %1$s</string>
     <string name="loop_postponed_cancel">Back to it now</string>
+    <string name="one_thing_label">Today\'s one thing</string>
+    <string name="one_thing_hint">The single thing you want to do today</string>
+    <string name="one_thing_done">Done with it</string>
+    <string name="one_thing_set">Set</string>
 
     <!--
         Bedtime to-do list — Scullin et al. 2018, J Exp Psychol Gen

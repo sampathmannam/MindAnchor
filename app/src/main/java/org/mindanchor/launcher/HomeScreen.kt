@@ -165,6 +165,7 @@ fun LauncherRoot(
     val state by viewModel.uiState.collectAsState()
     val openLoop by viewModel.openLoop.collectAsState()
     val bedtimeList by viewModel.bedtimeList.collectAsState()
+    val oneThing by viewModel.oneThing.collectAsState()
     val recentNotes by viewModel.notes.collectAsState()
     val wellnessReadings by viewModel.wellnessReadings.collectAsState()
     var surface by remember { mutableStateOf(LauncherSurface.Home) }
@@ -341,6 +342,9 @@ fun LauncherRoot(
                 onLoopClear = viewModel::clearOpenLoop,
                 onLoopPostpone = viewModel::postponeOpenLoop,
                 onLoopCancelPostpone = viewModel::cancelOpenLoopPostponement,
+                oneThing = oneThing,
+                onOneThingSet = viewModel::setOneThing,
+                onOneThingClear = { viewModel.setOneThing(null) },
                 bedtimePhase = bedtimeList.first,
                 bedtimeItems = bedtimeList.second,
                 onBedtimeSave = viewModel::saveBedtimeList,
@@ -639,6 +643,80 @@ private fun OpenLoopCard(
                         showDialog = false
                     },
                 )
+            }
+        }
+    }
+}
+
+/**
+ * v0.25.5 WP-F: the "today's one thing" micro-action card.
+ *
+ * Martell 2013 found that a single, narrow, today's-action text
+ * outperforms a list of goals on follow-through. The card is silent
+ * when [text] is null; the "Set" affordance lets the user name one
+ * thing; the "Done with it" affordance clears it. The card is
+ * deliberately small — a single sentence, not a project.
+ */
+@Composable
+private fun OneThingCard(
+    sky: SkyContent,
+    text: String?,
+    onSet: (String) -> Unit,
+    onClear: () -> Unit,
+) {
+    if (text == null) {
+        var draft by remember { mutableStateOf("") }
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = stringResource(R.string.one_thing_label),
+                style = MaterialTheme.typography.bodyMedium,
+                color = sky.textSecondary,
+                textAlign = TextAlign.Center,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedTextField(
+                    value = draft,
+                    onValueChange = { draft = it },
+                    singleLine = true,
+                    placeholder = { Text(stringResource(R.string.one_thing_hint)) },
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    onClick = {
+                        onSet(draft)
+                        draft = ""
+                    },
+                ) {
+                    Text(stringResource(R.string.one_thing_set), color = sky.textPrimary)
+                }
+            }
+        }
+    } else {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = stringResource(R.string.one_thing_label),
+                style = MaterialTheme.typography.bodySmall,
+                color = sky.textSecondary,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text = text,
+                style = MaterialTheme.typography.titleMedium,
+                color = sky.textPrimary,
+                textAlign = TextAlign.Center,
+            )
+            TextButton(onClick = onClear) {
+                Text(stringResource(R.string.one_thing_done), color = sky.textSecondary)
             }
         }
     }
@@ -1217,6 +1295,12 @@ private fun HomeSurface(
     onLoopClear: () -> Unit = {},
     onLoopPostpone: (Instant) -> Unit = {},
     onLoopCancelPostpone: () -> Unit = {},
+    /** v0.25.5 WP-F: the user's chosen one thing for today. Null = silent. */
+    oneThing: String? = null,
+    /** v0.25.5 WP-F: invoked when the user types and saves a one-thing. */
+    onOneThingSet: (String) -> Unit = {},
+    /** v0.25.5 WP-F: invoked when the user taps "Done with it" on a saved one-thing. */
+    onOneThingClear: () -> Unit = {},
     bedtimePhase: BedtimePhase = BedtimePhase.NONE,
     bedtimeItems: List<String> = emptyList(),
     onBedtimeSave: (List<String>) -> Unit = {},
@@ -1396,6 +1480,20 @@ private fun HomeSurface(
                 onClear = onLoopClear,
                 onPostpone = onLoopPostpone,
                 onCancelPostpone = onLoopCancelPostpone,
+            )
+
+            // v0.25.5 WP-F: today's one thing. Sibling card to the
+            // open-loop card. Silent when the field is null; the
+            // "Set" affordance lets the user name one thing; the
+            // "Done with it" affordance clears it. The card is
+            // deliberately small — Martell 2013 found that a
+            // single, narrow, today's-action text outperforms a
+            // list of goals on follow-through.
+            OneThingCard(
+                sky = sky,
+                text = oneThing,
+                onSet = onOneThingSet,
+                onClear = onOneThingClear,
             )
 
             // Sibling card to OpenLoopCard above. Same idiom (silent
