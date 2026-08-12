@@ -339,6 +339,11 @@
     <string name="report_never_built">never — it runs overnight while charging, or on the button below</string>
     <string name="report_run_now">Build last night\'s look now</string>
     <string name="report_running_now">Building…</string>
+    <string name="report_feedback_question">Did this help?</string>
+    <string name="report_feedback_helped">Helped</string>
+    <string name="report_feedback_didnt_help">Didn\'t help</string>
+    <string name="report_feedback_thanks_helped">Thanks. That one is logged.</string>
+    <string name="report_feedback_thanks_didnt_help">Thanks. That one is logged.</string>
     <string name="arriving_section">What is arriving</string>
     <string name="arriving_explainer">Each signal, how many of the last three months\' days have a value on file, and where the latest one came from. A signal missing here is a fact worth knowing, never a silent gap.</string>
     <string name="arriving_not_yet">Nothing counted yet. Build last night\'s look once, under Reading, and this fills in.</string>

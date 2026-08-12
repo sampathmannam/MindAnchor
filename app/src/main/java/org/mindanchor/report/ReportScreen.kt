@@ -1,6 +1,7 @@
 package org.mindanchor.report
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import android.text.format.DateFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -66,6 +68,10 @@ fun ReportScreen(onBack: () -> Unit) {
     val store = remember { ReportStore(context.applicationContext) }
     val stored by store.stored.collectAsState(initial = null)
     val factsRaw by store.facts.collectAsState(initial = null)
+    // v0.25.5-WP-C: the one-tap "did this help?" feedback. Local-only;
+    // nothing leaves the phone. Reads from the same DataStore the
+    // report itself lives in; null = unrated for the current report.
+    val feedback by store.feedback.collectAsState(initial = null)
     // v0.25.3-WP-D: the report reuses [ReaderPrefs] for its long-form
     // copy. The same A- / A / A+ segmented control the letter reader
     // uses appears in the report header; both surfaces read and write
@@ -82,6 +88,10 @@ fun ReportScreen(onBack: () -> Unit) {
         size = size,
         onSetSize = { newSize ->
             scope.launch { readerPrefs.setSize(newSize) }
+        },
+        feedback = feedback,
+        onRecordFeedback = { value ->
+            scope.launch { store.recordFeedback(value) }
         },
     )
 }
@@ -114,6 +124,10 @@ fun ReportScreen(
     size: ReadingSize = ReadingSize.MEDIUM,
     /** v0.25.3-WP-D: invoked when the user picks a new size. No-op by default. */
     onSetSize: (ReadingSize) -> Unit = {},
+    /** v0.25.5-WP-C: the user's one-tap answer to "did this help?" for the current report. Null = unrated. */
+    feedback: ReportFeedback? = null,
+    /** v0.25.5-WP-C: invoked when the user taps 👍 or 👎. No-op by default. */
+    onRecordFeedback: (ReportFeedback) -> Unit = {},
 ) {
     val report = stored?.report
     val narration = stored?.narration
@@ -344,6 +358,69 @@ fun ReportScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = Spacing.Section),
             )
+        }
+
+        // v0.25.5-WP-C: the one-tap feedback row. Linardon 2024 found
+        // that a single post-session rating predicts retention better
+        // than the session content itself. The data is local-only —
+        // nothing leaves the phone. The row only appears when there is
+        // a report to rate (a screen with no report cannot ask "did
+        // this help?") and disappears once the user answers; a new
+        // report brings the row back because the stored answer is
+        // for the previous report's day.
+        if (current != null) {
+            ReportFeedbackRow(
+                feedback = feedback,
+                onRecordFeedback = onRecordFeedback,
+            )
+        }
+    }
+}
+
+/**
+ * The two-button "did this help?" row. Sub-Composable to keep the
+ * [ReportScreen] orchestrator under detekt `LongMethod` 60.
+ */
+@Composable
+private fun ReportFeedbackRow(
+    feedback: ReportFeedback?,
+    onRecordFeedback: (ReportFeedback) -> Unit,
+) {
+    if (feedback != null) {
+        Text(
+            text = stringResource(
+                when (feedback) {
+                    ReportFeedback.HELPED -> R.string.report_feedback_thanks_helped
+                    ReportFeedback.DIDNT_HELP -> R.string.report_feedback_thanks_didnt_help
+                },
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = Spacing.Section),
+        )
+    } else {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = Spacing.Section),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = stringResource(R.string.report_feedback_question),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(
+                modifier = Modifier.padding(top = Spacing.Tight),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                TextButton(onClick = { onRecordFeedback(ReportFeedback.HELPED) }) {
+                    Text(stringResource(R.string.report_feedback_helped))
+                }
+                TextButton(onClick = { onRecordFeedback(ReportFeedback.DIDNT_HELP) }) {
+                    Text(stringResource(R.string.report_feedback_didnt_help))
+                }
+            }
         }
     }
 }
