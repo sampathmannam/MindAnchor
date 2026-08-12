@@ -1832,6 +1832,19 @@ fun SettingsScreen(
             // ACTION_DOWNLOAD_COMPLETE and prompts the
             // user with a Yes-then-import.
             Phi4ModelDownloadSection(viewModel = viewModel)
+
+            // v0.25.4: Google Drive backup (replaces
+            // v0.23.0 WebDAV). The section lives in
+            // the Reading group because the "what
+            // you wrote" surface is the natural
+            // home for "where the writes go" — the
+            // letters feature sits here, the
+            // nightly report reuses the same
+            // ReaderPrefs, and the user looking
+            // for the "I lost my phone, where's
+            // my data?" affordance is reading the
+            // same screen.
+            GoogleDriveBackupSettingsSection(viewModel = viewModel)
         }
 
         if (group == SettingsGroup.MEASURING) {

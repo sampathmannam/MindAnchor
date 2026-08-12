@@ -61,6 +61,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val appearancePrefs = AppearancePrefs(application)
     private val onboardingPrefs = org.mindanchor.onboarding.OnboardingPrefs(application)
     private val reportStore = ReportStore(application)
+    private val backupPrefs = org.mindanchor.backup.BackupPrefs(application)
 
     /**
      * What the person said they were struggling with, at onboarding or
@@ -796,6 +797,36 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     /** Pass-through to [ReaderPrefs.setSize]. */
     fun setLetterSize(size: ReadingSize) {
         viewModelScope.launch { readerPrefs.setSize(size) }
+    }
+
+    /**
+     * v0.25.4: per-type auto-sync toggles for the
+     * Google Drive backup. The Settings sub-section
+     * binds to these flows; the WP-D scheduler
+     * reads the same [BackupPrefs] to decide
+     * whether to fire on a new note / letter.
+     *
+     * The toggles are independent of the sign-in
+     * state: a user can sign in with Google but
+     * leave both toggles off (no auto-sync), or
+     * flip a toggle before signing in (the sign-in
+     * prompt fires when the first auto-sync
+     * attempt finds no account). The default is
+     * `false` on both — the v0.23.0
+     * "off by default; opt-in" design that the
+     * v0.25.4 plan explicitly extends.
+     */
+    val autoSyncNotes: StateFlow<Boolean> = backupPrefs.autoSyncNotes
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    val autoSyncLetters: StateFlow<Boolean> = backupPrefs.autoSyncLetters
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    fun setAutoSyncNotes(enabled: Boolean) {
+        viewModelScope.launch { backupPrefs.setAutoSyncNotes(enabled) }
+    }
+
+    fun setAutoSyncLetters(enabled: Boolean) {
+        viewModelScope.launch { backupPrefs.setAutoSyncLetters(enabled) }
     }
 
     /**
