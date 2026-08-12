@@ -238,7 +238,45 @@ fun PpgScreen(
                 ) {
                     Text(stringResource(R.string.ppg_start))
                 }
+
+                // v0.25.5 WP-D: the local PPG history. Three most
+                // recent sessions, newest first, with their start time
+                // and duration. A session with no meanHr (the gate
+                // refused, or the user stopped early) is shown without
+                // a bpm — the line still says "you sat down with this",
+                // which is the useful answer.
+                val sessionStore = remember { PpgSessionStore(context.applicationContext) }
+                val recent by sessionStore.recent(3).collectAsState(initial = emptyList())
+                if (recent.isNotEmpty()) {
+                    Text(
+                        text = stringResource(R.string.ppg_history_heading),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
+                    )
+                    recent.forEach { session ->
+                        PpgHistoryRow(session = session)
+                    }
+                }
             }
         }
     }
+}
+
+/**
+ * v0.25.5 WP-D: one row of the PPG history list.
+ * Sub-Composable to keep the [PpgScreen] orchestrator under detekt
+ * `LongMethod` 60.
+ */
+@Composable
+private fun PpgHistoryRow(session: PpgSession) {
+    val time = session.start.atZone(java.time.ZoneId.systemDefault())
+        .format(java.time.format.DateTimeFormatter.ofPattern("EEE HH:mm"))
+    val dur = "${session.durationSeconds}s"
+    val hr = session.meanHr?.let { " · ${it.roundToInt()} bpm" } ?: ""
+    Text(
+        text = "$time · $dur$hr",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }

@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
+import java.time.Instant
 import java.util.concurrent.Executors
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -85,7 +86,16 @@ sealed interface PpgCaptureState {
  * [PpgCaptureState.Failed], the same discipline [org.mindanchor.grayscale.Grayscale]
  * follows for a system service that is equally out of this app's control.
  */
-class PpgCapture(private val context: Context) {
+class PpgCapture(
+    private val context: Context,
+    /**
+     * v0.25.5 WP-D: the local-only telemetry store for sessions.
+     * Defaulted so existing callers (and existing tests) keep their
+     * public surface, and so the test surface can pass a test-only
+     * store with a controlled clock.
+     */
+    private val sessionStore: PpgSessionStore = PpgSessionStore(context),
+) {
 
     private val analyzerExecutor = Executors.newSingleThreadExecutor()
 
@@ -128,9 +138,16 @@ class PpgCapture(private val context: Context) {
             lumaSamples.clear()
             frameTimestampsNanos.clear()
         }
+        // v0.25.5 WP-D: the session start is the moment the user asks
+        // for a measurement, not the moment the camera actually opens.
+        // The "duration" the user sees on the history line is the
+        // time they actually spent waiting, including the warm-up
+        // before the first frame.
+        val sessionStart = Instant.now()
         _state.value = PpgCaptureState.Measuring(0, durationSeconds)
 
-        val result: PpgCaptureState = try {
+        var result: PpgCaptureState = PpgCaptureState.Idle
+        try {
             val provider = awaitCameraProvider()
             cameraProvider = provider
 
@@ -146,7 +163,7 @@ class PpgCapture(private val context: Context) {
                 // Without a torch the finger is never transilluminated and
                 // the recording would be ninety seconds of near-uniform
                 // black — not worth running out.
-                PpgCaptureState.Failed(REASON_NO_FLASH)
+                result = PpgCaptureState.Failed(REASON_NO_FLASH)
             } else {
                 withContext(Dispatchers.Main) {
                     // enableTorch returns a ListenableFuture<Void>,
@@ -156,18 +173,41 @@ class PpgCapture(private val context: Context) {
                     // measurement throwing over a flash driver hiccup.
                     runCatching { boundCamera.cameraControl.enableTorch(true) }
                 }
-                runMeasurementLoop(durationSeconds)
+                result = runMeasurementLoop(durationSeconds)
             }
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (error: Throwable) {
-            PpgCaptureState.Failed(error.message ?: REASON_CAMERA_FAILED)
+            result = PpgCaptureState.Failed(error.message ?: REASON_CAMERA_FAILED)
         } finally {
-            withContext(NonCancellable) { teardown() }
+            withContext(NonCancellable) {
+                teardown()
+                // v0.25.5 WP-D: log the session regardless of outcome.
+                // A failed session is still a session — the history
+                // line "you tried this 4 times yesterday" is the
+                // useful answer to a question the user is allowed to
+                // ask. The store is fail-soft; an exception here
+                // never reaches the user.
+                recordSession(sessionStart, result)
+            }
         }
 
         _state.value = result
         return result
+    }
+
+    /**
+     * v0.25.5 WP-D: append the session to the local log. The mean HR
+     * is the result's [PpgCaptureState.Done.heartRateBpm] when the
+     * run succeeded; null on every other state, so the history line
+     * shows "Tue 8:14am · 45s" without a bpm when the gate refused.
+     */
+    private suspend fun recordSession(start: Instant, result: PpgCaptureState) {
+        val meanHr: Double? = when (result) {
+            is PpgCaptureState.Done -> result.heartRateBpm?.toDouble()
+            else -> null
+        }
+        sessionStore.record(PpgSession(start = start, end = Instant.now(), meanHr = meanHr))
     }
 
     /** Ends the measurement early; the loop notices within [TICK_MILLIS]. */

@@ -396,6 +396,7 @@
     <string name="ppg_refused">That reading was too noisy to trust, so it has been thrown away rather than saved. Usually it is finger pressure — cover the lens and the flash completely, but rest the finger rather than pressing.</string>
     <string name="ppg_last">Last reading: %1$s</string>
     <string name="ppg_none_yet">No readings yet.</string>
+    <string name="ppg_history_heading">Recent sessions</string>
     <string name="sleep_section">Sleep rhythm</string>
     <string name="sleep_explainer">MindAnchor can estimate your sleep window from when the screen goes quiet at night — on this phone only, no wearable, nothing uploaded. Consistency matters more than hours.</string>
     <string name="grant_usage_access">Grant usage access to see your rhythm</string>
