@@ -1,13 +1,38 @@
 package org.mindanchor.friction
 
+import java.time.Instant
 import java.time.LocalDate
 
-/** What, if anything, the home screen should say about an unfinished thing. */
+/**
+ * What, if anything, the home screen should say about an unfinished thing.
+ *
+ * The four phases are deliberately distinct:
+ *
+ *  - [CAPTURE]   : quiet hours, nothing written — invite the user to put a
+ *                  line down.
+ *  - [POSTPONED] : there is a note, but the user has scheduled a future
+ *                  revisit. The launcher stays silent until that time
+ *                  arrives. The "I will deal with this at 3pm" state, per
+ *                  Borkovec 1994 and Watkins 2008: scheduling the worry is
+ *                  the active ingredient, not avoidance.
+ *  - [RETURN]    : out of quiet hours, something written, the
+ *                  hand-it-back window — morning, or the next minute after
+ *                  the postponed-at clock if the user picked a time.
+ *  - [NONE]      : say nothing. The card is silent.
+ */
 enum class LoopPhase {
     /** In the quiet hours with nothing written down: offer to take it. */
     CAPTURE,
 
-    /** Out of the quiet hours with something written down: hand it back. */
+    /**
+     * Out of the quiet hours with something written, but the user has
+     * picked a specific revisit time that has not yet arrived. The
+     * launcher is silent — the user said "I'll deal with it then", and
+     * a reminder before then is the opposite of what they asked for.
+     */
+    POSTPONED,
+
+    /** Out of the quiet hours with something written: hand it back. */
     RETURN,
 
     /** Say nothing. */
@@ -68,14 +93,34 @@ object OpenLoop {
      * back the morning after it was written and then not again — a line
      * from three weeks ago is not an open loop, it is clutter, and being
      * shown it is being reminded of something already let go.
+     *
+     * [postponedAt] is the user's optional explicit revisit time
+     * (v0.25.5, worry postponement per Borkovec 1994 + Watkins 2008).
+     * While the wall-clock is before [postponedAt], the launcher is
+     * silent; the user said "I'll deal with it then" and an earlier
+     * reminder is the opposite of what they asked for. Once the
+     * postponed-at time is reached, the worry falls back into the
+     * normal hand-it-back flow.
+     *
+     * [now] is the comparison instant. Defaults to [Instant.now] but is
+     * an explicit parameter so the test surface can pin a clock.
      */
     fun phase(
         quietHours: Boolean,
         note: String?,
         notedDay: String?,
         today: LocalDate,
+        postponedAt: Instant? = null,
+        now: Instant = Instant.now(),
     ): LoopPhase {
         val written = !note.isNullOrBlank()
+        // Worry postponement: while the user-chosen clock is in the
+        // future, the launcher is silent. The check is on the Instant
+        // (UTC), not on wall-clock — the user picked a wall-clock
+        // moment, but the comparison has to be against a stable point
+        // in time, which is what Instant gives us across DST shifts
+        // and timezone changes.
+        if (written && postponedAt != null && postponedAt.isAfter(now)) return LoopPhase.POSTPONED
         if (quietHours) return if (written) LoopPhase.NONE else LoopPhase.CAPTURE
         if (!written) return LoopPhase.NONE
         val day = notedDay?.let { runCatching { LocalDate.parse(it) }.getOrNull() }

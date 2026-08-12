@@ -28,6 +28,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -83,7 +84,10 @@ import org.mindanchor.ui.SkyContent
 import org.mindanchor.ui.rememberClockFormat
 import org.mindanchor.ui.rememberMinuteTick
 import java.text.DateFormat
+import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Date
 
@@ -332,8 +336,11 @@ fun LauncherRoot(
                 onLongPress = { actionsFor = it },
                 loopPhase = openLoop.first,
                 loopNote = openLoop.second,
+                loopPostponedAt = openLoop.third,
                 onLoopSave = viewModel::saveOpenLoop,
                 onLoopClear = viewModel::clearOpenLoop,
+                onLoopPostpone = viewModel::postponeOpenLoop,
+                onLoopCancelPostpone = viewModel::cancelOpenLoopPostponement,
                 bedtimePhase = bedtimeList.first,
                 bedtimeItems = bedtimeList.second,
                 onBedtimeSave = viewModel::saveBedtimeList,
@@ -510,14 +517,27 @@ fun LauncherRoot(
  * hours to take a line, and once the next morning to give it back, and
  * otherwise draws nothing at all. A home screen that always has something
  * to say is a home screen people stop reading.
+ *
+ * v0.25.5: a fourth phase, [LoopPhase.POSTPONED], keeps the launcher
+ * silent while the user's worry-postponement clock is in the future
+ * (Borkovec 1994 + Watkins 2008). The card surfaces a small
+ * "Back at HH:MM" line and a "Back to it now" affordance that drops
+ * the postponement and falls back to the hand-it-back flow. A
+ * "Postpone" button on the RETURN state opens a small dialog with
+ * "Later today" / "Tomorrow morning" — the Borkovec protocol is
+ * "schedule a specific time", but the user's two most common times
+ * are good defaults and "pick a time" can wait.
  */
 @Composable
 private fun OpenLoopCard(
     sky: SkyContent,
     phase: LoopPhase,
     note: String?,
+    postponedAt: Instant?,
     onSave: (String) -> Unit,
     onClear: () -> Unit,
+    onPostpone: (Instant) -> Unit,
+    onCancelPostpone: () -> Unit,
 ) {
     when (phase) {
         LoopPhase.NONE -> Unit
@@ -556,27 +576,135 @@ private fun OpenLoopCard(
             }
         }
 
-        LoopPhase.RETURN -> Column(
+        LoopPhase.POSTPONED -> Column(
             modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(
-                text = stringResource(R.string.loop_return),
-                style = MaterialTheme.typography.bodySmall,
-                color = sky.textSecondary,
-                textAlign = TextAlign.Center,
-            )
             Text(
                 text = note.orEmpty(),
                 style = MaterialTheme.typography.titleMedium,
                 color = sky.textPrimary,
                 textAlign = TextAlign.Center,
             )
-            TextButton(onClick = onClear) {
-                Text(stringResource(R.string.loop_clear), color = sky.textSecondary)
+            Text(
+                text = stringResource(
+                    R.string.loop_postponed_back_at,
+                    formatWallClock(postponedAt),
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = sky.textSecondary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            TextButton(onClick = onCancelPostpone) {
+                Text(stringResource(R.string.loop_postponed_cancel), color = sky.textSecondary)
+            }
+        }
+
+        LoopPhase.RETURN -> {
+            var showDialog by remember { mutableStateOf(false) }
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text = stringResource(R.string.loop_return),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = sky.textSecondary,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    text = note.orEmpty(),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = sky.textPrimary,
+                    textAlign = TextAlign.Center,
+                )
+                Row(
+                    modifier = Modifier.padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    TextButton(onClick = { showDialog = true }) {
+                        Text(stringResource(R.string.loop_postpone), color = sky.textSecondary)
+                    }
+                    TextButton(onClick = onClear) {
+                        Text(stringResource(R.string.loop_clear), color = sky.textSecondary)
+                    }
+                }
+            }
+            if (showDialog) {
+                PostponeDialog(
+                    onDismiss = { showDialog = false },
+                    onPick = { at ->
+                        onPostpone(at)
+                        showDialog = false
+                    },
+                )
             }
         }
     }
+}
+
+/**
+ * The two-option worry-postponement dialog. Returns an [Instant] picked
+ * from the user's choice. Borkovec's worry-postponement protocol says
+ * the user picks the time, not the algorithm — but the two most common
+ * times ("later today", "tomorrow morning") are the right defaults and
+ * the explicit time-picker is a follow-up.
+ */
+@Composable
+private fun PostponeDialog(onDismiss: () -> Unit, onPick: (Instant) -> Unit) {
+    val now = remember { LocalDateTime.now() }
+    val zone = remember { ZoneId.systemDefault() }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.loop_postpone_dialog_title)) },
+        text = {
+            Column {
+                TextButton(
+                    onClick = {
+                        onPick(
+                            now.plusHours(2)
+                                .atZone(zone)
+                                .toInstant(),
+                        )
+                    },
+                ) {
+                    Text(stringResource(R.string.loop_postpone_later_today))
+                }
+                TextButton(
+                    onClick = {
+                        onPick(
+                            LocalDate.now(zone)
+                                .plusDays(1)
+                                .atTime(9, 0)
+                                .atZone(zone)
+                                .toInstant(),
+                        )
+                    },
+                ) {
+                    Text(stringResource(R.string.loop_postpone_tomorrow_morning))
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.loop_postpone_cancel))
+            }
+        },
+    )
+}
+
+/**
+ * Formats an [Instant] as a local wall-clock "HH:mm" or "tomorrow HH:mm"
+ * for the [LoopPhase.POSTPONED] sub-text. The Intents are UTC; the
+ * formatting is in the device's local zone so the user sees what they
+ * scheduled in their own clock, not UTC.
+ */
+private fun formatWallClock(at: Instant?): String {
+    if (at == null) return ""
+    val zoned = at.atZone(ZoneId.systemDefault())
+    val time = zoned.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm"))
+    return if (zoned.toLocalDate() == LocalDate.now()) time else "tomorrow $time"
 }
 
 /**
@@ -1084,8 +1212,11 @@ private fun HomeSurface(
     onLongPress: (DisplayApp) -> Unit,
     loopPhase: LoopPhase = LoopPhase.NONE,
     loopNote: String? = null,
+    loopPostponedAt: Instant? = null,
     onLoopSave: (String) -> Unit = {},
     onLoopClear: () -> Unit = {},
+    onLoopPostpone: (Instant) -> Unit = {},
+    onLoopCancelPostpone: () -> Unit = {},
     bedtimePhase: BedtimePhase = BedtimePhase.NONE,
     bedtimeItems: List<String> = emptyList(),
     onBedtimeSave: (List<String>) -> Unit = {},
@@ -1260,8 +1391,11 @@ private fun HomeSurface(
                 sky = sky,
                 phase = loopPhase,
                 note = loopNote,
+                postponedAt = loopPostponedAt,
                 onSave = onLoopSave,
                 onClear = onLoopClear,
+                onPostpone = onLoopPostpone,
+                onCancelPostpone = onLoopCancelPostpone,
             )
 
             // Sibling card to OpenLoopCard above. Same idiom (silent

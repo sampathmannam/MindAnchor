@@ -159,6 +159,13 @@
     <string name="loop_save">Put it down</string>
     <string name="loop_return">You left this for yourself last night:</string>
     <string name="loop_clear">Done with it</string>
+    <string name="loop_postpone">Postpone</string>
+    <string name="loop_postpone_dialog_title">When will you deal with it?</string>
+    <string name="loop_postpone_later_today">Later today</string>
+    <string name="loop_postpone_tomorrow_morning">Tomorrow morning</string>
+    <string name="loop_postpone_cancel">Cancel</string>
+    <string name="loop_postponed_back_at">Back at %1$s</string>
+    <string name="loop_postponed_cancel">Back to it now</string>
 
     <!--
         Bedtime to-do list — Scullin et al. 2018, J Exp Psychol Gen

@@ -28,6 +28,7 @@ import org.mindanchor.sleep.BedtimeList
 import org.mindanchor.sleep.BedtimePhase
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.delay
+import java.time.Instant
 import java.time.LocalDate
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.flow.first
@@ -194,28 +195,37 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     /**
-     * Whether to take an unfinished thing, hand one back, or say nothing.
+     * Whether to take an unfinished thing, hand one back, say nothing, or
+     * keep silent because the user has scheduled a specific revisit time.
+     *
+     * The tuple is (phase, note, postponedAt) — the postponedAt is the
+     * user's worry-postponement time (v0.25.5, Borkovec 1994 + Watkins
+     * 2008), passed through to the home screen so the card can show
+     * "Back at 3pm" while the launcher is silent.
      *
      * Kept apart from [uiState] rather than folded into it: combine() has
      * typed overloads up to five sources, uiState already uses all five,
      * and the vararg form costs a set of unchecked casts that would turn
      * a future reordering into a ClassCastException on the home screen.
      */
-    val openLoop: StateFlow<Pair<LoopPhase, String?>> = combine(
+    val openLoop: StateFlow<Triple<LoopPhase, String?, Instant?>> = combine(
         frictionPrefs.openLoopNote,
         frictionPrefs.openLoopDay,
+        frictionPrefs.openLoopPostponedAt,
         minuteTick,
-    ) { note, day, _ ->
-        OpenLoop.phase(
+    ) { note, day, postponedAt, _ ->
+        val phase = OpenLoop.phase(
             quietHours = sunsetPrefs.isQuietHour(),
             note = note,
             notedDay = day,
             today = LocalDate.now(),
-        ) to note
+            postponedAt = postponedAt,
+        )
+        Triple(phase, note, postponedAt)
     }.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
-        LoopPhase.NONE to null,
+        Triple(LoopPhase.NONE, null, null),
     )
 
     /**
@@ -323,6 +333,21 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun saveOpenLoop(note: String) {
         viewModelScope.launch { frictionPrefs.setOpenLoop(note) }
+    }
+
+    /**
+     * Sets a specific revisit time for the current open loop. The note
+     * itself is unchanged — the user is saying "I will deal with this
+     * then", not writing a new worry. Used by the v0.25.5 worry-
+     * postponement affordance on the RETURN state of the home card.
+     */
+    fun postponeOpenLoop(at: Instant) {
+        viewModelScope.launch { frictionPrefs.setOpenLoopPostponedAt(at) }
+    }
+
+    /** Drops the postponement and falls back to the hand-it-back flow. */
+    fun cancelOpenLoopPostponement() {
+        viewModelScope.launch { frictionPrefs.setOpenLoopPostponedAt(null) }
     }
 
     fun clearOpenLoop() {
