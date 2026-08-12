@@ -467,7 +467,14 @@ fun LauncherRoot(
                 modelFits = modelFits.value,
                 date = letterSelectedDate,
                 size = letterSize,
-                onSelect = { date -> letterSelectedDate = date },
+                // v0.25.3-WP-C: a row tap marks the letter as read so
+                // the Settings "Open inbox (N)" badge decrements.
+                // The mark is idempotent (Set semantics) and the write
+                // is on Dispatchers.IO via DataStore.
+                onSelect = { date ->
+                    letterSelectedDate = date
+                    letterScope.launch { letterStore.setRead(date, true) }
+                },
                 onBack = {
                     if (letterSelectedDate != null) {
                         letterSelectedDate = null

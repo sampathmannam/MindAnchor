@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
@@ -72,6 +73,13 @@ class LetterStore(private val context: Context) {
     private val enabledKey = booleanPreferencesKey("letters_enabled")
     private val timeKey = stringPreferencesKey("letters_time") // "HH:MM" local
     private val lettersKey = stringPreferencesKey("letters")
+    // v0.25.3-WP-C: the set of letter dates the user has opened
+    // (read). Stored as a separate key in the same DataStore so the
+    // [LetterLedger] wire format (date + body) is unchanged — a
+    // letter can be deleted without losing its read state, and vice
+    // versa. v0.25.2's `unreadLetterCount` was a stand-in (count of
+    // letters dated after install); this is the real per-letter flag.
+    private val readDatesKey = stringSetPreferencesKey("letters_read_dates")
 
     /** Off until asked for, like everything else in this app. */
     val enabled: Flow<Boolean> = context.letterDataStore.data
@@ -99,6 +107,24 @@ class LetterStore(private val context: Context) {
             LetterLedger.decode(raw)
         }
 
+    /**
+     * The set of letter dates the user has opened. v0.25.3-WP-C:
+     * replaces the v0.25.2 install-date stand-in for the "unread"
+     * badge. Stored as ISO local-date strings because DataStore's
+     * `stringSetPreferencesKey` is the only set-shaped preference,
+     * and the [LocalDate.parse] round-trip is what the [setRead]
+     * writer uses. Corrupt entries (a date that fails to parse) are
+     * dropped on read, so a manually-edited prefs file degrades to
+     * "unread" rather than crashing.
+     */
+    val readDates: Flow<Set<LocalDate>> = context.letterDataStore.data
+        .map { prefs ->
+            prefs[readDatesKey]
+                ?.mapNotNull { runCatching { LocalDate.parse(it) }.getOrNull() }
+                ?.toSet()
+                ?: emptySet()
+        }
+
     suspend fun setEnabled(enabled: Boolean) {
         context.letterDataStore.edit { it[enabledKey] = enabled }
     }
@@ -107,6 +133,39 @@ class LetterStore(private val context: Context) {
         context.letterDataStore.edit {
             it[timeKey] = "%02d:%02d".format(hour.coerceIn(HOUR_MIN, HOUR_MAX), minute.coerceIn(MINUTE_MIN, MINUTE_MAX))
         }
+    }
+
+    /**
+     * Marks [date] as read (`true`) or unread (`false`). Idempotent:
+     * setting an already-set value is a no-op. The set is a
+     * [Set]<[String]>, so the date is stored as its ISO local-date
+     * representation; corrupt strings (e.g. a typo in the prefs
+     * file) silently degrade to "not in the set" on read rather than
+     * crashing the flow.
+     */
+    suspend fun setRead(date: LocalDate, read: Boolean) {
+        context.letterDataStore.edit { prefs ->
+            val current = prefs[readDatesKey] ?: emptySet()
+            prefs[readDatesKey] = if (read) current + date.toString() else current - date.toString()
+        }
+    }
+
+    /**
+     * Clears every key in the underlying DataStore. Test-only — used
+     * by [LetterReadStoreRoundTripFindingTest]'s `@Before` to isolate
+     * tests in the same class (DataStore is a process-wide singleton
+     * keyed on the preferences name, so two tests in the same class
+     * share state without an explicit reset). Mirrors the
+     * `internal suspend fun reset()` shape added to
+     * [org.mindanchor.reader.ReaderPrefs] in v0.25.2 (Task 13).
+     *
+     * `internal` so the test (same module) can call it, but the rest
+     * of the app and any third-party callers cannot. Production code
+     * does not need to clear the store; a fresh install has no
+     * letters and no read state.
+     */
+    internal suspend fun reset() {
+        context.letterDataStore.edit { it.clear() }
     }
 
     /**
