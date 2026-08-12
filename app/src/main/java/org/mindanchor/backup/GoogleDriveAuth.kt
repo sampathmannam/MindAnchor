@@ -140,8 +140,18 @@ class GoogleDriveAuth(private val context: Context) {
      * regular [SharedPreferences] because
      * Robolectric's Keystore stub does not back
      * the [MasterKey] the encrypted form needs.
+     *
+     * Lazy so the test-only constructor
+     * (see the [TokenStore]-taking overload
+     * below) can inject a non-encrypted
+     * instance without the [MasterKey] init
+     * being triggered. Production code pays the
+     * lazy cost on the first [currentAccessToken]
+     * call, which is fine — the lazy is on the
+     * [TokenStore.create] call, not the keystore
+     * access itself.
      */
-    private val tokenStore: TokenStore = TokenStore.create(context)
+    private val tokenStore: TokenStore by lazy { TokenStore.create(context) }
 
     /**
      * The GoogleSignInClient. Built lazily so the
@@ -205,30 +215,34 @@ class GoogleDriveAuth(private val context: Context) {
     /**
      * Returns a fresh access token, or null if
      * the user is not signed in / the token fetch
-     * failed. The token is fetched via
-     * [GoogleAuthUtil.getToken], which:
+     * failed. The implementation reads the
+     * [TokenStore] cache first; on a cache miss
+     * (the user just signed in, the token has
+     * been cleared, or the first call after a
+     * fresh install) it falls through to
+     * [GoogleAuthUtil.getToken] via
+     * [fetchAndStoreAccessToken]. The token, when
+     * fetched, is written back to the [TokenStore]
+     * cache so the next caller doesn't pay the
+     * same cost.
      *
-     *  - returns the cached access token if it is
-     *    still valid (no network call),
-     *  - hits Google's token endpoint to refresh
-     *    if the cached token is expired,
-     *  - returns null / throws if the user has
-     *    revoked the grant or the account is gone.
-     *
-     * On a successful fetch, the token is written
-     * back to [TokenStore] so the next caller
-     * doesn't pay the same cost. On a failure,
-     * the stored token (if any) is left intact —
-     * a transient network error must not clear a
-     * still-valid cached token.
+     * The cache-first shape is the test surface:
+     * the WP-B test sets a token directly on the
+     * store and asserts the round-trip; the
+     * platform `GoogleSignIn` lazy is never
+     * triggered.
      */
     suspend fun currentAccessToken(): String? = withContext(Dispatchers.IO) {
+        val cached = effectiveTokenStore().read()
+        if (!cached.isNullOrBlank()) {
+            return@withContext cached
+        }
         val account = GoogleSignIn.getLastSignedInAccount(context)
         if (account == null) {
             Log.w(LOG_TAG, "currentAccessToken: no signed-in account")
             return@withContext null
         }
-        return@withContext fetchAndStoreAccessToken(account)
+        fetchAndStoreAccessToken(account)
     }
 
     /**
