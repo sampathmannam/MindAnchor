@@ -2,6 +2,8 @@ package org.mindanchor.report
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -9,12 +11,17 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -24,7 +31,10 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
+import kotlinx.coroutines.launch
 import org.mindanchor.R
+import org.mindanchor.reader.ReaderPrefs
+import org.mindanchor.reader.ReadingSize
 import org.mindanchor.ui.Spacing
 
 /**
@@ -56,10 +66,23 @@ fun ReportScreen(onBack: () -> Unit) {
     val store = remember { ReportStore(context.applicationContext) }
     val stored by store.stored.collectAsState(initial = null)
     val factsRaw by store.facts.collectAsState(initial = null)
+    // v0.25.3-WP-D: the report reuses [ReaderPrefs] for its long-form
+    // copy. The same A- / A / A+ segmented control the letter reader
+    // uses appears in the report header; both surfaces read and write
+    // the same DataStore so the size picked in one place carries to
+    // the other. The wire-through is `setSize` on `Dispatchers.IO`
+    // via DataStore; the call is fire-and-forget.
+    val readerPrefs = remember { ReaderPrefs(context.applicationContext) }
+    val size by readerPrefs.size.collectAsState(initial = ReadingSize.MEDIUM)
+    val scope = rememberCoroutineScope()
     ReportScreen(
         stored = stored,
         onBack = onBack,
         facts = factsRaw?.let(FactsLedger::decode),
+        size = size,
+        onSetSize = { newSize ->
+            scope.launch { readerPrefs.setSize(newSize) }
+        },
     )
 }
 
@@ -87,6 +110,10 @@ fun ReportScreen(
     onBack: () -> Unit,
     /** Yesterday's measured facts, or null when nothing has ever been built. */
     facts: Map<Signal, Sourced>? = null,
+    /** v0.25.3-WP-D: the user's chosen reading size. Defaults to [ReadingSize.MEDIUM] for older callers. */
+    size: ReadingSize = ReadingSize.MEDIUM,
+    /** v0.25.3-WP-D: invoked when the user picks a new size. No-op by default. */
+    onSetSize: (ReadingSize) -> Unit = {},
 ) {
     val report = stored?.report
     val narration = stored?.narration
@@ -99,8 +126,38 @@ fun ReportScreen(
             .verticalScroll(rememberScrollState())
             .padding(Spacing.Edge),
     ) {
-        TextButton(onClick = onBack) {
-            Text(stringResource(R.string.action_back))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(onClick = onBack) {
+                Text(stringResource(R.string.action_back))
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            // The same A- / A / A+ segmented control the letter
+            // reader uses. Locale-safe, RTL-safe, no string resources
+            // — see [LetterReaderHeader] for the rationale.
+            SingleChoiceSegmentedButtonRow {
+                listOf(ReadingSize.SMALL, ReadingSize.MEDIUM, ReadingSize.LARGE)
+                    .forEachIndexed { i, s ->
+                        SegmentedButton(
+                            selected = size == s,
+                            onClick = { onSetSize(s) },
+                            shape = SegmentedButtonDefaults.itemShape(index = i, count = 3),
+                        ) {
+                            Text(
+                                text = when (s) {
+                                    ReadingSize.SMALL  -> "A-"
+                                    ReadingSize.MEDIUM -> "A"
+                                    ReadingSize.LARGE  -> "A+"
+                                    else -> "A"
+                                },
+                                style = MaterialTheme.typography.labelLarge,
+                            )
+                        }
+                    }
+            }
+            Spacer(modifier = Modifier.weight(1f))
         }
 
         Text(
