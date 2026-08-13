@@ -30,7 +30,6 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.delay
 import java.time.Instant
 import java.time.LocalDate
-import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.Dispatchers
@@ -103,34 +102,18 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             )
 
     /**
-     * Monotonic counter for note ids created from
-     * the home quick-capture card. The same
-     * [java.util.concurrent.atomic.AtomicLong] /
-     * lazy / applicationContext pattern as
-     * [org.mindanchor.model.NoteActivity.idCounter]:
-     * the counter is seeded on first use (not at
-     * construction) so a [NotesPrefs] read at
-     * construction time does not happen before the
-     * ViewModel's application context is available.
-     *
-     * Seeded from `max(currentTimeMillis, maxExistingId)`,
-     * so a process restart immediately after a save
-     * in the same millisecond does not duplicate an
-     * id. Two notes typed and saved in the same
-     * millisecond on the home card would otherwise
-     * collide (the brief acknowledged the risk; the
-     * fix is cheap).
+     * v0.25.7+ WP-3: the id generator moved to
+     * [NotesPrefs.nextNoteId]. The home card and the
+     * full [org.mindanchor.model.NoteActivity] now
+     * share a single process-singleton counter — the
+     * previous design had two separate
+     * `AtomicLong` fields (one per view model), and
+     * a note written from the home card and a note
+     * written in the full activity could share an
+     * id (both seeded from the same `max(existing,
+     * currentTimeMillis)` on first use).
      */
-    private val idCounter: AtomicLong by lazy {
-        val seeded = kotlinx.coroutines.runBlocking {
-            val existing = notesPrefs.notes.first()
-            val maxExisting = existing.notes.maxOfOrNull { it.id } ?: 0L
-            maxOf(System.currentTimeMillis(), maxExisting)
-        }
-        AtomicLong(seeded)
-    }
-
-    private fun nextNoteId(): Long = idCounter.incrementAndGet()
+    private fun nextNoteId(): Long = notesPrefs.nextNoteId()
 
     /**
      * v0.22.0 (WP-10 step 2): the "what makes this different"
@@ -390,15 +373,26 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val trimmed = body.trim().take(Note.MAX_BODY)
         if (trimmed.isEmpty()) return
         val now = System.currentTimeMillis()
+        val note = Note(
+            id = nextNoteId(),
+            body = trimmed,
+            createdAt = now,
+            updatedAt = now,
+        )
         viewModelScope.launch {
-            notesPrefs.add(
-                Note(
-                    id = nextNoteId(),
-                    body = trimmed,
-                    createdAt = now,
-                    updatedAt = now,
-                ),
-            )
+            notesPrefs.add(note)
+            // v0.25.7+ WP-3: enqueue classification so
+            // the home-card note gets the same type chip
+            // as a note written in the full activity.
+            // Before this fix the home-card note was
+            // saved with type=null and stayed that way
+            // — the v0.25.0 auto-classify promise was
+            // broken on the most common capture path.
+            // The classifier is fail-soft (returns
+            // GENERAL on any error); a future Phi-4
+            // unavailable state degrades to the
+            // default, not an untyped note.
+            org.mindanchor.note.ClassifierEnqueuer(getApplication()).enqueue(note)
         }
     }
 

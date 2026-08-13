@@ -11,6 +11,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import kotlinx.coroutines.flow.first
 import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 
 /**
  * v0.25.6: the WorkManager-driven drain of the v0.25.5
@@ -109,21 +110,39 @@ class BackupRetryWorker(
      * already drops corrupt lines, so the worker
      * should never see one — defense in depth.
      */
-    @Suppress("detekt.SwallowedException", "ReturnCount")
+    @Suppress("detekt.SwallowedException", "ReturnCount", "LongMethod")
     override suspend fun doWork(): Result {
         val ctx = applicationContext
         val backupPrefs = BackupPrefs(ctx)
-        val queue = runCatching {
-            backupPrefs.pendingBackups.first()
-        }.getOrElse {
-            Log.w(LOG_TAG, "doWork: failed to read pendingBackups", it)
-            return Result.retry()
-        }
-        if (queue.isEmpty()) {
-            Log.i(LOG_TAG, "doWork: queue empty, nothing to do")
-            return Result.success()
-        }
+        // v0.25.7+ WP-2: re-read the queue inside the
+        // loop instead of snapshotting it at the start.
+        // The snapshot-once pattern was a durability
+        // hole: a concurrent enqueue that happened
+        // after the snapshot was taken (and while the
+        // worker was running) would use
+        // ExistingWorkPolicy.KEEP on its own
+        // schedule — WorkManager saw the in-flight
+        // worker and dropped the new enqueue. The
+        // concurrent entry then sat in the queue
+        // until the user wrote something else, which
+        // triggered a fresh enqueue that drained
+        // both. On a quiet day the entry waited
+        // indefinitely. Re-reading inside the loop
+        // picks up anything enqueued while we were
+        // draining the previous batch.
         val auth = GoogleDriveAuth(ctx)
+        // v0.25.7+ WP-2: reuse a single OkHttpClient
+        // for the entire run. The original code
+        // constructed a fresh client inside the
+        // function; OkHttpClient owns a Dispatcher
+        // with a non-daemon ExecutorService that is
+        // never garbage-collected (the Kotlin
+        // reference goes out of scope, the thread
+        // pool doesn't). With the worker firing on
+        // backoff, this was a slow thread-pool leak
+        // over the process lifetime. A single client
+        // per run is the smallest correct shape;
+        // a process-singleton is a v0.25.7+ follow-up.
         val client = OkHttpClient()
         val notesTarget = GoogleDriveBackupTarget(
             client = client,
@@ -135,43 +154,77 @@ class BackupRetryWorker(
             auth = auth,
             type = ContentType.Letters,
         )
-        for (entry in queue) {
-            val target = when (entry.type) {
-                ContentType.Notes -> notesTarget
-                ContentType.Letters -> lettersTarget
-            }
-            val result = runCatching { target.append(entry.type, entry.payload) }
-                .getOrElse {
-                    Log.w(
-                        LOG_TAG,
-                        "doWork: append threw for ${entry.type.fileName}",
-                        it,
-                    )
+        var totalDrained = 0
+        try {
+            while (true) {
+                val queue = runCatching {
+                    backupPrefs.pendingBackups.first()
+                }.getOrElse {
+                    Log.w(LOG_TAG, "doWork: failed to read pendingBackups", it)
                     return Result.retry()
                 }
-            if (result is AppendResult.Ok) {
-                // Best-effort: a remove failure is not a reason
-                // to mark the whole run as failed. The next run
-                // will re-attempt an already-appended entry; the
-                // Drive target's append is "add to the file",
-                // which produces a duplicate entry on disk. The
-                // duplicate is acceptable for a journal-style
-                // append-only log (a restore can dedup by
-                // timestamp + body hash), and the cost of a
-                // duplicate is much smaller than the cost of
-                // losing a backup.
-                runCatching { backupPrefs.removePending(entry) }
-                    .onFailure { Log.w(LOG_TAG, "doWork: removePending failed", it) }
-            } else {
-                Log.w(
-                    LOG_TAG,
-                    "doWork: non-Ok result for ${entry.type.fileName} — " +
-                        "stopping drain, will retry",
+                if (queue.isEmpty()) break
+                for (entry in queue) {
+                    val target = when (entry.type) {
+                        ContentType.Notes -> notesTarget
+                        ContentType.Letters -> lettersTarget
+                    }
+                    val result = runCatching { target.append(entry.type, entry.payload) }
+                        .getOrElse {
+                            Log.w(
+                                LOG_TAG,
+                                "doWork: append threw for ${entry.type.fileName}",
+                                it,
+                            )
+                            return Result.retry()
+                        }
+                    if (result is AppendResult.Ok) {
+                        // Best-effort: a remove failure is not a reason
+                        // to mark the whole run as failed. The next run
+                        // will re-attempt an already-appended entry; the
+                        // Drive target's append is "add to the file",
+                        // which produces a duplicate entry on disk. The
+                        // duplicate is acceptable for a journal-style
+                        // append-only log (a restore can dedup by
+                        // timestamp + body hash), and the cost of a
+                        // duplicate is much smaller than the cost of
+                        // losing a backup.
+                        runCatching { backupPrefs.removePending(entry) }
+                            .onFailure { Log.w(LOG_TAG, "doWork: removePending failed", it) }
+                    } else {
+                        Log.w(
+                            LOG_TAG,
+                            "doWork: non-Ok result for ${entry.type.fileName} — " +
+                                "stopping drain, will retry",
+                        )
+                        return Result.retry()
+                    }
+                }
+                totalDrained += queue.size
+                // Re-read the queue at the top of the loop to pick
+                // up concurrent enqueues. A `while (true)` that
+                // never sees an empty queue would loop forever;
+                // the `break` on the empty read is the exit
+                // condition. A concurrent enqueue between the
+                // inner loop's last removePending and the next
+                // .first() will be picked up on the next iteration.
+            }
+        } finally {
+            // v0.25.7+ WP-2: shut down the client's
+            // dispatcher ExecutorService so the
+            // thread pool is not leaked. shutdown()
+            // is non-blocking; awaitTermination
+            // bounds the wait so a stuck network
+            // thread doesn't hang the worker.
+            client.dispatcher.executorService.shutdown()
+            runCatching {
+                client.dispatcher.executorService.awaitTermination(
+                    SHUTDOWN_TIMEOUT_SECONDS,
+                    TimeUnit.SECONDS,
                 )
-                return Result.retry()
             }
         }
-        Log.i(LOG_TAG, "doWork: drained ${queue.size} entries")
+        Log.i(LOG_TAG, "doWork: drained $totalDrained entries")
         return Result.success()
     }
 
@@ -187,6 +240,18 @@ class BackupRetryWorker(
          * the system WorkManager panel, not one.
          */
         const val NAME = "backup_retry_oneshot"
+
+        /**
+         * v0.25.7+ WP-2: how long doWork's
+         * `finally` block waits for the OkHttp
+         * client's thread pool to terminate
+         * before giving up. 5s is a balance: a
+         * stuck network thread should not hang
+         * the worker forever, but a normal
+         * request + response round-trip needs
+         * time to wind down.
+         */
+        private const val SHUTDOWN_TIMEOUT_SECONDS: Long = 5
 
         /**
          * Schedules the worker. The work is constrained

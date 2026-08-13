@@ -58,6 +58,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
@@ -471,6 +472,20 @@ fun NoteScreen(
                                         Text(
                                             text = note.body.lineSequence().firstOrNull() ?: "",
                                             style = MaterialTheme.typography.bodyLarge,
+                                            // v0.25.7+ WP-3: cap the
+                                            // body preview at 2 lines
+                                            // so a pasted URL or
+                                            // long sentence does not
+                                            // push the row height to
+                                            // fill the screen. The
+                                            // full body is in the
+                                            // activity; the row
+                                            // shows the title (by
+                                            // convention the first
+                                            // line) plus a hint of
+                                            // the second.
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
                                             modifier = Modifier.weight(1f),
                                         )
                                         // v0.25.0: the type chip, or

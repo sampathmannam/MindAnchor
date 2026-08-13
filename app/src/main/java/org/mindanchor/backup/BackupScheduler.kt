@@ -5,7 +5,9 @@ import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.launch
@@ -197,6 +199,33 @@ class BackupScheduler(
                     val newOnes = newNotes(state.current, current.notes)
                     NotesDiffState(previous = state.current, current = current.notes, newOnes = newOnes)
                 }
+                // v0.25.7+ WP-2: the first emission is
+                // the seed — it gives the diff a
+                // baseline but produces an empty
+                // `newOnes` (the accumulator was
+                // initialised to an empty
+                // `NotesDiffState`, so the first
+                // emission's "new" list is the whole
+                // current list). Skipping the first
+                // emission is the fix for the silent
+                // backfill on subscribe. The
+                // "Back up now" button is the only
+                // legitimate backfill path; the
+                // on-write trigger is new-write-only.
+                .drop(1)
+                .catch { e ->
+                    // v0.25.7+ WP-2: a Flow exception
+                    // (DataStore corruption, sealed
+                    // codec HMAC mismatch) used to kill
+                    // this collector silently. Log and
+                    // re-throw so WorkManager retries
+                    // the run on the next backoff tick;
+                    // we do not auto-resubscribe here
+                    // because a corrupt DataStore is
+                    // not going to recover on its own.
+                    android.util.Log.e(LOG_TAG, "notes flow failed; collector is dead", e)
+                    throw e
+                }
                 .collect { state ->
                     // v0.25.6+ WP-1: the auto-sync toggle
                     // is the gate. Before this fix the
@@ -227,8 +256,22 @@ class BackupScheduler(
             letterStore.letters
                 .distinctUntilChanged()
                 .scan(LettersDiffState()) { state, current ->
+                    // v0.25.7+ WP-2: the letter diff is
+                    // keyed by date AND body. Before
+                    // this fix a re-save of an existing
+                    // letter (same date, new body) was
+                    // silently dropped from the diff,
+                    // so the new body never reached
+                    // Drive. The contract is "any
+                    // letter that changed (added or
+                    // body-edited) is a new write".
                     val newOnes = newLetters(state.current, current)
                     LettersDiffState(previous = state.current, current = current, newOnes = newOnes)
+                }
+                .drop(1)
+                .catch { e ->
+                    android.util.Log.e(LOG_TAG, "letters flow failed; collector is dead", e)
+                    throw e
                 }
                 .collect { state ->
                     // v0.25.6+ WP-1: same toggle gate
@@ -377,8 +420,23 @@ class BackupScheduler(
         previous: List<org.mindanchor.letters.Letter>,
         current: List<org.mindanchor.letters.Letter>,
     ): List<org.mindanchor.letters.Letter> {
-        val previousDates = previous.map { it.date }.toSet()
-        return current.filter { it.date !in previousDates }
+        // v0.25.7+ WP-2: key by date AND body. Before
+        // this fix a re-save of an existing letter
+        // (same date, new body) was silently dropped
+        // from the diff. LetterStore.save replaces
+        // any existing letter for the same date
+        // (current.filter { it.date != letter.date } +
+        // letter), so a re-save of 2026-08-10 produces
+        // a list with the new body but the same date;
+        // the old date-only diff saw the date in
+        // previousDates and dropped the replacement.
+        // The new contract: "any letter that changed
+        // (new date, or same date with a new body)
+        // is a new write".
+        val previousByDate = previous.associateBy { it.date }
+        return current.filter { letter ->
+            previousByDate[letter.date]?.body != letter.body
+        }
     }
 
     /**

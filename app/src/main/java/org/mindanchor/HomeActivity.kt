@@ -8,6 +8,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import org.mindanchor.backup.BackupScheduler
 import java.time.LocalDate
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -68,6 +71,24 @@ class HomeActivity : ComponentActivity() {
         // cost of one DataStore read per notes /
         // letters emission.
         BackupScheduler.startIfNeeded(applicationContext)
+        // v0.25.7+ WP-2: re-arm the retry worker on
+        // cold start if the queue is non-empty. The
+        // schedule is event-driven (kicked on every
+        // enqueue), so a process death between an
+        // enqueue and the schedule call would have
+        // left the entry stranded until the user
+        // wrote something else. The startup
+        // rehydration is the recovery path. Same
+        // idempotent semantics as the in-flight
+        // enqueueIfNeeded: a second call while the
+        // worker is running is a no-op.
+        lifecycleScope.launch {
+            val pending = org.mindanchor.backup.BackupPrefs(applicationContext)
+                .pendingBackups.first()
+            if (pending.isNotEmpty()) {
+                org.mindanchor.backup.BackupRetryWorker.enqueueIfNeeded(applicationContext)
+            }
+        }
         val onboardingPrefs = OnboardingPrefs(applicationContext)
         val sunsetPrefs = SunsetPrefs(applicationContext)
         // v0.25.2-A (Task 8): if the activity was cold-launched from a

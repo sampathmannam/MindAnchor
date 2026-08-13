@@ -625,7 +625,7 @@
     <string name="note_title_hint">Title (optional)</string>
     <string name="note_body_hint">Start writing…</string>
     <string name="note_new">New note</string>
-    <string name="note_list_empty">Nothing here yet. Tap + to start.</string>
+    <string name="note_list_empty">Nothing here yet. Type above and tap Save.</string>
     <string name="note_pin">Pin</string>
     <string name="note_unpin">Unpin</string>
     <string name="note_delete">Delete</string>

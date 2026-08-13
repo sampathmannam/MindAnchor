@@ -1512,6 +1512,35 @@ private fun HomeSurface(
                 onCancelPostpone = onLoopCancelPostpone,
             )
 
+            // v0.20.4: the quick-notes card. Always
+            // visible — the brief is "I want to
+            // remember this", and the moment the
+            // user thinks it is the moment the card
+            // has to be there.
+            //
+            // v0.25.7+ WP-3: the card was previously
+            // placed *after* the OpenLoop / BedtimeList
+            // cards. On a 1080x2400 device (the most
+            // common emulator size and a real mid-range
+            // phone) the bedtime list, one-thing card,
+            // and an active OpenLoopCard together push
+            // the quick-notes card below the fold — the
+            // brief's URL-bar-equivalent affordance
+            // becomes invisible. The fix is to promote
+            // the quick-notes card to the top of the
+            // action stack: after the time / greeting
+            // (always) and the OpenLoop (when active),
+            // before the bedtime list. The "rough
+            // centre of the home screen" comment is
+            // updated to "above the fold on 1080x2400
+            // with an active worry".
+            QuickNotesCard(
+                sky = sky,
+                recent = recentNotes,
+                onSave = onAddQuickNote,
+                onOpenAll = onOpenNotes,
+            )
+
             // v0.25.5 WP-F: today's one thing. Sibling card to the
             // open-loop card. Silent when the field is null; the
             // "Set" affordance lets the user name one thing; the
@@ -1539,25 +1568,6 @@ private fun HomeSurface(
                 items = bedtimeItems,
                 onSave = onBedtimeSave,
                 onClear = onBedtimeClear,
-            )
-
-            // v0.20.4: the quick-notes card. Always
-            // visible — the brief is "I want to
-            // remember this", and the moment the
-            // user thinks it is the moment the card
-            // has to be there. Placed *after* the
-            // conditional OpenLoop / BedtimeList
-            // cards (which are silent most of the
-            // time) and *before* the report link
-            // and favourites, so the capture surface
-            // is between the two summary cards and
-            // the action surface — the rough centre
-            // of the home screen.
-            QuickNotesCard(
-                sky = sky,
-                recent = recentNotes,
-                onSave = onAddQuickNote,
-                onOpenAll = onOpenNotes,
             )
 
             // v0.20.5: the wellness card. Same idiom
