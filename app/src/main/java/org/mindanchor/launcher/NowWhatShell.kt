@@ -27,10 +27,11 @@ fun NowWhatShell(onWantSleep: () -> Unit, onWantGround: () -> Unit, onWantTalk: 
     val now = rememberMinuteTick()
     val pattern = rememberClockFormat()
     val clock = DateTimeFormatter.ofPattern(pattern).format(now)
+    val a11y = stringResource(R.string.now_what_a11y)
     CalmBackground { sky ->
         Column(
             modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(24.dp)
-                .semantics(mergeDescendants = false) { contentDescription = "It's late. What do you need right now?" },
+                .semantics(mergeDescendants = false) { contentDescription = a11y },
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {

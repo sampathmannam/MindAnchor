@@ -860,6 +860,7 @@
     <string name="ground_me_hear">Hear three: %1$d</string>
     <string name="ground_me_smell">Smell two: %1$d</string>
     <string name="ground_me_taste">Taste one: %1$d</string>
+    <string name="ground_me_a11y">Ground me right now. Three options.</string>
 
     <!-- v0.26.0: §3.3 "Before you send" -->
     <string name="bys_title">Before you send</string>
@@ -869,6 +870,7 @@
     <string name="bys_try_section">Try the check</string>
     <string name="bys_try_explainer">A short self-check the launcher shows on long messages or late-night sends. See what it looks like — the real trigger is in v0.26.1.</string>
     <string name="bys_try_action">Show the check</string>
+    <string name="bys_a11y">Before you send. %1$s.</string>
 
     <!-- v0.26.0: §3.5 "Now what?" 2am shell -->
     <string name="now_what_title">It\'s late. What do you need right now?</string>
@@ -876,6 +878,7 @@
     <string name="now_what_sleep">I want to sleep</string>
     <string name="now_what_ground">I want to ground</string>
     <string name="now_what_talk">I want to talk to someone</string>
+    <string name="now_what_a11y">It\'s late. What do you need right now?</string>
 
     <!-- v0.26.0: BPD profile -->
     <string name="bpd_profile_section">When things get hard</string>

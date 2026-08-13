@@ -33,10 +33,11 @@ import org.mindanchor.ui.SkyContent
 @Composable
 fun BeforeYouSendInterstitial(context: BeforeYouSendContext, profile: BpdProfile, onDismiss: () -> Unit) {
     val template = pickTemplate(context)
+    val a11y = stringResource(R.string.bys_a11y, template.label)
     CalmBackground { sky ->
         Column(
             modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(24.dp)
-                .semantics(mergeDescendants = false) { contentDescription = "Before you send. ${template.label}." },
+                .semantics(mergeDescendants = false) { contentDescription = a11y },
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {

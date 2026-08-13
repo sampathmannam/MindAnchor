@@ -48,9 +48,10 @@ private enum class GroundMode { Choose, Breath, Cold, Grounding }
 
 @Composable
 private fun GroundMePicker(sky: SkyContent, onPick: (GroundMode) -> Unit, onClose: () -> Unit) {
+    val a11y = stringResource(R.string.ground_me_a11y)
     Column(
         modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(24.dp)
-            .semantics(mergeDescendants = false) { contentDescription = "Ground me right now. Three options." },
+            .semantics(mergeDescendants = false) { contentDescription = a11y },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
