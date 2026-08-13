@@ -27,8 +27,8 @@ internal fun friendlyLetterDate(date: LocalDate, today: LocalDate): String {
     return when {
         daysAgo == 0 -> "Today"
         daysAgo == 1 -> "Yesterday"
-        daysAgo in 2..7 -> date.format(DateTimeFormatter.ofPattern("EEEE", Locale.ENGLISH))
-        date.year == today.year -> date.format(DateTimeFormatter.ofPattern("MMM d", Locale.ENGLISH))
-        else -> date.format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.ENGLISH))
+        daysAgo in 2..7 -> date.format(DateTimeFormatter.ofPattern("EEEE", Locale.getDefault()))
+        date.year == today.year -> date.format(DateTimeFormatter.ofPattern("MMM d", Locale.getDefault()))
+        else -> date.format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.getDefault()))
     }
 }

@@ -84,6 +84,12 @@ class FrictionPrefs(private val context: Context) {
      * accident.
      */
     suspend fun recordReach(packageName: String, now: Long, windowMillis: Long): Int {
+        // v0.25.11: a blank packageName is a no-op. The
+        // v0.20.x surface silently recorded the empty
+        // string, which then sat in the per-window
+        // reach list forever and inflated the per-app
+        // gate's "have I seen you recently?" check.
+        if (packageName.isBlank()) return 0
         var priorReaches = 0
         context.dataStore.edit { prefs ->
             val entries = (prefs[reachKey] ?: "")

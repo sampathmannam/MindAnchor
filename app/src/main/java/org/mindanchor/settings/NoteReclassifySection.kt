@@ -16,6 +16,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -107,11 +110,16 @@ fun NoteReclassifySection() {
             enabled = !running,
             onClick = { showConfirm = true },
         ) {
+            // v0.25.11 (B10): the label flips to
+            // R.string.note_reclassify_running on tap; without
+            // a polite live region a TalkBack user has to
+            // navigate back to discover the state change.
             Text(
                 text = stringResource(
                     if (running) R.string.note_reclassify_running
                     else R.string.note_reclassify_button
-                )
+                ),
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
             )
         }
     }

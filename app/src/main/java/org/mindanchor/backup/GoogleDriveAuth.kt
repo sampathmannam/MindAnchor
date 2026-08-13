@@ -401,19 +401,34 @@ internal class TokenStore(private val prefs: SharedPreferences) {
     /**
      * @return the stored access token, or null if
      * the user has not signed in, has signed out,
-     * or the store has been wiped.
+     * the store has been wiped, or the stored
+     * token has passed its recorded expiry
+     * (v0.25.11: a 1-hour TTL is honoured; a stale
+     * token is treated as missing so the next
+     * Drive call hits a 401 and re-prompts the
+     * user, instead of using a dead token
+     * silently).
      */
-    fun read(): String? = prefs.getString(KEY_ACCESS_TOKEN, null)?.takeIf { it.isNotBlank() }
+    fun read(): String? {
+        val token = prefs.getString(KEY_ACCESS_TOKEN, null)?.takeIf { it.isNotBlank() } ?: return null
+        val expiry = prefs.getLong(KEY_EXPIRY, 0L)
+        if (expiry > 0L && System.currentTimeMillis() >= expiry) return null
+        return token
+    }
 
     /**
-     * Writes [token] to the encrypted-prefs blob.
-     * A blank token is a no-op (the store stays
-     * empty rather than holding a placeholder
-     * string).
+     * Writes [token] to the encrypted-prefs blob
+     * with a 1-hour expiry (v0.25.11). A blank
+     * token is a no-op (the store stays empty
+     * rather than holding a placeholder string).
      */
     fun write(token: String) {
         if (token.isBlank()) return
-        prefs.edit().putString(KEY_ACCESS_TOKEN, token).apply()
+        val now = System.currentTimeMillis()
+        prefs.edit()
+            .putString(KEY_ACCESS_TOKEN, token)
+            .putLong(KEY_EXPIRY, now + DEFAULT_TTL_MILLIS)
+            .apply()
     }
 
     /**
@@ -428,6 +443,20 @@ internal class TokenStore(private val prefs: SharedPreferences) {
     companion object {
         private const val PREF_FILE = "google_drive_token"
         private const val KEY_ACCESS_TOKEN = "access_token"
+        // v0.25.11: token expiry is now stored alongside
+        // the access token. A missing expiry is treated
+        // as "unknown, do not enforce" for backward
+        // compatibility with values written by
+        // v0.20.0–v0.25.10 (those values are returned
+        // by read() unconditionally).
+        private const val KEY_EXPIRY = "access_token_expiry"
+        // 1 hour — Google Drive's default access-token
+        // TTL. The next Drive call after expiry will get
+        // HTTP 401, the backup worker will surface a
+        // re-auth prompt at the Settings layer, and the
+        // on-write trigger will enqueue a pending backup
+        // that re-prompted refresh will resolve.
+        private const val DEFAULT_TTL_MILLIS: Long = 60L * 60L * 1000L
 
         /**
          * The production factory. Opens the

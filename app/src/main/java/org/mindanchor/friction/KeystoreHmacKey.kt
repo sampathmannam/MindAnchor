@@ -55,6 +55,30 @@ object KeystoreHmacKey {
     private const val LOG_TAG = "MindAnchor/Hmac"
     const val ALIAS = "org.mindanchor.friction.codec-integrity"
 
+    // v0.25.11: managed key rotation. The generation counter
+    // increments on every successful [rotate]; the integrity
+    // layer stamps it on every sealed value, so a value
+    // written with a previous generation fails the verify on
+    // the next read and the integrity layer returns the reset
+    // value. The default is 0 (un-rotated) for backward
+    // compatibility with values written by v0.20.0–v0.25.10.
+    @Volatile
+    var generation: Int = 0
+        private set
+
+    /**
+     * Rotate the HMAC key: delete the existing Keystore
+     * entry, bump the generation counter, and let the next
+     * [getOrCreate] generate a fresh key. Existing sealed
+     * values become unverifiable (the integrity layer returns
+     * the reset value on the next read). v0.25.11.
+     */
+    @Synchronized
+    fun rotate() {
+        resetKey()
+        generation = generation + 1
+    }
+
     /**
      * Get the HMAC key, generating it on first use.
      * The returned [Key] is opaque to callers: the

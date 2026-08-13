@@ -1,3 +1,4 @@
+@file:Suppress("MaxLineLength", "UnusedPrivateProperty")
 package org.mindanchor.launcher
 
 import org.junit.Assert.assertNotNull

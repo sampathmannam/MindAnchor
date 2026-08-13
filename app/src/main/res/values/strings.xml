@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">MindAnchor</string>
     <string name="greeting_morning">A quiet morning.</string>
@@ -125,6 +125,7 @@
 
     <string name="appearance_section">Home screen</string>
     <string name="appearance_explainer">A quiet landscape under the sky. Even a brief glance at greenery or water measurably steadies attention, so this is drawn to be looked at — and never to move.</string>
+    <string name="haptics_toggle_label">Haptic feedback</string>
     <string name="scene_rotate">A different scene each day</string>
     <string name="scene_meadow">Meadow</string>
     <string name="scene_water">Water</string>
@@ -603,6 +604,10 @@
     -->
     <string name="going_light_section">Going Light</string>
     <string name="going_light_explainer">Blocks chosen apps during a time window you set. The first time you turn it on, your phone will need a one-time VPN permission.</string>
+    <string name="going_light_channel_name">Going Light</string>
+    <string name="going_light_channel_description">Active Going Light window</string>
+    <string name="going_light_notification_title">Going Light is on</string>
+    <string name="going_light_notification_text">Mobile internet is paused for selected apps</string>
 
     <!--
         v0.20.1 round 5: notes + check-in. The
@@ -888,4 +893,9 @@
         <item>I woke up feeling fresh and rested</item>
         <item>My daily life has been filled with things that interest me</item>
     </string-array>
+    <!-- v0.25.11: recap banner stubs -->
+    <string name="recap_banner_title">A gentle look back</string>
+    <string name="recap_banner_body">Your last 14 days, in one quiet read.</string>
+    <string name="recap_banner_dismiss">Not now</string>
+    <string name="letters_shortcut">Letters</string>
 </resources>

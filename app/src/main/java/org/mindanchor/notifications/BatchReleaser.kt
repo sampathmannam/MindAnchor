@@ -41,15 +41,19 @@ object BatchReleaser {
         }
 
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
-        manager.createNotificationChannel(
-            NotificationChannel(
-                CHANNEL_ID,
-                context.getString(R.string.digest_channel_name),
-                NotificationManager.IMPORTANCE_DEFAULT,
-            ).apply {
-                description = context.getString(R.string.digest_channel_description)
-            },
-        )
+        // v0.25.11: guard createNotificationChannel with getNotificationChannel
+        // so the channel is only created the first time we post to it.
+        if (manager.getNotificationChannel(CHANNEL_ID) == null) {
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    CHANNEL_ID,
+                    context.getString(R.string.digest_channel_name),
+                    NotificationManager.IMPORTANCE_DEFAULT,
+                ).apply {
+                    description = context.getString(R.string.digest_channel_description)
+                },
+            )
+        }
 
         val contentIntent = PendingIntent.getActivity(
             context,

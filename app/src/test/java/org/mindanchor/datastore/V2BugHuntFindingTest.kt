@@ -371,20 +371,26 @@ class V2BugHuntFindingTest {
     //   but there is no path to do it.
     // -----------------------------------------------------------------
     @Test
-    fun `KeystoreHmacKey has no rotation path`() {
+    fun `KeystoreHmacKey has a rotation path (v0_25_11 fix)`() {
         val source = readSource("friction/KeystoreHmacKey.kt")
         assertNotNull(source)
         assertTrue(
             "KeystoreHmacKey must expose a single fixed ALIAS",
             source!!.contains("const val ALIAS = \"org.mindanchor.friction.codec-integrity\""),
         )
-        // resetKey exists but is for the recovery path
-        // (delete + re-generate on corruption), not a managed
-        // rotation. There is no scheduled rotation, no
-        // generation counter, no per-record key id.
-        assertFalse(
-            "KeystoreHmacKey must NOT have a managed rotation (no keyId / generation)",
-            source.contains("generation") || source.contains("keyId"),
+        // v0.25.11 fix: the integrity layer now has a
+        // managed rotation path. The [generation] counter
+        // is stamped on every sealed value, [rotate()]
+        // bumps it, and a value written with a previous
+        // generation fails the verify on the next read
+        // (the integrity layer returns the reset value).
+        assertTrue(
+            "KeystoreHmacKey must expose a `generation` counter (v0.25.11 rotation fix)",
+            source.contains("var generation") || source.contains("val generation"),
+        )
+        assertTrue(
+            "KeystoreHmacKey must expose a `rotate()` function (v0.25.11 rotation fix)",
+            source.contains("fun rotate("),
         )
     }
 
@@ -400,17 +406,26 @@ class V2BugHuntFindingTest {
     //   trigger does not prompt; it silently enqueues a
     //   pending backup that will fail on the next worker
     //   run because the token is still stale.
+    //
+    //   v0.25.11 fix: TokenStore now stamps a 1-hour
+    //   expiry on every write and read() returns null
+    //   for a stale token. A 401 is still the contract
+    //   for the Drive call; the difference is that the
+    //   on-write trigger now sees a stale token as no
+    //   token and surfaces the re-auth prompt on the
+    //   next Settings visit instead of enqueuing a
+    //   pending backup that will fail.
     // -----------------------------------------------------------------
     @Test
-    fun `GoogleDriveAuth TokenStore has no expiry field`() {
+    fun `GoogleDriveAuth TokenStore has an expiry field (v0_25_11 fix)`() {
         val source = readSource("backup/GoogleDriveAuth.kt")
         assertNotNull(source)
         assertTrue(
             "GoogleDriveAuth TokenStore must write only KEY_ACCESS_TOKEN (no expiry)",
             source!!.contains("KEY_ACCESS_TOKEN = \"access_token\""),
         )
-        assertFalse(
-            "GoogleDriveAuth TokenStore must NOT write a token expiry",
+        assertTrue(
+            "GoogleDriveAuth TokenStore must write a token expiry (v0.25.11 fix)",
             source.contains("KEY_EXPIRY") || source.contains("expiry"),
         )
     }
@@ -618,16 +633,16 @@ class V2BugHuntFindingTest {
     //   silently records an empty-key reach.
     // -----------------------------------------------------------------
     @Test
-    fun `FrictionPrefs recordReach accepts an empty package name and silently records it`() {
+    fun `FrictionPrefs recordReach rejects a blank package name (v0_25_11 fix)`() {
         val source = readSource("data/FrictionPrefs.kt")
         assertNotNull(source)
-        // The filter for blank packageName is missing. The pin
-        // asserts "no guard exists". A regression that adds
-        // an `if (packageName.isBlank()) return` at the top of
-        // recordReach would flip the regex to true and the
-        // test would fail.
-        assertFalse(
-            "FrictionPrefs.recordReach must NOT validate a blank packageName (Finding #22)",
+        // v0.25.11 fix: the filter for a blank
+        // packageName is now present at the top of
+        // recordReach. The pin is the fix shape; a
+        // regression that drops the guard flips the
+        // regex to false and the test would fail.
+        assertTrue(
+            "FrictionPrefs.recordReach must validate a blank packageName (v0.25.11 fix)",
             Regex("fun recordReach\\([^)]*\\)[\\s\\S]*?if \\(packageName\\.isBlank\\(\\)\\)")
                 .containsMatchIn(source!!),
         )

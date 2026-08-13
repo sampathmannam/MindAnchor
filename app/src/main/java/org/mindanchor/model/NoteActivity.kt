@@ -5,8 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.addCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.mindanchor.data.NotesPrefs
@@ -114,7 +114,7 @@ class NoteActivity : ComponentActivity() {
 
         setContent {
             MindAnchorTheme {
-                val state by notesPrefs.notes.collectAsState(initial = NotesState())
+                val state by notesPrefs.notes.collectAsStateWithLifecycle(initialValue = NotesState())
                 NoteScreen(
                     notes = state,
                     // v0.25.10: when the user has tapped

@@ -1,3 +1,4 @@
+@file:Suppress("MaxLineLength", "FunctionNaming", "LongMethod", "MagicNumber")
 package org.mindanchor.launcher
 
 import android.content.Intent
@@ -51,6 +52,9 @@ import androidx.compose.ui.focus.onFocusEvent
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -628,7 +632,7 @@ private fun OpenLoopCard(
                         .bringIntoViewOnFocus()
                         .padding(top = 8.dp),
                 )
-                TextButton(onClick = { onSave(draft) }) {
+                TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = { onSave(draft) }) {
                     Text(stringResource(R.string.loop_save), color = sky.textPrimary)
                 }
             }
@@ -654,7 +658,7 @@ private fun OpenLoopCard(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(top = 4.dp),
             )
-            TextButton(onClick = onCancelPostpone) {
+            TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = onCancelPostpone) {
                 Text(stringResource(R.string.loop_postponed_cancel), color = sky.textSecondary)
             }
         }
@@ -683,10 +687,10 @@ private fun OpenLoopCard(
                     modifier = Modifier.padding(top = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    TextButton(onClick = { showDialog = true }) {
+                    TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = { showDialog = true }) {
                         Text(stringResource(R.string.loop_postpone), color = sky.textSecondary)
                     }
-                    TextButton(onClick = onClear) {
+                    TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = onClear) {
                         Text(stringResource(R.string.loop_clear), color = sky.textSecondary)
                     }
                 }
@@ -756,6 +760,8 @@ private fun OneThingCard(
                         onSet(draft)
                         draft = ""
                     },
+                    // v0.25.10 (B6): Role.Button
+                    modifier = Modifier.semantics { role = Role.Button },
                 ) {
                     Text(stringResource(R.string.one_thing_set), color = sky.textPrimary)
                 }
@@ -778,7 +784,10 @@ private fun OneThingCard(
                 color = sky.textPrimary,
                 textAlign = TextAlign.Center,
             )
-            TextButton(onClick = onClear) {
+            TextButton(
+        modifier = Modifier.semantics { role = Role.Button },
+        onClick = onClear,
+            ) {
                 Text(stringResource(R.string.one_thing_done), color = sky.textSecondary)
             }
         }
@@ -809,7 +818,8 @@ private fun PostponeDialog(onDismiss: () -> Unit, onPick: (Instant) -> Unit) {
         text = {
             Column {
                 TextButton(
-                    onClick = {
+        modifier = Modifier.semantics { role = Role.Button },
+        onClick = {
                         onPick(
                             LocalDateTime.now(zone)
                                 .plusHours(2)
@@ -821,7 +831,8 @@ private fun PostponeDialog(onDismiss: () -> Unit, onPick: (Instant) -> Unit) {
                     Text(stringResource(R.string.loop_postpone_later_today))
                 }
                 TextButton(
-                    onClick = {
+        modifier = Modifier.semantics { role = Role.Button },
+        onClick = {
                         onPick(
                             LocalDate.now(zone)
                                 .plusDays(1)
@@ -836,7 +847,12 @@ private fun PostponeDialog(onDismiss: () -> Unit, onPick: (Instant) -> Unit) {
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+        modifier = Modifier.semantics { role = Role.Button },
+        onClick = onDismiss,
+                // v0.25.10 (B6): Role.Button
+
+            ) {
                 Text(stringResource(R.string.loop_postpone_cancel))
             }
         },
@@ -949,7 +965,10 @@ private fun BedtimeListCard(
                     )
                 }
                 if (drafts.size < BedtimeList.MAX_ITEMS) {
-                    TextButton(onClick = { drafts.add("") }) {
+                    TextButton(
+        modifier = Modifier.semantics { role = Role.Button },
+        onClick = { drafts.add("") },
+                    ) {
                         Text(
                             stringResource(R.string.bedtime_add_line),
                             color = sky.textSecondary,
@@ -966,7 +985,8 @@ private fun BedtimeListCard(
                     )
                 }
                 TextButton(
-                    onClick = {
+        modifier = Modifier.semantics { role = Role.Button },
+        onClick = {
                         // v0.25.5 WP-G: confirmation pulse on save,
                         // same shape as the QuickNotesCard save. The
                         // user is parking the list for the morning —
@@ -975,6 +995,8 @@ private fun BedtimeListCard(
                         onSave(drafts.toList())
                     },
                     enabled = drafts.any { it.isNotBlank() },
+                    // v0.25.10 (B6): Role.Button
+
                 ) {
                     Text(stringResource(R.string.bedtime_save), color = sky.textPrimary)
                 }
@@ -999,7 +1021,12 @@ private fun BedtimeListCard(
                     textAlign = TextAlign.Center,
                 )
             }
-            TextButton(onClick = onClear) {
+            TextButton(
+        modifier = Modifier.semantics { role = Role.Button },
+        onClick = onClear,
+                // v0.25.10 (B6): Role.Button
+
+            ) {
                 Text(
                     stringResource(R.string.bedtime_clear),
                     color = sky.textSecondary,
@@ -1105,12 +1132,15 @@ private fun QuickNotesCard(
                 .padding(top = 8.dp),
         )
         TextButton(
-            onClick = {
+        modifier = Modifier.semantics { role = Role.Button },
+        onClick = {
                 onSave(draft)
                 draft = ""
                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
             },
             enabled = draft.isNotBlank(),
+            // v0.25.10 (B6): Role.Button
+
         ) {
             Text(stringResource(R.string.quick_notes_save), color = sky.textPrimary)
         }
@@ -1124,10 +1154,13 @@ private fun QuickNotesCard(
         // who can feel the difference will not wonder which
         // they pressed.
         if (draft.isNotBlank()) {
-            TextButton(onClick = {
-                draft = ""
-                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            }) {
+            TextButton(
+        modifier = Modifier.semantics { role = Role.Button },
+        onClick = {
+                    draft = ""
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                },
+            ) {
                 Text(stringResource(R.string.quick_notes_clear), color = sky.textSecondary)
             }
         }
@@ -1151,8 +1184,10 @@ private fun QuickNotesCard(
                 val title = note.title.ifBlank { note.body.take(60) }
                 val whenText = noteTimeText(note)
                 TextButton(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics { role = Role.Button },
                     onClick = onOpenAll,
-                    modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(
                         text = stringResource(
@@ -1166,7 +1201,12 @@ private fun QuickNotesCard(
                     )
                 }
             }
-            TextButton(onClick = onOpenAll) {
+            TextButton(
+        modifier = Modifier.semantics { role = Role.Button },
+        onClick = onOpenAll,
+                // v0.25.10 (B6): Role.Button
+
+            ) {
                 Text(stringResource(R.string.quick_notes_view_all), color = sky.textSecondary)
             }
         }
@@ -1722,10 +1762,11 @@ private fun HomeSurface(
         // the top corners: ask for the nav-bar inset
         // on the buttons themselves.
         TextButton(
-            onClick = onOpenDrawer,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .navigationBarsPadding(),
+                .navigationBarsPadding()
+                .semantics { role = Role.Button },
+            onClick = onOpenDrawer,
         ) {
             Text(
                 text = stringResource(R.string.open_drawer),
@@ -1745,7 +1786,8 @@ private fun HomeSurface(
                 // screen on rounded-corner devices and
                 // on emulators that crop the last
                 // pixel.
-                .padding(end = 8.dp),
+                .padding(end = 8.dp)
+                .semantics { role = Role.Button },
         ) {
             Text(
                 text = stringResource(R.string.settings),
@@ -1780,7 +1822,8 @@ private fun HomeSurface(
             },
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .statusBarsPadding(),
+                .statusBarsPadding()
+                .semantics { role = Role.Button },
         ) {
             Text(
                 text = stringResource(R.string.support_shortcut),
@@ -1832,9 +1875,18 @@ private fun HomeSurface(
                 .padding(end = 8.dp),
             horizontalAlignment = Alignment.End,
         ) {
-            TextButton(onClick = onOpenLetters) { Text("letters") }
             TextButton(
-                onClick = onOpenNotes,
+        modifier = Modifier.semantics { role = Role.Button },
+        onClick = onOpenLetters,
+                // v0.25.10 (B1): use stringResource for the label.
+                // v0.25.10 (B6): Role.Button for screen readers.
+
+            ) { Text(stringResource(R.string.letters_shortcut)) }
+            TextButton(
+        modifier = Modifier.semantics { role = Role.Button },
+        onClick = onOpenNotes,
+                // v0.25.10 (B6): Role.Button
+
             ) {
                 Text(
                     text = stringResource(R.string.notes_shortcut),
@@ -1843,7 +1895,10 @@ private fun HomeSurface(
                 )
             }
             TextButton(
-                onClick = onOpenCheckInHistory,
+        modifier = Modifier.semantics { role = Role.Button },
+        onClick = onOpenCheckInHistory,
+                // v0.25.10 (B6): Role.Button
+
             ) {
                 Text(
                     text = stringResource(R.string.check_in_history_shortcut),
@@ -1862,7 +1917,8 @@ private fun HomeSurface(
             // for the rationale.
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .navigationBarsPadding(),
+                .navigationBarsPadding()
+                .semantics { role = Role.Button },
         ) {
             Text(
                 text = stringResource(R.string.digest_screen_title),

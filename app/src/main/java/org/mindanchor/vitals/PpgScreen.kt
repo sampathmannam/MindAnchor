@@ -27,6 +27,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
@@ -247,7 +250,14 @@ fun PpgScreen(
                 Text(
                     text = stringResource(R.string.ppg_seconds_left, remaining),
                     style = MaterialTheme.typography.headlineSmall,
-                    modifier = Modifier.padding(top = 8.dp),
+                    // v0.25.11 (B13): the countdown is a
+                    // one-second-updating Text. A polite live
+                    // region lets TalkBack announce the count so
+                    // a blind user can tell the measurement is
+                    // progressing.
+                    modifier = Modifier
+                        .padding(top = 8.dp)
+                        .semantics { liveRegion = LiveRegionMode.Polite },
                 )
                 TextButton(
                     onClick = { capture.stop() },

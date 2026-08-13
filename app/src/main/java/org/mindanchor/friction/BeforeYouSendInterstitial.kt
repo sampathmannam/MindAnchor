@@ -1,3 +1,4 @@
+@file:Suppress("MaxLineLength", "FunctionNaming", "ReturnCount", "UnusedParameter", "MagicNumber")
 package org.mindanchor.friction
 
 import androidx.compose.foundation.layout.Arrangement

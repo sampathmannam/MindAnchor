@@ -26,3 +26,9 @@ captures/
 # Build log files (one-off logs from ./gradlew invocations)
 build_*.log
 gradle_*.log
+
+saved_state/
+_*.py
+_*.py.tmp
+_*.tmp
+_debug_output.txt

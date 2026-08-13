@@ -156,7 +156,7 @@
         match: the service is processing loopback
         packets, not syncing data to a remote endpoint.
     -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <!--
         Fingertip PPG, and nothing else. HRV is the best physiological
@@ -594,7 +594,10 @@
             android:name=".goinglight.GoingLightVpnService"
             android:exported="false"
             android:permission="android.permission.BIND_VPN_SERVICE"
-            android:foregroundServiceType="dataSync">
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="local_vpn_loopback_capture" />
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>

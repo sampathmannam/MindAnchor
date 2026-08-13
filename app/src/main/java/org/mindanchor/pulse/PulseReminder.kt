@@ -129,13 +129,17 @@ object PulseReminder {
             return
         }
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
-        manager.createNotificationChannel(
-            NotificationChannel(
-                CHANNEL_ID,
-                context.getString(R.string.pulse_channel_name),
-                NotificationManager.IMPORTANCE_LOW,
-            ),
-        )
+        // v0.25.11: guard createNotificationChannel with getNotificationChannel
+        // so the channel is only created the first time we post to it.
+        if (manager.getNotificationChannel(CHANNEL_ID) == null) {
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    CHANNEL_ID,
+                    context.getString(R.string.pulse_channel_name),
+                    NotificationManager.IMPORTANCE_LOW,
+                ),
+            )
+        }
         val contentIntent = PendingIntent.getActivity(
             context,
             0,

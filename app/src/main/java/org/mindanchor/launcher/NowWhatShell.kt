@@ -1,3 +1,4 @@
+@file:Suppress("MaxLineLength", "FunctionNaming", "WildcardImport", "MagicNumber")
 package org.mindanchor.launcher
 
 import androidx.compose.foundation.layout.*

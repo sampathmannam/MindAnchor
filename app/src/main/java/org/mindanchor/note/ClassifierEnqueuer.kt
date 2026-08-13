@@ -3,8 +3,10 @@ package org.mindanchor.note
 import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import org.mindanchor.data.NotesPrefs
 import org.mindanchor.model.Note
@@ -86,11 +88,23 @@ class ClassifierEnqueuer(private val context: Context) {
      * chip; the user can re-enqueue via Settings.
      */
     fun enqueue(note: Note) {
-        scope.launch {
-            runCatching {
-                val type = classifier.classify(note.body)
-                prefs.setType(note.id, type)
-            }
+        enqueueJob(note)
+    }
+
+    /**
+     * v0.25.11: the internal enqueue that returns
+     * the launched [Job]. Public callers still
+     * use [enqueue] for fire-and-forget; the
+     * [runUpgradePassIfNeeded] upgrade pass uses
+     * [enqueueAll] + [joinAll] so the
+     * SharedPreferences flag is set only after
+     * every enqueued classification has completed
+     * (B12 regression guard).
+     */
+    private fun enqueueJob(note: Note): Job = scope.launch {
+        runCatching {
+            val type = classifier.classify(note.body)
+            prefs.setType(note.id, type)
         }
     }
 
@@ -105,16 +119,18 @@ class ClassifierEnqueuer(private val context: Context) {
      * launcher can be backgrounded while the
      * pass runs.
      *
+     * v0.25.11: now returns the list of launched
+     * [Job]s so the caller can `joinAll()` them
+     * before declaring the pass "done" (B12).
+     *
      * The pass is **idempotent**: notes that
      * already have a type are skipped (the caller
      * filters by `type == null` for the upgrade
      * pass, or resets to null before re-enqueueing
      * for the manual re-classify).
      */
-    fun enqueueAll(notes: List<Note>) {
-        for (note in notes) {
-            enqueue(note)
-        }
+    fun enqueueAll(notes: List<Note>): List<Job> {
+        return notes.map { enqueueJob(it) }
     }
 
     /**
@@ -133,9 +149,17 @@ class ClassifierEnqueuer(private val context: Context) {
      * the same in-flight pass — model calls
      * don't restart; they continue.
      *
-     * The flag is set only after the read
-     * succeeds, so a crash mid-pass causes
-     * the pass to retry on the next launch.
+     * v0.25.11 (B12 regression guard): the flag
+     * is set only after the enqueued
+     * classification jobs have been joined
+     * (`.joinAll()`). A process kill between the
+     * flag-set and the classifications completing
+     * no longer leaves notes un-typed with the
+     * flag `true` — the previous fire-and-forget
+     * shape could not promise the "crash mid-pass
+     * retries on next launch" behaviour the KDoc
+     * claims; the new shape can.
+     *
      * The enqueue itself is fault-tolerant;
      * a single failed classify is dropped,
      * the rest of the queue continues.
@@ -149,7 +173,8 @@ class ClassifierEnqueuer(private val context: Context) {
                 val state = prefs.notes.first()
                 val untyped = state.notes.filter { it.type == null }
                 if (untyped.isNotEmpty()) {
-                    enqueueAll(untyped)
+                    val jobs = enqueueAll(untyped)
+                    jobs.joinAll()
                 }
                 prefsForFlag.edit().putBoolean(UPGRADE_FLAG_KEY, true).apply()
             }

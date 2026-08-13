@@ -8,6 +8,7 @@ import android.content.Intent
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import org.mindanchor.R
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.net.InetAddress
@@ -54,9 +55,9 @@ class GoingLightVpnService : VpnService() {
      * v0.25.9 (B2, SOTA v2 bug-hunt, errors
      * agent): a service-scoped CoroutineScope for
      * the DataStore read + interface establish
-     * work. [start] used to call
-     * `runBlocking { ... .first() }` on the main
-     * thread inside the VpnService Builder
+     * work. [start] used to do a blocking
+     * DataStore `.first()` on the main thread
+     * inside the VpnService Builder
      * initialisation — a slow DataStore read
      * blocked the main thread until ANR. The
      * service is now main-thread by definition
@@ -162,11 +163,10 @@ class GoingLightVpnService : VpnService() {
      * `Builder.establish()` are both moved off the
      * main thread (the service is a Service, so its
      * `onStartCommand` runs on the main thread by
-     * definition). The pre-fix shape was
-     * `runBlocking { ... .first() }` on the main
-     * thread inside the Builder initialisation —
-     * a slow DataStore read blocked the main
-     * thread until ANR.
+     * definition). The pre-fix shape was a blocking
+     * DataStore `.first()` on the main thread inside
+     * the Builder initialisation — a slow DataStore
+     * read blocked the main thread until ANR.
      *
      * Returns true if the interface is up; false
      * on establish() failure (caller turns off
@@ -515,14 +515,14 @@ class GoingLightVpnService : VpnService() {
                     "Going Light",
                     NotificationManager.IMPORTANCE_LOW,
                 )
-                channel.description = "Active Going Light window"
+                channel.description = getString(R.string.going_light_channel_description)
                 channel.setShowBadge(false)
                 nm.createNotificationChannel(channel)
             }
         }
         return Notification.Builder(this, CHANNEL_ID)
-            .setContentTitle("Going Light is on")
-            .setContentText("Mobile internet is paused for selected apps")
+            .setContentTitle(getString(R.string.going_light_notification_title))
+            .setContentText(getString(R.string.going_light_notification_text))
             .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
             .setOngoing(true)
             .setCategory(Notification.CATEGORY_SERVICE)

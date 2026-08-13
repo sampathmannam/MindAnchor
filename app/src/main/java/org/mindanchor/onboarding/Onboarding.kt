@@ -46,9 +46,13 @@ class OnboardingPrefs(private val context: Context) {
 
     /**
      * v0.25.5 WP-E: the day the user first ran the app. Set on the
-     * first read of [done] if the field is missing, never overwritten
-     * after. Used by [recapWindow] to decide when a 14-day recap
-     * should surface.
+     * first [complete] call (not at app launch, not implicitly by
+     * any other code path — see the comment inside [complete] for
+     * the rationale: a user who installs the app, uses the launcher
+     * for 30 days without completing onboarding, and only then
+     * completes it has their install-day stamped at completion,
+     * not at install). Never overwritten after. Used by
+     * [recapWindow] to decide when a 14-day recap should surface.
      */
     val installDay: Flow<LocalDate?> = context.dataStore.data.map { prefs ->
         prefs[installDayKey]?.let { runCatching { LocalDate.parse(it) }.getOrNull() }

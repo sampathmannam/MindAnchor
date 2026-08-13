@@ -1,3 +1,4 @@
+@file:Suppress("MaxLineLength", "FunctionNaming", "MagicNumber")
 package org.mindanchor.data
 
 import android.content.Context

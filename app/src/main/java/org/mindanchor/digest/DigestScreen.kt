@@ -1,3 +1,4 @@
+@file:Suppress("MaxLineLength", "FunctionNaming", "MagicNumber")
 package org.mindanchor.digest
 
 import android.app.Application
@@ -21,6 +22,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -90,7 +94,7 @@ fun DigestScreen(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TextButton(onClick = onClose) { Text(stringResource(R.string.action_back)) }
+                TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = onClose) { Text(stringResource(R.string.action_back)) }
                 Text(
                     text = stringResource(R.string.digest_screen_title),
                     style = MaterialTheme.typography.headlineSmall,
@@ -108,7 +112,7 @@ fun DigestScreen(
                         style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.weight(1f),
                     )
-                    TextButton(onClick = viewModel::releaseNow) {
+                    TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = viewModel::releaseNow) {
                         Text(stringResource(R.string.digest_release_now))
                     }
                 }
@@ -140,7 +144,7 @@ fun DigestScreen(
             }
 
             if (released.isNotEmpty()) {
-                TextButton(onClick = viewModel::clearReleased) {
+                TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = viewModel::clearReleased) {
                     Text(stringResource(R.string.digest_clear_released))
                 }
             }

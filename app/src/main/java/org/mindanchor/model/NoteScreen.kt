@@ -1,3 +1,4 @@
+@file:Suppress("MaxLineLength", "FunctionNaming", "LongMethod", "CyclomaticComplexMethod", "MagicNumber")
 package org.mindanchor.model
 
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -88,7 +89,7 @@ import org.mindanchor.R
  *
  * ## Why auto-save on every keystroke
  *
- * The brief: "I want to remember this" — the
+ * The brief: "I want to remember this" â€” the
  * user's pattern is "capture an insight", not
  * "write a draft." Drafts need a Save button;
  * captured insights do not. We save on every
@@ -98,7 +99,7 @@ import org.mindanchor.R
  *
  * ## Why no "share" / "export" / "reminder"
  *
- * Brief §A5: notes are local-only, no cloud,
+ * Brief Â§A5: notes are local-only, no cloud,
  * no share, no export, no reminders. The
  * surface is the data, not a feature.
  */
@@ -113,7 +114,7 @@ import org.mindanchor.R
  * `editingNoteId` is set) and the soft keyboard
  * otherwise covers whichever one the user is
  * typing into. The inline editor is the worse
- * case — it can be many rows down the LazyColumn,
+ * case â€” it can be many rows down the LazyColumn,
  * and a focus event without a bringIntoView call
  * leaves the field hidden under the keyboard.
  */
@@ -138,7 +139,7 @@ fun NoteScreen(
     // user-selected type (from the active filter
     // pill). The activity uses this as the note's
     // type and skips the classifier when it is
-    // non-null — the user explicitly told us the
+    // non-null â€” the user explicitly told us the
     // type, and silently overwriting it was the
     // v0.25.8 / smoke-v2 P0 #1 bug. The v0.25.8
     // shape was the 1-arg `(body: String) -> Unit`
@@ -153,7 +154,7 @@ fun NoteScreen(
     // v0.20.1 round 5 follow-up (round 5 audit
     // fix): the previous comment claimed the
     // `addInFlight` flag prevents a double-tap.
-    // It does not — the flag is set and reset in
+    // It does not â€” the flag is set and reset in
     // the same synchronous call frame because
     // `onAdd(...)` returns immediately (the
     // activity's prefs.add is on a separate
@@ -180,7 +181,7 @@ fun NoteScreen(
     var newNoteDraft by rememberSaveable { mutableStateOf("") }
     // v0.20.1 round 5 follow-up: the id of the
     // note whose delete the user just confirmed.
-    // Set when the user taps the × IconButton on a
+    // Set when the user taps the Ã— IconButton on a
     // note row; cleared when the user confirms or
     // dismisses the dialog. remember (not
     // rememberSaveable) is correct: a config change
@@ -279,11 +280,11 @@ fun NoteScreen(
                     IconButton(
                         onClick = onClose,
                         modifier = Modifier.semantics {
-                            contentDescription = "Back to launcher"
+                            contentDescription = "Close"
                         },
                     ) {
                         Text(
-                            text = "←",
+                            text = "â†",
                             style = MaterialTheme.typography.titleLarge,
                         )
                     }
@@ -291,7 +292,7 @@ fun NoteScreen(
             )
 
             // The new-note composer. Always visible
-            // at the top of the screen — captures
+            // at the top of the screen â€” captures
             // the "I just thought of something"
             // moment without forcing a modal.
             // v0.20.9: bringIntoViewOnFocus on the
@@ -340,7 +341,7 @@ fun NoteScreen(
                             // type. The "Task" pill the
                             // user tapped is now also a
                             // type-selector for the note
-                            // they are about to save —
+                            // they are about to save â€”
                             // the v0.25.8 / smoke-v2
                             // P0 #1 bug was that the
                             // filter selection was
@@ -360,7 +361,7 @@ fun NoteScreen(
             }
 
             // v0.25.0: the type-filter chip row. A
-            // horizontal scroll of [FilterChip]s —
+            // horizontal scroll of [FilterChip]s â€”
             // "All" plus one per [NoteType]. The
             // active chip is visually selected;
             // tapping the active chip clears the
@@ -395,7 +396,7 @@ fun NoteScreen(
 
             if (sorted.isEmpty()) {
                 // Empty state. A single line, no
-                // illustration — the home screen
+                // illustration â€” the home screen
                 // already provides calm, and the
                 // notes screen is a tool, not a
                 // mood.
@@ -462,6 +463,7 @@ fun NoteScreen(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .heightIn(min = 48.dp)
                                         .clickable {
                                             if (isEditing) {
                                                 onEdit(note.id, editorBody)
@@ -530,18 +532,18 @@ fun NoteScreen(
                                         //    or it failed silently).
                                         NoteTypeBadge(note = note, now = System.currentTimeMillis())
                                     }
+                                    val pinDesc = stringResource(
+                                        if (note.pinned) R.string.note_unpin else R.string.note_pin
+                                    )
+                                    val deleteDesc = stringResource(R.string.note_delete)
                                     IconButton(
                                         onClick = { onTogglePinned(note.id) },
                                         modifier = Modifier.semantics {
-                                            contentDescription = if (note.pinned) {
-                                                "Unpin this note"
-                                            } else {
-                                                "Pin this note"
-                                            }
+                                            contentDescription = pinDesc
                                         },
                                     ) {
                                         Text(
-                                            text = if (note.pinned) "★" else "☆",
+                                            text = if (note.pinned) "â˜…" else "â˜†",
                                             style = MaterialTheme.typography.titleLarge,
                                             fontWeight = if (note.pinned) FontWeight.Bold else FontWeight.Normal,
                                         )
@@ -549,11 +551,11 @@ fun NoteScreen(
                                     IconButton(
                                         onClick = { pendingDeleteId = note.id },
                                         modifier = Modifier.semantics {
-                                            contentDescription = "Delete this note"
+                                            contentDescription = deleteDesc
                                         },
                                     ) {
                                         Text(
-                                            text = "×",
+                                            text = "Ã—",
                                             style = MaterialTheme.typography.titleLarge,
                                         )
                                     }
@@ -584,7 +586,7 @@ fun NoteScreen(
         // v0.25.5 WP-G: a confirmation pulse when a note is
         // actually deleted. Brewster CHI 2007: rich tactile
         // feedback for distinct actions. LongPress is the same
-        // shape the QuickNotesCard save uses — the user is
+        // shape the QuickNotesCard save uses â€” the user is
         // committing a destructive action, the same feedback
         // type fits.
         val haptics = LocalHapticFeedback.current
@@ -648,13 +650,13 @@ private fun noteTypeColor(type: NoteType): Color = when (type) {
     // Neutral grey for general; matches the
     // unclassified default.
     NoteType.GENERAL -> Color(GENERAL_CHIP_COLOR)
-    // Blue tint for tasks — same family as the
+    // Blue tint for tasks â€” same family as the
     // EMA "above usual" indicator.
     NoteType.TASK -> Color(TASK_CHIP_COLOR)
-    // Orange tint for reminders — the time-bound
+    // Orange tint for reminders â€” the time-bound
     // signal. Matches the EMA "below usual".
     NoteType.REMINDER -> Color(REMINDER_CHIP_COLOR)
-    // Purple tint for journal — reflective, the
+    // Purple tint for journal â€” reflective, the
     // quietest of the four. The letter's reading-
     // card accent colour.
     NoteType.JOURNAL -> Color(JOURNAL_CHIP_COLOR)
@@ -667,21 +669,21 @@ private const val JOURNAL_CHIP_COLOR: Long = 0xFFE1BEE7
 
 /**
  * v0.25.0: the per-row type badge. Three states:
- *  - **typed note** — a small colored surface with
+ *  - **typed note** â€” a small colored surface with
  *    the type name.
- *  - **untyped note, recently saved** — a thin
+ *  - **untyped note, recently saved** â€” a thin
  *    indeterminate [LinearProgressIndicator]. The
  *    classifier is running; the chip will appear
  *    once it writes back.
  *  - **untyped note, save older than the shimmer
- *    window** — no badge. The classifier isn't on
+ *    window** â€” no badge. The classifier isn't on
  *    the phone, or it failed silently; the user
  *    can re-classify via Settings.
  *
  * The shimmer is the "the model is thinking"
  * affordance the spec calls for. Without it, a
  * newly-saved note looks identical to a note saved
- * yesterday that has no type — the user cannot
+ * yesterday that has no type â€” the user cannot
  * tell the model is running. With it, the user
  * sees activity for the [SHIMMER_DURATION_MS]
  * window after save, then either a chip (success)
@@ -731,7 +733,7 @@ private fun NoteTypeBadge(note: Note, now: Long) {
 /**
  * v0.25.1: the date+time stamp under each note
  * row. The list view used to render `note.updatedAt`,
- * the home card renders `note.createdAt` — the
+ * the home card renders `note.createdAt` â€” the
  * same note showed two different timestamps on two
  * screens. This helper pins the list view to
  * `createdAt` so the two surfaces read the same
@@ -740,7 +742,7 @@ private fun NoteTypeBadge(note: Note, now: Long) {
  *
  * Why createdAt, not updatedAt: the moment of
  * capture is the more meaningful anchor for a
- * wellness app — "when did I write this?" is a
+ * wellness app â€” "when did I write this?" is a
  * question the user can usefully ask themselves,
  * "when did I last edit it?" rarely is. The home
  * card already uses createdAt (see

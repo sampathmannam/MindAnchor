@@ -1,3 +1,4 @@
+@file:Suppress("MaxLineLength", "FunctionNaming", "MagicNumber")
 package org.mindanchor.support
 
 import android.content.Intent
@@ -39,6 +40,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -114,7 +116,10 @@ fun SupportScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(24.dp),
         ) {
-            TextButton(onClick = onClose) { Text(stringResource(R.string.action_back)) }
+            TextButton(
+        modifier = Modifier.semantics { role = Role.Button },
+        onClick = onClose,
+            ) { Text(stringResource(R.string.action_back)) }
 
             Text(
                 text = stringResource(R.string.support_title),
@@ -146,7 +151,9 @@ fun SupportScreen(
                     contacts.forEach { contact ->
                         TextButton(
                             onClick = { dial(contact.phone) },
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .semantics { role = Role.Button },
                         ) {
                             Text(
                                 text = if (contact.name.isBlank()) {
@@ -237,7 +244,10 @@ fun SupportScreen(
                         .weight(1f)
                         .semantics { heading() },
                 )
-                TextButton(onClick = { editing = !editing }) {
+                TextButton(
+        modifier = Modifier.semantics { role = Role.Button },
+        onClick = { editing = !editing },
+                ) {
                     Text(
                         stringResource(
                             if (editing) R.string.action_done else R.string.action_edit,
@@ -336,7 +346,7 @@ private fun SafetyPlanEditor(
                 style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = { onRemoveContact(contact) }) {
+            TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = { onRemoveContact(contact) }) {
                 Text(stringResource(R.string.action_remove))
             }
         }
@@ -393,6 +403,7 @@ private fun SafetyPlanEditor(
     // Disabled rather than silently refusing: a tap that does nothing
     // reads as a broken app, and this screen cannot afford to look broken.
     TextButton(
+        modifier = Modifier.semantics { role = Role.Button },
         onClick = {
             onAddContact(name, phone, professional)
             name = ""

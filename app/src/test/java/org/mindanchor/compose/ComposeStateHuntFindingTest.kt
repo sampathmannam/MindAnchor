@@ -301,16 +301,16 @@ class ComposeStateHuntFindingTest {
     // ----- BUG-016 (OpenLoopCard showDialog) -----
 
     @Test
-    fun `BUG-016 OpenLoopCard PostponeDialog visibility uses remember`() {
+    fun `BUG-016 OpenLoopCard PostponeDialog visibility uses rememberSaveable`() {
         // The PostponeDialog visibility is local to the
         // RETURN branch and is genuinely transient; pinning
         // it is informational, not load-bearing.
         val source = readSource("HomeScreen.kt", "launcher")
         assertNotNull(source)
         assertTrue(
-            "OpenLoopCard RETURN branch holds the PostponeDialog flag in remember",
+            "OpenLoopCard RETURN branch holds the PostponeDialog flag in rememberSaveable (v0.25.10 fix)",
             source!!.contains("LoopPhase.RETURN -> {") &&
-                source.contains("var showDialog by remember { mutableStateOf(false) }"),
+                source.contains("var showDialog by rememberSaveable { mutableStateOf(false) }"),
         )
     }
 

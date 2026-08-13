@@ -27,6 +27,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import android.text.format.DateFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -399,7 +402,9 @@ private fun ReportFeedbackRow(
             ),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = Spacing.Section),
+            modifier = Modifier
+                .padding(top = Spacing.Section)
+                .semantics { liveRegion = LiveRegionMode.Polite },
         )
     } else {
         Column(

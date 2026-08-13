@@ -66,7 +66,13 @@ class LetterSurfaceWiringFindingTest {
         ).readText()
         assertTrue(
             "HomeScreen must have a 'letters' TextButton wired to onOpenLetters",
-            screen.contains("onClick = onOpenLetters") && screen.contains("Text(\"letters\")"),
+            // v0.25.9: the 'letters' TextButton now uses
+            // stringResource(R.string.letters_*) so the
+            // label is localisable (B1 in
+            // A11ySurfaceFindingTest). The wiring pin
+            // here matches the localisable shape, not
+            // the v0.25.2-A hardcoded `Text("letters")`.
+            screen.contains("onClick = onOpenLetters") && screen.contains("R.string.letters"),
         )
     }
 }

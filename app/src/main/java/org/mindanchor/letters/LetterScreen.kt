@@ -24,6 +24,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -154,7 +157,11 @@ private fun LetterInboxContent(
     onDeleteRequest: (LocalDate) -> Unit,
 ) {
     val today = LocalDate.now()
-    TextButton(onClick = onBack) {
+    TextButton(
+        onClick = onBack,
+        // v0.25.10 (B6): Role.Button
+        modifier = Modifier.semantics { role = Role.Button },
+    ) {
         Text(stringResource(R.string.action_back))
     }
     Text(
@@ -205,7 +212,10 @@ private fun LetterInboxContent(
     TextButton(
         enabled = modelFits,
         onClick = { /* wired in Task 10 */ },
-        modifier = Modifier.padding(top = Spacing.Loose),
+        // v0.25.10 (B6): Role.Button
+        modifier = Modifier
+            .padding(top = Spacing.Loose)
+            .semantics { role = Role.Button },
     ) {
         Text(stringResource(R.string.letters_run_now))
     }
@@ -230,12 +240,20 @@ private fun LetterDeleteDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.letters_delete_confirm)) },
         confirmButton = {
-            TextButton(onClick = onConfirm) {
+            TextButton(
+                onClick = onConfirm,
+                // v0.25.10 (B6): Role.Button
+                modifier = Modifier.semantics { role = Role.Button },
+            ) {
                 Text(stringResource(R.string.letters_delete_button))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                // v0.25.10 (B6): Role.Button
+                modifier = Modifier.semantics { role = Role.Button },
+            ) {
                 Text(stringResource(R.string.letters_cancel))
             }
         },
@@ -371,7 +389,11 @@ private fun LetterReaderHeader(
         modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.Tight),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        TextButton(onClick = onBack) { Text(stringResource(R.string.action_back)) }
+        TextButton(
+            onClick = onBack,
+            // v0.25.10 (B6): Role.Button
+            modifier = Modifier.semantics { role = Role.Button },
+        ) { Text(stringResource(R.string.action_back)) }
         Spacer(modifier = Modifier.weight(1f))
         SingleChoiceSegmentedButtonRow {
             listOf(ReadingSize.SMALL, ReadingSize.MEDIUM, ReadingSize.LARGE)
@@ -416,7 +438,11 @@ private fun LetterReaderMissing(onBack: () -> Unit) {
         style = MaterialTheme.typography.bodyLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    TextButton(onClick = onBack) {
+    TextButton(
+        onClick = onBack,
+        // v0.25.10 (B6): Role.Button
+        modifier = Modifier.semantics { role = Role.Button },
+    ) {
         Text(stringResource(R.string.action_back))
     }
 }
@@ -438,12 +464,20 @@ private fun LetterReaderDeleteDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.letters_delete_confirm)) },
         confirmButton = {
-            TextButton(onClick = onConfirm) {
+            TextButton(
+                onClick = onConfirm,
+                // v0.25.10 (B6): Role.Button
+                modifier = Modifier.semantics { role = Role.Button },
+            ) {
                 Text(stringResource(R.string.letters_delete_button))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                // v0.25.10 (B6): Role.Button
+                modifier = Modifier.semantics { role = Role.Button },
+            ) {
                 Text(stringResource(R.string.letters_cancel))
             }
         },
