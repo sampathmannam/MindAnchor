@@ -22,3 +22,7 @@ captures/
 
 # Local worktrees (not for commit)
 .worktrees/
+
+# Build log files (one-off logs from ./gradlew invocations)
+build_*.log
+gradle_*.log
