@@ -110,7 +110,12 @@ class BackupRetryWorker(
      * already drops corrupt lines, so the worker
      * should never see one — defense in depth.
      */
-    @Suppress("detekt.SwallowedException", "ReturnCount", "LongMethod")
+    @Suppress(
+        "detekt.SwallowedException",
+        "ReturnCount",
+        "LongMethod",
+        "LoopWithTooManyJumpStatements",
+    )
     override suspend fun doWork(): Result {
         val ctx = applicationContext
         val backupPrefs = BackupPrefs(ctx)
@@ -155,6 +160,19 @@ class BackupRetryWorker(
             type = ContentType.Letters,
         )
         var totalDrained = 0
+        // v0.25.9 (SOTA v2 bug-hunt, WorkManager #2):
+        // track entries processed in this worker run so
+        // a queue mutation during the inner loop (a
+        // concurrent enqueue that overflows MAX_PENDING
+        // and drops the oldest, or a new write that
+        // pushes the same payload id in) does not
+        // cause the worker to re-append a payload that
+        // is already on Drive. The fix shape: skip
+        // entries that are equal to one we've already
+        // processed in this run. The drain completes
+        // when the current queue minus the in-flight
+        // set is empty.
+        val processed = mutableSetOf<PendingBackup>()
         try {
             while (true) {
                 val queue = runCatching {
@@ -164,7 +182,19 @@ class BackupRetryWorker(
                     return Result.retry()
                 }
                 if (queue.isEmpty()) break
-                for (entry in queue) {
+                // Process only entries we have not yet
+                // tried in this run. The for-loop's
+                // `removePending` is a no-op if the entry
+                // was dropped from the queue between the
+                // top-of-loop read and the per-entry
+                // write (MAX_PENDING overflow during a
+                // concurrent enqueue), so without this
+                // filter the worker would re-append an
+                // entry already on Drive, producing a
+                // duplicate line in the journal file.
+                val toProcess = queue.filter { it !in processed }
+                if (toProcess.isEmpty()) break
+                for (entry in toProcess) {
                     val target = when (entry.type) {
                         ContentType.Notes -> notesTarget
                         ContentType.Letters -> lettersTarget
@@ -200,7 +230,7 @@ class BackupRetryWorker(
                         return Result.retry()
                     }
                 }
-                totalDrained += queue.size
+                totalDrained += toProcess.size
                 // Re-read the queue at the top of the loop to pick
                 // up concurrent enqueues. A `while (true)` that
                 // never sees an empty queue would loop forever;

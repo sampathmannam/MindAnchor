@@ -75,14 +75,32 @@ object EncryptedBackupCodec {
      * freshly generated with [SecureRandom]; never
      * reuse an IV with the same key.
      *
+     * v0.25.9: the ciphertext is bound to the
+     * [type.fileName] via GCM AAD
+     * ([Cipher.updateAAD]). Without AAD, a blob
+     * wrapped for `Notes` could be unwrapped as
+     * `Letters` (or vice versa) without the GCM
+     * tag noticing — the tag is computed over
+     * (key, IV, ciphertext) only, not over
+     * (key, IV, ciphertext, file-name). A
+     * motivated attacker with `drive.file` scope
+     * (the same scope the launcher requests) can
+     * read both files and swap them, and the
+     * recipient would not see the difference. The
+     * AAD makes the cross-file swap a tag failure
+     * on unwrap, which the codec surfaces as
+     * `null` and the target as `AppendResult.AuthExpired`
+     * (or a re-prompt on the user).
+     *
      * @return the wrapped bytes, or null on a
      * Keystore or Cipher failure. The caller surfaces
      * a user-visible message in that case; the wrap is
      * an opt-in surface, never silently dropped.
      */
-    fun wrap(plaintextJson: String): ByteArray? = wrapWith(
+    fun wrap(plaintextJson: String, type: ContentType): ByteArray? = wrapWith(
         plaintextJson = plaintextJson,
         key = KeystoreAesKey.getOrCreate(),
+        type = type,
     )
 
     /**
@@ -93,13 +111,16 @@ object EncryptedBackupCodec {
      * Keystore. The production call site uses [wrap],
      * which pulls the key from [KeystoreAesKey].
      */
-    internal fun wrapWith(plaintextJson: String, key: Key): ByteArray? = runCatching {
+    internal fun wrapWith(plaintextJson: String, key: Key, type: ContentType): ByteArray? = runCatching {
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, key)
         val iv = cipher.iv
         require(iv.size == GCM_IV_LENGTH) {
             "AES-GCM IV must be 12 bytes, got ${iv.size}"
         }
+        // v0.25.9: bind the ciphertext to the file
+        // name via AAD. See the [wrap] docstring.
+        cipher.updateAAD(type.fileName.toByteArray(Charsets.UTF_8))
         val ciphertext = cipher.doFinal(plaintextJson.encodeToByteArray())
         iv + ciphertext
     }.getOrElse { e ->
@@ -113,15 +134,24 @@ object EncryptedBackupCodec {
      * the first 12 bytes, the rest is the GCM
      * ciphertext+tag.
      *
+     * v0.25.9: the [type] must match the [type] the
+     * blob was [wrap]ped with — the AAD check in
+     * [unwrapWith] makes a cross-type unwrap a tag
+     * failure (returned as `null`).
+     *
      * @return the plaintext JSON, or null on a bad
      * format, an authentication failure (the tag does
-     * not verify — the file was tampered with, or it
-     * was wrapped with a different key), or a Keystore
-     * failure. A null return must NOT be treated as
-     * "empty backup"; the caller surfaces the failure
-     * to the user.
+     * not verify — the file was tampered with, the
+     * wrong [type] was passed, or it was wrapped with
+     * a different key), or a Keystore failure. A null
+     * return must NOT be treated as "empty backup";
+     * the caller surfaces the failure to the user.
      */
-    fun unwrap(blob: ByteArray): String? = unwrapWith(blob, KeystoreAesKey.getOrCreate())
+    fun unwrap(blob: ByteArray, type: ContentType): String? = unwrapWith(
+        blob = blob,
+        key = KeystoreAesKey.getOrCreate(),
+        type = type,
+    )
 
     /**
      * Internal unwrap variant that takes a [Key]
@@ -134,11 +164,13 @@ object EncryptedBackupCodec {
      *
      * @return the plaintext JSON, or null on a bad
      * format, an authentication failure (the tag does
-     * not verify), or a Cipher failure. The error path
-     * is deliberately silent at the call boundary; the
-     * caller surfaces a user-visible message.
+     * not verify, or the [type] does not match the
+     * AAD the blob was wrapped with), or a Cipher
+     * failure. The error path is deliberately silent
+     * at the call boundary; the caller surfaces a
+     * user-visible message.
      */
-    internal fun unwrapWith(blob: ByteArray, key: Key): String? = runCatching {
+    internal fun unwrapWith(blob: ByteArray, key: Key, type: ContentType): String? = runCatching {
         require(blob.size > GCM_IV_LENGTH + GCM_TAG_LENGTH_BITS / BITS_PER_BYTE) {
             "AES-GCM blob too short: ${blob.size}"
         }
@@ -150,6 +182,11 @@ object EncryptedBackupCodec {
             key,
             GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv),
         )
+        // v0.25.9: bind the unwrap to the file name
+        // via AAD. A blob wrapped for `Notes` will
+        // fail the tag check if unwrapped as
+        // `Letters`.
+        cipher.updateAAD(type.fileName.toByteArray(Charsets.UTF_8))
         cipher.doFinal(ciphertext).decodeToString()
     }.getOrElse { e ->
         Log.e(LOG_TAG, "unwrap failed: $e")

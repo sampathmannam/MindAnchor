@@ -10,6 +10,8 @@ import kotlinx.coroutines.flow.map
 import org.mindanchor.friction.SealedCodecs
 import org.mindanchor.model.Note
 import org.mindanchor.model.NotesState
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * The on-device notes DataStore. v0.20.1 round 5
@@ -45,8 +47,6 @@ private val Context.notesDataStore by preferencesDataStore(name = "notes")
  */
 class NotesPrefs(private val context: Context) {
 
-    private val notesKey = stringPreferencesKey("notes")
-
     /**
      * The user's notes, in storage order. The list
      * view sorts for display via
@@ -71,47 +71,29 @@ class NotesPrefs(private val context: Context) {
     }
 
     /**
-     * v0.25.7+ WP-3: the shared id generator. Before
-     * this fix [org.mindanchor.launcher.LauncherViewModel]
-     * and [org.mindanchor.model.NoteActivity] each had
-     * their own private `idCounter: AtomicLong` —
-     * two AndroidViewModels, two AtomicLongs, two
-     * counter seeds. A note written from the home
-     * card and a note written in the full activity
-     * could get the same id (the home card's seed
-     * was System.currentTimeMillis() at first use
-     * in the home activity; the full activity's
-     * seed was the same at first use in its
-     * activity). Duplicate ids break every lookup
-     * by id: [org.mindanchor.model.NoteStore.groupedByDay],
-     * [setType], [org.mindanchor.data.NotesPrefs.remove].
-     *
-     * The fix is to make the counter a process-
-     * singleton keyed on the [Application] context,
-     * not on the activity. The [NotesPrefs] is the
-     * natural home — both call sites already
-     * construct one. The counter is seeded on first
-     * call (lazy, not at construction) by reading
-     * the max existing id, so a process restart
-     * with a populated store continues correctly.
-     */
-    private val idGenerator: java.util.concurrent.atomic.AtomicLong by lazy {
-        val seeded = kotlinx.coroutines.runBlocking {
-            val existing = context.notesDataStore.data.first()
-            val decoded = SealedCodecs.decodeNotes(existing[notesKey].orEmpty())
-            val maxExisting = decoded.notes.maxOfOrNull { it.id } ?: 0L
-            maxOf(System.currentTimeMillis(), maxExisting)
-        }
-        java.util.concurrent.atomic.AtomicLong(seeded)
-    }
-
-    /**
      * Allocate a fresh id. The id is strictly
      * greater than every id currently on disk, and
      * unique within the process lifetime (the
-     * counter is process-singleton). Concurrent
+     * counter is process-singleton — see
+     * [Companion.idGenerator] below). Concurrent
      * callers get distinct ids; the AtomicLong is
      * the only source of truth.
+     *
+     * v0.25.9: the generator is a true
+     * process-singleton on the [Companion] (a
+     * class-level `by lazy` resolves separately per
+     * class instance, which silently broke the
+     * v0.25.8 "process-singleton" claim — two
+     * `NotesPrefs` instances in the same process
+     * had two counters seeded to the same
+     * `System.currentTimeMillis()` and produced
+     * duplicate ids on a fast device). The seed is
+     * performed asynchronously by
+     * [Companion.seedFromDiskIfNeeded] from
+     * `HomeActivity.onCreate`, so the first
+     * `nextNoteId()` call is fast (no `runBlocking`
+     * on the main thread, no DataStore read in the
+     * hot path).
      */
     fun nextNoteId(): Long = idGenerator.incrementAndGet()
 
@@ -197,6 +179,102 @@ class NotesPrefs(private val context: Context) {
             val current = SealedCodecs.decodeNotes(prefs[notesKey].orEmpty())
             val next = current.delete(id)
             prefs[notesKey] = SealedCodecs.encodeNotes(next)
+        }
+    }
+
+    companion object {
+        /**
+         * The DataStore key. Held on the companion so
+         * the singleton [seedFromDiskIfNeeded] can
+         * read the same key the instance methods
+         * write to.
+         */
+        @JvmStatic
+        private val notesKey = stringPreferencesKey("notes")
+
+        /**
+         * v0.25.9: process-singleton id generator.
+         *
+         * The v0.25.8 fix was a class-level `by lazy`
+         * on the `idGenerator` field, which silently
+         * produced one `AtomicLong` per `NotesPrefs`
+         * instance. Two views (the home card and the
+         * full activity) construct their own
+         * `NotesPrefs` → two counters → two seeds →
+         * potential duplicate ids (the exact failure
+         * mode the v0.25.8 release notes claimed to
+         * fix).
+         *
+         * The fix is to put the generator on the
+         * [Companion] object (a true per-class-loader
+         * singleton) and seed it asynchronously from
+         * [seedFromDiskIfNeeded] in
+         * `HomeActivity.onCreate`. The seed runs in a
+         * background coroutine, so the first
+         * `nextNoteId()` call is fast (no
+         * `runBlocking` on the main thread, no
+         * DataStore read in the hot path).
+         *
+         * The counter starts at
+         * `System.currentTimeMillis()` so that any
+         * note created *before* the seed completes
+         * still has an id well above zero; the seed
+         * raises the counter to at least the max
+         * existing id via an atomic
+         * `updateAndGet { maxOf(it, seed) }`, so
+         * post-seed ids are always > any historical
+         * id even if the seed races with a
+         * concurrent `nextNoteId()` call.
+         */
+        @JvmStatic
+        private val idGenerator = AtomicLong(System.currentTimeMillis())
+
+        @JvmStatic
+        private val seeded = AtomicBoolean(false)
+
+        @JvmStatic
+        private val seedLock = Any()
+
+        /**
+         * Seed the id generator from the max
+         * existing id on disk. Called from
+         * `HomeActivity.onCreate` (or any custom
+         * `Application.onCreate` if added later).
+         *
+         * The function is idempotent — only the
+         * first call does work, subsequent calls
+         * are a no-op. Safe to call from any
+         * coroutine context; never blocks the
+         * caller.
+         *
+         * The DataStore read (`data.first()`) is
+         * a suspend point and must be outside the
+         * `synchronized` block (the Kotlin
+         * compiler forbids suspending inside a
+         * `synchronized` block). The pattern is
+         * "suspend, then lock" rather than "lock,
+         * then suspend" — the double-check on
+         * `seeded` after the lock re-acquires
+         * handles the case where another caller
+         * raced to the lock first.
+         */
+        suspend fun seedFromDiskIfNeeded(context: Context) {
+            if (seeded.get()) return
+            val app = context.applicationContext
+            val existing = app.notesDataStore.data.first()
+            val decoded = SealedCodecs.decodeNotes(existing[notesKey].orEmpty())
+            val maxExisting = decoded.notes.maxOfOrNull { it.id } ?: 0L
+            val seed = maxOf(System.currentTimeMillis(), maxExisting)
+            synchronized(seedLock) {
+                if (seeded.get()) return@synchronized
+                // Raise the counter atomically. The
+                // maxOf(current, seed) means: if a
+                // nextNoteId() call already advanced
+                // past our seed (e.g. before this
+                // coroutine ran), we do not roll back.
+                idGenerator.updateAndGet { current -> maxOf(current, seed) }
+                seeded.set(true)
+            }
         }
     }
 }

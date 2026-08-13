@@ -15,6 +15,7 @@ import org.mindanchor.backup.BackupScheduler
 import java.time.LocalDate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import org.mindanchor.data.NotesPrefs
 import org.mindanchor.data.SunsetPrefs
 import org.mindanchor.friction.SessionManager
 import org.mindanchor.launcher.LauncherRoot
@@ -82,12 +83,25 @@ class HomeActivity : ComponentActivity() {
         // idempotent semantics as the in-flight
         // enqueueIfNeeded: a second call while the
         // worker is running is a no-op.
+        //
+        // v0.25.9: also seed the NotesPrefs id
+        // generator from the max existing id on
+        // disk. The seed is idempotent (the second
+        // call is a no-op) and runs in a coroutine,
+        // so the first `nextNoteId()` call from the
+        // home card or the full activity is fast
+        // (no `runBlocking` on the main thread).
+        // Without this seed, a note written before
+        // the first `nextNoteId()` call would get
+        // an id below the on-disk max — the
+        // pre-v0.25.9 bug shape.
         lifecycleScope.launch {
             val pending = org.mindanchor.backup.BackupPrefs(applicationContext)
                 .pendingBackups.first()
             if (pending.isNotEmpty()) {
                 org.mindanchor.backup.BackupRetryWorker.enqueueIfNeeded(applicationContext)
             }
+            NotesPrefs.seedFromDiskIfNeeded(applicationContext)
         }
         val onboardingPrefs = OnboardingPrefs(applicationContext)
         val sunsetPrefs = SunsetPrefs(applicationContext)

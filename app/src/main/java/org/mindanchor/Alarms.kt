@@ -3,6 +3,7 @@ package org.mindanchor
 import android.app.AlarmManager
 import android.content.Context
 import android.os.Build
+import org.mindanchor.letters.LetterScheduler
 import org.mindanchor.model.EmaScheduler
 import org.mindanchor.notifications.BatchAlarms
 import org.mindanchor.pulse.PulseReminder
@@ -39,6 +40,18 @@ object Alarms {
      * Re-arms everything. Never throws: this runs inside broadcast
      * receivers with seconds to live, and one scheduler failing must not
      * cost the others their alarms.
+     *
+     * v0.25.9 (B1, SOTA v2 bug-hunt): the letter
+     * alarm was missing from this list. Every
+     * other scheduler is re-armed here; the letter
+     * scheduler was only re-armed when
+     * `LetterScheduler.onFire` ran — which only
+     * runs when the alarm fires — so a phone that
+     * rebooted never heard the letter again until
+     * the user opened the screen that re-arms it
+     * (which is not a screen anyone would think
+     * to open about a feature that had gone
+     * quiet). The fix is the one-liner below.
      */
     suspend fun ensureAll(context: Context) {
         val app = context.applicationContext
@@ -47,6 +60,7 @@ object Alarms {
         runCatching { ReportScheduler.ensureScheduled(app) }
         runCatching { EmaScheduler.ensureScheduled(app) }
         runCatching { PulseReminder.ensureScheduled(app) }
+        runCatching { LetterScheduler.ensureScheduled(app) }
     }
 
     /**

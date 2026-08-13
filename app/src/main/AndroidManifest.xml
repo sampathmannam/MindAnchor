@@ -106,20 +106,31 @@
     <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED" />
     <uses-permission android:name="android.permission.health.READ_MINDFULNESS" />
     <!--
-        The next two are not "read this record type"; they
-        are "how far back" and "when during the day". The
-        default 30-day window is the system floor; the
-        history permission lifts it so the personal-baseline
-        stage of the report (docs/research/08 §5 stage 5)
-        can see further back. The background permission lets
-        the nightly report fire at 03:00 from a
-        BroadcastReceiver rather than the foreground — see
-        ReportScheduler, which already runs at that hour.
-        Both are normal runtime grants; the user accepts
-        them in the system Health Connect dialog.
+        The next one is not "read this record type"; it
+        is "how far back". The default 30-day window is
+        the system floor; the history permission lifts
+        it so the personal-baseline stage of the report
+        (docs/research/08 §5 stage 5) can see further
+        back. It is a normal runtime grant; the user
+        accepts it in the system Health Connect dialog.
+
+        v0.25.9 (SOTA v2 bug-hunt, Permissions #1):
+        `READ_HEALTH_DATA_IN_BACKGROUND` was
+        requested in v0.25.5 but the launcher does
+        not actually read Health Connect in the
+        background — every read is in the foreground
+        (the report screen, the wellness card). The
+        permission surfaced as a "background read"
+        in the user's Health Connect dialog, which is
+        a privacy over-reach: the user grants a
+        stronger permission than the app needs. The
+        fix is to drop the request. A future v0.26
+        that wants to compute a nightly summary
+        (the only legitimate use case for
+        background-read) would re-add the permission
+        alongside the new code path.
     -->
     <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_HISTORY" />
-    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND" />
 
     <!--
         Required by the VpnService API to capture loopback
@@ -210,7 +221,7 @@
             android:launchMode="singleTask"
             android:stateNotNeeded="true"
             android:excludeFromRecents="true"
-            android:configChanges="orientation|screenSize|keyboard|keyboardHidden">
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden|uiMode|fontScale|locale|density|layoutDirection|smallestScreenSize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -512,6 +523,37 @@
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <!--
+                    v0.25.9 (SOTA v2 bug-hunt, Permissions #5):
+                    LOCKED_BOOT_COMPLETED fires while the
+                    device is still locked (the BOOT_COMPLETED
+                    broadcast is held until the user unlocks
+                    once on API 24+). Without it, a person who
+                    reboots at 22:00 and goes to bed loses every
+                    alarm until they unlock the phone in the
+                    morning. Alarms.ensureAll is idempotent and
+                    safe to call from both broadcasts.
+                -->
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <!--
+                    v0.25.9: AlarmManager drops every
+                    scheduled alarm on package upgrade. Without
+                    MY_PACKAGE_REPLACED, a user who upgrades the
+                    app (e.g. v0.25.8 -> v0.25.9) loses every
+                    alarm until the next reboot.
+                -->
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <!--
+                    v0.25.9: re-arm on timezone / clock
+                    changes so a user who travels does not
+                    see the report fire at the wrong wall-clock
+                    time. Alarms.ensureAll is cheap (the
+                    schedulers are idempotent and only update
+                    the next-fire time when the wall clock has
+                    moved).
+                -->
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.TIME_SET" />
             </intent-filter>
         </receiver>
 

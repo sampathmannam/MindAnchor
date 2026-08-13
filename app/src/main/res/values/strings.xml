@@ -576,7 +576,7 @@
     <string name="grayscale_at_night">Go grey through the quiet hours</string>
     <string name="grayscale_shares_a_switch">This borrows Android\&#39;s colour correction, so the two cannot both be on at once. Whatever correction you had set is put back when the grey screen goes off. If you rely on it during the day, you may still want to leave the night setting alone.</string>
     <string name="backup_section">Keep a copy</string>
-    <string name="backup_explainer">Nothing here is backed up to the cloud, on purpose — so a reset or lost phone would take your plan, your people, your check-ins and your readings with it. Save a copy somewhere you trust, and bring it back whenever you need to. Restoring only ever adds to what is already here.</string>
+    <string name="backup_explainer">Nothing here is backed up to the cloud, on purpose — so a reset or lost phone would take your plan, your people, your check-ins and your readings with it. Save a copy to this phone\'s storage or to a folder you control (Google Drive, Dropbox, an SD card), and bring it back whenever you need to. Restoring only ever adds to what is already here.</string>
     <string name="backup_save">Save a copy…</string>
     <string name="backup_restore">Restore from a copy…</string>
     <string name="backup_saved">Saved. Keep it somewhere only you can reach.</string>
@@ -599,7 +599,6 @@
     -->
     <string name="going_light_section">Going Light</string>
     <string name="going_light_explainer">Blocks chosen apps during a time window you set. The first time you turn it on, your phone will need a one-time VPN permission.</string>
-    <string name="going_light_coming_soon">Available in v0.20.2.</string>
 
     <!--
         v0.20.1 round 5: notes + check-in. The

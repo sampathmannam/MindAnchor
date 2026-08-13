@@ -320,7 +320,7 @@ class BackupScheduler(
      */
     private suspend fun encryptAndAppend(type: ContentType, entry: BackupEntry): AppendResult {
         val jsonStr = json.encodeToString(BackupEntry.serializer(), entry)
-        val cipher = EncryptedBackupCodec.wrap(jsonStr)
+        val cipher = EncryptedBackupCodec.wrap(jsonStr, type)
             ?: return AppendResult.NetworkError("wrap failed")
         val target = when (type) {
             ContentType.Notes -> notesTarget
