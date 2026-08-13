@@ -393,6 +393,10 @@
     <string name="ppg_how">Rest your index finger over the rear camera and the flash, covering both. Hold still, breathe normally, and stay off the phone for about 90 seconds. Sitting, before you get up, is the most comparable time of day.</string>
     <string name="ppg_start">Take a reading</string>
     <string name="ppg_grant">Allow the camera</string>
+    <string name="ppg_rationale">The camera reads your finger\'s pulse through the flash. We don\'t record or upload anything.</string>
+    <string name="ppg_continue">Continue</string>
+    <string name="ppg_settings_rationale">Camera access is off at the system level, so MindAnchor can\'t ask again. Open Settings → Apps → MindAnchor → Permissions to turn it on.</string>
+    <string name="ppg_open_settings">Open settings</string>
     <string name="ppg_measuring">Measuring — hold still</string>
     <string name="ppg_seconds_left">%1$d seconds left</string>
     <string name="ppg_cancel">Stop</string>

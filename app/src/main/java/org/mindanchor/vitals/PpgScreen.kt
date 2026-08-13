@@ -1,6 +1,10 @@
 package org.mindanchor.vitals
 
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.Settings
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
@@ -20,6 +24,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -85,6 +90,31 @@ fun PpgScreen(
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { permissionEpoch++ }
+
+    // v0.25.10: rationale gate. On Android 11+ a user can deny CAMERA
+    // twice; the system then stops showing the dialog and the only path
+    // back is system settings. The `shouldShowRequestPermissionRationale`
+    // flag distinguishes "denied once, system wants the app to explain
+    // itself first" (true) from "Don't ask again / never asked" (false).
+    // Combined with a rememberSaveable `hasAskedOnce` we can route the
+    // three states correctly: first ask → system dialog, denied once →
+    // in-app rationale, persistent deny → Open settings.
+    val activity = context as? ComponentActivity
+    val showRationale = activity?.shouldShowRequestPermissionRationale(
+        android.Manifest.permission.CAMERA,
+    ) ?: false
+    var hasAskedOnce by rememberSaveable { mutableStateOf(false) }
+    fun openAppSettings() {
+        val intent = Intent(
+            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+        ).setData(Uri.fromParts("package", context.packageName, null))
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
+    }
+    fun requestCamera() {
+        hasAskedOnce = true
+        permissionLauncher.launch(android.Manifest.permission.CAMERA)
+    }
 
     val captureState by capture.state.collectAsState()
     var running by remember { mutableStateOf(false) }
@@ -156,11 +186,52 @@ fun PpgScreen(
         when {
             !hasCameraPermission -> {
                 // needs-permission
-                TextButton(
-                    onClick = { permissionLauncher.launch(android.Manifest.permission.CAMERA) },
-                    modifier = Modifier.padding(top = 16.dp),
-                ) {
-                    Text(stringResource(R.string.ppg_grant))
+                // Three sub-states share this branch:
+                //  1. never asked → original ppg_grant button
+                //  2. denied once → in-app rationale, "Continue" re-asks
+                //  3. "Don't ask again" → Open settings, no more dialog
+                when {
+                    showRationale -> {
+                        Text(
+                            text = stringResource(R.string.ppg_rationale),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 16.dp),
+                        )
+                        TextButton(
+                            onClick = { requestCamera() },
+                            modifier = Modifier.padding(top = 8.dp),
+                        ) {
+                            Text(stringResource(R.string.ppg_continue))
+                        }
+                    }
+                    hasAskedOnce -> {
+                        // permission is denied and the system is not asking
+                        // us to show a rationale — the user picked "Don't
+                        // ask again", or revoked after a previous grant.
+                        // The system dialog will not re-appear; the only
+                        // recovery path is Settings.
+                        Text(
+                            text = stringResource(R.string.ppg_settings_rationale),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 16.dp),
+                        )
+                        TextButton(
+                            onClick = { openAppSettings() },
+                            modifier = Modifier.padding(top = 8.dp),
+                        ) {
+                            Text(stringResource(R.string.ppg_open_settings))
+                        }
+                    }
+                    else -> {
+                        TextButton(
+                            onClick = { requestCamera() },
+                            modifier = Modifier.padding(top = 16.dp),
+                        ) {
+                            Text(stringResource(R.string.ppg_grant))
+                        }
+                    }
                 }
             }
 
