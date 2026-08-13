@@ -1,8 +1,13 @@
 # MindAnchor v0.25.9 — SOTA v2 bug-hunt follow-up (11 fixes)
 
 **Release date**: 2026-08-13
-**Build**: `versionName=0.25.9, versionCode=33`
-**Tag target**: TBD (filled at tag push)
+**Build**: `versionName=0.25.9, versionCode=33` (commit `b467fa4`)
+**Tag**: `v0.25.9` → `b467fa4`
+**Release**: https://github.com/sampathmannam/MindAnchor/releases/tag/v0.25.9
+
+**Artifacts**:
+- debug APK: `92C8A3391072CA673A647BF7D255B730ADEAE67F6361C7E0E59496D95371549F` (52,187,268 bytes)
+- release-unsigned APK: `F7B3FEBFFC04F098D4A1604EBAFCB7D8B25B9EB68B41E712C90FFE92D5FA2FE8` (11,371,906 bytes)
 **Status**: shipped
 
 This release closes 11 of the 100+ findings from a SOTA v2 bug-hunt campaign against v0.25.8 (7 parallel agents across home / settings / notes+letters / backup / vitals+PPG+sleep+report+friction / onboarding+notifications+accessibility / functional smoke). The 4 high-severity fixes are the core: a v0.25.8 regression in the process-singleton id generator, a missing PII-binding AAD on the encrypted backup, an unre-armed letter alarm after reboot, and a privacy over-reach in the Health Connect permission grant. The 7 medium-severity polish fixes round out the release.
