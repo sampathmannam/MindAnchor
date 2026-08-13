@@ -1,6 +1,16 @@
 package org.mindanchor.friction
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -25,7 +35,7 @@ fun BeforeYouSendInterstitial(context: BeforeYouSendContext, profile: BpdProfile
     CalmBackground { sky ->
         Column(
             modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(24.dp)
-                .semantics(mergeDescendants = false) { contentDescription = "Before you send. ${template.name}." },
+                .semantics(mergeDescendants = false) { contentDescription = "Before you send. ${template.label}." },
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -56,7 +66,7 @@ fun BeforeYouSendInterstitial(context: BeforeYouSendContext, profile: BpdProfile
 @Composable private fun TemplateCard(template: BeforeYouSendTemplate, sky: SkyContent) {
     Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)) {
         Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(template.name, style = MaterialTheme.typography.titleMedium, color = sky.textPrimary)
+            Text(template.label, style = MaterialTheme.typography.titleMedium, color = sky.textPrimary)
             template.lines.forEach { line -> Text(line, style = MaterialTheme.typography.bodyMedium, color = sky.textPrimary) }
         }
     }
@@ -70,10 +80,10 @@ private fun pickTemplate(context: BeforeYouSendContext): BeforeYouSendTemplate =
     else -> BeforeYouSendTemplate.DEAR_MAN
 }
 
-private enum class BeforeYouSendTemplate(val name: String, val lines: List<String>) {
-    DEAR_MAN(name = "DEAR MAN", lines = listOf("Describe the facts, briefly.", "Express how you feel, in one line.", "Assert what you want, without softening.", "Reinforce what changes for them if they do.")),
-    GIVE(name = "GIVE", lines = listOf("Gentle — no barbs, no score-keeping.", "Interested — listen for what they are saying back.", "Validate — name what is real for them.", "Easy manner — a face they can stay near.")),
-    FAST(name = "FAST", lines = listOf("Fair — to you, and to them.", "No unnecessary Apologies.", "Stick to your values, not the heat of the moment.", "Truthful — say the true thing, not the loud thing.")),
+private enum class BeforeYouSendTemplate(val label: String, val lines: List<String>) {
+    DEAR_MAN(label = "DEAR MAN", lines = listOf("Describe the facts, briefly.", "Express how you feel, in one line.", "Assert what you want, without softening.", "Reinforce what changes for them if they do.")),
+    GIVE(label = "GIVE", lines = listOf("Gentle — no barbs, no score-keeping.", "Interested — listen for what they are saying back.", "Validate — name what is real for them.", "Easy manner — a face they can stay near.")),
+    FAST(label = "FAST", lines = listOf("Fair — to you, and to them.", "No unnecessary Apologies.", "Stick to your values, not the heat of the moment.", "Truthful — say the true thing, not the loud thing.")),
 }
 
 object BeforeYouSendHeuristic {

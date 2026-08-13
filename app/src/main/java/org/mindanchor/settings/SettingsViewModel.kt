@@ -62,6 +62,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val onboardingPrefs = org.mindanchor.onboarding.OnboardingPrefs(application)
     private val reportStore = ReportStore(application)
     private val backupPrefs = org.mindanchor.backup.BackupPrefs(application)
+    // v0.26.0
+    private val bpdProfilePrefs = org.mindanchor.data.BpdProfilePrefs(application)
 
     /**
      * What the person said they were struggling with, at onboarding or
@@ -418,6 +420,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             // EmaScheduler.ensureScheduled.
             org.mindanchor.model.EmaScheduler.ensureScheduled(getApplication())
         }
+    }
+
+    // --- v0.26.0 ---
+    val bpdProfile: StateFlow<org.mindanchor.data.BpdProfile> = bpdProfilePrefs.profile
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), org.mindanchor.data.BpdProfile())
+    fun setBpdProfile(profile: org.mindanchor.data.BpdProfile) {
+        viewModelScope.launch { bpdProfilePrefs.update(profile) }
     }
 
     // --- Last night's look (nightly report) ---

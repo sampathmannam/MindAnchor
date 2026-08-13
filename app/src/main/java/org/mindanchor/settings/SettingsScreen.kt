@@ -448,6 +448,20 @@ private fun SettingsGroup.titleRes(): Int = when (this) {
     SettingsGroup.PHONE -> R.string.settings_group_phone
 }
 
+/** v0.26.0 */
+@Composable
+private fun BpdProfileCheckbox(checked: Boolean, labelRes: Int, onToggle: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+            .toggleable(value = checked, role = Role.Checkbox) { on -> onToggle(on) }
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Checkbox(checked = checked, onCheckedChange = null)
+        Text(stringResource(labelRes), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(start = 8.dp))
+    }
+}
+
 /**
  * One row of the settings index: a name and, underneath it, a line
  * saying what it covers. No icon, no chevron, no count — this app puts
@@ -520,6 +534,8 @@ fun SettingsScreen(
      * sub-section below; both paths converge on the same callback.
      */
     onOpenLetters: () -> Unit = {},
+    /** v0.26.0 §3.3 */
+    onOpenBeforeYouSend: () -> Unit = {},
 ) {
     val viewModel: SettingsViewModel = viewModel()
     val context = LocalContext.current
@@ -814,6 +830,23 @@ fun SettingsScreen(
                     }
                 }
             }
+        }
+
+        if (group == SettingsGroup.PAUSES) {
+            // v0.26.0 §3.3
+            Text(stringResource(R.string.bys_try_section), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 24.dp, bottom = 4.dp))
+            Text(stringResource(R.string.bys_try_explainer), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            TextButton(onClick = onOpenBeforeYouSend) { Text(stringResource(R.string.bys_try_action)) }
+
+            // v0.26.0 BPD profile
+            Text(stringResource(R.string.bpd_profile_section), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 24.dp, bottom = 4.dp))
+            Text(stringResource(R.string.bpd_profile_explainer), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            val bpdProfile by viewModel.bpdProfile.collectAsState()
+            BpdProfileCheckbox(bpdProfile.longMessagesIRegret, R.string.bpd_profile_long_messages) { viewModel.setBpdProfile(bpdProfile.copy(longMessagesIRegret = it)) }
+            BpdProfileCheckbox(bpdProfile.lateNightImpulses, R.string.bpd_profile_late_night) { viewModel.setBpdProfile(bpdProfile.copy(lateNightImpulses = it)) }
+            BpdProfileCheckbox(bpdProfile.sometimesISplit, R.string.bpd_profile_split) { viewModel.setBpdProfile(bpdProfile.copy(sometimesISplit = it)) }
+            BpdProfileCheckbox(bpdProfile.namedPersonToCall, R.string.bpd_profile_named_person) { viewModel.setBpdProfile(bpdProfile.copy(namedPersonToCall = it)) }
+            BpdProfileCheckbox(bpdProfile.okAtNight, R.string.bpd_profile_ok_at_night) { viewModel.setBpdProfile(bpdProfile.copy(okAtNight = it)) }
         }
 
         if (group == SettingsGroup.PAUSES) {

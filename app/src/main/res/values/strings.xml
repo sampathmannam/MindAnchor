@@ -154,19 +154,19 @@
         never authors these; the user does, in settings.
     -->
     <string name="compassion_moment_label">For you, right now:</string>
-    <string name="loop_capture">Anything still open? Put it down here and pick it up in the morning.</string>
+    <string name="loop_capture">What\'s open? Put it down here and pick it up in the morning.</string>
     <string name="loop_capture_hint">The one thing on your mind</string>
     <string name="loop_save">Put it down</string>
     <string name="loop_return">You left this for yourself last night:</string>
     <string name="loop_clear">Done with it</string>
     <string name="loop_postpone">Postpone</string>
-    <string name="loop_postpone_dialog_title">When will you deal with it?</string>
+    <string name="loop_postpone_dialog_title">When will you come back to it?</string>
     <string name="loop_postpone_later_today">Later today</string>
     <string name="loop_postpone_tomorrow_morning">Tomorrow morning</string>
     <string name="loop_postpone_cancel">Cancel</string>
     <string name="loop_postponed_back_at">Back at %1$s</string>
     <string name="loop_postponed_cancel">Back to it now</string>
-    <string name="one_thing_label">Today\'s one thing</string>
+    <string name="one_thing_label">What\'s the one thing, if anything?</string>
     <string name="one_thing_hint">The single thing you want to do today</string>
     <string name="one_thing_done">Done with it</string>
     <string name="one_thing_set">Set</string>
@@ -831,6 +831,55 @@
     <string name="drive_not_signed_in">Sign in to enable this.</string>
     <string name="drive_auto_sync_notes">Auto-back up new notes</string>
     <string name="drive_auto_sync_letters">Auto-back up new letters</string>
+
+    <!-- v0.26.0: §3.2 "Ground me right now" -->
+    <string name="ground_me_title">Ground me</string>
+    <string name="ground_me_subtitle">Three things you can do in the next two minutes. Pick whichever one.</string>
+    <string name="ground_me_breath">Breathe, slowly</string>
+    <string name="ground_me_breath_seconds">2 minutes. 5 seconds in, 7 seconds out.</string>
+    <string name="ground_me_cold">Hold something cold to your face</string>
+    <string name="ground_me_cold_seconds">30 seconds. A packet of frozen peas works.</string>
+    <string name="ground_me_grounding">Name what is around you</string>
+    <string name="ground_me_grounding_seconds">5 things you can see, 4 you can touch, 3 you can hear, 2 you can smell, 1 you can taste.</string>
+    <string name="ground_me_back">← back</string>
+    <string name="ground_me_breath_in">Breathe in…</string>
+    <string name="ground_me_breath_out">…and out</string>
+    <string name="ground_me_done">Done</string>
+    <string name="ground_me_cycle">Cycle %1$d of %2$d</string>
+    <string name="ground_me_seconds">%1$d</string>
+    <string name="ground_me_cold_label">Hold something cold to your face for 30 seconds.</string>
+    <string name="ground_me_cold_hint">The dive reflex is the fastest calming lever you have on you. Cold water on the face works the same way.</string>
+    <string name="ground_me_grounding_label">Name five things you can see, four you can touch, three you can hear, two you can smell, one you can taste.</string>
+    <string name="ground_me_see">See five: %1$d</string>
+    <string name="ground_me_touch">Touch four: %1$d</string>
+    <string name="ground_me_hear">Hear three: %1$d</string>
+    <string name="ground_me_smell">Smell two: %1$d</string>
+    <string name="ground_me_taste">Taste one: %1$d</string>
+
+    <!-- v0.26.0: §3.3 "Before you send" -->
+    <string name="bys_title">Before you send</string>
+    <string name="bys_intro">A quick self-check. The message still goes if you want it to.</string>
+    <string name="bys_send_anyway">Send anyway</string>
+    <string name="bys_send">Send</string>
+    <string name="bys_try_section">Try the check</string>
+    <string name="bys_try_explainer">A short self-check the launcher shows on long messages or late-night sends. See what it looks like — the real trigger is in v0.26.1.</string>
+    <string name="bys_try_action">Show the check</string>
+
+    <!-- v0.26.0: §3.5 "Now what?" 2am shell -->
+    <string name="now_what_title">It\'s late. What do you need right now?</string>
+    <string name="now_what_subtitle">Pick one. The home will be here in the morning.</string>
+    <string name="now_what_sleep">I want to sleep</string>
+    <string name="now_what_ground">I want to ground</string>
+    <string name="now_what_talk">I want to talk to someone</string>
+
+    <!-- v0.26.0: BPD profile -->
+    <string name="bpd_profile_section">When things get hard</string>
+    <string name="bpd_profile_explainer">What do you want the app to do when things get hard? Anything you turn on is opt-in — the launcher\'s defaults are the safest.</string>
+    <string name="bpd_profile_long_messages">Long messages I might regret</string>
+    <string name="bpd_profile_late_night">Late-night impulses</string>
+    <string name="bpd_profile_split">I split on people sometimes</string>
+    <string name="bpd_profile_named_person">I want a named person to call when it gets bad</string>
+    <string name="bpd_profile_ok_at_night">I\'m OK at night</string>
 
     <string-array name="who5_items">
         <item>I have felt cheerful and in good spirits</item>

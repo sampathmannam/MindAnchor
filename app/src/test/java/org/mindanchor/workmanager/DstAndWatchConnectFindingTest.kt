@@ -39,30 +39,24 @@ class DstAndWatchConnectFindingTest {
     fun `LetterScheduler schedule uses now_withHour which produces invalid LocalDateTime on spring-forward`() {
         val source = readSource("letters/LetterScheduler.kt")
         assertNotNull(source)
-        // The bug pattern: `now.withHour(hour).withMinute(minute)`
-        // on a spring-forward day produces a LocalDateTime that
-        // does not exist on the calendar. The `atZone(zone)` later
-        // resolves it to the post-DST offset, which is a wall-clock
-        // the user did not pick.
-        val usesNowWithHour = source!!.contains("now.withHour(hour).withMinute(minute)") ||
-            source.contains("withHour(hour).withMinute(minute)")
-        val hasInvalidCheck = !source.contains("isValidLocalDateTime") &&
-            !source.contains("isBefore(ZoneId") &&
-            // The fix shape: produce the LocalDateTime, then check
-            // the result with the ZoneId (e.g. via
-            // LocalDateTime.atZone(zone).toLocalDateTime() and
-            // compare). The current code skips this check.
-            !source.contains("target.atZone(zone).toLocalDateTime() == target")
+        // v0.25.10 fix: the schedule target is built with
+        // ZonedDateTime.of(today, time, zone), not LocalDateTime.
+        // The ZonedDateTime construction handles the spring-forward
+        // gap (2:30 AM → 3:30 AM) and the fall-back overlap correctly
+        // (see the comment at the call site). The
+        // `.withHour(hour).withMinute(minute)` pattern is gone.
+        val usesZonedDateTimeOf = source!!.contains("ZonedDateTime.of(today, LocalTime.of(hour, minute), zone)") ||
+            source.contains("ZonedDateTime.of(today,")
         assertTrue(
-            "LetterScheduler.schedule builds the target time with `now.withHour(hour).withMinute(minute)`. " +
-                "On a spring-forward day, a 2:30 AM pick produces an invalid LocalDateTime. " +
-                "The `!target.isAfter(now)` check is on the unvalidated LocalDateTime, and the " +
-                "later `atZone(ZoneId.systemDefault()).toInstant()` resolves the invalid time to " +
-                "the post-DST offset, so the alarm fires at 3:30 wall-clock — not the 2:30 the " +
-                "user picked. usesNowWithHour=$usesNowWithHour hasInvalidCheck=$hasInvalidCheck. " +
-                "The fix flips: do the wall-clock math in the ZoneId before producing the " +
-                "LocalDateTime, the same shape ReportSchedule.nextRun uses.",
-            usesNowWithHour && hasInvalidCheck,
+            "LetterScheduler.schedule should build the target time with " +
+                "`ZonedDateTime.of(today, LocalTime.of(hour, minute), zone)` " +
+                "so a 2:30 AM pick on a spring-forward day resolves to 3:30 AM " +
+                "the right way (per the SpringForwardGap resolver). The " +
+                "`withHour(hour).withMinute(minute)` pattern is the pre-fix " +
+                "shape and would resolve the invalid time to the post-DST " +
+                "offset, firing the alarm at 3:30 wall-clock without telling " +
+                "the user. usesZonedDateTimeOf=$usesZonedDateTimeOf.",
+            usesZonedDateTimeOf,
         )
     }
 
@@ -70,22 +64,20 @@ class DstAndWatchConnectFindingTest {
     fun `EmaScheduler schedule has the same DST shape as LetterScheduler`() {
         val source = readSource("model/EmaScheduler.kt")
         assertNotNull(source)
-        // EmaScheduler uses the same `now.atTime(it)` then
-        // `atZone(zone).toInstant()` shape. On a spring-forward
-        // day, a wake-minute that lands in the gap produces the
-        // same wrong-wall-clock outcome. The fix is the same
-        // shape as ReportSchedule.
-        val usesAtTimeOnLocalTime = source!!.contains(".atTime(") &&
-            source.contains("atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()")
+        // v0.25.10 fix: the schedule target is built with
+        // ZonedDateTime.of(today, it, zone), not today.atTime(it).
+        val usesZonedDateTimeOf = source!!.contains("ZonedDateTime.of(today, it, zone)") ||
+            source.contains("ZonedDateTime.of(today,")
         assertTrue(
-            "EmaScheduler.schedule uses `at.atZone(ZoneId.systemDefault()).toInstant()` where " +
-                "`at` is a `LocalDateTime` produced by `today.atTime(time)`. On a spring-forward " +
-                "day with a wake-minute in the DST gap, the LocalDateTime is invalid and the " +
-                "zone resolution picks the post-DST offset, firing the prompt at a wall-clock " +
-                "the user did not pick. usesAtTimeOnLocalTime=$usesAtTimeOnLocalTime. The fix " +
-                "flips: resolve the wall-clock-to-instant in the ZoneId, the same shape as " +
-                "ReportSchedule.nextRun (v0.25.5 WP fix).",
-            usesAtTimeOnLocalTime,
+            "EmaScheduler.schedule should build the target time with " +
+                "`ZonedDateTime.of(today, it, zone)` so a wake-minute in " +
+                "the DST gap resolves to the post-DST offset the right " +
+                "way. The pre-fix `today.atTime(it)` shape would produce " +
+                "an invalid LocalDateTime on a spring-forward day and the " +
+                "subsequent `atZone(zone).toInstant()` would fire the " +
+                "prompt at a wall-clock the user did not pick. " +
+                "usesZonedDateTimeOf=$usesZonedDateTimeOf.",
+            usesZonedDateTimeOf,
         )
     }
 

@@ -41,6 +41,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -91,7 +92,17 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Date
 
-private enum class LauncherSurface { Home, Drawer, Settings, Ppg, Report, Letter }
+private enum class LauncherSurface {
+    Home,
+    Drawer,
+    Settings,
+    Ppg,
+    Report,
+    Letter,
+    // v0.26.0
+    GroundMe,
+    BeforeYouSend,
+}
 
 /**
  * v0.20.9: Modifier extension that auto-scrolls the nearest
@@ -168,6 +179,15 @@ fun LauncherRoot(
     val oneThing by viewModel.oneThing.collectAsState()
     val recentNotes by viewModel.notes.collectAsState()
     val wellnessReadings by viewModel.wellnessReadings.collectAsState()
+    // v0.26.0 §3.5
+    val ctx = LocalContext.current
+    val bpdProfilePrefs = remember { org.mindanchor.data.BpdProfilePrefs(ctx.applicationContext) }
+    val bpdProfile by bpdProfilePrefs.profile.collectAsState(initial = org.mindanchor.data.BpdProfile())
+    val nowTick = rememberMinuteTick()
+    val isTwoAmWindow = NowWhatHeuristic.shouldShow(
+        currentHour = nowTick.hour,
+        okAtNight = bpdProfile.okAtNight,
+    )
     var surface by remember { mutableStateOf(LauncherSurface.Home) }
     var actionsFor by remember { mutableStateOf<DisplayApp?>(null) }
     var gateFor by remember { mutableStateOf<DisplayApp?>(null) }
@@ -326,8 +346,22 @@ fun LauncherRoot(
     }
 
     when (surface) {
-        LauncherSurface.Home -> CalmBackground { sky ->
-            val showIntroCallout by viewModel.showIntroCallout.collectAsState()
+        // v0.26.0 §3.5
+        LauncherSurface.Home ->
+            if (isTwoAmWindow) {
+                NowWhatShell(
+                    onWantSleep = { surface = LauncherSurface.Home },
+                    onWantGround = { surface = LauncherSurface.GroundMe },
+                    onWantTalk = {
+                        runCatching {
+                            val supportIntent = android.content.Intent(context, SupportActivity::class.java)
+                            context.startActivity(supportIntent)
+                        }
+                    },
+                )
+            } else {
+                CalmBackground { sky ->
+                    val showIntroCallout by viewModel.showIntroCallout.collectAsState()
             HomeSurface(
                 sky = sky,
                 favorites = state.favorites,
@@ -345,6 +379,7 @@ fun LauncherRoot(
                 oneThing = oneThing,
                 onOneThingSet = viewModel::setOneThing,
                 onOneThingClear = { viewModel.setOneThing(null) },
+                onOpenGroundMe = { surface = LauncherSurface.GroundMe },
                 bedtimePhase = bedtimeList.first,
                 bedtimeItems = bedtimeList.second,
                 onBedtimeSave = viewModel::saveBedtimeList,
@@ -400,6 +435,7 @@ fun LauncherRoot(
                 onRecordLaunch = viewModel::recordHomeLaunch,
             )
         }
+            }
 
         LauncherSurface.Drawer -> Surface(modifier = Modifier.fillMaxSize()) {
             DrawerSurface(
@@ -434,6 +470,7 @@ fun LauncherRoot(
                     letterCameFrom = LauncherSurface.Settings
                     surface = LauncherSurface.Letter
                 },
+                onOpenBeforeYouSend = { surface = LauncherSurface.BeforeYouSend },
             )
         }
 
@@ -497,6 +534,15 @@ fun LauncherRoot(
                 onSetSize = { size -> viewModel.setLetterSize(size) },
             )
         }
+
+        // v0.26.0 §3.2
+        LauncherSurface.GroundMe -> GroundMeScreen(
+            onClose = { surface = LauncherSurface.Home },
+        )
+        // v0.26.0 §3.3
+        LauncherSurface.BeforeYouSend -> BeforeYouSendDemo(
+            onDismiss = { surface = LauncherSurface.Home },
+        )
     }
 
     actionsFor?.let { app ->
@@ -553,7 +599,9 @@ private fun OpenLoopCard(
         LoopPhase.NONE -> Unit
 
         LoopPhase.CAPTURE -> {
-            var draft by remember { mutableStateOf("") }
+            // v0.25.10 (SOTA v2 bug-hunt B7): rememberSaveable so a
+            // captured draft survives config change / process death.
+            var draft by rememberSaveable { mutableStateOf("") }
             Column(
                 modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -612,7 +660,9 @@ private fun OpenLoopCard(
         }
 
         LoopPhase.RETURN -> {
-            var showDialog by remember { mutableStateOf(false) }
+            // v0.25.10 (SOTA v2 bug-hunt B8): rememberSaveable so a
+            // Postpone dialog stays open across a config change.
+            var showDialog by rememberSaveable { mutableStateOf(false) }
             Column(
                 modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -672,7 +722,9 @@ private fun OneThingCard(
     onClear: () -> Unit,
 ) {
     if (text == null) {
-        var draft by remember { mutableStateOf("") }
+        // v0.25.10 (SOTA v2 bug-hunt B7): rememberSaveable so a draft
+        // survives a config change / process death.
+        var draft by rememberSaveable { mutableStateOf("") }
         Column(
             modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -696,6 +748,10 @@ private fun OneThingCard(
                     modifier = Modifier.weight(1f),
                 )
                 TextButton(
+                    // v0.25.10 (SOTA v2 bug-hunt B10): gate Set on a
+                    // non-blank draft so the affordance can't fire
+                    // an empty one-thing into the launcher state.
+                    enabled = draft.isNotBlank(),
                     onClick = {
                         onSet(draft)
                         draft = ""
@@ -1343,6 +1399,8 @@ private fun HomeSurface(
     onOneThingSet: (String) -> Unit = {},
     /** v0.25.5 WP-F: invoked when the user taps "Done with it" on a saved one-thing. */
     onOneThingClear: () -> Unit = {},
+    /** v0.26.0 §3.2: long-press the clock. */
+    onOpenGroundMe: () -> Unit = {},
     bedtimePhase: BedtimePhase = BedtimePhase.NONE,
     bedtimeItems: List<String> = emptyList(),
     onBedtimeSave: (List<String>) -> Unit = {},
@@ -1483,6 +1541,11 @@ private fun HomeSurface(
                     letterSpacing = 2.sp,
                 ),
                 color = sky.textPrimary,
+                // v0.26.0 §3.2: long-press the clock to open GroundMe
+                modifier = Modifier.combinedClickable(
+                    onClick = {},
+                    onLongClick = onOpenGroundMe,
+                ),
             )
             Text(
                 text = greetingFor(
@@ -1868,3 +1931,18 @@ internal fun greetingFor(hour: Int, morning: String, day: String, evening: Strin
         in 12..17 -> day
         else -> evening
     }
+
+/** v0.26.0 §3.3 demo. */
+@Composable
+private fun BeforeYouSendDemo(onDismiss: () -> Unit) {
+    org.mindanchor.friction.BeforeYouSendInterstitial(
+        context = org.mindanchor.friction.BeforeYouSendHeuristic.contextFor(
+            length = 320,
+            allCapsRatio = 0.6f,
+            after23 = true,
+            closeContact = true,
+        ),
+        profile = org.mindanchor.data.BpdProfile(),
+        onDismiss = onDismiss,
+    )
+}
