@@ -39,13 +39,16 @@ class BpdProfileFindingTest {
         // a one-line prefs key + a one-line settings row,
         // not a v0.26.0 surface change. This assertion is
         // the regression guard for "no flag creep".
+        //
+        // Uses java reflection (no kotlin-reflect dependency)
+        // so the test runs on a plain JVM classpath.
         val profile = BpdProfile()
-        val fieldNames = profile.javaClass.kotlin.members
-            .filter { !it.isAbstract && it.name != "copy" && it.name != "equals"
-                && it.name != "hashCode" && it.name != "toString" && it.name != "component1"
-                && it.name != "component2" && it.name != "component3"
-                && it.name != "component4" && it.name != "component5" }
+        // Kotlin compiler adds a synthetic $stable field for data
+        // classes; filter it out.
+        val fieldNames = profile.javaClass.declaredFields
             .map { it.name }
+            .filter { !it.startsWith("$") }
+            .toSet()
         assertEquals(
             "BpdProfile must have exactly 5 fields (the v0.26.0 plan's five flags)",
             setOf(
@@ -55,7 +58,7 @@ class BpdProfileFindingTest {
                 "namedPersonToCall",
                 "okAtNight",
             ),
-            fieldNames.toSet(),
+            fieldNames,
         )
     }
 
