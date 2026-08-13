@@ -117,7 +117,20 @@ class NoteActivity : ComponentActivity() {
                 val state by notesPrefs.notes.collectAsState(initial = NotesState())
                 NoteScreen(
                     notes = state,
-                    onAdd = { body ->
+                    // v0.25.10: when the user has tapped
+                    // a filter pill (e.g. "Task") and then
+                    // saves a new note, the active filter
+                    // becomes the new note's type. The
+                    // classifier is skipped in that case —
+                    // the user explicitly told us the type,
+                    // and silently overwriting it was the
+                    // v0.25.8 / smoke-v2 P0 #1 bug. If
+                    // [type] is null (the user is on "All"
+                    // or has not picked a filter), the
+                    // existing classifier path runs so the
+                    // model can still tag unclassified
+                    // notes.
+                    onAdd = { body, type ->
                         // Auto-save on add. The id is
                         // a monotonic counter so two
                         // notes saved in the same
@@ -130,6 +143,11 @@ class NoteActivity : ComponentActivity() {
                             createdAt = now,
                             updatedAt = now,
                             pinned = false,
+                            // v0.25.10: prefer the
+                            // user-selected type. null when
+                            // no filter is active, so the
+                            // model can pick one.
+                            type = type,
                         )
                         appScope.launch {
                             runCatching { notesPrefs.add(note) }
@@ -139,7 +157,16 @@ class NoteActivity : ComponentActivity() {
                         // forget; the list view
                         // will recompose when the
                         // type is written back.
-                        classifier.enqueue(note)
+                        //
+                        // v0.25.10: skip the classifier
+                        // when the user has already picked
+                        // a type via the filter pill. The
+                        // model would otherwise overwrite
+                        // the user's explicit choice with
+                        // its own (often "General") guess.
+                        if (type == null) {
+                            classifier.enqueue(note)
+                        }
                     },
                     onEdit = { id, body ->
                         appScope.launch { runCatching { notesPrefs.edit(id, body) } }

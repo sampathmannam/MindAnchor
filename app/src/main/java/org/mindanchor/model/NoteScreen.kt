@@ -134,7 +134,17 @@ private fun Modifier.bringIntoViewOnFocus(): Modifier {
 @Composable
 fun NoteScreen(
     notes: NotesState,
-    onAdd: (body: String) -> Unit,
+    // v0.25.10: the save handler now receives the
+    // user-selected type (from the active filter
+    // pill). The activity uses this as the note's
+    // type and skips the classifier when it is
+    // non-null — the user explicitly told us the
+    // type, and silently overwriting it was the
+    // v0.25.8 / smoke-v2 P0 #1 bug. The v0.25.8
+    // shape was the 1-arg `(body: String) -> Unit`
+    // lambda; the activity now passes a 2-arg
+    // lambda.
+    onAdd: (body: String, type: NoteType?) -> Unit,
     onEdit: (id: Long, body: String) -> Unit,
     onTogglePinned: (id: Long) -> Unit,
     onDelete: (id: Long) -> Unit,
@@ -325,7 +335,20 @@ fun NoteScreen(
                     onClick = {
                         if (newNoteDraft.isNotBlank() && !addInFlight) {
                             addInFlight = true
-                            onAdd(newNoteDraft.trim().take(Note.MAX_BODY))
+                            // v0.25.10: pass the active
+                            // filter as the new note's
+                            // type. The "Task" pill the
+                            // user tapped is now also a
+                            // type-selector for the note
+                            // they are about to save —
+                            // the v0.25.8 / smoke-v2
+                            // P0 #1 bug was that the
+                            // filter selection was
+                            // silently dropped. null
+                            // (the "All" / no-filter
+                            // case) keeps the existing
+                            // classifier path.
+                            onAdd(newNoteDraft.trim().take(Note.MAX_BODY), filter)
                             newNoteDraft = ""
                             addInFlight = false
                         }
