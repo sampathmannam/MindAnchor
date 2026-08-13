@@ -11,8 +11,9 @@ import android.content.pm.PackageManager
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import java.time.LocalDate
-import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZonedDateTime
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -92,15 +93,27 @@ object LetterScheduler {
                 return@runCatching
             }
             val (hour, minute) = store.time.first()
-            val now = LocalDateTime.now()
-            var target = now.withHour(hour).withMinute(minute).withSecond(0).withNano(0)
+            // v0.25.10 (SOTA v2 bug-hunt B5): ZonedDateTime.now(zone) for
+            // "now" and ZonedDateTime.of(today, time, zone) for the target.
+            // The pre-fix shape was a bare wall-clock-now read followed by
+            // a separate atZone(systemDefault()) at the schedule() call
+            // site — a second system read that could cross a DST or
+            // midnight boundary. ZonedDateTime.of handles the spring-forward
+            // gap (2:30 AM on a spring-forward day becomes 3:30 AM, the
+            // documented SpringForwardGap resolution) and the fall-back
+            // overlap (1:30 AM on a fall-back day takes the first 1:30 AM,
+            // the documented FallBackOverlap resolution).
+            val zone = ZoneId.systemDefault()
+            val now = ZonedDateTime.now(zone)
+            val today = now.toLocalDate()
+            var target = ZonedDateTime.of(today, LocalTime.of(hour, minute), zone)
             if (!target.isAfter(now)) target = target.plusDays(1)
             schedule(appContext, alarmManager, target)
         }
     }
 
-    private fun schedule(context: Context, alarmManager: AlarmManager, at: LocalDateTime) {
-        val triggerAt = at.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    private fun schedule(context: Context, alarmManager: AlarmManager, at: ZonedDateTime) {
+        val triggerAt = at.toInstant().toEpochMilli()
         val pending = pendingIntent(context)
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
             val canExact = alarmManager.canScheduleExactAlarms()

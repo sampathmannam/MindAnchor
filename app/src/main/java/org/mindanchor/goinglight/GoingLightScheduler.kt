@@ -14,6 +14,7 @@ import org.mindanchor.data.FrictionPrefs
 import org.mindanchor.friction.GoingLightSchedule
 import org.mindanchor.friction.LocalDateTime
 import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.time.LocalDate
 import java.time.LocalTime
 
@@ -28,8 +29,13 @@ import java.time.LocalTime
  * against the friction value type.
  */
 private fun nowAsFrictionLocalDateTime(): LocalDateTime {
-    val jdkNow = java.time.LocalDateTime.now()
-    return LocalDateTime(jdkNow.toLocalDate(), jdkNow.toLocalTime())
+    // v0.25.10 (SOTA v2 bug-hunt B5): one ZonedDateTime read in the
+    // system zone, projected down to (LocalDate, LocalTime). The
+    // pre-fix helper used a bare jdkNow read and a separate atZone
+    // conversion at the alarm-arm site — two system reads that
+    // could cross a DST or midnight boundary.
+    val zonedNow = ZonedDateTime.now(ZoneId.systemDefault())
+    return LocalDateTime(zonedNow.toLocalDate(), zonedNow.toLocalTime())
 }
 
 /**

@@ -11,8 +11,8 @@ import android.os.Build
 import android.os.PowerManager
 import java.time.Instant
 import java.time.LocalDate
-import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.ZonedDateTime
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -139,7 +139,14 @@ object ReportScheduler {
         try {
             val store = ReportStore(appContext)
             if (!store.enabled.first()) return
-            val now = LocalDateTime.now()
+            // v0.25.10 (SOTA v2 bug-hunt B4): read the firing moment in
+            // the system zone as a ZonedDateTime. The pre-fix shape was
+            // a bare wall-clock-now read — DST-bound for the hourOfDay
+            // decision. armNext already reads ZonedDateTime via
+            // ReportSchedule.nextRun(Instant, ZoneId, decision); the
+            // firing site is now the same shape so a timezone change
+            // between arming and firing produces one consistent answer.
+            val now = ZonedDateTime.now(ZoneId.systemDefault())
             decision = ReportSchedule.decide(
                 charging = isCharging(appContext),
                 interactive = isInteractive(appContext),
