@@ -734,8 +734,14 @@ private fun OneThingCard(
 @Suppress("FunctionNaming")
 @Composable
 private fun PostponeDialog(onDismiss: () -> Unit, onPick: (Instant) -> Unit) {
-    val now = remember { LocalDateTime.now() }
-    val zone = remember { ZoneId.systemDefault() }
+    // v0.25.10 (SOTA v2 bug-hunt B6): the zone is captured here once,
+    // and "now" is read at the moment the user picks, not at the moment
+    // the dialog composes. A dialog that stays open across a clock
+    // change, an NTP correction, a zone change, or simply a long pause
+    // used to schedule the postponed-at time from a stale instant; the
+    // pick is now a fresh system read in the same zone as the rest of
+    // the app.
+    val zone = ZoneId.systemDefault()
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.loop_postpone_dialog_title)) },
@@ -744,7 +750,8 @@ private fun PostponeDialog(onDismiss: () -> Unit, onPick: (Instant) -> Unit) {
                 TextButton(
                     onClick = {
                         onPick(
-                            now.plusHours(2)
+                            LocalDateTime.now(zone)
+                                .plusHours(2)
                                 .atZone(zone)
                                 .toInstant(),
                         )
@@ -781,11 +788,11 @@ private fun PostponeDialog(onDismiss: () -> Unit, onPick: (Instant) -> Unit) {
  * formatting is in the device's local zone so the user sees what they
  * scheduled in their own clock, not UTC.
  */
-private fun formatWallClock(at: Instant?): String {
+private fun formatWallClock(at: Instant?, today: LocalDate): String {
     if (at == null) return ""
     val zoned = at.atZone(ZoneId.systemDefault())
     val time = zoned.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm"))
-    return if (zoned.toLocalDate() == LocalDate.now()) time else "tomorrow $time"
+    return if (zoned.toLocalDate() == today) time else "tomorrow $time"
 }
 
 /**
