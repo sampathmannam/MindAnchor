@@ -544,6 +544,11 @@ private fun OpenLoopCard(
     onPostpone: (Instant) -> Unit,
     onCancelPostpone: () -> Unit,
 ) {
+    // v0.25.10 (SOTA v2 bug-hunt B9): remember the system date once and
+    // pass it to formatWallClock so the formatted time and the
+    // "tomorrow" comparison come from the same system instant, not two
+    // separate reads that could straddle a midnight or DST boundary.
+    val today = remember { LocalDate.now() }
     when (phase) {
         LoopPhase.NONE -> Unit
 
@@ -594,7 +599,7 @@ private fun OpenLoopCard(
             Text(
                 text = stringResource(
                     R.string.loop_postponed_back_at,
-                    formatWallClock(postponedAt),
+                    formatWallClock(postponedAt, today),
                 ),
                 style = MaterialTheme.typography.bodySmall,
                 color = sky.textSecondary,
