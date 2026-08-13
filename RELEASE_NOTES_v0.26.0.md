@@ -6,13 +6,16 @@
 **Release**: https://github.com/sampathmannam/MindAnchor/releases/tag/v0.26.0
 
 **Artifacts**:
-- debug APK: `e5e4622f18e05e08c3f61ea080583a7b29f9a776cb949c6db49220a6b610b1be` (~52 MB)
+- debug APK: `e5e4622f18e05e08c3f61ea080583a7b29f9a776cb949c6db49220a6b610b1be` (49.93 MB)
+- release APK (unsigned): `bcb021c4c316acf089d229770c4cd21b0333395fcee4f50be692925a699a011e` (10.89 MB)
 
 **Status**: shipped
 
+**Test result**: 1360 tests, 33 fail (the 33 are the v0.25.10+ backlog — a11y Role.Button sweep, Locale.ENGLISH, content descriptions, notification channel re-creation, permission launcher race, Keystore rotation, TokenStore expiry, FrictionPrefs recordReach, foreground service type, Onboarding installDay KDoc, 14-day recap UI surface, BpdProfile reflection edge case, etc. — all FindingTest-pinned for v0.25.11+ work).
+
 This release closes the v0.26.0 milestone from the BPD-understanding design plan (`bpd_plan_v0_26.md` §5). The 2am crisis is the design target — every new surface is shaped to that moment. The headline is *the world's first home launcher designed against BPD phenomenology*; the safety posture is *adjunct, not treatment* (the §1 hard line, repeated three times in the plan).
 
-The v0.25.x line is unchanged. v0.26.0 is a strict superset: every v0.25.9 FindingTest that was passing still passes (we flipped only the DST test that was pinning the BUG shape, post-v0.25.10 fix).
+The v0.25.10 bug-fix batch is rolled into this release (DST-safety across the 7 schedulers, the PostponeDialog pick-moment + `formatWallClock` single-date fix, the note filter pill as type selector, the CAMERA permission rationale gate, the 3 Compose `rememberSaveable` fixes, the OneThingCard Set button gating). v0.26.0 is a strict superset of v0.25.9: every v0.25.9 FindingTest that was passing still passes (we flipped only the DST test that was pinning the BUG shape, post-v0.25.10 fix).
 
 ---
 
@@ -93,7 +96,7 @@ The vitals card already uses direction bands only ("above your usual" / "below y
 
 | Test | Asserts | Status |
 |---|---|---|
-| `BpdProfileFindingTest` | The data class shape (5 fields, all default false), value-semantic copy. | 2 / 3 pass (the reflection-based "5 fields, not more" test fails on Kotlin reflection in this JVM — the data class shape is correct, the test is the limitation; tracked for v0.26.1). |
+| `BpdProfileFindingTest` | The data class shape (5 fields, all default false), value-semantic copy. | 3 / 3 pass (the `kotlin-reflect` JVM edge case is fixed in `a9aa8c8` — switched to `javaClass.declaredFields` and filtered the kotlin compiler's synthetic `$stable` field). |
 | `GroundMeSurfaceFindingTest` | `@Composable fun GroundMeScreen()` exists in `launcher/`; `LauncherSurface.GroundMe` is a real enum member. | 3 / 3 pass. |
 | `BeforeYouSendHeuristicFindingTest` | The `BpdProfile` flag-gated heuristic; the right template is chosen; the surface compiles into `friction/BeforeYouSendInterstitial.kt`. | 9 / 9 pass. |
 | `TwoAmShellFindingTest` | The 2am heuristic is conservative; the shell is reachable. | 5 / 5 pass. |
@@ -127,9 +130,9 @@ The `versionCode` is what Play Store uses; the `versionName` is what the user se
 - The data-export affordance (deferred to v0.26.1).
 - The lock-screen "ground me" gesture (deferred to v0.26.1).
 - The wired `AppWatchService` for §3.3 (deferred to v0.26.1; the manual settings button is the v0.26.0 entry).
-- The `BpdProfileFindingTest` "5 fields, not more" reflection-based test (3/3 pass data-shape; the reflection edge case is tracked).
+- The `BpdProfileFindingTest` "5 fields, not more" reflection edge case (fixed in `a9aa8c8` — uses Java reflection, no kotlin-reflect dependency).
 - The DstAndWatchConnectFindingTest (pre-existing v0.25.10 DST tests pinned the BUG shape — flipped to the fix shape in this commit).
-- The 34 other pre-existing test failures (unrelated to v0.26.0; tracked in v0.25.10+ bug-hunt backlog).
+- The 33 pre-existing v0.25.10+ test failures (unrelated to v0.26.0; tracked in v0.25.10+ bug-hunt backlog as FindingTest pins).
 - A clinical-review pass with a DBT / BPD-specialist body before a public claim. The release notes are honest about the evidence limits (see §7 of the plan). The "first BPD-understanding SOTA launcher" is true in the literal sense (no other consumer Android launcher is specifically designed against BPD phenomenology); the marketing posture is the planner's call.
 
 ---
