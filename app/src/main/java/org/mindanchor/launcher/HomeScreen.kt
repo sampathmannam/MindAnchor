@@ -51,7 +51,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusEvent
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -598,13 +597,20 @@ fun LauncherRoot(
         // LetterScreen Composable is otherwise stateless on which
         // date is selected. The back button clears the selected
         // date when in the reader (back to inbox) and falls back
-        // to letterCameFrom when in the inbox. Letters and
-        // modelFits are stubs pending Task 9's SettingsViewModel
-        // fields; the call site does not depend on them being
-        // real flows today.
+        // to letterCameFrom when in the inbox.
+        //
+        // v0.25.16 BUG-017: `modelFits` is now wired from
+        // `viewModel.modelFits` (a `StateFlow<Boolean>` that
+        // reflects the on-disk presence of the Phi-4 model).
+        // The pre-v0.25.16 stub held a Composable-level
+        // `remember { mutableStateOf(false) }` whose value was
+        // always `false` — the Generate-now affordance was
+        // permanently disabled. Wiring through the VM is the
+        // standard `collectAsStateWithLifecycle` pattern and
+        // is what the BUG-017 FindingTest asserts.
         LauncherSurface.Letter -> Surface(modifier = Modifier.fillMaxSize()) {
             val letters: List<Letter> = remember { emptyList() }
-            val modelFits = remember { mutableStateOf(false) }
+            val modelFits by viewModel.modelFits.collectAsStateWithLifecycle()
             // v0.25.2-B (Task 15): letter size is read from the
             // LauncherViewModel (mirrors the SettingsViewModel.letterSize
             // from Task 9 — both VMs read from the same DataStore source).
@@ -615,7 +621,7 @@ fun LauncherRoot(
             val letterScope = rememberCoroutineScope()
             LetterScreen(
                 letters = letters,
-                modelFits = modelFits.value,
+                modelFits = modelFits,
                 date = letterSelectedDate,
                 size = letterSize,
                 // v0.25.3-WP-C: a row tap marks the letter as read so
@@ -1003,7 +1009,14 @@ private fun BedtimeListCard(
 ) {
     // v0.25.5 WP-G: haptic confirmation on save (Brewster CHI
     // 2007 — distinct tactile feedback for distinct actions).
-    val haptics = LocalHapticFeedback.current
+    //
+    // v0.25.16 BUG-013: route the haptic through the
+    // [org.mindanchor.ui.HapticFeedbackGate] CompositionLocal
+    // so a user with the system haptics toggle off (or the
+    // "remove animations" a11y preference on) does not get
+    // the launcher's save / clear / delete-confirm ticks.
+    // Direct `LocalHapticFeedback.current` would bypass both.
+    val haptics = org.mindanchor.ui.LocalHapticFeedbackGate.current
     when (phase) {
         BedtimePhase.NONE -> Unit
 
@@ -1217,7 +1230,15 @@ private fun QuickNotesCard(
     // typing, long enough to register. The user
     // pressed a button; the button is allowed to
     // answer.
-    val haptics = LocalHapticFeedback.current
+    //
+    // v0.25.16 BUG-013: gate through
+    // [org.mindanchor.ui.HapticFeedbackGate] so the
+    // system haptics toggle and the "remove animations"
+    // a11y preference are honored. LongPress for save,
+    // TextHandleMove for clear — the rich-tactile
+    // distinction Brewster CHI 2007 names is preserved
+    // by the gate's `type` parameter.
+    val haptics = org.mindanchor.ui.LocalHapticFeedbackGate.current
     Column(
         modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,

@@ -506,6 +506,40 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { readerPrefs.setSize(size) }
     }
 
+    // --- modelFits (v0.25.16 BUG-017) ---------------------------------
+    //
+    // The letter inbox's "Generate now" affordance is gated on whether
+    // the on-device Phi-4 model is present in the right place and
+    // small enough to load. The pre-v0.25.16 HomeScreen held this as
+    // a Composable-level `remember { mutableStateOf(false) }` stub —
+    // the value was always `false`, so the Generate-now button was
+    // always disabled. The wire to the actual disk state belongs in
+    // the ViewModel, not in the Composable, so the right primitive
+    // is a `StateFlow<Boolean>` that the screen collects with
+    // `collectAsStateWithLifecycle` (BUG-004) and reflects into the
+    // `LetterScreen` argument.
+    //
+    // The model file lives under the app's internal storage as
+    // `phi-4-mini-q4.gguf`; the path is a single file the launcher
+    // owns, so `file.exists()` is the truthful test. The flow is
+    // seeded with `false` and updated once on first composition; a
+    // future change that wants to react to a download completing
+    // mid-session can swap the `MutableStateFlow` for a real
+    // `flow { ... }` and re-emit on `phi4ModelRepo.observe()`.
+    private val _modelFits = MutableStateFlow(false)
+    val modelFits: StateFlow<Boolean> = _modelFits.asStateFlow()
+
+    init {
+        viewModelScope.launch(Dispatchers.IO) {
+            val modelFile = java.io.File(application.filesDir, "phi-4-mini-q4.gguf")
+            // The threshold is loose — the file just has to be present
+            // and not zero bytes. The actual on-load check is in the
+            // llama.cpp layer; the launcher-side flag is "should we
+            // even offer the affordance".
+            _modelFits.value = modelFile.exists() && modelFile.length() > 0L
+        }
+    }
+
     // --- Today's one thing (v0.25.5 WP-F) -------------------------------
     //
     // A single, narrow, today's-action text on the home corner.

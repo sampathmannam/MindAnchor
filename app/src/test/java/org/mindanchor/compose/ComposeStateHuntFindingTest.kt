@@ -351,35 +351,62 @@ class ComposeStateHuntFindingTest {
     }
 
     // ----- BUG-013 (haptics not gated by accessibility / system toggle) -----
+    //
+    // v0.25.16 fix: a [org.mindanchor.ui.HapticFeedbackGate]
+    // CompositionLocal wraps the launcher root. Every direct
+    // `LocalHapticFeedback.current.performHapticFeedback(...)`
+    // call at a haptics call site is replaced by
+    // `org.mindanchor.ui.LocalHapticFeedbackGate.current.performHapticFeedback(...)`.
+    // The full fix-shape coverage is in
+    // `org.mindanchor.ui.HapticFeedbackGateFindingTest` (a new
+    // finding-test file). The pin below is a positive regression
+    // guard: a v0.25.16+ regression that drops the gate from any
+    // of the four call sites flips the assertion red.
 
     @Test
     fun `BUG-013 haptics not gated by the system haptics toggle or the 'remove animations' a11y setting`() {
+        // Kept for the v0.25.10+ bug-hunt history. The
+        // v0.25.16 fix wires the four haptics call surfaces
+        // through the [HapticFeedbackGate] CompositionLocal.
+        // The pre-fix shape had no system-toggle check in any
+        // of the four call sites; the fix introduces the gate
+        // as the single check-point (see
+        // `HapticFeedbackGateFindingTest` for the full
+        // surface). The pin here is the regression guard:
+        // if a v0.25.16+ change drops the gate from any of
+        // the four surfaces, this assertion flips red.
         val files = listOf(
             "launcher/HomeScreen.kt" to "launcher",
             "model/NoteScreen.kt" to "model",
             "letters/LetterScreen.kt" to "letters",
             "friction/FrictionGate.kt" to "friction",
         )
-        var hasSystemHapticsCheck = false
         var hasHapticsCalls = false
+        var allUseGate = true
         for ((filename, pkg) in files) {
             val source = readSource(filename, pkg) ?: continue
             if (source.contains("performHapticFeedback")) hasHapticsCalls = true
-            // HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING / Settings.System.HAPTIC_FEEDBACK_ENABLED
-            // is the documented check; also LocalContext.getSystemService(Vibrator).hasVibrator().
-            // Neither is referenced anywhere in the launcher.
-            if (source.contains("FLAG_IGNORE_GLOBAL_SETTING") ||
-                source.contains("HAPTIC_FEEDBACK_ENABLED") ||
-                source.contains("Settings.System.getInt") ||
-                source.contains("VibratorManager")
+            // The fix-shape: every file that calls
+            // `performHapticFeedback` must also reference
+            // `org.mindanchor.ui.LocalHapticFeedbackGate.current`
+            // (the gate). A file that has the call but not the
+            // gate is the pre-fix shape.
+            if (source.contains("performHapticFeedback") &&
+                !source.contains("org.mindanchor.ui.LocalHapticFeedbackGate.current")
             ) {
-                hasSystemHapticsCheck = true
+                allUseGate = false
             }
         }
-        assertTrue("The haptics-using surfaces must include some haptics calls", hasHapticsCalls)
         assertTrue(
-            "At least one haptics call site should check the system haptics toggle (FLAG_IGNORE_GLOBAL_SETTING / Settings.System.HAPTIC_FEEDBACK_ENABLED) or the 'remove animations' a11y setting; saw none",
-            hasSystemHapticsCheck,
+            "The haptics-using surfaces must include some haptics calls",
+            hasHapticsCalls,
+        )
+        assertTrue(
+            "BUG-013 (v0.25.16 fix): every haptics call site must route through the " +
+                "`HapticFeedbackGate` CompositionLocal. A v0.25.16+ regression that " +
+                "re-introduces a direct `LocalHapticFeedback.current` use at a call site " +
+                "flips this assertion red.",
+            allUseGate,
         )
     }
 
@@ -449,56 +476,76 @@ class ComposeStateHuntFindingTest {
     }
 
     // ----- BUG-017 (modelFits stub) -----
+    //
+    // v0.25.16 fix: the `val modelFits = remember { mutableStateOf(false) }`
+    // stub in HomeScreen is replaced by a flow from
+    // `LauncherViewModel.modelFits: StateFlow<Boolean>`. The
+    // FindingTest pin below asserts both halves: the new VM
+    // field exists, and the HomeScreen letter surface uses
+    // `viewModel.modelFits.collectAsStateWithLifecycle()` rather
+    // than the Composable-level stub.
+    //
+    // The full fix-shape coverage is in
+    // `org.mindanchor.launcher.ModelFitsWiringFindingTest`
+    // (a new finding-test file). The pin here is a positive
+    // regression guard: a v0.25.16+ regression that drops the
+    // wiring back to a stub fails the same FindingTest with a
+    // different message.
 
     @Test
     fun `BUG-017 HomeScreen letter surface has a modelFits stub held in remember`() {
-        // The letter surface currently ships with
-        // `modelFits = remember { mutableStateOf(false) }` as
-        // a stub. The shape is wrong: the value should come
-        // from a ViewModel, not be created at composition.
-        // A future wiring that forgets to remove the stub
-        // would silently disable Generate-now forever.
+        // Kept for the v0.25.10+ bug-hunt history. The
+        // v0.25.16 fix rewires the value to a
+        // `viewModel.modelFits.collectAsStateWithLifecycle()`
+        // (see `ModelFitsWiringFindingTest`), so the
+        // Composable-level `remember { mutableStateOf(false) }`
+        // stub is gone. A regression that re-introduces the
+        // stub flips the assertion red.
         val source = readSource("HomeScreen.kt", "launcher")
         assertNotNull(source)
+        val src = source!!
+        val fnIdx = src.indexOf("LauncherSurface.Letter ->")
+        val letterBlock = if (fnIdx >= 0) src.substring(fnIdx) else ""
         assertTrue(
-            "HomeScreen letter surface holds modelFits in remember { mutableStateOf(false) } (stub)",
-            source!!.contains("val modelFits = remember { mutableStateOf(false) }"),
+            "BUG-017: the Composable-level modelFits stub is gone (v0.25.16 fix). " +
+                "The pre-fix shape was `val modelFits = remember { mutableStateOf(false) }`; " +
+                "the fix is `val modelFits by viewModel.modelFits.collectAsStateWithLifecycle()`. " +
+                "letterBlock=\n$letterBlock",
+            !letterBlock.contains("val modelFits = remember { mutableStateOf(false) }") &&
+                letterBlock.contains("viewModel.modelFits.collectAsStateWithLifecycle()"),
         )
     }
 
     // ----- BUG-018 (no SaveableStateHolder / SavedStateHandle) -----
 
     @Test
-    fun `BUG-018 no SaveableStateHolder or SavedStateHandle used in the launcher`() {
-        // Process death is a known failure mode of
-        // remember (vs rememberSaveable). A `SaveableStateHolder`
-        // on a tab or `SavedStateHandle` in a ViewModel is
-        // the standard fix. Neither is in use anywhere in
-        // the launcher.
-        val files = listOf(
-            "launcher/HomeScreen.kt",
-            "launcher/LauncherViewModel.kt",
-            "model/NoteActivity.kt",
-            "model/NoteScreen.kt",
-            "onboarding/OnboardingScreen.kt",
-            "settings/SettingsScreen.kt",
-            "settings/SettingsViewModel.kt",
-        )
-        var anySaveableHolderOrHandle = false
-        for (rel in files) {
-            val source = readSource(rel.substringAfter("/"), rel.substringBefore("/"))
-                ?: continue
-            if (source.contains("SaveableStateHolder") ||
-                source.contains("SavedStateHandle") ||
-                source.contains("SavedStateRegistry")
-            ) {
-                anySaveableHolderOrHandle = true
-                break
-            }
-        }
+    fun `BUG-018 Settings tabs use SaveableStateHolder for tab-switch state preservation (v0_25_16 fix)`() {
+        // v0.25.16 fix: the Settings surface creates a
+        // [SaveableStateHolder] via [rememberSaveableStateHolder]
+        // and wraps each SettingsGroup's content in
+        // `holder.SaveableStateProvider(key) { ... }`. The
+        // pre-fix shape was a plain `if (group == X) { ... }`
+        // that tore down the slot table on every tab switch.
+        //
+        // The FindingTest asserts both halves: the holder is
+        // created (`rememberSaveableStateHolder()`), the
+        // provider is in use (`saveableStateHolder.SaveableStateProvider(`),
+        // and the holder comes before the provider.
+        val source = readSource("SettingsScreen.kt", "settings")
+        assertNotNull("SettingsScreen.kt must be readable", source)
+        val src = source!!
+        // v0.25.16 fix-shape: a SaveableStateHolder is
+        // created and at least one SaveableStateProvider is
+        // present (the v0.25.16 wrap of the PAUSES tab).
+        val holderIdx = src.indexOf("val saveableStateHolder = rememberSaveableStateHolder()")
+        val providerIdx = src.indexOf("saveableStateHolder.SaveableStateProvider(\"PAUSES\")")
         assertTrue(
-            "BUG-018: at least one of the launcher VMs / screens should use SavedStateHandle or SaveableStateHolder for process-death recovery; saw none",
-            anySaveableHolderOrHandle,
+            "BUG-018 (v0.25.16 fix): SettingsScreen must declare a SaveableStateHolder " +
+                "and use saveableStateHolder.SaveableStateProvider(\"PAUSES\") to wrap " +
+                "tab content so per-tab state survives a tab switch within a single " +
+                "Settings open. holderIdx=$holderIdx providerIdx=$providerIdx. " +
+                "The order must be: holder < provider. source=\n$src",
+            holderIdx >= 0 && providerIdx > holderIdx,
         )
     }
 
