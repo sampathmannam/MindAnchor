@@ -13,6 +13,20 @@ import kotlinx.coroutines.flow.map
 private val Context.letterDataStore by preferencesDataStore(name = "letters")
 
 /**
+ * Where a letter came from. The inbox and the reader both
+ * branch on this: AI letters get the "This got me wrong"
+ * thumbs-down affordance, user-authored letters do not.
+ *
+ * Default [AI] so the existing test fixture in
+ * [LetterLedgerTest] keeps building `Letter` literals with
+ * the two-argument shape; a letter constructed without
+ * an explicit source is treated as AI, which is also what
+ * the v0.26.2 backward-compat rule says about every letter
+ * the old version of the app wrote to disk.
+ */
+enum class LetterSource { AI, USER }
+
+/**
  * One letter, stored as a flat string. Same shape as
  * [org.mindanchor.model.MomentLedger]: text rather than JSON
  * because a letter is a single readable blob, and a corrupt
@@ -22,8 +36,18 @@ private val Context.letterDataStore by preferencesDataStore(name = "letters")
  * dated 2026-08-10 was the morning of 2026-08-11, but the
  * date the letter is filed under is the day it talks about.
  * @property body the letter's text, 2-3 paragraphs
+ * @property source whether the letter was written by the
+ * on-device model (AI) or by the user themselves (USER). v0.26.2
+ * makes the composer the default; AI generation is opt-in via a
+ * "Use AI" affordance. Defaults to [LetterSource.AI] so a letter
+ * constructed without an explicit source reads as "the model wrote
+ * this" — which is what every v0.25.x letter actually was.
  */
-data class Letter(val date: LocalDate, val body: String)
+data class Letter(
+    val date: LocalDate,
+    val body: String,
+    val source: LetterSource = LetterSource.AI,
+)
 
 /**
  * Encodes and decodes the list of letters. The shape is one
@@ -80,6 +104,12 @@ class LetterStore(private val context: Context) {
     // versa. v0.25.2's `unreadLetterCount` was a stand-in (count of
     // letters dated after install); this is the real per-letter flag.
     private val readDatesKey = stringSetPreferencesKey("letters_read_dates")
+    // v0.26.2: the set of letter dates the user wrote themselves
+    // (rather than the model). Stored as a separate key in the same
+    // DataStore so the [LetterLedger] wire format is unchanged and
+    // a v0.25.x install's letters all read as AI (the empty set
+    // default — every prior letter was written by the model).
+    private val userDatesKey = stringSetPreferencesKey("letters_user_dates")
 
     /** Off until asked for, like everything else in this app. */
     val enabled: Flow<Boolean> = context.letterDataStore.data
@@ -89,7 +119,7 @@ class LetterStore(private val context: Context) {
      * The hour-of-day the user chose to receive the daily letter.
      * Stored as "HH:MM" so the WorkManager job and the
      * notification can both read it without re-parsing. Defaults
-     * to 08:00.
+     * to 07:00 (v0.26.2: was 08:00 in v0.25.x).
      */
     val time: Flow<Pair<Int, Int>> = context.letterDataStore.data
         .map { prefs ->
@@ -104,7 +134,19 @@ class LetterStore(private val context: Context) {
     val letters: Flow<List<Letter>> = context.letterDataStore.data
         .map { prefs ->
             val raw = prefs[lettersKey].orEmpty()
-            LetterLedger.decode(raw)
+            val decoded = LetterLedger.decode(raw)
+            val userDates = prefs[userDatesKey]
+                ?.mapNotNull { runCatching { LocalDate.parse(it) }.getOrNull() }
+                ?.toSet()
+                ?: emptySet()
+            // Wire format is unchanged (date + body); the source is
+            // read from a parallel key. A v0.25.x install has the
+            // set empty, so every pre-existing letter reads as AI —
+            // which is what it actually was.
+            decoded.map { l ->
+                if (l.date in userDates) l.copy(source = LetterSource.USER)
+                else l
+            }
         }
 
     /**
@@ -179,7 +221,30 @@ class LetterStore(private val context: Context) {
             val current = LetterLedger.decode(prefs[lettersKey].orEmpty())
             val deduped = current.filter { it.date != letter.date } + letter
             prefs[lettersKey] = LetterLedger.encode(deduped)
+            // Keep the user-dates set in sync with the letter
+            // being saved. A USER letter adds its date; an AI
+            // letter is not in the set (the default) and the set
+            // entry for it, if any, is dropped — an AI save is the
+            // "the user changed their mind" path.
+            val currentUser = prefs[userDatesKey] ?: emptySet()
+            prefs[userDatesKey] = if (letter.source == LetterSource.USER) {
+                currentUser + letter.date.toString()
+            } else {
+                currentUser - letter.date.toString()
+            }
         }
+    }
+
+    /**
+     * v0.26.2: save a user-authored letter. Body is whatever
+     * the user wrote in the composer; date defaults to today.
+     * The letter is filed as [LetterSource.USER] so the inbox
+     * does not show the "This got me wrong" thumbs-down on it
+     * (a user-authored letter cannot be "wrong about the user").
+     */
+    suspend fun saveUserLetter(date: LocalDate, body: String) {
+        if (body.isBlank()) return
+        save(Letter(date = date, body = body, source = LetterSource.USER))
     }
 
     suspend fun delete(date: LocalDate) {
@@ -187,6 +252,12 @@ class LetterStore(private val context: Context) {
             val current = LetterLedger.decode(prefs[lettersKey].orEmpty())
             val kept = current.filter { it.date != date }
             prefs[lettersKey] = LetterLedger.encode(kept)
+            // A delete also drops the user-dates entry, so a
+            // re-save for the same date is not silently treated
+            // as user-authored because the old set entry was
+            // still there.
+            val currentUser = prefs[userDatesKey] ?: emptySet()
+            prefs[userDatesKey] = currentUser - date.toString()
         }
     }
 
@@ -198,12 +269,12 @@ class LetterStore(private val context: Context) {
      * numeric form, exposed so callers building their own
      * [kotlinx.coroutines.flow.StateFlow] over [time] can use the
      * same initial value [LetterStore] falls back to, without
-     * re-hardcoding "8" in a second place.
+     * re-hardcoding "7" in a second place.
      */
     companion object {
-        /** 08:00 local — the spec's default. */
-        const val DEFAULT_TIME = "08:00"
-        const val DEFAULT_HOUR = 8
+        /** 07:00 local — v0.26.2 default (was 08:00 in v0.25.x). */
+        const val DEFAULT_TIME = "07:00"
+        const val DEFAULT_HOUR = 7
         const val DEFAULT_MINUTE = 0
         const val HOUR_MIN = 0
         const val HOUR_MAX = 23

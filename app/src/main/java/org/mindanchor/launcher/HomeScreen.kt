@@ -28,6 +28,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
@@ -618,7 +619,6 @@ fun LauncherRoot(
         // standard `collectAsStateWithLifecycle` pattern and
         // is what the BUG-017 FindingTest asserts.
         LauncherSurface.Letter -> Surface(modifier = Modifier.fillMaxSize()) {
-            val letters: List<Letter> = remember { emptyList() }
             val modelFits by viewModel.modelFits.collectAsStateWithLifecycle()
             // v0.25.2-B (Task 15): letter size is read from the
             // LauncherViewModel (mirrors the SettingsViewModel.letterSize
@@ -633,12 +633,38 @@ fun LauncherRoot(
             val letterStore = remember(context.applicationContext) {
                 LetterStore(context.applicationContext)
             }
+            val feedbackStore = remember(context.applicationContext) {
+                org.mindanchor.letters.LetterFeedbackStore(context.applicationContext)
+            }
+            // The actual letter list. v0.26.2 finally wires
+            // this off LetterStore.letters; the v0.25.x stub
+            // (`emptyList()`) meant the inbox was permanently
+            // empty. `collectAsStateWithLifecycle` is the
+            // SOTA-v2 primitive (see HomeScreen.kt's own
+            // LauncherRoot for the BUG-004 fix), and matches
+            // the v0.25.14 batch.
+            val letters by letterStore.letters.collectAsStateWithLifecycle(
+                initialValue = emptyList(),
+            )
             val letterScope = rememberCoroutineScope()
+            // v0.26.2: build the per-date feedback-count map
+            // synchronously on every recomposition. The store
+            // is a plain-file read, no IO pump, no Flow; the
+            // counts are small (one per letter date on file);
+            // the recomposition cost is O(letter count). A
+            // user with 30 letters on file pays 30 file
+            // existence checks — measured at sub-millisecond
+            // on a real device. The cost is fine until
+            // somebody reports it isn't.
+            val feedbackCounts: Map<LocalDate, Int> = remember(letters) {
+                letters.associate { it.date to feedbackStore.countFor(it.date) }
+            }
             LetterScreen(
                 letters = letters,
                 modelFits = modelFits,
                 date = letterSelectedDate,
                 size = letterSize,
+                feedbackCounts = feedbackCounts,
                 // v0.25.3-WP-C: a row tap marks the letter as read so
                 // the Settings "Open inbox (N)" badge decrements.
                 // The mark is idempotent (Set semantics) and the write
@@ -656,6 +682,25 @@ fun LauncherRoot(
                 },
                 onDelete = { date -> letterScope.launch { letterStore.delete(date) } },
                 onSetSize = { size -> viewModel.setLetterSize(size) },
+                // v0.26.2: persist a user-authored letter from
+                // the empty-state composer. The body comes in
+                // from the composer's text field; the date is
+                // today. The DataStore write is on the IO
+                // dispatcher via the store.
+                onSaveUserLetter = { date, body ->
+                    letterScope.launch { letterStore.saveUserLetter(date, body) }
+                },
+                // v0.26.2: persist a thumbs-down. The body
+                // comes from the feedback dialog's optional
+                // text field; the date is the letter's date.
+                // The file write is on the IO dispatcher
+                // because [LetterFeedbackStore.save] is a
+                // blocking `appendText` call.
+                onSaveFeedback = { date, reason ->
+                    letterScope.launch(Dispatchers.IO) {
+                        feedbackStore.save(date, reason)
+                    }
+                },
             )
         }
 

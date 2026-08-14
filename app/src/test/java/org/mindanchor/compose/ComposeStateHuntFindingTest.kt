@@ -7,6 +7,7 @@
 
 package org.mindanchor.compose
 
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -565,6 +566,10 @@ class ComposeStateHuntFindingTest {
                 "letterBlock=\n$letterBlock",
             !letterBlock.contains("val modelFits = remember { mutableStateOf(false) }") &&
                 letterBlock.contains("viewModel.modelFits.collectAsStateWithLifecycle()"),
+        )
+        assertTrue(
+            "HomeScreen letter surface must read modelFits from ModelStore.fitFlow() (v0.26.2 fix).",
+            source.contains("ModelStore.fitFlow()"),
         )
     }
 

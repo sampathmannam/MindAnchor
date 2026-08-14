@@ -815,10 +815,33 @@
     <string name="letters_empty_no_model">No letters yet. Phi-4 isn\'t installed — open Settings → Model to install it.</string>
     <string name="letters_delete">Delete this letter</string>
     <string name="letters_delete_confirm">Delete this letter?</string>
+    <string name="letters_delete_body">It will be removed from your inbox. This can\'t be undone.</string>
+    <string name="letters_delete_keep">Keep</string>
     <string name="letters_reader_missing">This letter is no longer on the phone.</string>
     <string name="letters_disclaimer">A letter is what your own data looked like to a model on this phone. It is not advice.</string>
     <string name="letters_delete_button">Delete</string>
     <string name="letters_cancel">Cancel</string>
+    <!--
+        v0.26.2: letter rework. The empty state is now a
+        composer, not a paragraph; the inbox defaults to
+        user-authored and AI generation is opt-in; AI letters
+        get a thumbs-down affordance; the badge in the inbox
+        shows the per-letter feedback count.
+    -->
+    <string name="letters_empty_icon">✉️</string>
+    <string name="letters_empty_title">No letters yet</string>
+    <string name="letters_empty_body">Letters write themselves overnight. The first one will land here at 7 am. (You can change the time in Settings → Reading.)</string>
+    <string name="letters_write_now">Write a letter now</string>
+    <string name="letters_write_hint">What would you like to remember about today?</string>
+    <string name="letters_write_save">Save</string>
+    <string name="letters_use_ai">Use AI</string>
+    <string name="letters_thumbs_down">👎 This got me wrong</string>
+    <string name="letters_thumbs_down_prompt">Tell us what was off</string>
+    <string name="letters_thumbs_down_hint">Optional</string>
+    <string name="letters_thumbs_down_save">Save</string>
+    <string name="letters_thumbs_down_saved">Thanks — we\'ll use this to make the next one better.</string>
+    <string name="letters_thumbs_down_badge">👎 %1$d</string>
+    <string name="letters_ai_label">AI</string>
     <!-- v0.25.2-B: reader-mode -->
     <string name="reading_size_section">Reading size</string>
     <string name="reading_size_explainer">How large the text reads on the letter. Large is the largest size that still fits every letter without clipping or hiding controls.</string>

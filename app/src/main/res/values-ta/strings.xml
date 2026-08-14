@@ -923,4 +923,11 @@
     <string name="recap_banner_body">Your last 14 days, in one quiet read.</string>
     <string name="recap_banner_dismiss">Not now</string>
     <string name="letters_shortcut">Letters</string>
-</resources>
+
+    <!--
+        v0.26.2: Tamil (ta) translations for the new letter-rework strings.
+        Stream 3 (letter rework) shipped these; Stream 4 (secondary)
+        created the placeholder file with English copy. The merge
+        combines both — Stream 4's English-copy base + Stream 3's
+        Tamil letter strings.
+    -->
