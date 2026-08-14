@@ -544,6 +544,37 @@ fun LauncherRoot(
                     letterCameFrom = LauncherSurface.Home
                     surface = LauncherSurface.Letter
                 },
+                // v0.26.4 §3.4: the 3 BPD entry points. Each
+                // is a runCatching because the activity is
+                // not-exported; an unconfigured manifest is
+                // the easiest way to ship a broken entry
+                // point, and a single try-frame is not a
+                // UX failure. Same defensive pattern as
+                // onOpenNotes + onOpenCheckInHistory.
+                onOpenChainCapture = {
+                    runCatching {
+                        val intent = android.content.Intent(
+                            context, org.mindanchor.chain.ChainCaptureActivity::class.java,
+                        )
+                        context.startActivity(intent)
+                    }
+                },
+                onOpenIfsPicker = {
+                    runCatching {
+                        val intent = android.content.Intent(
+                            context, org.mindanchor.ifs.IfsPickerActivity::class.java,
+                        )
+                        context.startActivity(intent)
+                    }
+                },
+                onOpenExport = {
+                    runCatching {
+                        val intent = android.content.Intent(
+                            context, org.mindanchor.export.ExportActivity::class.java,
+                        )
+                        context.startActivity(intent)
+                    }
+                },
                 wellnessReadings = wellnessReadings,
                 showIntroCallout = showIntroCallout,
                 onRecordLaunch = viewModel::recordHomeLaunch,
@@ -1692,6 +1723,36 @@ private fun HomeSurface(
      */
     onOpenLetters: () -> Unit = {},
     /**
+     * v0.26.4 §3.4: route to [org.mindanchor.chain.ChainCaptureActivity].
+     * The chain capture is the "what just happened?" surface —
+     * 5 fields (event / interpretation / part / want /
+     * part-to-bring) for a person mid-dysregulation to
+     * externalise the moment before acting on it. It is
+     * not a daily ritual; it is a low-friction affordance
+     * that the home surface should make one tap away
+     * without burying it under settings.
+     */
+    onOpenChainCapture: () -> Unit = {},
+    /**
+     * v0.26.4 §3.4: route to [org.mindanchor.ifs.IfsPickerActivity].
+     * "Which part is loud?" is a 2-column chip grid of named
+     * IFS parts. Same shape as the chain capture: a
+     * low-friction affordance for a person mid-dysregulation
+     * to name the part before acting on it. Home surface
+     * affordance.
+     */
+    onOpenIfsPicker: () -> Unit = {},
+    /**
+     * v0.26.4 §3.4: route to [org.mindanchor.export.ExportActivity].
+     * The "Export for my therapist" affordance. One tap on
+     * the home surface to dump notes, OneThing, OpenLoop,
+     * BedtimeList, wellness N-of-1, check-ins, BPD profile,
+     * chain captures, IFS picks to JSON (excludes Letter
+     * content). System share sheet for delivery to the
+     * therapist.
+     */
+    onOpenExport: () -> Unit = {},
+    /**
      * v0.20.4: the home-screen quick-notes
      * affordance. The card shows a one-line
      * input, a save button, and the most recent
@@ -1926,6 +1987,84 @@ private fun HomeSurface(
                         .clickable(onClick = onOpenReport)
                         .wrapContentHeight(Alignment.CenterVertically),
                 )
+            }
+
+            // v0.26.4 §3.4: the BPD "right now" surface.
+            // Three low-friction affordances for a person
+            // mid-dysregulation to externalise the moment
+            // before acting on it:
+            //   * "What just happened?" → 5-field chain capture
+            //   * "Which part is loud?" → IFS picker chip grid
+            //   * "Export for my therapist" → JSON dump + share
+            // Each is one tap from the home surface, no
+            // settings, no scroll. The "right now" heading is
+            // one line of small text in the same idiom as the
+            // rest of the home cards (intro_callout, report
+            // section) — a label, not a button.
+            Text(
+                text = stringResource(R.string.right_now_section),
+                style = MaterialTheme.typography.titleMedium,
+                color = sky.textSecondary,
+                modifier = Modifier
+                    .heightIn(min = 48.dp)
+                    .padding(top = 16.dp)
+                    .wrapContentHeight(Alignment.CenterVertically),
+            )
+            Text(
+                text = stringResource(R.string.right_now_caption),
+                style = MaterialTheme.typography.bodySmall,
+                color = sky.textSecondary,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+            // Three buttons in a row. Each gets the 48dp
+            // tap-target minimum and Role.Button for
+            // screen readers. The pattern mirrors the
+            // top-corner (Letters / notes / history) but
+            // uses a Column instead of a Row because the
+            // captions are long and a 3-up grid is the
+            // standard mental model.
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                TextButton(
+                    onClick = onOpenChainCapture,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .semantics { role = Role.Button },
+                ) {
+                    Text(
+                        text = stringResource(R.string.right_now_chain),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = sky.textPrimary,
+                    )
+                }
+                TextButton(
+                    onClick = onOpenIfsPicker,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .semantics { role = Role.Button },
+                ) {
+                    Text(
+                        text = stringResource(R.string.right_now_ifs),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = sky.textPrimary,
+                    )
+                }
+                TextButton(
+                    onClick = onOpenExport,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .semantics { role = Role.Button },
+                ) {
+                    Text(
+                        text = stringResource(R.string.right_now_export),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = sky.textPrimary,
+                    )
+                }
             }
 
             Column(

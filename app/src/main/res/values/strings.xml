@@ -304,6 +304,19 @@
     -->
     <string name="letters_channel_name">Daily letter</string>
     <string name="letters_channel_description">A weekly letter drawn from your own last week.</string>
+    <!--
+        v0.26.4 §3.4: the BPD "right now" home surface.
+        Three low-friction affordances for a person
+        mid-dysregulation to externalise the moment
+        before acting on it. The headline reads as
+        one calm line, not a button; the three rows
+        below are the actions.
+    -->
+    <string name="right_now_section">Right now</string>
+    <string name="right_now_caption">A small thing to write down before the next thing happens.</string>
+    <string name="right_now_chain">What just happened?</string>
+    <string name="right_now_ifs">Which part is loud?</string>
+    <string name="right_now_export">Export for my therapist</string>
     <string name="letters_notification_title">A letter from your week</string>
     <!--
         Inline forms, for the pattern sentence.

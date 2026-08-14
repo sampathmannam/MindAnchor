@@ -931,5 +931,14 @@
         combines both — Stream 4's English-copy base + Stream 3's
         Tamil letter strings.
     -->
+    <!--
+        v0.26.4 §3.4: the BPD "right now" home surface.
+        Tamil translations for the 5 new strings.
+    -->
+    <string name="right_now_section">இப்போது</string>
+    <string name="right_now_caption">அடுத்தது நடப்பதற்கு முன் எழுதிவைக்க ஒரு சிறிய விஷயம்.</string>
+    <string name="right_now_chain">என்ன நடந்தது?</string>
+    <string name="right_now_ifs">எந்தப் பகுதி loud ஆக இருக்கிறது?</string>
+    <string name="right_now_export">என் therapist-க்கு export செய்</string>
 </resources>
 
