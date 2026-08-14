@@ -42,8 +42,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -1096,7 +1098,24 @@ private fun BedtimeListCard(
             // user is mid-capture of "feed the cat, water the
             // plants, lock the door" and a config change should
             // not throw all three lines away.
-            val drafts = rememberSaveable {
+            //
+            // v0.26.3 fix: `mutableStateListOf` returns a
+            // `SnapshotStateList<String>` which is NOT
+            // auto-Saveable (the default `rememberSaveable`
+            // implementation rejects it with
+            // "cannot be saved using the current
+            // SaveableStateRegistry"). The fix is a
+            // `listSaver` that converts the SnapshotStateList
+            // to a plain `List<String>` for the Bundle, then
+            // rebuilds the SnapshotStateList on restore.
+            val drafts = rememberSaveable(
+                saver = listSaver<SnapshotStateList<String>, String>(
+                    save = { it.toList() },
+                    restore = { saved ->
+                        mutableStateListOf<String>().apply { addAll(saved) }
+                    },
+                ),
+            ) {
                 mutableStateListOf<String>().apply { add("") }
             }
 

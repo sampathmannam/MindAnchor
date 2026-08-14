@@ -238,33 +238,51 @@ class ComposeStateHuntFindingTest {
 
     // ----- BUG-008 (BedtimeListCard drafts) -----
     //
-    // v0.25.15 fix: `mutableStateListOf<String>()` is auto-Saveable
-    // (the default Saver for `SnapshotStateList<String>` writes the
-    // contents as a Bundle array of strings), so the migration is a
-    // one-keyword `remember` → `rememberSaveable` swap. The pin
-    // below is the fix-shape: the drafts must be `rememberSaveable`
-    // AND still be `mutableStateListOf` (the new state is the new
-    // primitive, not a different list type).
+    // v0.25.15 fix (one-keyword swap) shipped with the assumption
+    // that `mutableStateListOf<String>()` is auto-Saveable. It is NOT
+    // — `SnapshotStateList<String>` is rejected by the default
+    // `rememberSaveable` Saver (the v0.26.3 emulator crash
+    // `SnapshotStateList(value=[])@... cannot be saved using the
+    // current SaveableStateRegistry` is the proof). v0.26.3
+    // supersedes v0.25.15 with an explicit `listSaver` that converts
+    // the SnapshotStateList to a plain `List<String>` for the Bundle
+    // and rebuilds on restore.
+    //
+    // The pin below is the v0.26.3 fix-shape: the drafts are wrapped
+    // in `rememberSaveable` AND the list is saved via `listSaver`
+    // (a `Saver<SnapshotStateList<String>, String>`), with the
+    // restore rebuilding a `mutableStateListOf` from the saved list.
 
     @Test
-    fun `BUG-008 BedtimeListCard CAPTURE-mode drafts use rememberSaveable (v0_25_15 fix)`() {
+    fun `BUG-008 BedtimeListCard CAPTURE-mode drafts use rememberSaveable with listSaver (v0_26_3 fix)`() {
         val source = readSource("HomeScreen.kt", "launcher")
         assertNotNull(source)
         val src = source!!
         val fnIdx = src.indexOf("private fun BedtimeListCard(")
-        // v0.25.15 fix: scope the search to BedtimeListCard (the
+        // v0.26.3 fix: scope the search to BedtimeListCard (the
         // file has many `mutableStateListOf` sites; we want the one
         // inside the CAPTURE branch of this specific function).
         val captureIdx = if (fnIdx >= 0) src.indexOf("BedtimePhase.CAPTURE -> {", fnIdx) else -1
-        val draftsIdx = if (captureIdx >= 0) src.indexOf("val drafts = rememberSaveable {", captureIdx) else -1
-        val listShapeIdx = if (draftsIdx >= 0) src.indexOf("mutableStateListOf<String>().apply { add(\"\") }", draftsIdx) else -1
+        // v0.26.3: the rememberSaveable now uses a custom
+        // listSaver; the literal `val drafts = rememberSaveable {`
+        // substring won't match because the call is multi-line.
+        // Match on the more durable pattern.
+        val draftsIdx = if (captureIdx >= 0) src.indexOf("val drafts = rememberSaveable", captureIdx) else -1
+        // v0.26.3: the listSaver must be on the drafts. Match the
+        // `<SnapshotStateList<String>` + `listSaver` shape.
+        val listSaverIdx = if (draftsIdx >= 0) src.indexOf("listSaver<SnapshotStateList<String>, String>", draftsIdx) else -1
+        // The list must still be created with mutableStateListOf.
+        val listShapeIdx = if (listSaverIdx >= 0) src.indexOf("mutableStateListOf<String>().apply { add(\"\") }", listSaverIdx) else -1
         assertTrue(
             "BedtimeListCard CAPTURE-mode drafts must use rememberSaveable " +
-                "(v0.25.15 fix). fnIdx=$fnIdx captureIdx=$captureIdx " +
-                "draftsIdx=$draftsIdx listShapeIdx=$listShapeIdx. The order " +
-                "must be: fn < capture < drafts < listShape. " +
+                "with a listSaver (v0.26.3 fix — auto-Saveable doesn't work for " +
+                "SnapshotStateList). fnIdx=$fnIdx captureIdx=$captureIdx " +
+                "draftsIdx=$draftsIdx listSaverIdx=$listSaverIdx " +
+                "listShapeIdx=$listShapeIdx. The order must be: " +
+                "fn < capture < drafts < listSaver < listShape. " +
                 "source=\n$src",
-            fnIdx >= 0 && captureIdx > fnIdx && draftsIdx > captureIdx && listShapeIdx > draftsIdx,
+            fnIdx >= 0 && captureIdx > fnIdx && draftsIdx > captureIdx &&
+                listSaverIdx > draftsIdx && listShapeIdx > listSaverIdx,
         )
     }
 
