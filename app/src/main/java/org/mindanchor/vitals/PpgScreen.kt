@@ -18,8 +18,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -119,7 +119,13 @@ fun PpgScreen(
         permissionLauncher.launch(android.Manifest.permission.CAMERA)
     }
 
-    val captureState by capture.state.collectAsState()
+    // v0.25.17 BUG-004: lifecycle-aware collect. The
+    // PPG capture state flow emits on every torch /
+    // camera tick (≈30Hz during a measurement); the
+    // user opens the Settings sub-section and walks
+    // away, the screen is STOPPED, and `collectAsState`
+    // would keep recomposing the unread surface.
+    val captureState by capture.state.collectAsStateWithLifecycle()
     var running by remember { mutableStateOf(false) }
     var finished by remember { mutableStateOf<PpgCaptureState?>(null) }
 
@@ -328,7 +334,12 @@ fun PpgScreen(
                 // a bpm — the line still says "you sat down with this",
                 // which is the useful answer.
                 val sessionStore = remember { PpgSessionStore(context.applicationContext) }
-                val recent by sessionStore.recent(3).collectAsState(initial = emptyList())
+                // v0.25.17 BUG-004: lifecycle-aware collect. Same
+                // rationale as the capture-state flow above:
+                // the recent-sessions list is read once per
+                // composition; a STOPPED surface should not
+                // continue to listen.
+                val recent by sessionStore.recent(3).collectAsStateWithLifecycle(initialValue = emptyList())
                 if (recent.isNotEmpty()) {
                     Text(
                         text = stringResource(R.string.ppg_history_heading),

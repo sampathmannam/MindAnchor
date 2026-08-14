@@ -37,7 +37,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -310,7 +309,13 @@ fun LauncherRoot(
     var letterCameFrom by rememberSaveable { mutableStateOf(LauncherSurface.Home) }
     val context = LocalContext.current
     val reportStore = remember(context) { ReportStore(context.applicationContext) }
-    val storedReport by reportStore.stored.collectAsState(initial = null)
+    // v0.25.17 BUG-004: lifecycle-aware collect. The
+    // report-store flow emits when a fresh nightly
+    // report is composed; pre-v0.25.17 the launcher
+    // kept listening to the flow even when the home
+    // surface was STOPPED (Settings, Onboarding,
+    // etc.).
+    val storedReport by reportStore.stored.collectAsStateWithLifecycle(initialValue = null)
     // Only when there is genuinely something to read. An empty report is
     // ReportComposer's ordinary, good outcome, and offering a way in to
     // read nothing teaches somebody to stop looking.
@@ -463,7 +468,11 @@ fun LauncherRoot(
                 )
             } else {
                 CalmBackground { sky ->
-                    val showIntroCallout by viewModel.showIntroCallout.collectAsState()
+                    // v0.25.17 BUG-004: lifecycle-aware collect.
+                    // Same rationale as the report-store flow
+                    // above. The intro-callout flag is read
+                    // only when the home surface is foreground.
+                    val showIntroCallout by viewModel.showIntroCallout.collectAsStateWithLifecycle()
             HomeSurface(
                 sky = sky,
                 favorites = state.favorites,
@@ -614,7 +623,13 @@ fun LauncherRoot(
             // v0.25.2-B (Task 15): letter size is read from the
             // LauncherViewModel (mirrors the SettingsViewModel.letterSize
             // from Task 9 — both VMs read from the same DataStore source).
-            val letterSize by viewModel.letterSize.collectAsState()
+            // v0.25.17 BUG-004: lifecycle-aware collect.
+            // The letter-size preference is a DataStore
+            // value; reading it through the lifecycle-
+            // aware primitive keeps the launcher from
+            // collecting on every emission while the
+            // letter surface is STOPPED.
+            val letterSize by viewModel.letterSize.collectAsStateWithLifecycle()
             val letterStore = remember(context.applicationContext) {
                 LetterStore(context.applicationContext)
             }
@@ -2069,7 +2084,12 @@ private fun DrawerSurface(
     onLaunch: (DisplayApp) -> Unit,
     onLongPress: (DisplayApp) -> Unit,
 ) {
-    val query by viewModel.searchQuery.collectAsState()
+    // v0.25.17 BUG-004: lifecycle-aware collect. The
+    // search query is held in the ViewModel; the
+    // lifecycle-aware primitive keeps the search
+    // surface from collecting on every keystroke
+    // after the user has navigated away.
+    val query by viewModel.searchQuery.collectAsStateWithLifecycle()
     val results = viewModel.searchResults(state)
     val focusRequester = remember { FocusRequester() }
 

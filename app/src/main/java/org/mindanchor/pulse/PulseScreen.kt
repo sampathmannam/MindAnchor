@@ -17,11 +17,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringArrayResource
@@ -109,7 +109,11 @@ fun PulseScreen(
     // of Ints as a Bundle.
     var answers by rememberSaveable { mutableStateOf(List(WhoFive.ITEM_COUNT) { -1 }) }
     var savedScore by rememberSaveable { mutableStateOf<Int?>(null) }
-    val history by viewModel.history.collectAsState()
+    // v0.25.17 BUG-004: lifecycle-aware collect. The pulse
+    // history flow emits whenever a check-in is saved; a
+    // STOPPED pulse screen should not be reading the
+    // history flow.
+    val history by viewModel.history.collectAsStateWithLifecycle()
 
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(

@@ -69,6 +69,11 @@ class ComposeStateHuntFindingTest {
         // — the flow keeps producing when the screen is
         // STOPPED, the recomposer keeps listening, the
         // ViewModel never gets to drop a stale state.
+        //
+        // v0.25.17 fix: the broad migration closes this
+        // finding. The original "at least one" pin still
+        // passes (the per-file pin below is a stronger
+        // regression guard).
         val files = listOf(
             "HomeActivity.kt" to "",
             "launcher/HomeScreen.kt" to "launcher",
@@ -94,6 +99,53 @@ class ComposeStateHuntFindingTest {
         assertTrue(
             "At least one main-source Composable should use collectAsStateWithLifecycle; saw none",
             anyLifecycleAwareCollect,
+        )
+    }
+
+    @Test
+    fun `BUG-004 every main-source Composable in the 12-file set uses collectAsStateWithLifecycle (v0_25_17 fix)`() {
+        // v0.25.17 fix-shape: the broad migration closes
+        // the BUG-004 finding for the entire 12-file
+        // main-source set. The original "at least one"
+        // pin is a positive pin (must be present
+        // somewhere); the per-file pin below is a
+        // stronger regression guard that asserts the
+        // primitive is in use in *every* file. A
+        // v0.25.17+ regression that reverts a file to
+        // plain `collectAsState` flips this assertion
+        // red with a per-file error message.
+        val files = listOf(
+            "HomeActivity.kt" to "",
+            "launcher/HomeScreen.kt" to "launcher",
+            "model/NoteActivity.kt" to "model",
+            "model/CheckInHistoryActivity.kt" to "model",
+            "settings/SettingsScreen.kt" to "settings",
+            "settings/GoogleDriveBackupSettingsSection.kt" to "settings",
+            "vitals/PpgScreen.kt" to "vitals",
+            "pulse/PulseScreen.kt" to "pulse",
+            "report/ReportScreen.kt" to "report",
+            "support/SupportScreen.kt" to "support",
+            "digest/DigestScreen.kt" to "digest",
+            "ui/CalmBackground.kt" to "ui",
+        )
+        val missing = mutableListOf<String>()
+        for ((filename, pkg) in files) {
+            val source = readSource(filename, pkg)
+            if (source == null) {
+                missing += "$filename (read failed)"
+                continue
+            }
+            if (!source.contains("collectAsStateWithLifecycle")) {
+                missing += "$filename (no collectAsStateWithLifecycle)"
+            }
+        }
+        assertTrue(
+            "BUG-004 (v0.25.17 fix): every main-source Composable in the 12-file set " +
+                "must use collectAsStateWithLifecycle. The pre-fix shape had " +
+                "`collectAsState` (without WithLifecycle), which is a backpressure " +
+                "hole — the flow keeps producing when the screen is STOPPED. " +
+                "missing=$missing",
+            missing.isEmpty(),
         )
     }
 
