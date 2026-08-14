@@ -18,6 +18,13 @@
     promise that the app makes zero outbound calls is
     enforced by NetworkCallsForbiddenTest, not by the
     absence of the permission.
+
+    v0.26.1 adds the §3.3 SMS tone-check side-channel
+    (RECEIVE_SMS + AppWatchService + SmsInterceptor), the
+    §3.4 chain-capture + IFS picker + lock-screen "ground
+    me" tile + data-export activities, and the
+    FOREGROUND_SERVICE_DATA_SYNC permission that pairs
+    with AppWatchService's foregroundServiceType="dataSync".
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
@@ -157,6 +164,25 @@
         packets, not syncing data to a remote endpoint.
     -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!--
+        v0.26.1 §3.3: required by AppWatchService's
+        foregroundServiceType="dataSync" declaration. The
+        service exists to post the "Tone check" prompt
+        after SMS_RECEIVED; the type pair is the Android
+        12+ load-bearing combination. Pinned by
+        AppWatchServiceManifestFindingTest.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!--
+        v0.26.1 §3.3: required to receive the SMS_RECEIVED
+        broadcast at all. The SmsInterceptor is the §3.3
+        side-channel — it does not abort the broadcast, and
+        it does not become a default SMS app. The
+        permission is for the *receiver*; the *storage* of
+        the body excerpt is bounded to 280 chars in
+        SmsToneCheckLedger.
+    -->
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
 
     <!--
         Fingertip PPG, and nothing else. HRV is the best physiological
@@ -634,6 +660,141 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+
+        <!--
+            v0.26.1 §3.4: "What just happened?" 5-field
+            chain capture. Full activity, not a surface
+            in HomeScreen. Launched from a notification
+            or an explicit Intent; the home-surface
+            entry-point wiring is owned by Agent 1.
+            exported=false because the activity is
+            only ever launched by this same app.
+        -->
+        <activity
+            android:name=".chain.ChainCaptureActivity"
+            android:exported="false"
+            android:taskAffinity=".chain"
+            android:excludeFromRecents="true"
+            android:stateNotNeeded="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden|uiMode|density|fontScale|locale|smallestScreenSize|layoutDirection" />
+
+        <!--
+            v0.26.1 §3.4: "Which part is loud?" IFS picker.
+            Full activity; chip-grid picker for the named
+            parts the user might be feeling. Same
+            activity-affinity shape as ChainCaptureActivity:
+            a moment, not a place.
+        -->
+        <activity
+            android:name=".ifs.IfsPickerActivity"
+            android:exported="false"
+            android:taskAffinity=".ifs"
+            android:excludeFromRecents="true"
+            android:stateNotNeeded="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden|uiMode|density|fontScale|locale|smallestScreenSize|layoutDirection" />
+
+        <!--
+            v0.26.1 §3.4: "Data export for my therapist."
+            One button, one JSON file, one share sheet.
+            The FileProvider exposes the export/ subdir
+            so the system share sheet can hand the file
+            to a chosen recipient. The activity does not
+            auto-share.
+        -->
+        <activity
+            android:name=".export.ExportActivity"
+            android:exported="false"
+            android:taskAffinity=".export"
+            android:excludeFromRecents="true"
+            android:stateNotNeeded="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden|uiMode|density|fontScale|locale|smallestScreenSize|layoutDirection" />
+
+        <!--
+            v0.26.1 §3.3: a host activity for the
+            BeforeYouSendInterstitial so the AppWatchService
+            "Tone check" notification can deep-link to it
+            with SMS context as intent extras. The host is
+            exported=false because the notification's
+            PendingIntent uses an explicit component name.
+        -->
+        <activity
+            android:name=".friction.BeforeYouSendHostActivity"
+            android:exported="false"
+            android:taskAffinity=".friction.byshost"
+            android:excludeFromRecents="true"
+            android:stateNotNeeded="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden" />
+
+        <!--
+            v0.26.1 §3.4: the lock-screen / Quick Settings
+            host for GroundMeScreen. Opened by the
+            GroundMeTile; the activity is its own task
+            affinity so it does not join whatever the
+            user was doing.
+        -->
+        <activity
+            android:name=".lock.GroundMeActivity"
+            android:exported="false"
+            android:taskAffinity=".lock.groundme"
+            android:excludeFromRecents="true"
+            android:stateNotNeeded="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden|uiMode|density|fontScale|locale|smallestScreenSize|layoutDirection" />
+
+        <!--
+            v0.26.1 §3.4: the Quick Settings tile that
+            opens GroundMeActivity. The tile service is
+            the only place the activity is reachable from
+            outside the app. Tile categories="tool" so
+            the tile sorts into the tool group of the
+            system shade rather than the connectivity
+            group; icon and label are system-defaultable.
+        -->
+        <service
+            android:name=".lock.GroundMeTile"
+            android:exported="true"
+            android:label="@string/ground_me_tile_label"
+            android:icon="@drawable/ic_launcher_foreground"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!--
+            v0.26.1 §3.3: the SMS tone-check foreground
+            service. Started by the SmsInterceptor on
+            SMS_RECEIVED; posts the "Tone check" prompt
+            and stops itself. dataSync is the closest
+            type for a no-network, on-device write —
+            the same pair the GoingLightVpnService uses,
+            and the AppWatchServiceManifestFindingTest
+            pins the pair here.
+        -->
+        <service
+            android:name=".watch.AppWatchService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!--
+            v0.26.1 §3.3: the SMS_RECEIVED receiver.
+            exported=true because Android requires it
+            for system broadcasts; the receiver is
+            only this app's own logic and writes to
+            the sms_tone_check DataStore. The receiver
+            does not abort the broadcast.
+        -->
+        <receiver
+            android:name=".watch.SmsInterceptor"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

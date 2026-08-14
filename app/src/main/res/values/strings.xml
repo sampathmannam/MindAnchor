@@ -910,4 +910,53 @@
     <string name="recap_banner_body">Your last 14 days, in one quiet read.</string>
     <string name="recap_banner_dismiss">Not now</string>
     <string name="letters_shortcut">Letters</string>
+
+    <!--
+        v0.26.1: §3.4 "What just happened?" 5-field chain
+        capture. The five fields are short labels, not
+        instructions — the screen's subtitle carries the
+        plain-English explanation, the storage carries the
+        keys, and the labels are what the user sees.
+    -->
+    <string name="chain_title">What just happened?</string>
+    <string name="chain_subtitle">A short chain. One line per field. Anything you leave blank stays blank — there is no wrong shape for this.</string>
+    <string name="chain_field_event">The event (what happened, just the facts)</string>
+    <string name="chain_field_interpretation">The story I am telling about it</string>
+    <string name="chain_field_part">The part that is loud right now</string>
+    <string name="chain_field_want">What I actually want underneath</string>
+    <string name="chain_field_part_to_bring">The part I want to bring to it</string>
+    <string name="chain_a11y">What just happened? Five short fields.</string>
+
+    <!--
+        v0.26.1: §3.4 "Which part is loud?" IFS picker.
+    -->
+    <string name="ifs_title">Which part is loud?</string>
+    <string name="ifs_subtitle">Pick the one that fits. The names are the names from Internal Family Systems (Schwartz 1995); pick whichever one is nearest.</string>
+    <string name="ifs_a11y">Which part is loud right now? Pick one.</string>
+
+    <!--
+        v0.26.1: §3.4 "Data export for my therapist."
+    -->
+    <string name="export_title">Export my data</string>
+    <string name="export_subtitle">A single JSON file with everything this phone has on file. Letter content is never included — letters are a private channel and you would have to copy them yourself if you wanted to share.</string>
+    <string name="export_button">Export my data</string>
+    <string name="export_building">Building the export…</string>
+    <string name="export_shared">Export built. Pick where to send it from the share sheet.</string>
+    <string name="export_failed">Couldn\'t build the export: %1$s</string>
+    <string name="export_a11y">Export my data as a single JSON file.</string>
+
+    <!--
+        v0.26.1: §3.4 lock-screen / Quick Settings "Ground me" tile.
+    -->
+    <string name="ground_me_tile_label">Ground me</string>
+
+    <!--
+        v0.26.1: §3.3 SMS tone-check side-channel. The channel
+        is importance HIGH because the prompt is a "before you
+        send" moment, not a "look at this when you can" feed.
+    -->
+    <string name="tone_check_channel_name">Tone check</string>
+    <string name="tone_check_channel_description">A short prompt that appears when an SMS arrives, asking you to glance at the message before you reply.</string>
+    <string name="tone_check_title">Tone check before sending.</string>
+    <string name="tone_check_text">A message just arrived from %1$s. Open to read it before you reply.</string>
 </resources>
