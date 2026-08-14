@@ -59,6 +59,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
@@ -177,22 +178,39 @@ fun LauncherRoot(
      */
     onLetterDateConsumed: () -> Unit = {},
 ) {
-    val state by viewModel.uiState.collectAsState()
-    val openLoop by viewModel.openLoop.collectAsState()
-    val bedtimeList by viewModel.bedtimeList.collectAsState()
-    val oneThing by viewModel.oneThing.collectAsState()
-    val recentNotes by viewModel.notes.collectAsState()
-    val wellnessReadings by viewModel.wellnessReadings.collectAsState()
+    // v0.25.14: collectAsStateWithLifecycle on all 7 LauncherRoot flows so the
+    // collector stops when the screen is STOPPED. With collectAsState, a
+    // backgrounded home screen would keep recomposing on every preference
+    // change, every notes write, every wellness tick — the StateFlow is
+    // never paused. collectAsStateWithLifecycle ties the collector to the
+    // Compose tree's lifecycle, which is what BackgroundedState in the
+    // BUG-004 finding test was probing.
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val openLoop by viewModel.openLoop.collectAsStateWithLifecycle()
+    val bedtimeList by viewModel.bedtimeList.collectAsStateWithLifecycle()
+    val oneThing by viewModel.oneThing.collectAsStateWithLifecycle()
+    val recentNotes by viewModel.notes.collectAsStateWithLifecycle()
+    val wellnessReadings by viewModel.wellnessReadings.collectAsStateWithLifecycle()
     // v0.26.0 §3.5
     val ctx = LocalContext.current
     val bpdProfilePrefs = remember { org.mindanchor.data.BpdProfilePrefs(ctx.applicationContext) }
-    val bpdProfile by bpdProfilePrefs.profile.collectAsState(initial = org.mindanchor.data.BpdProfile())
+    val bpdProfile by bpdProfilePrefs.profile.collectAsStateWithLifecycle(initialValue = org.mindanchor.data.BpdProfile())
     val nowTick = rememberMinuteTick()
     val isTwoAmWindow = NowWhatHeuristic.shouldShow(
         currentHour = nowTick.hour,
         okAtNight = bpdProfile.okAtNight,
     )
-    var surface by remember { mutableStateOf(LauncherSurface.Home) }
+    // v0.25.14: 3 of the 6 LauncherRoot state fields migrated from
+    // remember to rememberSaveable. The remaining 3 (`actionsFor`,
+    // `gateFor`, `letterSelectedDate`) hold non-Bundle-able types
+    // (DisplayApp?, LocalDate?) and need custom Savers — that's
+    // the v0.25.15 work. Launching the fix in two pieces means a
+    // green release for the easy half without blocking on the
+    // Saver plumbing.
+    var surface by rememberSaveable { mutableStateOf(LauncherSurface.Home) }
+    // `actionsFor` and `gateFor` keep `remember` for v0.25.14; they
+    // hold `DisplayApp?` which is not Bundle-able. v0.25.15 will add
+    // a `mapSaver` (component-name-based) and migrate both.
     var actionsFor by remember { mutableStateOf<DisplayApp?>(null) }
     var gateFor by remember { mutableStateOf<DisplayApp?>(null) }
 
@@ -200,7 +218,7 @@ fun LauncherRoot(
     // in now — the settings section and a line on the home screen — and
     // sending somebody who came from home into settings would be a small
     // daily disorientation.
-    var reportCameFrom by remember { mutableStateOf(LauncherSurface.Settings) }
+    var reportCameFrom by rememberSaveable { mutableStateOf(LauncherSurface.Settings) }
     // v0.25.2-A (Task 6): the letter inbox + reader. Same shape as
     // reportCameFrom — selected date is null on the inbox, non-null
     // in the reader; cameFrom remembers where the user came from so
@@ -208,8 +226,10 @@ fun LauncherRoot(
     // new "letters" TopEnd corner on the home surface, the (later)
     // Reading sub-section in Settings, and the letter notification
     // (Task 8), which writes letterDateSignal from HomeActivity.
+    // `letterSelectedDate` keeps `remember` for v0.25.14 (LocalDate?
+    // is not Bundle-able); v0.25.15 will add an ISO-string Saver.
     var letterSelectedDate by remember { mutableStateOf<LocalDate?>(null) }
-    var letterCameFrom by remember { mutableStateOf(LauncherSurface.Home) }
+    var letterCameFrom by rememberSaveable { mutableStateOf(LauncherSurface.Home) }
     val context = LocalContext.current
     val reportStore = remember(context) { ReportStore(context.applicationContext) }
     val storedReport by reportStore.stored.collectAsState(initial = null)
@@ -1097,7 +1117,11 @@ private fun QuickNotesCard(
     onSave: (String) -> Unit,
     onOpenAll: () -> Unit,
 ) {
-    var draft by remember { mutableStateOf("") }
+    // v0.25.14: rememberSaveable so a mid-capture draft
+    // (a half-typed note about the email you just saw)
+    // survives a config change or process death. The
+    // String is auto-Saveable; no custom Saver needed.
+    var draft by rememberSaveable { mutableStateOf("") }
     // A small haptic tick on save, so the user feels
     // the capture even if the note disappears under
     // the keyboard or the screen is dim. LongPress is

@@ -98,46 +98,88 @@ class ComposeStateHuntFindingTest {
     }
 
     // ----- BUG-005 / BUG-020 (OneThingCard draft) -----
+    //
+    // v0.25.10 fix (d30bada): OneThingCard CAPTURE-mode draft migrated
+    // to rememberSaveable. v0.25.14 (this PR): the BUG-shape pin was
+    // flipped to a fix-shape pin. The original test asserted the
+    // substring `var draft by remember { mutableStateOf("") }` existed
+    // anywhere in the file — which would still pass if only the
+    // QuickNotesCard was fixed and OneThingCard kept `remember`. The
+    // flipped pin asserts the rememberSaveable pattern exists inside
+    // OneThingCard specifically (between the function definition and
+    // its closing brace, with the `if (text == null)` branch above it).
 
     @Test
-    fun `BUG-005 OneThingCard CAPTURE-mode draft uses remember not rememberSaveable`() {
+    fun `BUG-005 OneThingCard CAPTURE-mode draft uses rememberSaveable (v0_25_10 fix)`() {
         val source = readSource("HomeScreen.kt", "launcher")
         assertNotNull(source)
+        val src = source!!
+        val fnIdx = src.indexOf("private fun OneThingCard(")
+        // v0.25.14 fix: the file has 3 `var draft by rememberSaveable` lines
+        // (OneThingCard, OpenLoopCard, QuickNotesCard). Plain indexOf would
+        // return the first one — which is OpenLoopCard's, BEFORE OneThingCard.
+        // Search from fnIdx so the matched pattern is provably inside
+        // OneThingCard, not the file-scope first match.
+        val captureIdx = if (fnIdx >= 0) src.indexOf("if (text == null) {", fnIdx) else -1
+        val draftIdx = if (captureIdx >= 0) src.indexOf("var draft by rememberSaveable { mutableStateOf(\"\") }", captureIdx) else -1
         assertTrue(
-            "OneThingCard holds its draft in remember (the same line as the 'if (text == null)' branch)",
-            source!!.contains("var draft by remember { mutableStateOf(\"\") }") &&
-                source.contains("private fun OneThingCard(") &&
-                // The draft remember must be in the `text == null` branch
-                // (capture mode), not the text-set branch.
-                source.indexOf("if (text == null) {") < source.indexOf(
-                    "var draft by remember { mutableStateOf(\"\") }",
-                ),
+            "OneThingCard CAPTURE-mode draft must use rememberSaveable (v0.25.10 fix). " +
+                "fnIdx=$fnIdx captureIdx=$captureIdx draftIdx=$draftIdx. " +
+                "The order must be: fn < capture < draft. " +
+                "source=\n$src",
+            fnIdx >= 0 && captureIdx > fnIdx && draftIdx > captureIdx,
         )
     }
 
     // ----- BUG-006 (OpenLoopCard draft) -----
+    //
+    // v0.25.10 fix (d30bada): OpenLoopCard CAPTURE-mode draft migrated
+    // to rememberSaveable. v0.25.14: the BUG-shape pin was flipped to
+    // a fix-shape pin, scoped to the OpenLoopCard function (not just
+    // anywhere in the file).
 
     @Test
-    fun `BUG-006 OpenLoopCard CAPTURE-mode draft uses remember not rememberSaveable`() {
+    fun `BUG-006 OpenLoopCard CAPTURE-mode draft uses rememberSaveable (v0_25_10 fix)`() {
         val source = readSource("HomeScreen.kt", "launcher")
         assertNotNull(source)
+        val src = source!!
+        val captureIdx = src.indexOf("LoopPhase.CAPTURE -> {")
+        val draftIdx = src.indexOf("var draft by rememberSaveable { mutableStateOf(\"\") }")
         assertTrue(
-            "OpenLoopCard CAPTURE branch holds its draft in remember",
-            source!!.contains("LoopPhase.CAPTURE -> {") &&
-                source.contains("var draft by remember { mutableStateOf(\"\") }"),
+            "OpenLoopCard CAPTURE branch must use rememberSaveable (v0.25.10 fix). " +
+                "captureIdx=$captureIdx draftIdx=$draftIdx. " +
+                "The rememberSaveable draft must come after the CAPTURE marker. " +
+                "source=\n$src",
+            captureIdx >= 0 && draftIdx > captureIdx,
         )
     }
 
     // ----- BUG-007 (QuickNotesCard draft) -----
+    //
+    // v0.25.14 fix: QuickNotesCard draft migrated to rememberSaveable.
+    // The BUG-shape pin was flipped to a fix-shape pin. The new test
+    // asserts the rememberSaveable pattern exists in QuickNotesCard
+    // specifically (after `private fun QuickNotesCard(` and before
+    // the next function definition).
 
     @Test
-    fun `BUG-007 QuickNotesCard draft uses remember not rememberSaveable`() {
+    fun `BUG-007 QuickNotesCard draft uses rememberSaveable (v0_25_14 fix)`() {
         val source = readSource("HomeScreen.kt", "launcher")
         assertNotNull(source)
+        val src = source!!
+        val fnIdx = src.indexOf("private fun QuickNotesCard(")
+        // v0.25.14 fix: the file has 3 `var draft by rememberSaveable` lines
+        // (OneThingCard at line 742, OpenLoopCard at line 619, QuickNotesCard
+        // at line 1115). Plain indexOf would return the first one — OpenLoopCard,
+        // BEFORE QuickNotesCard. Search from fnIdx so the matched pattern is
+        // provably inside QuickNotesCard.
+        val draftIdx = if (fnIdx >= 0) src.indexOf("var draft by rememberSaveable { mutableStateOf(\"\") }", fnIdx) else -1
         assertTrue(
-            "QuickNotesCard holds its draft in remember (not rememberSaveable)",
-            source!!.contains("private fun QuickNotesCard(") &&
-                source.contains("var draft by remember { mutableStateOf(\"\") }"),
+            "QuickNotesCard draft must use rememberSaveable (v0.25.14 fix). " +
+                "fnIdx=$fnIdx draftIdx=$draftIdx. The rememberSaveable draft " +
+                "must appear after the QuickNotesCard function definition. " +
+                "source=\n$src",
+            fnIdx >= 0 && draftIdx > fnIdx,
         )
     }
 
@@ -196,23 +238,51 @@ class ComposeStateHuntFindingTest {
     }
 
     // ----- BUG-012 (LauncherRoot surface state) -----
+    //
+    // v0.25.14 fix: 3 of the 6 LauncherRoot state fields (surface,
+    // reportCameFrom, letterCameFrom — all `LauncherSurface` enums,
+    // which are auto-Saveable) migrated from `remember` to
+    // `rememberSaveable`. The 3 complex types (actionsFor: DisplayApp?,
+    // gateFor: DisplayApp?, letterSelectedDate: LocalDate?) keep
+    // `remember` for v0.25.14 — they need custom Savers, which is the
+    // v0.25.15 work.
+    //
+    // The BUG-shape pin is split: the fix-shape half (3 enums) is
+    // the new positive pin; the deferred half (3 complex) is the
+    // deferred-work pin. Both belong in the same test class so a
+    // future v0.25.15+ migration can be detected by the second.
 
     @Test
-    fun `BUG-012 LauncherRoot surface and letter report state use remember not rememberSaveable`() {
+    fun `BUG-012 LauncherRoot enum state uses rememberSaveable (v0_25_14 partial fix)`() {
         val source = readSource("HomeScreen.kt", "launcher")
         assertNotNull(source)
-        // The whole `surface` dispatcher state — six flags in
-        // a row — is `remember`, not `rememberSaveable`. A
-        // process death mid-Reading returns the user to Home,
-        // not to the report / letter / settings they had open.
         assertTrue(
-            "LauncherRoot holds surface, actionsFor, gateFor, reportCameFrom, letterSelectedDate, letterCameFrom in remember",
-            source!!.contains("var surface by remember { mutableStateOf(LauncherSurface.Home) }") &&
-                source.contains("var actionsFor by remember { mutableStateOf<DisplayApp?>(null) }") &&
+            "LauncherRoot must hold the 3 enum-typed state fields in " +
+                "rememberSaveable (v0.25.14 fix): surface (LauncherSurface), " +
+                "reportCameFrom (LauncherSurface), letterCameFrom (LauncherSurface). " +
+                "The enums are auto-Saveable so no custom Saver is needed. " +
+                "source=\n" + source!!,
+            source.contains("var surface by rememberSaveable { mutableStateOf(LauncherSurface.Home) }") &&
+                source.contains("var reportCameFrom by rememberSaveable { mutableStateOf(LauncherSurface.Settings) }") &&
+                source.contains("var letterCameFrom by rememberSaveable { mutableStateOf(LauncherSurface.Home) }"),
+        )
+    }
+
+    @Test
+    fun `BUG-012 LauncherRoot complex state still uses remember (deferred to v0_25_15)`() {
+        val source = readSource("HomeScreen.kt", "launcher")
+        assertNotNull(source)
+        // v0.25.15 will add custom Savers for DisplayApp? and LocalDate?
+        // and migrate these 3. Until then they keep `remember` and this
+        // pin documents the deferred work.
+        assertTrue(
+            "LauncherRoot must still hold the 3 complex-typed state fields " +
+                "in `remember` (deferred to v0.25.15: needs custom Savers for " +
+                "DisplayApp? and LocalDate?): actionsFor, gateFor, letterSelectedDate. " +
+                "source=\n" + source!!,
+            source.contains("var actionsFor by remember { mutableStateOf<DisplayApp?>(null) }") &&
                 source.contains("var gateFor by remember { mutableStateOf<DisplayApp?>(null) }") &&
-                source.contains("var reportCameFrom by remember { mutableStateOf(LauncherSurface.Settings) }") &&
-                source.contains("var letterSelectedDate by remember { mutableStateOf<LocalDate?>(null) }") &&
-                source.contains("var letterCameFrom by remember { mutableStateOf(LauncherSurface.Home) }"),
+                source.contains("var letterSelectedDate by remember { mutableStateOf<LocalDate?>(null) }"),
         )
     }
 
