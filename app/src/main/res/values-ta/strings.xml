@@ -1,4 +1,22 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
+<!--
+    v0.25.18: Tamil (ta) localisation placeholder.
+
+    This file is a copy of res/values/strings.xml. The Tamil
+    translations are pending — the strings are intentionally
+    identical to the English source so the build does not break
+    when the user runs the app in a Tamil locale. The FindingTest
+    I18nSweepFindingTest asserts that the *English* file has the
+    strings (because the i18n migration is from English to a
+    localised file); it does not yet assert that the Tamil file
+    has translated content.
+
+    When a translator begins localising, the convention is to
+    translate the user-facing English strings and leave the
+    English values in place for keys that are not yet translated
+    (Android's resource resolver falls back to the values/
+    default for any missing key).
+-->
 <resources>
     <string name="app_name">MindAnchor</string>
     <string name="greeting_morning">A quiet morning.</string>
