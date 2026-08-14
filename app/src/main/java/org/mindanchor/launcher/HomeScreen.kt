@@ -269,6 +269,13 @@ fun LauncherRoot(
     val ctx = LocalContext.current
     val bpdProfilePrefs = remember { org.mindanchor.data.BpdProfilePrefs(ctx.applicationContext) }
     val bpdProfile by bpdProfilePrefs.profile.collectAsStateWithLifecycle(initialValue = org.mindanchor.data.BpdProfile())
+    // v0.26.5: the onStayUp callback writes `okAtNight = true`
+    // to the BpdProfile DataStore; the flow re-emits, isTwoAmWindow
+    // recomputes to false, and the shell disappears on the next
+    // composition. rememberCoroutineScope is the right scope for a
+    // one-shot DataStore write from a tap callback (lives as long
+    // as the composition, not the activity).
+    val bpdProfileScope = rememberCoroutineScope()
     val nowTick = rememberMinuteTick()
     val isTwoAmWindow = NowWhatHeuristic.shouldShow(
         currentHour = nowTick.hour,
@@ -466,6 +473,18 @@ fun LauncherRoot(
                         runCatching {
                             val supportIntent = android.content.Intent(context, SupportActivity::class.java)
                             context.startActivity(supportIntent)
+                        }
+                    },
+                    // v0.26.5: 4th option. Toggle okAtNight in
+                    // BpdProfile (DataStore `bpd_ok_at_night`
+                    // pref) — the next composition reads the new
+                    // value via collectAsStateWithLifecycle and
+                    // isTwoAmWindow flips false, so the shell
+                    // disappears. The same Settings checkbox
+                    // (BpdProfileCheckbox) is the way to revert.
+                    onStayUp = {
+                        bpdProfileScope.launch {
+                            bpdProfilePrefs.update(bpdProfile.copy(okAtNight = true))
                         }
                     },
                 )

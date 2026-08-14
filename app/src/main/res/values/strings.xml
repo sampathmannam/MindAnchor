@@ -923,6 +923,11 @@
     <string name="now_what_sleep">I want to sleep</string>
     <string name="now_what_ground">I want to ground</string>
     <string name="now_what_talk">I want to talk to someone</string>
+    <!-- v0.26.5: opt-in "I'm up late tonight" — toggles okAtNight in
+         BpdProfile and dismisses the 2am shell. Persistent: to
+         revert, the user goes to Settings → PAUSES → BPD profile →
+         uncheck "I'm OK at night". -->
+    <string name="now_what_stay_up">I\'m up late tonight</string>
     <string name="now_what_a11y">It\'s late. What do you need right now?</string>
 
     <!-- v0.26.0: BPD profile -->

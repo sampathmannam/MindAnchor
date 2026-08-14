@@ -63,13 +63,15 @@ class NowWhatRowLayoutFindingTest {
         )
         // Positive pin: the NowWhatRow's Surface now contains a TextButton
         // directly (no Box wrapper).
+        // v0.26.5: there are now 2 TextButton calls in the file — the
+        // NowWhatRow's TextButton, and the 4th "I'm up late tonight"
+        // TextButton below the 3 NowWhatRow entries. The v0.25.12 fix
+        // shape is preserved: NO Box wrapper around either TextButton.
         assertTrue(
             "NowWhatRow's Surface must contain a TextButton directly (no Box wrapper)",
             source.contains("Surface(") &&
                 source.contains("TextButton(") &&
-                // Count the number of TextButton calls in the file: there must
-                // be exactly one in NowWhatRow (the outer Column has no TextButton).
-                source.split("TextButton(").size - 1 == 1,
+                source.split("TextButton(").size - 1 == 2,
         )
     }
 
