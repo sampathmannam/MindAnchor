@@ -7,6 +7,7 @@
 
 package org.mindanchor.compose
 
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -387,18 +388,33 @@ class ComposeStateHuntFindingTest {
     // ----- BUG-017 (modelFits stub) -----
 
     @Test
-    fun `BUG-017 HomeScreen letter surface has a modelFits stub held in remember`() {
-        // The letter surface currently ships with
-        // `modelFits = remember { mutableStateOf(false) }` as
-        // a stub. The shape is wrong: the value should come
-        // from a ViewModel, not be created at composition.
-        // A future wiring that forgets to remove the stub
-        // would silently disable Generate-now forever.
+    fun `BUG-017 HomeScreen letter surface modelFits is wired to ModelStore (v0_26_2 fix)`() {
+        // v0.25.x shipped `val modelFits = remember { mutableStateOf(false) }`
+        // as a stub. The shape was wrong: the value should come
+        // from a real source (a flow off [ModelStore.fitFlow] or
+        // a ViewModel field), not be created at composition. A
+        // future wiring that forgot to remove the stub would
+        // silently disable the empty-state's "Use AI" button
+        // forever — exactly the affordance the v0.26.2 letter
+        // rework needs.
+        //
+        // v0.26.2 fix: the letter surface reads
+        // `ModelStore.fitFlow().collectAsStateWithLifecycle()` for
+        // `modelFits`. The test pins both halves of the fix — the
+        // stub is GONE, the real source is PRESENT — so a future
+        // regression (either reintroducing the stub, or
+        // accidentally wiring it to the wrong field) flips the
+        // test red.
         val source = readSource("HomeScreen.kt", "launcher")
         assertNotNull(source)
-        assertTrue(
-            "HomeScreen letter surface holds modelFits in remember { mutableStateOf(false) } (stub)",
+        assertFalse(
+            "HomeScreen letter surface must NOT hold modelFits in remember { mutableStateOf(false) } (stub). " +
+                "v0.26.2 reads the real value from ModelStore.fitFlow().",
             source!!.contains("val modelFits = remember { mutableStateOf(false) }"),
+        )
+        assertTrue(
+            "HomeScreen letter surface must read modelFits from ModelStore.fitFlow() (v0.26.2 fix).",
+            source.contains("ModelStore.fitFlow()"),
         )
     }
 

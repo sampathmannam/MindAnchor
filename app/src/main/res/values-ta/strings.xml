@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    v0.26.2 Tamil (ta) translations for the new letter-rework strings.
+    Only the v0.26.2 strings are translated here; the rest of the
+    file is the English default in values/strings.xml. The Kotlin
+    code calls getString(R.string.X) and Android picks the
+    localised string at runtime based on the system locale, so a
+    Tamil-locale phone reads "தினசரி கடிதம்" as the channel name
+    without any Kotlin change.
+
+    The FindingTest
+    (LetterNotificationChannelFindingTest) reads this file's
+    source to assert that the Tamil localisation is on file —
+    the test pins the source, not the runtime, so a future
+    contributor who deletes this file's `letters_channel_name`
+    entry gets a red test, not a silent regression on Tamil
+    phones.
+-->
+<resources>
+    <string name="letters_channel_name">தினசரி கடிதம்</string>
+    <string name="letters_delete_body">இது உங்கள் இன்பாக்ஸிலிருந்து அகற்றப்படும். இதை மாற்ற முடியாது.</string>
+    <string name="letters_delete_keep">வைக்கவும்</string>
+    <string name="letters_empty_title">கடிதங்கள் இன்னும் இல்லை</string>
+    <string name="letters_empty_body">கடிதங்கள் இரவில் தானாகவே எழுதப்படும். முதல் கடிதம் காலை 7 மணிக்கு இங்கே வரும். (நேரத்தை அமைப்புகள் → வாசிப்பு என்பதில் மாற்றலாம்.)</string>
+    <string name="letters_write_now">இப்போது ஒரு கடிதம் எழுதுங்கள்</string>
+    <string name="letters_write_hint">இன்று நீங்கள் என்னை நினைவில் கொள்ள விரும்புகிறீர்கள்?</string>
+    <string name="letters_write_save">சேமி</string>
+    <string name="letters_use_ai">AI ஐ பயன்படுத்து</string>
+    <string name="letters_thumbs_down">👎 இது தவறாக இருந்தது</string>
+    <string name="letters_thumbs_down_prompt">என்ன தவறு என்று சொல்லுங்கள்</string>
+    <string name="letters_thumbs_down_hint">விருப்பத்தேர்வு</string>
+    <string name="letters_thumbs_down_save">சேமி</string>
+    <string name="letters_thumbs_down_saved">நன்றி — அடுத்த கடிதத்தை சிறப்பாக்க இதைப் பயன்படுத்துவோம்.</string>
+    <string name="letters_thumbs_down_badge">👎 %1$d</string>
+    <string name="letters_ai_label">AI</string>
+</resources>
