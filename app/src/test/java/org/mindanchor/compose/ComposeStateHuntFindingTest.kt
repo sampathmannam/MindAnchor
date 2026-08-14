@@ -184,56 +184,103 @@ class ComposeStateHuntFindingTest {
     }
 
     // ----- BUG-008 (BedtimeListCard drafts) -----
+    //
+    // v0.25.15 fix: `mutableStateListOf<String>()` is auto-Saveable
+    // (the default Saver for `SnapshotStateList<String>` writes the
+    // contents as a Bundle array of strings), so the migration is a
+    // one-keyword `remember` → `rememberSaveable` swap. The pin
+    // below is the fix-shape: the drafts must be `rememberSaveable`
+    // AND still be `mutableStateListOf` (the new state is the new
+    // primitive, not a different list type).
 
     @Test
-    fun `BUG-008 BedtimeListCard CAPTURE-mode drafts use remember not rememberSaveable`() {
+    fun `BUG-008 BedtimeListCard CAPTURE-mode drafts use rememberSaveable (v0_25_15 fix)`() {
         val source = readSource("HomeScreen.kt", "launcher")
         assertNotNull(source)
+        val src = source!!
+        val fnIdx = src.indexOf("private fun BedtimeListCard(")
+        // v0.25.15 fix: scope the search to BedtimeListCard (the
+        // file has many `mutableStateListOf` sites; we want the one
+        // inside the CAPTURE branch of this specific function).
+        val captureIdx = if (fnIdx >= 0) src.indexOf("BedtimePhase.CAPTURE -> {", fnIdx) else -1
+        val draftsIdx = if (captureIdx >= 0) src.indexOf("val drafts = rememberSaveable {", captureIdx) else -1
+        val listShapeIdx = if (draftsIdx >= 0) src.indexOf("mutableStateListOf<String>().apply { add(\"\") }", draftsIdx) else -1
         assertTrue(
-            "BedtimeListCard CAPTURE branch holds drafts in remember (mutableStateListOf)",
-            source!!.contains("private fun BedtimeListCard(") &&
-                source.contains("BedtimePhase.CAPTURE -> {") &&
-                source.contains("val drafts = remember {") &&
-                source.contains("mutableStateListOf<String>().apply { add(\"\") }"),
+            "BedtimeListCard CAPTURE-mode drafts must use rememberSaveable " +
+                "(v0.25.15 fix). fnIdx=$fnIdx captureIdx=$captureIdx " +
+                "draftsIdx=$draftsIdx listShapeIdx=$listShapeIdx. The order " +
+                "must be: fn < capture < drafts < listShape. " +
+                "source=\n$src",
+            fnIdx >= 0 && captureIdx > fnIdx && draftsIdx > captureIdx && listShapeIdx > draftsIdx,
         )
     }
 
     // ----- BUG-009 (AppActionsDialog rename) -----
+    //
+    // v0.25.15 fix: `Boolean` and `String` are auto-Saveable; the
+    // migration is the one-keyword `remember` → `rememberSaveable`
+    // swap on both `renaming` and `newLabel`.
 
     @Test
-    fun `BUG-009 AppActionsDialog rename flow uses remember not rememberSaveable`() {
+    fun `BUG-009 AppActionsDialog rename flow uses rememberSaveable (v0_25_15 fix)`() {
         val source = readSource("AppActionsDialog.kt", "launcher")
         assertNotNull(source)
+        val src = source!!
+        val fnIdx = src.indexOf("fun AppActionsDialog(")
+        val renamingIdx = if (fnIdx >= 0) src.indexOf("var renaming by rememberSaveable { mutableStateOf(false) }", fnIdx) else -1
+        val labelIdx = if (renamingIdx >= 0) src.indexOf("var newLabel by rememberSaveable { mutableStateOf(app.label) }", renamingIdx) else -1
         assertTrue(
-            "AppActionsDialog rename state is remember (not rememberSaveable)",
-            source!!.contains("var renaming by remember { mutableStateOf(false) }") &&
-                source.contains("var newLabel by remember { mutableStateOf(app.label) }"),
+            "AppActionsDialog rename state must use rememberSaveable (v0.25.15 fix). " +
+                "fnIdx=$fnIdx renamingIdx=$renamingIdx labelIdx=$labelIdx. " +
+                "The order must be: fn < renaming < label. source=\n$src",
+            fnIdx >= 0 && renamingIdx > fnIdx && labelIdx > renamingIdx,
         )
     }
 
     // ----- BUG-010 (EmaScreen) -----
+    //
+    // v0.25.15 fix: `Int?` and `Boolean` are auto-Saveable; the
+    // migration is the one-keyword `remember` → `rememberSaveable`
+    // swap on both `valence` and `saved`. Scope the search to the
+    // EmaScreen Composable to avoid matching `remember` in any
+    // future extracted helper.
 
     @Test
-    fun `BUG-010 EmaScreen valence and saved use remember not rememberSaveable`() {
+    fun `BUG-010 EmaScreen valence and saved use rememberSaveable (v0_25_15 fix)`() {
         val source = readSource("EmaScreen.kt", "model")
         assertNotNull(source)
+        val src = source!!
+        val fnIdx = src.indexOf("fun EmaScreen(")
+        val valenceIdx = if (fnIdx >= 0) src.indexOf("var valence by rememberSaveable { mutableStateOf<Int?>(null) }", fnIdx) else -1
+        val savedIdx = if (valenceIdx >= 0) src.indexOf("var saved by rememberSaveable { mutableStateOf(false) }", valenceIdx) else -1
         assertTrue(
-            "EmaScreen holds the in-flight answer in remember",
-            source!!.contains("var valence by remember { mutableStateOf<Int?>(null) }") &&
-                source.contains("var saved by remember { mutableStateOf(false) }"),
+            "EmaScreen valence and saved must use rememberSaveable (v0.25.15 fix). " +
+                "fnIdx=$fnIdx valenceIdx=$valenceIdx savedIdx=$savedIdx. " +
+                "The order must be: fn < valence < saved. source=\n$src",
+            fnIdx >= 0 && valenceIdx > fnIdx && savedIdx > valenceIdx,
         )
     }
 
     // ----- BUG-011 (PulseScreen) -----
+    //
+    // v0.25.15 fix: `List<Int>` and `Int?` are auto-Saveable; the
+    // migration is the one-keyword `remember` → `rememberSaveable`
+    // swap on both `answers` and `savedScore`. Scope the search
+    // to the PulseScreen Composable.
 
     @Test
-    fun `BUG-011 PulseScreen answers and savedScore use remember not rememberSaveable`() {
+    fun `BUG-011 PulseScreen answers and savedScore use rememberSaveable (v0_25_15 fix)`() {
         val source = readSource("PulseScreen.kt", "pulse")
         assertNotNull(source)
+        val src = source!!
+        val fnIdx = src.indexOf("fun PulseScreen(")
+        val answersIdx = if (fnIdx >= 0) src.indexOf("var answers by rememberSaveable { mutableStateOf(List(WhoFive.ITEM_COUNT) { -1 }) }", fnIdx) else -1
+        val savedIdx = if (answersIdx >= 0) src.indexOf("var savedScore by rememberSaveable { mutableStateOf<Int?>(null) }", answersIdx) else -1
         assertTrue(
-            "PulseScreen holds the in-flight answers in remember",
-            source!!.contains("var answers by remember { mutableStateOf(List(WhoFive.ITEM_COUNT) { -1 }) }") &&
-                source.contains("var savedScore by remember { mutableStateOf<Int?>(null) }"),
+            "PulseScreen answers and savedScore must use rememberSaveable (v0.25.15 fix). " +
+                "fnIdx=$fnIdx answersIdx=$answersIdx savedIdx=$savedIdx. " +
+                "The order must be: fn < answers < saved. source=\n$src",
+            fnIdx >= 0 && answersIdx > fnIdx && savedIdx > answersIdx,
         )
     }
 
@@ -242,15 +289,23 @@ class ComposeStateHuntFindingTest {
     // v0.25.14 fix: 3 of the 6 LauncherRoot state fields (surface,
     // reportCameFrom, letterCameFrom — all `LauncherSurface` enums,
     // which are auto-Saveable) migrated from `remember` to
-    // `rememberSaveable`. The 3 complex types (actionsFor: DisplayApp?,
-    // gateFor: DisplayApp?, letterSelectedDate: LocalDate?) keep
-    // `remember` for v0.25.14 — they need custom Savers, which is the
-    // v0.25.15 work.
+    // `rememberSaveable`.
     //
-    // The BUG-shape pin is split: the fix-shape half (3 enums) is
-    // the new positive pin; the deferred half (3 complex) is the
-    // deferred-work pin. Both belong in the same test class so a
-    // future v0.25.15+ migration can be detected by the second.
+    // v0.25.15 fix: the remaining 3 complex-typed fields
+    // (actionsFor: DisplayApp?, gateFor: DisplayApp?,
+    // letterSelectedDate: LocalDate?) are now rememberSaveable too,
+    // each with a custom Saver:
+    //   - `DisplayAppNullableSaver` (mapSaver, component-name key)
+    //     for `actionsFor` and `gateFor`
+    //   - `LocalDateNullableSaver` (ISO-8601 string round-trip) for
+    //     `letterSelectedDate`
+    //
+    // The BUG-shape pin for the deferred half is flipped to
+    // fix-shape. The original BUG-shape pin is kept (renamed) for
+    // the "still uses remember" regression check — but the active
+    // assertion is the fix-shape, so a v0.25.16+ regression that
+    // reverts to `remember` fails the same FindingTest with a
+    // different message.
 
     @Test
     fun `BUG-012 LauncherRoot enum state uses rememberSaveable (v0_25_14 partial fix)`() {
@@ -269,20 +324,29 @@ class ComposeStateHuntFindingTest {
     }
 
     @Test
-    fun `BUG-012 LauncherRoot complex state still uses remember (deferred to v0_25_15)`() {
+    fun `BUG-012 LauncherRoot complex state uses rememberSaveable (v0_25_15 fix)`() {
         val source = readSource("HomeScreen.kt", "launcher")
         assertNotNull(source)
-        // v0.25.15 will add custom Savers for DisplayApp? and LocalDate?
-        // and migrate these 3. Until then they keep `remember` and this
-        // pin documents the deferred work.
+        val src = source!!
+        // v0.25.15 fix: the 3 complex-typed LauncherRoot state
+        // fields are now rememberSaveable with custom Savers
+        // (mapSaver for DisplayApp?, ISO-string for LocalDate?).
+        // The pattern is the v0.25.14 lesson: scope the search
+        // by `stateSaver = ...Saver` token so a future regression
+        // that reverts to plain `remember` flips the assertion
+        // red.
+        val actionsForIdx = src.indexOf("var actionsFor by rememberSaveable(stateSaver = DisplayAppNullableSaver)")
+        val gateForIdx = if (actionsForIdx >= 0) src.indexOf("var gateFor by rememberSaveable(stateSaver = DisplayAppNullableSaver)", actionsForIdx) else -1
+        val letterDateIdx = if (gateForIdx >= 0) src.indexOf("var letterSelectedDate by rememberSaveable(stateSaver = LocalDateNullableSaver)", gateForIdx) else -1
         assertTrue(
-            "LauncherRoot must still hold the 3 complex-typed state fields " +
-                "in `remember` (deferred to v0.25.15: needs custom Savers for " +
-                "DisplayApp? and LocalDate?): actionsFor, gateFor, letterSelectedDate. " +
-                "source=\n" + source!!,
-            source.contains("var actionsFor by remember { mutableStateOf<DisplayApp?>(null) }") &&
-                source.contains("var gateFor by remember { mutableStateOf<DisplayApp?>(null) }") &&
-                source.contains("var letterSelectedDate by remember { mutableStateOf<LocalDate?>(null) }"),
+            "LauncherRoot must hold the 3 complex-typed state fields in " +
+                "rememberSaveable (v0.25.15 fix) with custom Savers: " +
+                "actionsFor / gateFor (DisplayAppNullableSaver) and " +
+                "letterSelectedDate (LocalDateNullableSaver). " +
+                "actionsForIdx=$actionsForIdx gateForIdx=$gateForIdx " +
+                "letterDateIdx=$letterDateIdx. The order must be: " +
+                "actionsFor < gateFor < letterDate. source=\n$src",
+            actionsForIdx >= 0 && gateForIdx > actionsForIdx && letterDateIdx > gateForIdx,
         )
     }
 
