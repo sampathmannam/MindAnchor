@@ -194,6 +194,7 @@
         survives anyone flipping allowBackup back on.
     -->
     <application
+        android:name=".MindAnchorApp"
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"

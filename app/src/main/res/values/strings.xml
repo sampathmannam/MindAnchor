@@ -83,6 +83,8 @@
     <string name="per_app_session_length_forget_label">Forget this default</string>
 
     <string name="session_channel_name">Session timers</string>
+    <!-- v0.25.19 channel consolidation. -->
+    <string name="session_channel_description">When a per-app session expires.</string>
     <string name="session_over_title">Your time in %1$s is up</string>
     <string name="session_over_text">Done, or a little longer?</string>
     <string name="session_extend_action">+5 minutes</string>
@@ -301,6 +303,7 @@
         installed and runnable.
     -->
     <string name="letters_channel_name">Daily letter</string>
+    <string name="letters_channel_description">A weekly letter drawn from your own last week.</string>
     <string name="letters_notification_title">A letter from your week</string>
     <!--
         Inline forms, for the pattern sentence.
@@ -389,6 +392,7 @@
     <string name="ema_learning">Still learning your normal.</string>
     <string name="ema_settled">It has enough to work with, so it asks less now.</string>
     <string name="ema_channel_name">Check-ins</string>
+    <string name="ema_channel_description">A check-in question at a time you chose.</string>
     <string name="ppg_section">Heart rhythm</string>
     <string name="ppg_explainer">Many watches measure heart-rate variability and never hand it over — it stays inside the maker\'s own app, and it cannot be worked out from heart rate alone. So this measures it directly, from your fingertip. It also means it still works if you change watch, or aren\'t wearing one.</string>
     <string name="ppg_how">Rest your index finger over the rear camera and the flash, covering both. Hold still, breathe normally, and stay off the phone for about 90 seconds. Sitting, before you get up, is the most comparable time of day.</string>
@@ -516,6 +520,7 @@
     <string name="pulse_history_line">%1$s — %2$d/100</string>
     <string name="pulse_history_change">%1$s since the one before</string>
     <string name="pulse_channel_name">Wellbeing pulse</string>
+    <string name="pulse_channel_description">A WHO-5 pulse check-in at your cadence.</string>
     <string name="pulse_reminder_title">Two weeks since your last pulse</string>
     <string name="pulse_reminder_text">Two minutes, whenever suits you.</string>
 

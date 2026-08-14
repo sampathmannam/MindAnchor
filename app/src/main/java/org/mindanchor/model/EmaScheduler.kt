@@ -1,7 +1,6 @@
 package org.mindanchor.model
 
 import android.app.AlarmManager
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
@@ -19,6 +18,7 @@ import kotlinx.coroutines.launch
 import org.mindanchor.R
 import org.mindanchor.data.SunsetPrefs
 import org.mindanchor.notifications.BatchSchedule
+import org.mindanchor.notifications.Channels
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
@@ -51,7 +51,7 @@ import java.time.ZonedDateTime
  */
 object EmaScheduler {
 
-    private const val CHANNEL_ID = "ema"
+    private const val CHANNEL_ID = Channels.EMA
     private const val ACTION_PROMPT = "org.mindanchor.EMA_PROMPT"
     private const val ACTION_REARM = "org.mindanchor.EMA_REARM"
     private const val REQUEST_CODE_REARM = 90
@@ -257,17 +257,8 @@ object EmaScheduler {
             return
         }
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
-        // v0.25.11: guard createNotificationChannel with getNotificationChannel
-        // so the channel is only created the first time we post to it.
-        if (manager.getNotificationChannel(CHANNEL_ID) == null) {
-            manager.createNotificationChannel(
-                NotificationChannel(
-                    CHANNEL_ID,
-                    context.getString(R.string.ema_channel_name),
-                    NotificationManager.IMPORTANCE_LOW,
-                ),
-            )
-        }
+        // v0.25.19: the channel is created at process start
+        // by [Channels.ensureAll]. No per-post guard here.
         val contentIntent = PendingIntent.getActivity(
             context,
             NOTIFICATION_ID,

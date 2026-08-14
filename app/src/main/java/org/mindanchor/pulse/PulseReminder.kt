@@ -1,7 +1,6 @@
 package org.mindanchor.pulse
 
 import android.app.AlarmManager
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
@@ -14,6 +13,7 @@ import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.first
 import org.mindanchor.R
 import org.mindanchor.data.db.AnchorDatabase
+import org.mindanchor.notifications.Channels
 
 /**
  * One gentle reminder, scheduled at the cadence the user's own
@@ -37,7 +37,7 @@ import org.mindanchor.data.db.AnchorDatabase
  */
 object PulseReminder {
 
-    private const val CHANNEL_ID = "pulse"
+    private const val CHANNEL_ID = Channels.PULSE
     private const val REQUEST_CODE = 71
 
     /** Long enough that a reboot never turns into an instant reminder. */
@@ -129,17 +129,8 @@ object PulseReminder {
             return
         }
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
-        // v0.25.11: guard createNotificationChannel with getNotificationChannel
-        // so the channel is only created the first time we post to it.
-        if (manager.getNotificationChannel(CHANNEL_ID) == null) {
-            manager.createNotificationChannel(
-                NotificationChannel(
-                    CHANNEL_ID,
-                    context.getString(R.string.pulse_channel_name),
-                    NotificationManager.IMPORTANCE_LOW,
-                ),
-            )
-        }
+        // v0.25.19: the channel is created at process start
+        // by [Channels.ensureAll]. No per-post guard here.
         val contentIntent = PendingIntent.getActivity(
             context,
             0,

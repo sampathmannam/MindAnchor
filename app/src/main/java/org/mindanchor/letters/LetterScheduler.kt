@@ -1,7 +1,6 @@
 package org.mindanchor.letters
 
 import android.app.AlarmManager
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
@@ -22,6 +21,7 @@ import kotlinx.coroutines.launch
 import org.mindanchor.R
 import org.mindanchor.narrate.ModelStore
 import org.mindanchor.narrate.ModelSlot
+import org.mindanchor.notifications.Channels
 import org.mindanchor.report.PatternFinder
 
 /**
@@ -56,7 +56,7 @@ import org.mindanchor.report.PatternFinder
  */
 object LetterScheduler {
 
-    private const val CHANNEL_ID = "letters"
+    private const val CHANNEL_ID = Channels.LETTERS
     private const val ACTION_FIRE = "org.mindanchor.LETTER_FIRE"
     /**
      * Action used by the letter notification's contentIntent. Read by
@@ -178,17 +178,8 @@ object LetterScheduler {
             return
         }
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
-        // v0.25.11: guard createNotificationChannel with getNotificationChannel
-        // so the channel is only created the first time we post to it.
-        if (manager.getNotificationChannel(CHANNEL_ID) == null) {
-            manager.createNotificationChannel(
-                NotificationChannel(
-                    CHANNEL_ID,
-                    context.getString(R.string.letters_channel_name),
-                    NotificationManager.IMPORTANCE_DEFAULT,
-                ),
-            )
-        }
+        // v0.25.19: the channel is created at process start
+        // by [Channels.ensureAll]. No per-post guard here.
         val openIntent = PendingIntent.getActivity(
             context,
             NOTIFICATION_ID,
