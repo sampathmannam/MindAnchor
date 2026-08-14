@@ -49,6 +49,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -611,6 +612,28 @@ fun SettingsScreen(
     // group's own screen in its place.
     var group by remember { mutableStateOf<SettingsGroup?>(null) }
 
+    // v0.25.16 BUG-018: a [SaveableStateHolder] for the six
+    // sub-screens so per-tab `rememberSaveable` state survives a
+    // tab-switch within a single Settings open. The pre-fix
+    // shape: each `if (group == SettingsGroup.X) { ... }` block
+    // was composed conditionally, so the slot table for the
+    // previous tab's content was torn down the moment the user
+    // tapped a new group row — and any `rememberSaveable` state
+    // that was inside (e.g. the "Pick a moment" date picker in
+    // the OpenLoop postpone dialog, the half-typed email in
+    // the COROS bridge form) was lost.
+    //
+    // The holder is created once for the lifetime of the
+    // SettingsScreen Composable. The wrapper below uses the
+    // tab's enum name as the key, so when the user navigates
+    // PAUSES → READING → PAUSES, the PAUSES slot table is
+    // restored from the holder. A future v0.26+ WP that
+    // converts the `if (group == ...)` blocks into a single
+    // `when (group)` can wrap each branch in
+    // `saveableStateHolder.SaveableStateProvider(group.name)
+    // { ... }` and inherit this state preservation.
+    val saveableStateHolder = rememberSaveableStateHolder()
+
     // Back closes an open group first and only leaves the
     // screen on a second press. Without this, the global
     // back handler in [HomeScreen] would short-circuit to
@@ -871,7 +894,19 @@ fun SettingsScreen(
             BpdProfileCheckbox(bpdProfile.okAtNight, R.string.bpd_profile_ok_at_night) { viewModel.setBpdProfile(bpdProfile.copy(okAtNight = it)) }
         }
 
+        // v0.25.16 BUG-018: each SettingsGroup's content is
+        // wrapped in a [SaveableStateProvider] keyed on the
+        // group's enum name. When the user navigates from
+        // PAUSES to READING and back, the PAUSES slot table
+        // is restored from the holder rather than recomposed
+        // from scratch. The pre-v0.25.16 shape was a plain
+        // `if (group == X) { ... }` that tore down the
+        // slot table on every tab switch — the half-typed
+        // "Small thing" draft and the "Pick a moment" date
+        // picker in the OpenLoop postpone dialog were lost
+        // the moment the user opened a different group.
         if (group == SettingsGroup.PAUSES) {
+            saveableStateHolder.SaveableStateProvider("PAUSES") {
             // --- Small things ---
             //
             // Behavioural activation: the small thing shifts mood, and the
@@ -984,6 +1019,7 @@ fun SettingsScreen(
                 ) {
                     Text(stringResource(R.string.small_things_add))
                 }
+            }
             }
         }
 

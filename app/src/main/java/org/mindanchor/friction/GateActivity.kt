@@ -22,6 +22,7 @@ import org.mindanchor.data.FrictionPrefs
 import org.mindanchor.data.SunsetPrefs
 import org.mindanchor.ui.CalmBackground
 import org.mindanchor.ui.MindAnchorTheme
+import org.mindanchor.ui.HapticFeedbackGateProvider
 
 /**
  * The pause, shown over an app that was opened from somewhere other than
@@ -49,7 +50,14 @@ class GateActivity : ComponentActivity() {
 
         setContent {
             MindAnchorTheme {
-                var gate by remember { mutableStateOf<GateContext?>(null) }
+                // v0.25.16 BUG-013: wrap in HapticFeedbackGateProvider
+                // so the breath-pause haptics consult the system
+                // haptics toggle / "remove animations" preference.
+                // GateActivity is the second doorway into the gate
+                // (LauncherRoot is the first), and it also mounts
+                // the FrictionGate Composable.
+                HapticFeedbackGateProvider {
+                    var gate by remember { mutableStateOf<GateContext?>(null) }
                 LaunchedEffect(target) {
                     gate = withContext(Dispatchers.IO) {
                         val prior = prefs.recordReach(
@@ -118,6 +126,7 @@ class GateActivity : ComponentActivity() {
                             goHome()
                         },
                     )
+                }
                 }
             }
         }

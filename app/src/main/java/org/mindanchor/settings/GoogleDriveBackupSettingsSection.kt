@@ -12,8 +12,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -75,9 +75,15 @@ internal fun GoogleDriveBackupSettingsSection(
     // remember call would lose the user's
     // email on every recomposition.
     val auth = remember(context) { GoogleDriveAuth(context.applicationContext) }
-    val signedInEmail by auth.signedInEmailFlow.collectAsState(initial = null)
-    val autoSyncNotes by viewModel.autoSyncNotes.collectAsState()
-    val autoSyncLetters by viewModel.autoSyncLetters.collectAsState()
+    // v0.25.17 BUG-004: lifecycle-aware collect. The
+    // Google Drive backup section sits inside the
+    // Settings scroll; it is composed in the
+    // background whenever the user opens another
+    // Settings tab. `collectAsState` would keep
+    // producing on every emission even when STOPPED.
+    val signedInEmail by auth.signedInEmailFlow.collectAsStateWithLifecycle(initialValue = null)
+    val autoSyncNotes by viewModel.autoSyncNotes.collectAsStateWithLifecycle()
+    val autoSyncLetters by viewModel.autoSyncLetters.collectAsStateWithLifecycle()
     val coroutineScope = rememberCoroutineScope()
     var driveMessage by remember { mutableStateOf<Int?>(null) }
 

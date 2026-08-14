@@ -17,11 +17,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringArrayResource
@@ -97,9 +97,23 @@ fun PulseScreen(
     viewModel: PulseViewModel = viewModel(),
 ) {
     val questions = stringArrayResource(R.array.who5_items)
-    var answers by remember { mutableStateOf(List(WhoFive.ITEM_COUNT) { -1 }) }
-    var savedScore by remember { mutableStateOf<Int?>(null) }
-    val history by viewModel.history.collectAsState()
+    // v0.25.15: the in-flight WHO-5 answers and the saved
+    // score are auto-Saveable (List<Int> and Int?); the
+    // migration is the one-keyword `remember` →
+    // `rememberSaveable` swap. The pulse is the once-a-day
+    // EMA and the user is finishing it on their phone; a
+    // config change that resets all five answers to -1 is
+    // a small, daily insult that pushes the user to skip
+    // the next one. `mutableStateOf` for a List<…> uses
+    // the default Saver for List, which writes the array
+    // of Ints as a Bundle.
+    var answers by rememberSaveable { mutableStateOf(List(WhoFive.ITEM_COUNT) { -1 }) }
+    var savedScore by rememberSaveable { mutableStateOf<Int?>(null) }
+    // v0.25.17 BUG-004: lifecycle-aware collect. The pulse
+    // history flow emits whenever a check-in is saved; a
+    // STOPPED pulse screen should not be reading the
+    // history flow.
+    val history by viewModel.history.collectAsStateWithLifecycle()
 
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(

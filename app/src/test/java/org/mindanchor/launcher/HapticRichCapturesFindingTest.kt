@@ -28,9 +28,15 @@ class HapticRichCapturesFindingTest {
     fun `NoteScreen row delete fires a haptic on confirm`() {
         val source = readSource("NoteScreen.kt")
         assertNotNull(source)
+        // v0.25.16 fix: NoteScreen no longer imports
+        // `LocalHapticFeedback` directly; the
+        // [org.mindanchor.ui.HapticFeedbackGate]
+        // CompositionLocal is the new source. The token
+        // `org.mindanchor.ui.LocalHapticFeedbackGate` is the
+        // post-fix shape.
         assertTrue(
-            "NoteScreen.kt imports LocalHapticFeedback",
-            source!!.contains("LocalHapticFeedback"),
+            "NoteScreen.kt uses the HapticFeedbackGate CompositionLocal (v0.25.16 fix).",
+            source!!.contains("org.mindanchor.ui.LocalHapticFeedbackGate"),
         )
         assertTrue(
             "NoteScreen.kt fires a haptic in the delete confirm onClick",
@@ -43,9 +49,16 @@ class HapticRichCapturesFindingTest {
     fun `LetterInbox delete fires a haptic on confirm`() {
         val source = readSource("LetterScreen.kt")
         assertNotNull(source)
+        // v0.25.16: LetterScreen uses the gate. The
+        // HapticFeedbackType parameter and the call-site
+        // shape are unchanged.
+        assertTrue(
+            "LetterScreen.kt uses the HapticFeedbackGate CompositionLocal (v0.25.16 fix).",
+            source!!.contains("org.mindanchor.ui.LocalHapticFeedbackGate"),
+        )
         assertTrue(
             "LetterScreen.kt fires a haptic in the inbox delete confirm",
-            source!!.contains("haptics.performHapticFeedback(") &&
+            source.contains("haptics.performHapticFeedback(") &&
                 source.contains("HapticFeedbackType.LongPress") &&
                 source.contains("onDelete(pendingDeleteDate)"),
         )
@@ -55,13 +68,17 @@ class HapticRichCapturesFindingTest {
     fun `BedtimeList save fires a haptic on tap`() {
         val source = readSource("HomeScreen.kt")
         assertNotNull(source)
-        // The bedtime save button is in BedtimeListCard; the
-        // haptic is on the onClick handler. We pin the call
-        // site next to the onSave() call.
+        // v0.25.16: the bedtime save button is in
+        // BedtimeListCard; the haptic is on the onClick
+        // handler. The haptic is routed through the
+        // [org.mindanchor.ui.HapticFeedbackGate]
+        // CompositionLocal.
         assertTrue(
-            "HomeScreen.kt fires a LongPress haptic next to the bedtime save button",
+            "HomeScreen.kt fires a LongPress haptic next to the bedtime save button " +
+                "(v0.25.16 fix routes through HapticFeedbackGate)",
             source!!.contains("haptics.performHapticFeedback(HapticFeedbackType.LongPress)") &&
-                source.contains("onSave(drafts.toList())"),
+                source.contains("onSave(drafts.toList())") &&
+                source.contains("org.mindanchor.ui.LocalHapticFeedbackGate"),
         )
     }
 
@@ -72,11 +89,14 @@ class HapticRichCapturesFindingTest {
         // TextHandleMove is the soft "whoosh" of moving text out
         // of the way. The QuickNotesCard's clear button is the
         // one place it is used; everywhere else is LongPress.
+        // v0.25.16: the haptic is routed through the
+        // [HapticFeedbackGate].
         assertTrue(
-            "HomeScreen.kt has a clear button with TextHandleMove haptic",
+            "HomeScreen.kt has a clear button with TextHandleMove haptic (via HapticFeedbackGate, v0.25.16 fix)",
             source!!.contains("HapticFeedbackType.TextHandleMove") &&
                 source.contains("draft = \"\"") &&
-                source.contains("haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)"),
+                source.contains("haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)") &&
+                source.contains("org.mindanchor.ui.LocalHapticFeedbackGate"),
         )
     }
 
@@ -89,7 +109,9 @@ class HapticRichCapturesFindingTest {
         // copy-pasted the LongPress call to every save / delete
         // / clear site would erase that. The test counts the
         // distinct types in use and asserts there is more than
-        // one.
+        // one. v0.25.16: the gate is the new route; the
+        // HapticFeedbackType values at the call sites are
+        // unchanged.
         val sources = listOf(
             "HomeScreen.kt" to readSource("HomeScreen.kt").orEmpty(),
             "NoteScreen.kt" to readSource("NoteScreen.kt").orEmpty(),

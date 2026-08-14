@@ -55,15 +55,27 @@ class SaveHapticsFindingTest {
     }
 
     @Test
-    fun `haptics hook is via LocalHapticFeedback not a custom service`() {
+    fun `haptics hook is via LocalHapticFeedbackGate not a custom service`() {
         val screen = readScreen()
-        // The fix uses the Compose LocalHapticFeedback,
-        // not a custom HapticFeedback service.
+        // v0.25.16 fix: haptics are acquired via the
+        // [org.mindanchor.ui.HapticFeedbackGate] CompositionLocal
+        // (a wrapper around the Compose LocalHapticFeedback that
+        // consults the system haptics toggle and the "remove
+        // animations" a11y preference). The pre-v0.25.16
+        // shape was a direct `LocalHapticFeedback.current`;
+        // a regression that re-introduces a direct
+        // LocalHapticFeedback.current use at a haptics call
+        // site (without going through the gate) flips the
+        // BUG-013 / HapticFeedbackGateFindingTest assertion
+        // red, and this test complements the gate pin with
+        // a launcher-specific load-bearing shape.
         assertTrue(
-            "haptics must be acquired via LocalHapticFeedback.current — " +
-                "the Compose-native path; a custom service would not " +
-                "respect user system settings.",
-            screen.contains("val haptics = LocalHapticFeedback.current"),
+            "haptics must be acquired via the HapticFeedbackGate CompositionLocal — " +
+                "the v0.25.16 fix that consults the system haptics toggle and the " +
+                "'remove animations' a11y preference before firing. A regression that " +
+                "re-introduces a direct `LocalHapticFeedback.current` use at a haptics " +
+                "call site flips the BUG-013 pin red.",
+            screen.contains("org.mindanchor.ui.LocalHapticFeedbackGate.current"),
         )
     }
 
@@ -97,7 +109,14 @@ class SaveHapticsFindingTest {
         // present. A missing import would still compile
         // (the test catches the typo case) but a future
         // refactor that drops the import would break the
-        // save UX silently.
+        // save UX silently. v0.25.16: the
+        // `HapticFeedbackType` import is still required
+        // because the gate's `performHapticFeedback(type)`
+        // takes a `HapticFeedbackType` parameter; the
+        // pre-v0.25.16 `LocalHapticFeedback` import is
+        // gone (the launcher now uses the
+        // [org.mindanchor.ui.HapticFeedbackGate]
+        // CompositionLocal instead).
         assertTrue(
             "import androidx.compose.ui.hapticfeedback.HapticFeedbackType " +
                 "must be present.",
@@ -106,12 +125,20 @@ class SaveHapticsFindingTest {
     }
 
     @Test
-    fun `LocalHapticFeedback import is present`() {
+    fun `HapticFeedbackGate import is present`() {
         val screen = readScreen()
+        // v0.25.16: the launcher no longer imports
+        // `LocalHapticFeedback` directly; the
+        // [org.mindanchor.ui.HapticFeedbackGate]
+        // CompositionLocal is the new source. The gate is
+        // referenced by the fully-qualified name at the
+        // call sites (`org.mindanchor.ui.LocalHapticFeedbackGate.current`),
+        // so the test pins the presence of that token
+        // rather than a per-file import.
         assertTrue(
-            "import androidx.compose.ui.platform.LocalHapticFeedback " +
-                "must be present.",
-            screen.contains("import androidx.compose.ui.platform.LocalHapticFeedback"),
+            "the launcher must use the `org.mindanchor.ui.LocalHapticFeedbackGate` " +
+                "CompositionLocal at the haptics call sites (v0.25.16 fix).",
+            screen.contains("org.mindanchor.ui.LocalHapticFeedbackGate"),
         )
     }
 

@@ -33,7 +33,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
@@ -124,7 +123,14 @@ private fun LetterInbox(
     val pendingDeleteDate = pendingDelete.value
     if (pendingDeleteDate != null) {
         // v0.25.5 WP-G: haptic confirmation on letter delete.
-        val haptics = LocalHapticFeedback.current
+        //
+        // v0.25.16 BUG-013: gate through
+        // [org.mindanchor.ui.HapticFeedbackGate] so the
+        // system haptics toggle and the "remove animations"
+        // a11y preference are honored. Same shape as the
+        // NoteScreen delete-confirm — a destructive action
+        // gets the same LongPress confirmation tick.
+        val haptics = org.mindanchor.ui.LocalHapticFeedbackGate.current
         LetterDeleteDialog(
             date = pendingDeleteDate,
             onConfirm = {

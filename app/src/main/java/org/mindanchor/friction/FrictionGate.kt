@@ -31,7 +31,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -284,27 +283,29 @@ private const val BREATH_MILLIS = BreathingProtocol.CYCLE_MILLIS
 
 @Composable
 private fun BreathingPause(sky: SkyContent, onFinished: () -> Unit, onNeverMind: () -> Unit) {
-    val haptics = LocalHapticFeedback.current
+    // v0.25.16 BUG-013: route the breath-pause haptics through
+    // [org.mindanchor.ui.HapticFeedbackGate] so the system
+    // haptics toggle and the "remove animations" a11y
+    // preference are honored in one place. The pre-v0.25.16
+    // shape (a local `systemHapticsEnabled` `remember` block
+    // that read `Settings.System.getInt` directly) is replaced
+    // by the gate; the BUG-013 FindingTest asserts the gate is
+    // in use here.
+    val haptics = org.mindanchor.ui.LocalHapticFeedbackGate.current
     val context = LocalContext.current
     var phase by remember { mutableStateOf(BreathingProtocol.Phase.INHALE) }
 
     // Users who have asked the system to remove animations get the same
     // pause, the same haptics and the same wording â€” just no pulsing circle.
+    // The animation-scale read is still here because it controls the
+    // *visual* breathing circle, which is independent of the
+    // haptic-gate decision. The gate handles the haptics side.
     val animationsEnabled = remember {
         android.provider.Settings.Global.getFloat(
             context.contentResolver,
             android.provider.Settings.Global.ANIMATOR_DURATION_SCALE,
             1f,
         ) > 0f
-    }
-
-    // v0.25.11: gate haptics on system toggle
-    val systemHapticsEnabled = remember {
-        android.provider.Settings.System.getInt(
-            context.contentResolver,
-            android.provider.Settings.System.HAPTIC_FEEDBACK_ENABLED,
-            1,
-        ) == 1
     }
 
     // A single finite breath, not an endless loop. An infinite transition
@@ -322,8 +323,12 @@ private fun BreathingPause(sky: SkyContent, onFinished: () -> Unit, onNeverMind:
     val scale = remember { Animatable(1f) }
     LaunchedEffect(Unit) {
         // First haptic on inhale start. The user feels the breath
-        // before they have to do anything.
-if (systemHapticsEnabled)         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        // before they have to do anything. The
+        // [org.mindanchor.ui.HapticFeedbackGate] consults the
+        // system haptics toggle and the "remove animations" a11y
+        // preference before forwarding, so a no-op when the user
+        // has asked the system to be quiet.
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         if (animationsEnabled) {
             scale.animateTo(1.6f, tween(
                 durationMillis = BreathingProtocol.INHALE_MILLIS.toInt(),
@@ -338,7 +343,7 @@ if (systemHapticsEnabled)         haptics.performHapticFeedback(HapticFeedbackTy
         // physiological sigh from an ordinary breath. The second
         // haptic marks the transition.
         phase = BreathingProtocol.Phase.SIP
-if (systemHapticsEnabled)         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         if (animationsEnabled) {
             scale.animateTo(1.8f, tween(
                 durationMillis = BreathingProtocol.SIP_MILLIS.toInt(),
@@ -352,7 +357,7 @@ if (systemHapticsEnabled)         haptics.performHapticFeedback(HapticFeedbackTy
         // shrinks back over six seconds, twice as long as the
         // inhale, which is the parasympathetic-drive lever.
         phase = BreathingProtocol.Phase.EXHALE
-if (systemHapticsEnabled)         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         if (animationsEnabled) {
             scale.animateTo(1f, tween(
                 durationMillis = BreathingProtocol.EXHALE_MILLIS.toInt(),

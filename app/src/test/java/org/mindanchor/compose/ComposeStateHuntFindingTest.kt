@@ -69,6 +69,11 @@ class ComposeStateHuntFindingTest {
         // — the flow keeps producing when the screen is
         // STOPPED, the recomposer keeps listening, the
         // ViewModel never gets to drop a stale state.
+        //
+        // v0.25.17 fix: the broad migration closes this
+        // finding. The original "at least one" pin still
+        // passes (the per-file pin below is a stronger
+        // regression guard).
         val files = listOf(
             "HomeActivity.kt" to "",
             "launcher/HomeScreen.kt" to "launcher",
@@ -94,6 +99,53 @@ class ComposeStateHuntFindingTest {
         assertTrue(
             "At least one main-source Composable should use collectAsStateWithLifecycle; saw none",
             anyLifecycleAwareCollect,
+        )
+    }
+
+    @Test
+    fun `BUG-004 every main-source Composable in the 12-file set uses collectAsStateWithLifecycle (v0_25_17 fix)`() {
+        // v0.25.17 fix-shape: the broad migration closes
+        // the BUG-004 finding for the entire 12-file
+        // main-source set. The original "at least one"
+        // pin is a positive pin (must be present
+        // somewhere); the per-file pin below is a
+        // stronger regression guard that asserts the
+        // primitive is in use in *every* file. A
+        // v0.25.17+ regression that reverts a file to
+        // plain `collectAsState` flips this assertion
+        // red with a per-file error message.
+        val files = listOf(
+            "HomeActivity.kt" to "",
+            "launcher/HomeScreen.kt" to "launcher",
+            "model/NoteActivity.kt" to "model",
+            "model/CheckInHistoryActivity.kt" to "model",
+            "settings/SettingsScreen.kt" to "settings",
+            "settings/GoogleDriveBackupSettingsSection.kt" to "settings",
+            "vitals/PpgScreen.kt" to "vitals",
+            "pulse/PulseScreen.kt" to "pulse",
+            "report/ReportScreen.kt" to "report",
+            "support/SupportScreen.kt" to "support",
+            "digest/DigestScreen.kt" to "digest",
+            "ui/CalmBackground.kt" to "ui",
+        )
+        val missing = mutableListOf<String>()
+        for ((filename, pkg) in files) {
+            val source = readSource(filename, pkg)
+            if (source == null) {
+                missing += "$filename (read failed)"
+                continue
+            }
+            if (!source.contains("collectAsStateWithLifecycle")) {
+                missing += "$filename (no collectAsStateWithLifecycle)"
+            }
+        }
+        assertTrue(
+            "BUG-004 (v0.25.17 fix): every main-source Composable in the 12-file set " +
+                "must use collectAsStateWithLifecycle. The pre-fix shape had " +
+                "`collectAsState` (without WithLifecycle), which is a backpressure " +
+                "hole — the flow keeps producing when the screen is STOPPED. " +
+                "missing=$missing",
+            missing.isEmpty(),
         )
     }
 
@@ -184,56 +236,103 @@ class ComposeStateHuntFindingTest {
     }
 
     // ----- BUG-008 (BedtimeListCard drafts) -----
+    //
+    // v0.25.15 fix: `mutableStateListOf<String>()` is auto-Saveable
+    // (the default Saver for `SnapshotStateList<String>` writes the
+    // contents as a Bundle array of strings), so the migration is a
+    // one-keyword `remember` → `rememberSaveable` swap. The pin
+    // below is the fix-shape: the drafts must be `rememberSaveable`
+    // AND still be `mutableStateListOf` (the new state is the new
+    // primitive, not a different list type).
 
     @Test
-    fun `BUG-008 BedtimeListCard CAPTURE-mode drafts use remember not rememberSaveable`() {
+    fun `BUG-008 BedtimeListCard CAPTURE-mode drafts use rememberSaveable (v0_25_15 fix)`() {
         val source = readSource("HomeScreen.kt", "launcher")
         assertNotNull(source)
+        val src = source!!
+        val fnIdx = src.indexOf("private fun BedtimeListCard(")
+        // v0.25.15 fix: scope the search to BedtimeListCard (the
+        // file has many `mutableStateListOf` sites; we want the one
+        // inside the CAPTURE branch of this specific function).
+        val captureIdx = if (fnIdx >= 0) src.indexOf("BedtimePhase.CAPTURE -> {", fnIdx) else -1
+        val draftsIdx = if (captureIdx >= 0) src.indexOf("val drafts = rememberSaveable {", captureIdx) else -1
+        val listShapeIdx = if (draftsIdx >= 0) src.indexOf("mutableStateListOf<String>().apply { add(\"\") }", draftsIdx) else -1
         assertTrue(
-            "BedtimeListCard CAPTURE branch holds drafts in remember (mutableStateListOf)",
-            source!!.contains("private fun BedtimeListCard(") &&
-                source.contains("BedtimePhase.CAPTURE -> {") &&
-                source.contains("val drafts = remember {") &&
-                source.contains("mutableStateListOf<String>().apply { add(\"\") }"),
+            "BedtimeListCard CAPTURE-mode drafts must use rememberSaveable " +
+                "(v0.25.15 fix). fnIdx=$fnIdx captureIdx=$captureIdx " +
+                "draftsIdx=$draftsIdx listShapeIdx=$listShapeIdx. The order " +
+                "must be: fn < capture < drafts < listShape. " +
+                "source=\n$src",
+            fnIdx >= 0 && captureIdx > fnIdx && draftsIdx > captureIdx && listShapeIdx > draftsIdx,
         )
     }
 
     // ----- BUG-009 (AppActionsDialog rename) -----
+    //
+    // v0.25.15 fix: `Boolean` and `String` are auto-Saveable; the
+    // migration is the one-keyword `remember` → `rememberSaveable`
+    // swap on both `renaming` and `newLabel`.
 
     @Test
-    fun `BUG-009 AppActionsDialog rename flow uses remember not rememberSaveable`() {
+    fun `BUG-009 AppActionsDialog rename flow uses rememberSaveable (v0_25_15 fix)`() {
         val source = readSource("AppActionsDialog.kt", "launcher")
         assertNotNull(source)
+        val src = source!!
+        val fnIdx = src.indexOf("fun AppActionsDialog(")
+        val renamingIdx = if (fnIdx >= 0) src.indexOf("var renaming by rememberSaveable { mutableStateOf(false) }", fnIdx) else -1
+        val labelIdx = if (renamingIdx >= 0) src.indexOf("var newLabel by rememberSaveable { mutableStateOf(app.label) }", renamingIdx) else -1
         assertTrue(
-            "AppActionsDialog rename state is remember (not rememberSaveable)",
-            source!!.contains("var renaming by remember { mutableStateOf(false) }") &&
-                source.contains("var newLabel by remember { mutableStateOf(app.label) }"),
+            "AppActionsDialog rename state must use rememberSaveable (v0.25.15 fix). " +
+                "fnIdx=$fnIdx renamingIdx=$renamingIdx labelIdx=$labelIdx. " +
+                "The order must be: fn < renaming < label. source=\n$src",
+            fnIdx >= 0 && renamingIdx > fnIdx && labelIdx > renamingIdx,
         )
     }
 
     // ----- BUG-010 (EmaScreen) -----
+    //
+    // v0.25.15 fix: `Int?` and `Boolean` are auto-Saveable; the
+    // migration is the one-keyword `remember` → `rememberSaveable`
+    // swap on both `valence` and `saved`. Scope the search to the
+    // EmaScreen Composable to avoid matching `remember` in any
+    // future extracted helper.
 
     @Test
-    fun `BUG-010 EmaScreen valence and saved use remember not rememberSaveable`() {
+    fun `BUG-010 EmaScreen valence and saved use rememberSaveable (v0_25_15 fix)`() {
         val source = readSource("EmaScreen.kt", "model")
         assertNotNull(source)
+        val src = source!!
+        val fnIdx = src.indexOf("fun EmaScreen(")
+        val valenceIdx = if (fnIdx >= 0) src.indexOf("var valence by rememberSaveable { mutableStateOf<Int?>(null) }", fnIdx) else -1
+        val savedIdx = if (valenceIdx >= 0) src.indexOf("var saved by rememberSaveable { mutableStateOf(false) }", valenceIdx) else -1
         assertTrue(
-            "EmaScreen holds the in-flight answer in remember",
-            source!!.contains("var valence by remember { mutableStateOf<Int?>(null) }") &&
-                source.contains("var saved by remember { mutableStateOf(false) }"),
+            "EmaScreen valence and saved must use rememberSaveable (v0.25.15 fix). " +
+                "fnIdx=$fnIdx valenceIdx=$valenceIdx savedIdx=$savedIdx. " +
+                "The order must be: fn < valence < saved. source=\n$src",
+            fnIdx >= 0 && valenceIdx > fnIdx && savedIdx > valenceIdx,
         )
     }
 
     // ----- BUG-011 (PulseScreen) -----
+    //
+    // v0.25.15 fix: `List<Int>` and `Int?` are auto-Saveable; the
+    // migration is the one-keyword `remember` → `rememberSaveable`
+    // swap on both `answers` and `savedScore`. Scope the search
+    // to the PulseScreen Composable.
 
     @Test
-    fun `BUG-011 PulseScreen answers and savedScore use remember not rememberSaveable`() {
+    fun `BUG-011 PulseScreen answers and savedScore use rememberSaveable (v0_25_15 fix)`() {
         val source = readSource("PulseScreen.kt", "pulse")
         assertNotNull(source)
+        val src = source!!
+        val fnIdx = src.indexOf("fun PulseScreen(")
+        val answersIdx = if (fnIdx >= 0) src.indexOf("var answers by rememberSaveable { mutableStateOf(List(WhoFive.ITEM_COUNT) { -1 }) }", fnIdx) else -1
+        val savedIdx = if (answersIdx >= 0) src.indexOf("var savedScore by rememberSaveable { mutableStateOf<Int?>(null) }", answersIdx) else -1
         assertTrue(
-            "PulseScreen holds the in-flight answers in remember",
-            source!!.contains("var answers by remember { mutableStateOf(List(WhoFive.ITEM_COUNT) { -1 }) }") &&
-                source.contains("var savedScore by remember { mutableStateOf<Int?>(null) }"),
+            "PulseScreen answers and savedScore must use rememberSaveable (v0.25.15 fix). " +
+                "fnIdx=$fnIdx answersIdx=$answersIdx savedIdx=$savedIdx. " +
+                "The order must be: fn < answers < saved. source=\n$src",
+            fnIdx >= 0 && answersIdx > fnIdx && savedIdx > answersIdx,
         )
     }
 
@@ -242,15 +341,23 @@ class ComposeStateHuntFindingTest {
     // v0.25.14 fix: 3 of the 6 LauncherRoot state fields (surface,
     // reportCameFrom, letterCameFrom — all `LauncherSurface` enums,
     // which are auto-Saveable) migrated from `remember` to
-    // `rememberSaveable`. The 3 complex types (actionsFor: DisplayApp?,
-    // gateFor: DisplayApp?, letterSelectedDate: LocalDate?) keep
-    // `remember` for v0.25.14 — they need custom Savers, which is the
-    // v0.25.15 work.
+    // `rememberSaveable`.
     //
-    // The BUG-shape pin is split: the fix-shape half (3 enums) is
-    // the new positive pin; the deferred half (3 complex) is the
-    // deferred-work pin. Both belong in the same test class so a
-    // future v0.25.15+ migration can be detected by the second.
+    // v0.25.15 fix: the remaining 3 complex-typed fields
+    // (actionsFor: DisplayApp?, gateFor: DisplayApp?,
+    // letterSelectedDate: LocalDate?) are now rememberSaveable too,
+    // each with a custom Saver:
+    //   - `DisplayAppNullableSaver` (mapSaver, component-name key)
+    //     for `actionsFor` and `gateFor`
+    //   - `LocalDateNullableSaver` (ISO-8601 string round-trip) for
+    //     `letterSelectedDate`
+    //
+    // The BUG-shape pin for the deferred half is flipped to
+    // fix-shape. The original BUG-shape pin is kept (renamed) for
+    // the "still uses remember" regression check — but the active
+    // assertion is the fix-shape, so a v0.25.16+ regression that
+    // reverts to `remember` fails the same FindingTest with a
+    // different message.
 
     @Test
     fun `BUG-012 LauncherRoot enum state uses rememberSaveable (v0_25_14 partial fix)`() {
@@ -269,53 +376,89 @@ class ComposeStateHuntFindingTest {
     }
 
     @Test
-    fun `BUG-012 LauncherRoot complex state still uses remember (deferred to v0_25_15)`() {
+    fun `BUG-012 LauncherRoot complex state uses rememberSaveable (v0_25_15 fix)`() {
         val source = readSource("HomeScreen.kt", "launcher")
         assertNotNull(source)
-        // v0.25.15 will add custom Savers for DisplayApp? and LocalDate?
-        // and migrate these 3. Until then they keep `remember` and this
-        // pin documents the deferred work.
+        val src = source!!
+        // v0.25.15 fix: the 3 complex-typed LauncherRoot state
+        // fields are now rememberSaveable with custom Savers
+        // (mapSaver for DisplayApp?, ISO-string for LocalDate?).
+        // The pattern is the v0.25.14 lesson: scope the search
+        // by `stateSaver = ...Saver` token so a future regression
+        // that reverts to plain `remember` flips the assertion
+        // red.
+        val actionsForIdx = src.indexOf("var actionsFor by rememberSaveable(stateSaver = DisplayAppNullableSaver)")
+        val gateForIdx = if (actionsForIdx >= 0) src.indexOf("var gateFor by rememberSaveable(stateSaver = DisplayAppNullableSaver)", actionsForIdx) else -1
+        val letterDateIdx = if (gateForIdx >= 0) src.indexOf("var letterSelectedDate by rememberSaveable(stateSaver = LocalDateNullableSaver)", gateForIdx) else -1
         assertTrue(
-            "LauncherRoot must still hold the 3 complex-typed state fields " +
-                "in `remember` (deferred to v0.25.15: needs custom Savers for " +
-                "DisplayApp? and LocalDate?): actionsFor, gateFor, letterSelectedDate. " +
-                "source=\n" + source!!,
-            source.contains("var actionsFor by remember { mutableStateOf<DisplayApp?>(null) }") &&
-                source.contains("var gateFor by remember { mutableStateOf<DisplayApp?>(null) }") &&
-                source.contains("var letterSelectedDate by remember { mutableStateOf<LocalDate?>(null) }"),
+            "LauncherRoot must hold the 3 complex-typed state fields in " +
+                "rememberSaveable (v0.25.15 fix) with custom Savers: " +
+                "actionsFor / gateFor (DisplayAppNullableSaver) and " +
+                "letterSelectedDate (LocalDateNullableSaver). " +
+                "actionsForIdx=$actionsForIdx gateForIdx=$gateForIdx " +
+                "letterDateIdx=$letterDateIdx. The order must be: " +
+                "actionsFor < gateFor < letterDate. source=\n$src",
+            actionsForIdx >= 0 && gateForIdx > actionsForIdx && letterDateIdx > gateForIdx,
         )
     }
 
     // ----- BUG-013 (haptics not gated by accessibility / system toggle) -----
+    //
+    // v0.25.16 fix: a [org.mindanchor.ui.HapticFeedbackGate]
+    // CompositionLocal wraps the launcher root. Every direct
+    // `LocalHapticFeedback.current.performHapticFeedback(...)`
+    // call at a haptics call site is replaced by
+    // `org.mindanchor.ui.LocalHapticFeedbackGate.current.performHapticFeedback(...)`.
+    // The full fix-shape coverage is in
+    // `org.mindanchor.ui.HapticFeedbackGateFindingTest` (a new
+    // finding-test file). The pin below is a positive regression
+    // guard: a v0.25.16+ regression that drops the gate from any
+    // of the four call sites flips the assertion red.
 
     @Test
     fun `BUG-013 haptics not gated by the system haptics toggle or the 'remove animations' a11y setting`() {
+        // Kept for the v0.25.10+ bug-hunt history. The
+        // v0.25.16 fix wires the four haptics call surfaces
+        // through the [HapticFeedbackGate] CompositionLocal.
+        // The pre-fix shape had no system-toggle check in any
+        // of the four call sites; the fix introduces the gate
+        // as the single check-point (see
+        // `HapticFeedbackGateFindingTest` for the full
+        // surface). The pin here is the regression guard:
+        // if a v0.25.16+ change drops the gate from any of
+        // the four surfaces, this assertion flips red.
         val files = listOf(
             "launcher/HomeScreen.kt" to "launcher",
             "model/NoteScreen.kt" to "model",
             "letters/LetterScreen.kt" to "letters",
             "friction/FrictionGate.kt" to "friction",
         )
-        var hasSystemHapticsCheck = false
         var hasHapticsCalls = false
+        var allUseGate = true
         for ((filename, pkg) in files) {
             val source = readSource(filename, pkg) ?: continue
             if (source.contains("performHapticFeedback")) hasHapticsCalls = true
-            // HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING / Settings.System.HAPTIC_FEEDBACK_ENABLED
-            // is the documented check; also LocalContext.getSystemService(Vibrator).hasVibrator().
-            // Neither is referenced anywhere in the launcher.
-            if (source.contains("FLAG_IGNORE_GLOBAL_SETTING") ||
-                source.contains("HAPTIC_FEEDBACK_ENABLED") ||
-                source.contains("Settings.System.getInt") ||
-                source.contains("VibratorManager")
+            // The fix-shape: every file that calls
+            // `performHapticFeedback` must also reference
+            // `org.mindanchor.ui.LocalHapticFeedbackGate.current`
+            // (the gate). A file that has the call but not the
+            // gate is the pre-fix shape.
+            if (source.contains("performHapticFeedback") &&
+                !source.contains("org.mindanchor.ui.LocalHapticFeedbackGate.current")
             ) {
-                hasSystemHapticsCheck = true
+                allUseGate = false
             }
         }
-        assertTrue("The haptics-using surfaces must include some haptics calls", hasHapticsCalls)
         assertTrue(
-            "At least one haptics call site should check the system haptics toggle (FLAG_IGNORE_GLOBAL_SETTING / Settings.System.HAPTIC_FEEDBACK_ENABLED) or the 'remove animations' a11y setting; saw none",
-            hasSystemHapticsCheck,
+            "The haptics-using surfaces must include some haptics calls",
+            hasHapticsCalls,
+        )
+        assertTrue(
+            "BUG-013 (v0.25.16 fix): every haptics call site must route through the " +
+                "`HapticFeedbackGate` CompositionLocal. A v0.25.16+ regression that " +
+                "re-introduces a direct `LocalHapticFeedback.current` use at a call site " +
+                "flips this assertion red.",
+            allUseGate,
         )
     }
 
@@ -385,56 +528,76 @@ class ComposeStateHuntFindingTest {
     }
 
     // ----- BUG-017 (modelFits stub) -----
+    //
+    // v0.25.16 fix: the `val modelFits = remember { mutableStateOf(false) }`
+    // stub in HomeScreen is replaced by a flow from
+    // `LauncherViewModel.modelFits: StateFlow<Boolean>`. The
+    // FindingTest pin below asserts both halves: the new VM
+    // field exists, and the HomeScreen letter surface uses
+    // `viewModel.modelFits.collectAsStateWithLifecycle()` rather
+    // than the Composable-level stub.
+    //
+    // The full fix-shape coverage is in
+    // `org.mindanchor.launcher.ModelFitsWiringFindingTest`
+    // (a new finding-test file). The pin here is a positive
+    // regression guard: a v0.25.16+ regression that drops the
+    // wiring back to a stub fails the same FindingTest with a
+    // different message.
 
     @Test
     fun `BUG-017 HomeScreen letter surface has a modelFits stub held in remember`() {
-        // The letter surface currently ships with
-        // `modelFits = remember { mutableStateOf(false) }` as
-        // a stub. The shape is wrong: the value should come
-        // from a ViewModel, not be created at composition.
-        // A future wiring that forgets to remove the stub
-        // would silently disable Generate-now forever.
+        // Kept for the v0.25.10+ bug-hunt history. The
+        // v0.25.16 fix rewires the value to a
+        // `viewModel.modelFits.collectAsStateWithLifecycle()`
+        // (see `ModelFitsWiringFindingTest`), so the
+        // Composable-level `remember { mutableStateOf(false) }`
+        // stub is gone. A regression that re-introduces the
+        // stub flips the assertion red.
         val source = readSource("HomeScreen.kt", "launcher")
         assertNotNull(source)
+        val src = source!!
+        val fnIdx = src.indexOf("LauncherSurface.Letter ->")
+        val letterBlock = if (fnIdx >= 0) src.substring(fnIdx) else ""
         assertTrue(
-            "HomeScreen letter surface holds modelFits in remember { mutableStateOf(false) } (stub)",
-            source!!.contains("val modelFits = remember { mutableStateOf(false) }"),
+            "BUG-017: the Composable-level modelFits stub is gone (v0.25.16 fix). " +
+                "The pre-fix shape was `val modelFits = remember { mutableStateOf(false) }`; " +
+                "the fix is `val modelFits by viewModel.modelFits.collectAsStateWithLifecycle()`. " +
+                "letterBlock=\n$letterBlock",
+            !letterBlock.contains("val modelFits = remember { mutableStateOf(false) }") &&
+                letterBlock.contains("viewModel.modelFits.collectAsStateWithLifecycle()"),
         )
     }
 
     // ----- BUG-018 (no SaveableStateHolder / SavedStateHandle) -----
 
     @Test
-    fun `BUG-018 no SaveableStateHolder or SavedStateHandle used in the launcher`() {
-        // Process death is a known failure mode of
-        // remember (vs rememberSaveable). A `SaveableStateHolder`
-        // on a tab or `SavedStateHandle` in a ViewModel is
-        // the standard fix. Neither is in use anywhere in
-        // the launcher.
-        val files = listOf(
-            "launcher/HomeScreen.kt",
-            "launcher/LauncherViewModel.kt",
-            "model/NoteActivity.kt",
-            "model/NoteScreen.kt",
-            "onboarding/OnboardingScreen.kt",
-            "settings/SettingsScreen.kt",
-            "settings/SettingsViewModel.kt",
-        )
-        var anySaveableHolderOrHandle = false
-        for (rel in files) {
-            val source = readSource(rel.substringAfter("/"), rel.substringBefore("/"))
-                ?: continue
-            if (source.contains("SaveableStateHolder") ||
-                source.contains("SavedStateHandle") ||
-                source.contains("SavedStateRegistry")
-            ) {
-                anySaveableHolderOrHandle = true
-                break
-            }
-        }
+    fun `BUG-018 Settings tabs use SaveableStateHolder for tab-switch state preservation (v0_25_16 fix)`() {
+        // v0.25.16 fix: the Settings surface creates a
+        // [SaveableStateHolder] via [rememberSaveableStateHolder]
+        // and wraps each SettingsGroup's content in
+        // `holder.SaveableStateProvider(key) { ... }`. The
+        // pre-fix shape was a plain `if (group == X) { ... }`
+        // that tore down the slot table on every tab switch.
+        //
+        // The FindingTest asserts both halves: the holder is
+        // created (`rememberSaveableStateHolder()`), the
+        // provider is in use (`saveableStateHolder.SaveableStateProvider(`),
+        // and the holder comes before the provider.
+        val source = readSource("SettingsScreen.kt", "settings")
+        assertNotNull("SettingsScreen.kt must be readable", source)
+        val src = source!!
+        // v0.25.16 fix-shape: a SaveableStateHolder is
+        // created and at least one SaveableStateProvider is
+        // present (the v0.25.16 wrap of the PAUSES tab).
+        val holderIdx = src.indexOf("val saveableStateHolder = rememberSaveableStateHolder()")
+        val providerIdx = src.indexOf("saveableStateHolder.SaveableStateProvider(\"PAUSES\")")
         assertTrue(
-            "BUG-018: at least one of the launcher VMs / screens should use SavedStateHandle or SaveableStateHolder for process-death recovery; saw none",
-            anySaveableHolderOrHandle,
+            "BUG-018 (v0.25.16 fix): SettingsScreen must declare a SaveableStateHolder " +
+                "and use saveableStateHolder.SaveableStateProvider(\"PAUSES\") to wrap " +
+                "tab content so per-tab state survives a tab switch within a single " +
+                "Settings open. holderIdx=$holderIdx providerIdx=$providerIdx. " +
+                "The order must be: holder < provider. source=\n$src",
+            holderIdx >= 0 && providerIdx > holderIdx,
         )
     }
 

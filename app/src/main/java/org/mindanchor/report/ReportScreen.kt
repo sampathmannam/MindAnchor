@@ -18,8 +18,8 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -70,12 +70,20 @@ import org.mindanchor.ui.Spacing
 fun ReportScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val store = remember { ReportStore(context.applicationContext) }
-    val stored by store.stored.collectAsState(initial = null)
-    val factsRaw by store.facts.collectAsState(initial = null)
+    // v0.25.17 BUG-004: lifecycle-aware collect. The
+    // report surface reads four flows; each was
+    // producing fresh values on every emission even
+    // when the surface was STOPPED. The four are the
+    // `stored` report, the `facts` snapshot, the
+    // per-report `feedback`, and the reading `size`
+    // preference. Each gets a sensible `initialValue`
+    // so the first composition has data to render.
+    val stored by store.stored.collectAsStateWithLifecycle(initialValue = null)
+    val factsRaw by store.facts.collectAsStateWithLifecycle(initialValue = null)
     // v0.25.5-WP-C: the one-tap "did this help?" feedback. Local-only;
     // nothing leaves the phone. Reads from the same DataStore the
     // report itself lives in; null = unrated for the current report.
-    val feedback by store.feedback.collectAsState(initial = null)
+    val feedback by store.feedback.collectAsStateWithLifecycle(initialValue = null)
     // v0.25.3-WP-D: the report reuses [ReaderPrefs] for its long-form
     // copy. The same A- / A / A+ segmented control the letter reader
     // uses appears in the report header; both surfaces read and write
@@ -83,7 +91,7 @@ fun ReportScreen(onBack: () -> Unit) {
     // the other. The wire-through is `setSize` on `Dispatchers.IO`
     // via DataStore; the call is fire-and-forget.
     val readerPrefs = remember { ReaderPrefs(context.applicationContext) }
-    val size by readerPrefs.size.collectAsState(initial = ReadingSize.MEDIUM)
+    val size by readerPrefs.size.collectAsStateWithLifecycle(initialValue = ReadingSize.MEDIUM)
     val scope = rememberCoroutineScope()
     ReportScreen(
         stored = stored,

@@ -54,7 +54,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusEvent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -603,7 +602,12 @@ fun NoteScreen(
         // shape the QuickNotesCard save uses â€” the user is
         // committing a destructive action, the same feedback
         // type fits.
-        val haptics = LocalHapticFeedback.current
+        //
+        // v0.25.16 BUG-013: gate through
+        // [org.mindanchor.ui.HapticFeedbackGate] so the
+        // system haptics toggle and the "remove animations"
+        // a11y preference are honored.
+        val haptics = org.mindanchor.ui.LocalHapticFeedbackGate.current
         AlertDialog(
             onDismissRequest = { pendingDeleteId = null },
             title = { Text(stringResource(R.string.note_delete_confirm)) },

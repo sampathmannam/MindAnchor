@@ -17,8 +17,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -82,7 +82,11 @@ fun DigestScreen(
     onClose: () -> Unit,
     viewModel: DigestViewModel = viewModel(),
 ) {
-    val journal by viewModel.journal.collectAsState()
+    // v0.25.17 BUG-004: lifecycle-aware collect. The
+    // digest screen reads the journal flow; a STOPPED
+    // digest should not be listening to journal
+    // emissions.
+    val journal by viewModel.journal.collectAsStateWithLifecycle()
     val waiting = journal.filter { it.releasedAt == null }
     val released = journal.filter { it.releasedAt != null }
 

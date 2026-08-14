@@ -37,7 +37,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -51,7 +50,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusEvent
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -96,6 +94,8 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Date
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.mapSaver
 
 private enum class LauncherSurface {
     Home,
@@ -108,6 +108,77 @@ private enum class LauncherSurface {
     GroundMe,
     BeforeYouSend,
 }
+
+/**
+ * v0.25.15: the custom Saver for [DisplayApp?] that lets
+ * [rememberSaveable] hold the "actions for" / "gate for"
+ * launcher state across config change and process death.
+ *
+ * The default autoSaver for [DisplayApp] would not work
+ * (the data class has 4 fields and Bundle has its own
+ * parcelable contract). A [mapSaver] keyed on the
+ * component-name is the documented Compose pattern for
+ * "I have a small data class, give me a Saver": the
+ * save side returns a `Map<String, Any?>` of the four
+ * fields, the restore side walks the map back into the
+ * data class. `null` is encoded as an empty map — the
+ * mapSaver contract is "non-null map means there was a
+ * state; empty map means the state was null".
+ *
+ * Why save the label and the favourite/hidden flags
+ * rather than just the component name: the renamed
+ * label and the favourite/hidden state are exactly
+ * what the long-press dialog is editing, and losing
+ * them on a config change would silently revert the
+ * user's edit. The ComponentName itself is the join
+ * key; the other three fields ride along.
+ */
+private val DisplayAppNullableSaver: Saver<DisplayApp?, Any> = mapSaver(
+    save = { app ->
+        if (app == null) {
+            emptyMap<String, Any>()
+        } else {
+            mapOf(
+                "component" to app.component,
+                "label" to app.label,
+                "isFavorite" to app.isFavorite,
+                "isHidden" to app.isHidden,
+            )
+        }
+    },
+    restore = { raw ->
+        @Suppress("UNCHECKED_CAST")
+        val map = raw as? Map<String, Any?> ?: return@mapSaver null
+        val component = map["component"] as? String ?: return@mapSaver null
+        val label = map["label"] as? String ?: return@mapSaver null
+        val isFavorite = map["isFavorite"] as? Boolean ?: false
+        val isHidden = map["isHidden"] as? Boolean ?: false
+        DisplayApp(
+            component = component,
+            label = label,
+            isFavorite = isFavorite,
+            isHidden = isHidden,
+        )
+    },
+)
+
+/**
+ * v0.25.15: the custom Saver for [LocalDate?] that lets
+ * [rememberSaveable] hold the letter reader's selected
+ * date across config change and process death. Encoded
+ * as the ISO-8601 local date string
+ * (`DateTimeFormatter.ISO_LOCAL_DATE` →
+ * `"2026-08-14"`) and restored via `LocalDate.parse`.
+ * `null` round-trips as the empty string, again so the
+ * autoSaver has a non-null value to Bundle.
+ */
+private val LocalDateNullableSaver: Saver<LocalDate?, Any> = Saver(
+    save = { date -> date?.format(DateTimeFormatter.ISO_LOCAL_DATE).orEmpty() },
+    restore = { raw ->
+        val str = raw as? String ?: return@Saver null
+        if (str.isEmpty()) null else runCatching { LocalDate.parse(str) }.getOrNull()
+    },
+)
 
 /**
  * v0.20.9: Modifier extension that auto-scrolls the nearest
@@ -200,19 +271,22 @@ fun LauncherRoot(
         currentHour = nowTick.hour,
         okAtNight = bpdProfile.okAtNight,
     )
-    // v0.25.14: 3 of the 6 LauncherRoot state fields migrated from
-    // remember to rememberSaveable. The remaining 3 (`actionsFor`,
-    // `gateFor`, `letterSelectedDate`) hold non-Bundle-able types
-    // (DisplayApp?, LocalDate?) and need custom Savers — that's
-    // the v0.25.15 work. Launching the fix in two pieces means a
-    // green release for the easy half without blocking on the
-    // Saver plumbing.
+    // v0.25.15: the 3 deferred LauncherRoot state fields are now
+    // rememberSaveable too. `actionsFor` and `gateFor` hold
+    // `DisplayApp?` and use the file-level `DisplayAppNullableSaver`
+    // (mapSaver, component-name key) so the value survives a config
+    // change or process death. `letterSelectedDate` holds
+    // `LocalDate?` and uses `LocalDateNullableSaver` (ISO-8601
+    // string round-trip). See the KDoc on the Savers for why a
+    // generic `Saver<Any, _>` over the standard autoSaver is the
+    // right shape here.
     var surface by rememberSaveable { mutableStateOf(LauncherSurface.Home) }
-    // `actionsFor` and `gateFor` keep `remember` for v0.25.14; they
-    // hold `DisplayApp?` which is not Bundle-able. v0.25.15 will add
-    // a `mapSaver` (component-name-based) and migrate both.
-    var actionsFor by remember { mutableStateOf<DisplayApp?>(null) }
-    var gateFor by remember { mutableStateOf<DisplayApp?>(null) }
+    var actionsFor by rememberSaveable(stateSaver = DisplayAppNullableSaver) {
+        mutableStateOf<DisplayApp?>(null)
+    }
+    var gateFor by rememberSaveable(stateSaver = DisplayAppNullableSaver) {
+        mutableStateOf<DisplayApp?>(null)
+    }
 
     // Where the report was opened from, so back returns there. Two ways
     // in now — the settings section and a line on the home screen — and
@@ -226,13 +300,22 @@ fun LauncherRoot(
     // new "letters" TopEnd corner on the home surface, the (later)
     // Reading sub-section in Settings, and the letter notification
     // (Task 8), which writes letterDateSignal from HomeActivity.
-    // `letterSelectedDate` keeps `remember` for v0.25.14 (LocalDate?
-    // is not Bundle-able); v0.25.15 will add an ISO-string Saver.
-    var letterSelectedDate by remember { mutableStateOf<LocalDate?>(null) }
+    // v0.25.15: `letterSelectedDate` is rememberSaveable via the
+    // ISO-string `LocalDateNullableSaver` so a config change while
+    // the user is reading a letter preserves the open reader.
+    var letterSelectedDate by rememberSaveable(stateSaver = LocalDateNullableSaver) {
+        mutableStateOf<LocalDate?>(null)
+    }
     var letterCameFrom by rememberSaveable { mutableStateOf(LauncherSurface.Home) }
     val context = LocalContext.current
     val reportStore = remember(context) { ReportStore(context.applicationContext) }
-    val storedReport by reportStore.stored.collectAsState(initial = null)
+    // v0.25.17 BUG-004: lifecycle-aware collect. The
+    // report-store flow emits when a fresh nightly
+    // report is composed; pre-v0.25.17 the launcher
+    // kept listening to the flow even when the home
+    // surface was STOPPED (Settings, Onboarding,
+    // etc.).
+    val storedReport by reportStore.stored.collectAsStateWithLifecycle(initialValue = null)
     // Only when there is genuinely something to read. An empty report is
     // ReportComposer's ordinary, good outcome, and offering a way in to
     // read nothing teaches somebody to stop looking.
@@ -385,7 +468,11 @@ fun LauncherRoot(
                 )
             } else {
                 CalmBackground { sky ->
-                    val showIntroCallout by viewModel.showIntroCallout.collectAsState()
+                    // v0.25.17 BUG-004: lifecycle-aware collect.
+                    // Same rationale as the report-store flow
+                    // above. The intro-callout flag is read
+                    // only when the home surface is foreground.
+                    val showIntroCallout by viewModel.showIntroCallout.collectAsStateWithLifecycle()
             HomeSurface(
                 sky = sky,
                 favorites = state.favorites,
@@ -519,24 +606,37 @@ fun LauncherRoot(
         // LetterScreen Composable is otherwise stateless on which
         // date is selected. The back button clears the selected
         // date when in the reader (back to inbox) and falls back
-        // to letterCameFrom when in the inbox. Letters and
-        // modelFits are stubs pending Task 9's SettingsViewModel
-        // fields; the call site does not depend on them being
-        // real flows today.
+        // to letterCameFrom when in the inbox.
+        //
+        // v0.25.16 BUG-017: `modelFits` is now wired from
+        // `viewModel.modelFits` (a `StateFlow<Boolean>` that
+        // reflects the on-disk presence of the Phi-4 model).
+        // The pre-v0.25.16 stub held a Composable-level
+        // `remember { mutableStateOf(false) }` whose value was
+        // always `false` — the Generate-now affordance was
+        // permanently disabled. Wiring through the VM is the
+        // standard `collectAsStateWithLifecycle` pattern and
+        // is what the BUG-017 FindingTest asserts.
         LauncherSurface.Letter -> Surface(modifier = Modifier.fillMaxSize()) {
             val letters: List<Letter> = remember { emptyList() }
-            val modelFits = remember { mutableStateOf(false) }
+            val modelFits by viewModel.modelFits.collectAsStateWithLifecycle()
             // v0.25.2-B (Task 15): letter size is read from the
             // LauncherViewModel (mirrors the SettingsViewModel.letterSize
             // from Task 9 — both VMs read from the same DataStore source).
-            val letterSize by viewModel.letterSize.collectAsState()
+            // v0.25.17 BUG-004: lifecycle-aware collect.
+            // The letter-size preference is a DataStore
+            // value; reading it through the lifecycle-
+            // aware primitive keeps the launcher from
+            // collecting on every emission while the
+            // letter surface is STOPPED.
+            val letterSize by viewModel.letterSize.collectAsStateWithLifecycle()
             val letterStore = remember(context.applicationContext) {
                 LetterStore(context.applicationContext)
             }
             val letterScope = rememberCoroutineScope()
             LetterScreen(
                 letters = letters,
-                modelFits = modelFits.value,
+                modelFits = modelFits,
                 date = letterSelectedDate,
                 size = letterSize,
                 // v0.25.3-WP-C: a row tap marks the letter as read so
@@ -924,7 +1024,14 @@ private fun BedtimeListCard(
 ) {
     // v0.25.5 WP-G: haptic confirmation on save (Brewster CHI
     // 2007 — distinct tactile feedback for distinct actions).
-    val haptics = LocalHapticFeedback.current
+    //
+    // v0.25.16 BUG-013: route the haptic through the
+    // [org.mindanchor.ui.HapticFeedbackGate] CompositionLocal
+    // so a user with the system haptics toggle off (or the
+    // "remove animations" a11y preference on) does not get
+    // the launcher's save / clear / delete-confirm ticks.
+    // Direct `LocalHapticFeedback.current` would bypass both.
+    val haptics = org.mindanchor.ui.LocalHapticFeedbackGate.current
     when (phase) {
         BedtimePhase.NONE -> Unit
 
@@ -936,7 +1043,15 @@ private fun BedtimeListCard(
             // simple shape — a multi-line text box would invite
             // the "task list" failure mode the brief explicitly
             // rules out.
-            val drafts = remember {
+            //
+            // v0.25.15: `mutableStateListOf` is auto-Saveable
+            // (its default Saver writes the list as a Bundle
+            // array of strings), so a one-keyword `remember` →
+            // `rememberSaveable` migration is the whole fix. The
+            // user is mid-capture of "feed the cat, water the
+            // plants, lock the door" and a config change should
+            // not throw all three lines away.
+            val drafts = rememberSaveable {
                 mutableStateListOf<String>().apply { add("") }
             }
 
@@ -1130,7 +1245,15 @@ private fun QuickNotesCard(
     // typing, long enough to register. The user
     // pressed a button; the button is allowed to
     // answer.
-    val haptics = LocalHapticFeedback.current
+    //
+    // v0.25.16 BUG-013: gate through
+    // [org.mindanchor.ui.HapticFeedbackGate] so the
+    // system haptics toggle and the "remove animations"
+    // a11y preference are honored. LongPress for save,
+    // TextHandleMove for clear — the rich-tactile
+    // distinction Brewster CHI 2007 names is preserved
+    // by the gate's `type` parameter.
+    val haptics = org.mindanchor.ui.LocalHapticFeedbackGate.current
     Column(
         modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -1961,7 +2084,12 @@ private fun DrawerSurface(
     onLaunch: (DisplayApp) -> Unit,
     onLongPress: (DisplayApp) -> Unit,
 ) {
-    val query by viewModel.searchQuery.collectAsState()
+    // v0.25.17 BUG-004: lifecycle-aware collect. The
+    // search query is held in the ViewModel; the
+    // lifecycle-aware primitive keeps the search
+    // surface from collecting on every keystroke
+    // after the user has navigated away.
+    val query by viewModel.searchQuery.collectAsStateWithLifecycle()
     val results = viewModel.searchResults(state)
     val focusRequester = remember { FocusRequester() }
 

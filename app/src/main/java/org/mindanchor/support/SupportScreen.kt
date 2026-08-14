@@ -26,8 +26,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -79,8 +79,13 @@ fun SupportScreen(
     viewModel: SupportViewModel = viewModel(),
 ) {
     val context = LocalContext.current
-    val plan by viewModel.plan.collectAsState()
-    val contacts by viewModel.contacts.collectAsState()
+    // v0.25.17 BUG-004: lifecycle-aware collect. The
+    // support screen's plan + contacts flows are
+    // DataStore-backed; pre-v0.25.17 they kept
+    // collecting on every emission even when the
+    // surface was STOPPED.
+    val plan by viewModel.plan.collectAsStateWithLifecycle()
+    val contacts by viewModel.contacts.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf(false) }
     var dialFailure by remember { mutableStateOf<String?>(null) }
 

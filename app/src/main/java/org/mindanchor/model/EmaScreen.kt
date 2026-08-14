@@ -18,7 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,8 +67,17 @@ fun EmaScreen(
      */
     onFinished: () -> Unit,
 ) {
-    var valence by remember { mutableStateOf<Int?>(null) }
-    var saved by remember { mutableStateOf(false) }
+    // v0.25.15: `valence` and `saved` are auto-Saveable
+    // (Int? and Boolean); the migration is the one-keyword
+    // `remember` → `rememberSaveable` swap. A check-in
+    // interrupted by a config change after the user has
+    // picked a valence but before they answered the second
+    // question would otherwise reset to "no answer" and
+    // re-render both questions — and the brief's whole
+    // point is that the moment of "I noticed" is not
+    // something to ask the user to do twice.
+    var valence by rememberSaveable { mutableStateOf<Int?>(null) }
+    var saved by rememberSaveable { mutableStateOf(false) }
 
     // Shown, not skipped straight past — but only for a beat. Nothing
     // here is worth asking anyone to dismiss by hand.

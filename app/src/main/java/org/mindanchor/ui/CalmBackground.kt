@@ -5,8 +5,8 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -37,7 +37,12 @@ fun CalmBackground(content: @Composable (SkyContent) -> Unit) {
     val darkTheme = isSystemInDarkTheme()
     val context = LocalContext.current
     val appearance = remember(context) { AppearancePrefs(context) }
-    val sceneSetting by appearance.scene.collectAsState(initial = null)
+    // v0.25.17 BUG-004: lifecycle-aware collect. The
+    // background-scene setting is read on every
+    // composition; pre-v0.25.17 a STOPPED
+    // CalmBackground would keep recomposing the sky
+    // on every appearance emission.
+    val sceneSetting by appearance.scene.collectAsStateWithLifecycle(initialValue = null)
     val now = rememberMinuteTick()
     val minuteOfDay = now.hour * 60 + now.minute
     val scene = sceneSetting?.let {

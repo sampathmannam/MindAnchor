@@ -5,9 +5,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -24,6 +24,7 @@ import org.mindanchor.onboarding.OnboardingPrefs
 import org.mindanchor.onboarding.OnboardingScreen
 import org.mindanchor.sunset.SunsetController
 import org.mindanchor.ui.CalmBackground
+import org.mindanchor.ui.HapticFeedbackGateProvider
 import org.mindanchor.ui.MindAnchorTheme
 
 /**
@@ -113,38 +114,57 @@ class HomeActivity : ComponentActivity() {
         handleLetterIntent(intent)
         setContent {
             MindAnchorTheme {
-                val done by onboardingPrefs.done.collectAsState(initial = null)
-                val goHome by goHomeSignal.collectAsState()
-                val letterDate by letterDateSignal.collectAsState()
-                val scope = rememberCoroutineScope()
-                when (done) {
-                    // Preferences are still loading. Draw the sky rather than
-                    // nothing at all: an empty frame here let the window
-                    // background flash through on every cold start.
-                    null -> CalmBackground { }
+                // v0.25.16 BUG-013: wrap the entire launcher tree
+                // in the HapticFeedbackGateProvider so the four
+                // haptics call sites (HomeScreen save / clear,
+                // NoteScreen delete-confirm, LetterInbox
+                // delete-confirm, FrictionGate breath pause)
+                // consult the system haptics toggle and the
+                // "remove animations" a11y preference before
+                // firing. Without the provider, those four
+                // sites would call LocalHapticFeedback directly
+                // and bypass the system settings.
+                HapticFeedbackGateProvider {
+                    // v0.25.17 BUG-004: lifecycle-aware collect.
+                    // The three activity-level flows
+                    // (`onboardingPrefs.done`, `goHomeSignal`,
+                    // `letterDateSignal`) are read on every
+                    // composition; pre-v0.25.17 they kept
+                    // collecting on every emission even when
+                    // the activity was STOPPED.
+                    val done by onboardingPrefs.done.collectAsStateWithLifecycle(initialValue = null)
+                    val goHome by goHomeSignal.collectAsStateWithLifecycle()
+                    val letterDate by letterDateSignal.collectAsStateWithLifecycle()
+                    val scope = rememberCoroutineScope()
+                    when (done) {
+                        // Preferences are still loading. Draw the sky rather than
+                        // nothing at all: an empty frame here let the window
+                        // background flash through on every cold start.
+                        null -> CalmBackground { }
 
-                    false -> OnboardingScreen(
-                        onDone = { goals, chronotype ->
-                            scope.launch {
-                                onboardingPrefs.complete(goals)
-                                // setChronotype only writes the default
-                                // window if the user has not already picked
-                                // one — first run, the window has never
-                                // been touched, so the chronotype's default
-                                // becomes the launcher's default.
-                                sunsetPrefs.setChronotype(chronotype)
-                                if (sunsetPrefs.isEnabled()) {
-                                    SunsetController.ensureScheduled(applicationContext)
+                        false -> OnboardingScreen(
+                            onDone = { goals, chronotype ->
+                                scope.launch {
+                                    onboardingPrefs.complete(goals)
+                                    // setChronotype only writes the default
+                                    // window if the user has not already picked
+                                    // one — first run, the window has never
+                                    // been touched, so the chronotype's default
+                                    // becomes the launcher's default.
+                                    sunsetPrefs.setChronotype(chronotype)
+                                    if (sunsetPrefs.isEnabled()) {
+                                        SunsetController.ensureScheduled(applicationContext)
+                                    }
                                 }
-                            }
-                        },
-                    )
+                            },
+                        )
 
-                    true -> LauncherRoot(
-                        goHomeSignal = goHome,
-                        letterDateSignal = letterDate,
-                        onLetterDateConsumed = ::consumeLetterDate,
-                    )
+                        true -> LauncherRoot(
+                            goHomeSignal = goHome,
+                            letterDateSignal = letterDate,
+                            onLetterDateConsumed = ::consumeLetterDate,
+                        )
+                    }
                 }
             }
         }
