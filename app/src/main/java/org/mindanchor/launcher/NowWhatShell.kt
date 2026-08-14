@@ -46,11 +46,25 @@ fun NowWhatShell(onWantSleep: () -> Unit, onWantGround: () -> Unit, onWantTalk: 
 }
 
 @Composable private fun NowWhatRow(label: String, sky: SkyContent, onClick: () -> Unit) {
-    Surface(modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp), onClick = onClick, shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
-            TextButton(onClick = onClick, modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp)) {
-                Text(label, style = MaterialTheme.typography.titleMedium, color = sky.textPrimary)
-            }
+    // v0.25.12 fix: removed the wrapping `Box(modifier = Modifier.fillMaxSize(), …)`.
+    // In a Column with `fillMaxSize`, a child Box with `fillMaxSize` requests
+    // the full remaining column height, which collapses the next two NowWhatRow
+    // siblings to 0 height and pushes them off-screen. The TextButton already
+    // has Alignment.CenterStart for its own content, so the Box was redundant.
+    // The two onClicks (Surface + TextButton) are not a double-fire bug: the
+    // TextButton consumes the click event before the Surface's onClick can fire,
+    // because the TextButton covers the entire Surface area.
+    Surface(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp),
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
+    ) {
+        TextButton(
+            onClick = onClick,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp),
+        ) {
+            Text(label, style = MaterialTheme.typography.titleMedium, color = sky.textPrimary)
         }
     }
 }

@@ -56,7 +56,17 @@ fun BeforeYouSendInterstitial(context: BeforeYouSendContext, profile: BpdProfile
                     shape = RoundedCornerShape(8.dp),
                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
                 ) {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                    // v0.25.12 fix: changed `Modifier.fillMaxSize()` to
+                    // `Modifier.fillMaxWidth()`. The Surface sits inside a Row
+                    // inside a Column with `fillMaxSize`. A Box with
+                    // `fillMaxSize` requests the full parent column height, so
+                    // the "Send" Surface grew to 1126 px (half the screen).
+                    // With `fillMaxWidth`, the Box fills the Surface horizontally
+                    // but sizes vertically to the Text content.
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    ) {
                         Text(stringResource(R.string.bys_send), color = sky.textPrimary, fontWeight = FontWeight.Medium)
                     }
                 }
