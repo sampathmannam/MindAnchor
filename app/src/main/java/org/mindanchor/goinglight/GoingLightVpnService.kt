@@ -1,7 +1,6 @@
 package org.mindanchor.goinglight
 
 import android.app.Notification
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
@@ -9,6 +8,7 @@ import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import org.mindanchor.R
+import org.mindanchor.notifications.Channels
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.net.InetAddress
@@ -506,20 +506,8 @@ class GoingLightVpnService : VpnService() {
      * lazily.
      */
     private fun buildNotification(): Notification {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            val existing = nm.getNotificationChannel(CHANNEL_ID)
-            if (existing == null) {
-                val channel = NotificationChannel(
-                    CHANNEL_ID,
-                    "Going Light",
-                    NotificationManager.IMPORTANCE_LOW,
-                )
-                channel.description = getString(R.string.going_light_channel_description)
-                channel.setShowBadge(false)
-                nm.createNotificationChannel(channel)
-            }
-        }
+        // v0.25.19: the channel is created at process start
+        // by [Channels.ensureAll]. No lazy creation here.
         return Notification.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.going_light_notification_title))
             .setContentText(getString(R.string.going_light_notification_text))
@@ -550,6 +538,6 @@ class GoingLightVpnService : VpnService() {
          * stable across restarts; the channel is
          * created lazily on first use.
          */
-        const val CHANNEL_ID = "org.mindanchor.goinglight"
+        const val CHANNEL_ID = Channels.GOING_LIGHT
     }
 }

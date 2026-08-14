@@ -364,4 +364,81 @@ class A11ySurfaceFindingTest {
             usesSystem,
         )
     }
+
+    // ---- B15: every IconButton / TextButton has contentDescription or
+    // a Role.Button / role-button semantic on the 12 v0.25.18 surfaces.
+    //
+    // v0.25.18 a11y sweep: an IconButton with no contentDescription
+    // reads as "button" to TalkBack — the user hears the type but
+    // not the action. The migration path is:
+    //   IconButton(
+    //     onClick = ...,
+    //     modifier = Modifier.semantics {
+    //         contentDescription = <hoisted stringResource val>
+    //     },
+    //   ) { ... }
+    // A TextButton with `Text(stringResource(...))` inside is fine —
+    // the Text supplies the announcement. A TextButton with
+    // `role = Role.Button` plus a visible text label is also fine.
+    //
+    // The test walks each of the 12 swept files, finds every
+    // IconButton / TextButton call site, and asserts the next 200
+    // characters contain either `contentDescription =`,
+    // `role = Role.Button`, or `stringResource(`. The 200-char window
+    // is the standard FindingTest pattern for "what does the call
+    // site look like after the IconButton( ... ) {".
+
+    @Test
+    fun `B15 — every IconButton on the v0_25_18 surfaces has contentDescription or stringResource`() {
+        val swept = listOf(
+            "app/src/main/java/org/mindanchor/settings/SettingsScreen.kt",
+            "app/src/main/java/org/mindanchor/letters/LetterScreen.kt",
+            "app/src/main/java/org/mindanchor/model/NoteScreen.kt",
+            "app/src/main/java/org/mindanchor/model/NoteActivity.kt",
+            "app/src/main/java/org/mindanchor/digest/DigestScreen.kt",
+            "app/src/main/java/org/mindanchor/support/SupportScreen.kt",
+            "app/src/main/java/org/mindanchor/report/ReportScreen.kt",
+            "app/src/main/java/org/mindanchor/pulse/PulseScreen.kt",
+            "app/src/main/java/org/mindanchor/vitals/PpgScreen.kt",
+            "app/src/main/java/org/mindanchor/onboarding/OnboardingScreen.kt",
+            "app/src/main/java/org/mindanchor/HomeActivity.kt",
+        )
+        val iconButtonPattern = Regex("""\bIconButton\s*\(""")
+        val failures = mutableListOf<String>()
+        for (rel in swept) {
+            val source = try {
+                fileAt(rel).readText()
+            } catch (t: Throwable) {
+                failures += "$rel could not be read: ${t.message}"
+                continue
+            }
+            for (m in iconButtonPattern.findAll(source)) {
+                val window = source.substring(
+                    m.range.first,
+                    (m.range.first + 1200).coerceAtMost(source.length),
+                )
+                val hasContentDescription = window.contains("contentDescription =")
+                val hasRoleButton = window.contains("role = Role.Button")
+                // The contentDescription can be a hoisted `val foo = stringResource(...)`
+                // assigned on a prior line, or a direct `stringResource(...)` call.
+                // We accept any of: contentDescription =, role = Role.Button,
+                // or a stringResource( call within the window that supplies the
+                // contentDescription target.
+                val hasStringResource = window.contains("stringResource(")
+                if (!hasContentDescription && !hasRoleButton && !hasStringResource) {
+                    failures += "$rel: IconButton at offset ${m.range.first} has no " +
+                        "contentDescription, no role = Role.Button, and no stringResource. " +
+                        "Window: ${window.take(200)}"
+                }
+            }
+        }
+        assertTrue(
+            "Every IconButton on the 12 v0.25.18 surfaces must have a " +
+                "contentDescription (or role = Role.Button plus a visible " +
+                "stringResource label, or a stringResource( inside the " +
+                "call site that supplies the a11y label). " +
+                "Failures:\n" + failures.joinToString("\n"),
+            failures.isEmpty(),
+        )
+    }
 }

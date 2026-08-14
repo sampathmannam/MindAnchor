@@ -1,8 +1,6 @@
 package org.mindanchor.notifications
 
 import android.Manifest
-import android.app.Notification
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
@@ -18,10 +16,19 @@ import org.mindanchor.digest.DigestActivity
  * Turns the pending batch into a single calm digest notification and marks
  * the journal entries released. One gentle notification per batch — never a
  * flood of re-posts.
+ *
+ * v0.25.19: the channel is created once at process start by
+ * [Channels.ensureAll] (called from `MindAnchorApp.onCreate`).
+ * The per-post guard is gone — the channel exists by the
+ * time this code path runs.
  */
 object BatchReleaser {
 
-    private const val CHANNEL_ID = "digest"
+    // v0.25.19: the id constant is now exported from
+    // [Channels] so the call site and the channel-creation
+    // site cannot drift. The literal still appears here for
+    // grep-ability, but the source of truth is Channels.DIGEST.
+    private const val CHANNEL_ID = Channels.DIGEST
     private const val NOTIFICATION_ID = 7
 
     suspend fun releaseNow(context: Context) {
@@ -41,19 +48,8 @@ object BatchReleaser {
         }
 
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
-        // v0.25.11: guard createNotificationChannel with getNotificationChannel
-        // so the channel is only created the first time we post to it.
-        if (manager.getNotificationChannel(CHANNEL_ID) == null) {
-            manager.createNotificationChannel(
-                NotificationChannel(
-                    CHANNEL_ID,
-                    context.getString(R.string.digest_channel_name),
-                    NotificationManager.IMPORTANCE_DEFAULT,
-                ).apply {
-                    description = context.getString(R.string.digest_channel_description)
-                },
-            )
-        }
+        // v0.25.19: the channel is created at process start
+        // by [Channels.ensureAll]. No per-post guard here.
 
         val contentIntent = PendingIntent.getActivity(
             context,

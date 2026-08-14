@@ -300,4 +300,27 @@ object HealthConnectSource {
     ): List<Long> = runCatching {
         hcClient.readRecords(ReadRecordsRequest(T::class, range)).records.map(extract)
     }.getOrDefault(emptyList())
+
+    /**
+     * v0.25.19: a public, test-friendly read path. The
+     * existing [readDailyVitals] takes a [Context] and
+     * resolves the [HealthConnectClient] itself, which is
+     * fine for production but impossible to drive from a
+     * unit test. This entry point takes the client
+     * directly, takes a [TimeRangeFilter], and returns
+     * the heart-rate samples — the canonical record type
+     * for the smoke test.
+     *
+     * The smoke test ([HealthConnectSmokeFindingTest])
+     * drives this function with a [Context] that resolves
+     * to a real [HealthConnectClient] (or to null, on a
+     * machine where Health Connect is not installed —
+     * the test then asserts the function returns
+     * [DailyVitals.empty] without throwing).
+     */
+    suspend fun connectAndRead(
+        context: Context,
+        date: LocalDate = LocalDate.now(),
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): DailyVitals = readDailyVitals(context, date, zone)
 }

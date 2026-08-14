@@ -269,6 +269,13 @@ fun NoteScreen(
         // status-bar inset; imePadding adds the
         // keyboard inset on the bottom of the
         // content area.
+        // v0.25.18 i18n sweep: hoist the close-button
+        // contentDescription into a local val so the
+        // IconButton's Modifier.semantics lambda can
+        // reference it. stringResource is @Composable
+        // and cannot be called inside the semantics
+        // lambda; the val is the canonical pattern.
+        val closeDesc = stringResource(R.string.note_close)
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -280,7 +287,14 @@ fun NoteScreen(
                     IconButton(
                         onClick = onClose,
                         modifier = Modifier.semantics {
-                            contentDescription = "Close"
+                            // v0.25.18 i18n sweep: was the literal
+                            // English string "Close". A Tamil
+                            // user running a Tamil-localised build
+                            // heard English in TalkBack. The string
+                            // now lives in strings.xml as
+                            // R.string.note_close so the localiser
+                            // can override it.
+                            contentDescription = closeDesc
                         },
                     ) {
                         Text(
