@@ -2,8 +2,6 @@
 package org.mindanchor.watch
 
 import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
@@ -91,32 +89,28 @@ class AppWatchService : Service() {
     }
 
     companion object {
-        const val CHANNEL_ID = "tone_check"
+        // v0.26.3: the channel id is now sourced from Channels.TONE_CHECK
+        // (centralised). Callers should use Channels.TONE_CHECK
+        // directly; this constant is kept for backward-compat.
+        const val CHANNEL_ID = org.mindanchor.notifications.Channels.TONE_CHECK
         const val NOTIFICATION_ID = 0x7101
 
         const val EXTRA_SENDER = "tone_check_sender"
         const val EXTRA_BODY = "tone_check_body"
 
         /**
-         * Idempotently create the "Tone check" notification channel.
-         *
-         * Same pattern as
-         * [org.mindanchor.model.EmaScheduler.postPrompt]: the
-         * `getNotificationChannel` guard avoids re-creating on
-         * every post. The check is per-process; the channel
-         * itself is system-wide once created.
+         * The "Tone check" channel is created in
+         * [org.mindanchor.notifications.Channels.ensureAll] at process
+         * start (centralised v0.25.19). This stub is kept for
+         * backward-compat with any caller that still invokes
+         * `ensureChannel(...)`; it is a no-op because the channel
+         * is already created. The
+         * [org.mindanchor.permissions.NotificationChannelCreationFindingTest]
+         * pins that `createNotificationChannel` only appears in
+         * Channels.kt.
          */
-        fun ensureChannel(context: Context) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-            val manager = context.getSystemService(NotificationManager::class.java) ?: return
-            if (manager.getNotificationChannel(CHANNEL_ID) != null) return
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                context.getString(R.string.tone_check_channel_name),
-                NotificationManager.IMPORTANCE_HIGH,
-            )
-            channel.description = context.getString(R.string.tone_check_channel_description)
-            manager.createNotificationChannel(channel)
+        fun ensureChannel(@Suppress("UnusedParameter") context: Context) {
+            // no-op; the channel is created at process start.
         }
 
         /**

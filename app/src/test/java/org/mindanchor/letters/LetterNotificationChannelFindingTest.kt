@@ -13,16 +13,23 @@ import org.junit.Test
  * letter, not an alert), a string resource for the channel
  * name (so the Tamil localization in
  * `app/src/main/res/values-ta/strings.xml` is what a
- * Tamil-locale phone reads), and a one-time-create guard so
- * re-posts do not re-create the channel.
+ * Tamil-locale phone reads).
+ *
+ * v0.25.19: the channel creation moved from LetterScheduler.kt
+ * to org.mindanchor.notifications.Channels (centralised for
+ * all 6 channels). The per-post `getNotificationChannel == null`
+ * guard is GONE — `Channels.ensureAll(...)` is called once at
+ * process start by `org.mindanchor.MindAnchorApp.onCreate`,
+ * and `createNotificationChannel` is no longer called from
+ * per-post sites.
  *
  * The FindingTest pins each leg in turn. A future refactor
  * that bumps importance to `IMPORTANCE_HIGH` (loud alert,
  * wrong shape for a morning letter), or hard-codes the
  * channel name in a Kotlin literal (losing the Tamil
- * localization), or drops the getNotificationChannel guard
- * (creating the channel on every post — harmless but
- * pointless) flips the test red.
+ * localization), or moves the create call back into
+ * LetterScheduler (scattering channel creation again) flips
+ * the test red.
  */
 class LetterNotificationChannelFindingTest {
 
@@ -32,9 +39,17 @@ class LetterNotificationChannelFindingTest {
             ?: error("$relative not found from working directory ${File(".").absolutePath}.")
     }
 
+    // v0.25.19: the channel creation moved from LetterScheduler.kt
+    // to org.mindanchor.notifications.Channels (centralised).
+    // The test reads the new location.
     private val scheduler: String
         get() = fileAt(
             "app/src/main/java/org/mindanchor/letters/LetterScheduler.kt",
+        ).readText()
+
+    private val channels: String
+        get() = fileAt(
+            "app/src/main/java/org/mindanchor/notifications/Channels.kt",
         ).readText()
 
     private val stringsDefault: String
@@ -47,21 +62,24 @@ class LetterNotificationChannelFindingTest {
             "app/src/main/res/values-ta/strings.xml",
         ).readText()
 
-    @Test fun `LetterScheduler creates a NotificationChannel for the letters`() {
-        // The channel ID is a private const; the public
-        // surface is the notification itself. The FindingTest
+    @Test fun `Channels creates a NotificationChannel for the letters`() {
+        // v0.25.19: the channel creation moved out of
+        // LetterScheduler.kt and into org.mindanchor.notifications.Channels
+        // (centralised for all 6 channels). The FindingTest
         // pins that the createNotificationChannel call is in
         // place (a regression that drops it would mean
         // notifications on Android 8+ silently fail to
         // appear — exactly the kind of bug that does not
         // fail tests but fails users).
         assertTrue(
-            "LetterScheduler must call createNotificationChannel",
-            scheduler.contains("createNotificationChannel("),
+            "Channels must call createNotificationChannel for the letters channel",
+            channels.contains("createNotificationChannel(") &&
+                channels.contains("LETTERS") &&
+                channels.contains("R.string.letters_channel_name"),
         )
     }
 
-    @Test fun `LetterScheduler channel importance is IMPORTANCE_DEFAULT (gentle, not high)`() {
+    @Test fun `Channels letter channel importance is IMPORTANCE_DEFAULT (gentle, not high)`() {
         // The letter is a morning companion, not an alert.
         // IMPORTANCE_HIGH would put it in the heads-up
         // category and make it sound at 7am — wrong shape
@@ -70,20 +88,27 @@ class LetterNotificationChannelFindingTest {
         // refactor mistake that's easy to make when a
         // sister channel uses high) flips the test red.
         assertTrue(
-            "LetterScheduler channel must use IMPORTANCE_DEFAULT (not HIGH)",
+            "Channels letter channel must use IMPORTANCE_DEFAULT (not HIGH)",
             // The exact call site is `NotificationManager.IMPORTANCE_DEFAULT`
-            // inside the NotificationChannel ctor. The regex
-            // anchors on the import-style call to avoid matching
-            // unrelated references.
-            scheduler.contains("NotificationManager.IMPORTANCE_DEFAULT"),
+            // inside the NotificationChannel ctor, and the
+            // context.getString call must follow the LETTERS
+            // id.
+            Regex(
+                """NotificationChannel\([\s\S]*?LETTERS[\s\S]*?NotificationManager\.IMPORTANCE_DEFAULT""",
+            ).containsMatchIn(channels),
         )
+        // No IMPORTANCE_HIGH anywhere in the LETTERS channel block
+        val lettersBlock = Regex(
+            """private fun letters\([\s\S]*?^\s*\}""",
+            RegexOption.MULTILINE,
+        ).find(channels)?.value ?: ""
         assertTrue(
-            "LetterScheduler must NOT use IMPORTANCE_HIGH (gentle morning letter, not alert)",
-            !scheduler.contains("IMPORTANCE_HIGH"),
+            "Channels must NOT use IMPORTANCE_HIGH in the letters channel block",
+            !lettersBlock.contains("IMPORTANCE_HIGH"),
         )
     }
 
-    @Test fun `LetterScheduler channel name uses the localised string resource (R string letters_channel_name)`() {
+    @Test fun `Channels letter channel name uses the localised string resource (R string letters_channel_name)`() {
         // The channel name is `context.getString(R.string.letters_channel_name)`,
         // not a Kotlin literal. Android's resource resolver
         // picks the right locale at runtime — a Tamil-locale
@@ -93,21 +118,14 @@ class LetterNotificationChannelFindingTest {
         // literal would break the Tamil localisation
         // silently.
         assertTrue(
-            "LetterScheduler must use R.string.letters_channel_name (not a hard-coded literal) for the channel name",
-            // Match the context.getString call shape
+            "Channels must use R.string.letters_channel_name (not a hard-coded literal) for the letter channel name",
             Regex(
                 """getString\(\s*R\.string\.letters_channel_name\s*\)""",
-            ).containsMatchIn(scheduler),
+            ).containsMatchIn(channels),
         )
         assertTrue(
-            "LetterScheduler must NOT hard-code an English channel name literal",
-            !scheduler.contains("NotificationChannel(\n") ||
-                // The literal that would be wrong is "Daily letter"
-                // in a place that bypasses the string resource. A
-                // grep for that string in the file, anywhere, is
-                // a positive bug signal: a hard-coded literal in
-                // the channel ctor.
-                !scheduler.contains("\"Daily letter\""),
+            "Channels must NOT hard-code an English channel name literal",
+            !channels.contains("\"Daily letter\""),
         )
     }
 
@@ -155,19 +173,32 @@ class LetterNotificationChannelFindingTest {
         )
     }
 
-    @Test fun `LetterScheduler guards createNotificationChannel with getNotificationChannel (no-op on re-posts)`() {
-        // v0.25.11 added the `getNotificationChannel(CHANNEL_ID) == null`
-        // guard so the channel is created at most once per
-        // install. A regression to bare
-        // `createNotificationChannel(...)` on every post is
-        // a no-op (Android dedupes) but pointless IO; the
-        // guard is what the user-notification spec asks for.
-        val guard = Regex(
-            """if\s*\(\s*manager\.getNotificationChannel\(\s*CHANNEL_ID\s*\)\s*==\s*null\s*\)\s*\{[\s\S]*?createNotificationChannel\(""",
-        ).containsMatchIn(scheduler)
+    @Test fun `Channels is called exactly once at process start (no per-post channel creation)`() {
+        // v0.25.19: the per-post `getNotificationChannel == null`
+        // guard is GONE — the channel is now created in one
+        // place (Channels.ensureAll) at process start via
+        // org.mindanchor.MindAnchorApp.onCreate. Per-post
+        // guards are obsolete because `createNotificationChannel`
+        // is no longer called from per-post sites.
+        //
+        // The FindingTest pins:
+        //   1. LetterScheduler.kt does NOT call createNotificationChannel
+        //      (per-post sites are out — the create is centralised)
+        //   2. MindAnchorApp.kt DOES call Channels.ensureAll
+        //      (the single create call at process start)
+        val schedulerNoCreate = !scheduler.contains("createNotificationChannel")
+        val app = fileAt(
+            "app/src/main/java/org/mindanchor/MindAnchorApp.kt",
+        ).readText()
+        val ensureAllCalled = app.contains("Channels.ensureAll")
         assertTrue(
-            "LetterScheduler must guard createNotificationChannel with `if (manager.getNotificationChannel(CHANNEL_ID) == null)`",
-            guard,
+            "LetterScheduler must NOT call createNotificationChannel (centralised in Channels v0.25.19). " +
+                "schedulerNoCreate=$schedulerNoCreate",
+            schedulerNoCreate,
+        )
+        assertTrue(
+            "MindAnchorApp must call Channels.ensureAll at process start. ensureAllCalled=$ensureAllCalled",
+            ensureAllCalled,
         )
     }
 }

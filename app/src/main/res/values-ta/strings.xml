@@ -318,7 +318,7 @@
         user-chosen time; gated on the model being
         installed and runnable.
     -->
-    <string name="letters_channel_name">Daily letter</string>
+    <string name="letters_channel_name">தினசரி கடிதம்</string>
     <string name="letters_notification_title">A letter from your week</string>
     <!--
         Inline forms, for the pattern sentence.
@@ -931,3 +931,5 @@
         combines both — Stream 4's English-copy base + Stream 3's
         Tamil letter strings.
     -->
+</resources>
+

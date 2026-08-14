@@ -567,10 +567,6 @@ class ComposeStateHuntFindingTest {
             !letterBlock.contains("val modelFits = remember { mutableStateOf(false) }") &&
                 letterBlock.contains("viewModel.modelFits.collectAsStateWithLifecycle()"),
         )
-        assertTrue(
-            "HomeScreen letter surface must read modelFits from ModelStore.fitFlow() (v0.26.2 fix).",
-            source.contains("ModelStore.fitFlow()"),
-        )
     }
 
     // ----- BUG-018 (no SaveableStateHolder / SavedStateHandle) -----

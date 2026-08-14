@@ -54,6 +54,9 @@ object Channels {
      *  across restarts and must not be changed in isolation. */
     const val GOING_LIGHT = "org.mindanchor.goinglight"
 
+    /** SMS tone-check (v0.26.1 AppWatchService). High importance — it's a prompt, not a feed. */
+    const val TONE_CHECK = "org.mindanchor.tonecheck"
+
     /**
      * Create every channel. Idempotent on Android 8+ (the
      * `createNotificationChannel` call is a no-op if a
@@ -72,6 +75,7 @@ object Channels {
             ema(manager, context),
             pulse(manager, context),
             goingLight(manager, context),
+            toneCheck(manager, context),
         )
     }
 
@@ -139,6 +143,23 @@ object Channels {
             // knows it's on, the notification is in
             // the status bar.
             setShowBadge(false)
+        }
+        manager.createNotificationChannel(channel)
+    }
+
+    private fun toneCheck(manager: NotificationManager, context: Context) {
+        // v0.26.1 §3.3: the SMS tone-check prompt. AppWatchService
+        // posts a notification when an SMS arrives, deep-linking
+        // to BeforeYouSend. The notification is a prompt (the
+        // user is being asked to pause), so IMPORTANCE_HIGH
+        // (heads-up) is the right shape — different from the
+        // letter channel's IMPORTANCE_DEFAULT.
+        val channel = NotificationChannel(
+            TONE_CHECK,
+            context.getString(R.string.tone_check_channel_name),
+            NotificationManager.IMPORTANCE_HIGH,
+        ).apply {
+            description = context.getString(R.string.tone_check_channel_description)
         }
         manager.createNotificationChannel(channel)
     }
