@@ -1,10 +1,11 @@
 # v0.25.14 — v0.25.10+ backlog sweep: LauncherRoot state survives rotation/process death
 
-**Tag**: `v0.25.14` on `work/v0.21.0-10of10`
+**Tag**: `v0.25.14` on `work/v0.21.0-10of10` (commit `ad54d84`)
 **Version code**: 38 (was 37)
 **Version name**: 0.25.14 (was 0.25.13)
 **Test count**: 1369 debug + 1369 release = **2738 / 0 failed** (was 1368+1368=2736 in v0.25.13; +2 tests from the BUG-012 split)
 **Detekt**: clean
+**Release**: https://github.com/sampathmannam/MindAnchor/releases/tag/v0.25.14
 
 ## What this release does
 
