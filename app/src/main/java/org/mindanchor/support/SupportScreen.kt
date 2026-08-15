@@ -237,9 +237,40 @@ fun SupportScreen(
                 }
             }
 
-            // v0.27.0: three more evidence-grounded affordances for
-            // "right now". Each opens a dedicated activity.
+            // v0.28.2: "More moments" reordered to in-the-moment →
+            // reflective per the v0.28.0 design spec
+            // (docs/superpowers/specs/2026-08-15-v0.28.0-bpd-strict-design.md
+            // §D). The v0.28.0 release shipped the new five
+            // surfaces in the right conceptual order (in-the-moment
+            // first, reflective later) but accidentally placed the
+            // three v0.27.0 entries (Self-compassion, Radical
+            // acceptance, Interpersonal / DEAR MAN) BEFORE the new
+            // ones. Driving v0.28.0–v0.28.1 end-to-end on the phone
+            // surfaced this as a real ordering mismatch.
             //
+            // The intended order, in the v0.28.0 spec, was:
+            //   1. DBT STOP
+            //   2. TIPP
+            //   3. 5-4-3-2-1
+            //   4. Opposite Action (new)
+            //   5. Distress Thermometer (new)
+            //   6. ACCEPTS (new)
+            //   7. Letter to a Part (new)
+            //   8. Self-compassion break (v0.27.0)
+            //   9. Radical acceptance (v0.27.0)
+            //  10. DBT Diary Card (new)
+            //  11. Interpersonal skills = DEAR MAN / GIVE / FAST (v0.27.0)
+            //
+            // In-the-moment skills come first because a person in
+            // crisis who has just scrolled past the DBT crisis
+            // skills (STOP / TIPP / 5-4-3-2-1) is still in a
+            // distressed window. The reflective practices
+            // (Self-compassion, Radical acceptance, Diary Card)
+            // need a person who has already settled; placing them
+            // before the in-the-moment skills makes the wrong
+            // surface the closest tap.
+            //
+            // v0.27.0: three evidence-grounded affordances.
             //   * Self-compassion break (Neff 2003) — 3 lines, 45s.
             //   * Radical acceptance (Linehan 1993) — 4 lines, 40s.
             //   * Interpersonal skills (DBT Module 4 — DEAR MAN /
@@ -247,7 +278,11 @@ fun SupportScreen(
             //     field. Most-BPD-specific of the three; the brief
             //     identified "the moment when a person with BPD is
             //     about to send a difficult text message" as the
-            //     shape this fills.
+            //     shape this fills. Sits at the END of the in-the-
+            //     moment → reflective ordering because drafting a
+            //     difficult message is the most reflective action
+            //     in the group and benefits from the user having
+            //     first tried one of the in-the-moment skills.
             //
             // v0.28.0: added five more research-grounded surfaces
             // (Opposite Action, Distress Thermometer, ACCEPTS,
@@ -268,55 +303,6 @@ fun SupportScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            TextButton(
-                onClick = {
-                    runCatching {
-                        context.startActivity(
-                            Intent(
-                                context,
-                                org.mindanchor.support.SelfCompassionActivity::class.java,
-                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                        )
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp)
-                    .semantics { role = Role.Button },
-            ) { Text(stringResource(R.string.support_self_compassion_button)) }
-            TextButton(
-                onClick = {
-                    runCatching {
-                        context.startActivity(
-                            Intent(
-                                context,
-                                org.mindanchor.support.RadicalAcceptanceActivity::class.java,
-                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                        )
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp)
-                    .semantics { role = Role.Button },
-            ) { Text(stringResource(R.string.support_radical_acceptance_button)) }
-            TextButton(
-                onClick = {
-                    runCatching {
-                        context.startActivity(
-                            Intent(
-                                context,
-                                org.mindanchor.support.InterpersonalActivity::class.java,
-                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                        )
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp)
-                    .semantics { role = Role.Button },
-            ) { Text(stringResource(R.string.support_interpersonal_button)) }
-
             // v0.28.0: BPD-strict rebuild — five more research-grounded
             // surfaces, each opened from its own activity. The order
             // moves from in-the-moment (Opposite Action) to reflective
@@ -406,6 +392,42 @@ fun SupportScreen(
                     .heightIn(min = 48.dp)
                     .semantics { role = Role.Button },
             ) { Text(stringResource(R.string.support_letter_to_part_button)) }
+            // v0.27.0: three more evidence-grounded affordances
+            // for the reflective end of the in-the-moment →
+            // reflective ordering. The order is intentional — see
+            // the v0.28.2 block comment above for the rationale.
+            TextButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(
+                                context,
+                                org.mindanchor.support.SelfCompassionActivity::class.java,
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .semantics { role = Role.Button },
+            ) { Text(stringResource(R.string.support_self_compassion_button)) }
+            TextButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(
+                                context,
+                                org.mindanchor.support.RadicalAcceptanceActivity::class.java,
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .semantics { role = Role.Button },
+            ) { Text(stringResource(R.string.support_radical_acceptance_button)) }
             TextButton(
                 onClick = {
                     runCatching {
@@ -422,6 +444,22 @@ fun SupportScreen(
                     .heightIn(min = 48.dp)
                     .semantics { role = Role.Button },
             ) { Text(stringResource(R.string.support_diary_card_button)) }
+            TextButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(
+                                context,
+                                org.mindanchor.support.InterpersonalActivity::class.java,
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .semantics { role = Role.Button },
+            ) { Text(stringResource(R.string.support_interpersonal_button)) }
 
             // --- The plan ---
             Row(
