@@ -5,32 +5,40 @@ import org.junit.Test
 
 /**
  * B7 (SOTA v2 bug-hunt, agent #5): the v0.25.5 WP-F "today's one thing"
- * card uses `var draft by remember { mutableStateOf("") }` instead of
+ * card used `var draft by remember { mutableStateOf("") }` instead of
  * `rememberSaveable`. A config change (rotation, font size, locale,
- * dark-mode toggle) loses the typed sentence. This is the same
+ * dark-mode toggle) would lose the typed sentence. This is the same
  * BUG-002 pattern the v0.25.7 hunt found in OnboardingScreen, repeated
  * in the v0.25.5+ new card.
  *
- * File-shape pin: the fix PR adds `import androidx.compose.runtime.saveable.rememberSaveable`
- * and changes the `remember` to `rememberSaveable`. The assert below
- * is the regression guard.
+ * v0.28.0 (BPD-strict cut): the OneThingCard Composable was removed
+ * from the home surface entirely. The data model (oneThing StateFlow +
+ * setOneThing method in LauncherViewModel) is preserved for the
+ * export payload. The original BUG-7 rememberSaveable pin is
+ * replaced with a "composable is gone" pin — a regression that
+ * re-introduces the home-surface card would re-introduce both
+ * the cognitive-load problem and the config-change draft-loss
+ * bug the v0.28.0 cut explicitly removed.
  */
 class OneThingCardDraftIsSaveableFindingTest {
 
     @Test
-    fun `OneThingCard draft is rememberSaveable (regression guard for B7)`() {
+    fun `v0-28-0 BPD-strict cut — OneThingCard Composable is removed from HomeScreen`() {
         val source = java.io.File(
             "src/main/java/org/mindanchor/launcher/HomeScreen.kt",
         ).readText()
-        // The pre-fix shape: `var draft by remember { mutableStateOf("") }`
-        // inside the `if (text == null) { ... }` branch of OneThingCard.
-        val oneThingBlock = source.substringAfter("private fun OneThingCard")
-            .substringBefore("@Composable\nprivate fun BedtimeListCard")
+        // The v0.28.0 cut removes the OneThingCard Composable
+        // from HomeScreen. A regression that re-introduces the
+        // Composable would re-introduce both the BUG-7
+        // config-change draft-loss pattern AND the cognitive-load
+        // problem (third task-capture card overlapping with
+        // OpenLoop + QuickNotes) that v0.28.0 explicitly cut.
         assertTrue(
-            "OneThingCard.draft must be `rememberSaveable`, not `remember` — " +
-                "the v0.25.5+ WP-F new card repeats the v0.25.7 BUG-002 pattern " +
-                "and loses typed input on every config change.",
-            oneThingBlock.contains("rememberSaveable { mutableStateOf(\"\") }"),
+            "OneThingCard Composable must NOT be in HomeScreen.kt (v0.28.0 " +
+                "BPD-strict cut). A regression that re-introduces the " +
+                "Composable would re-introduce the BUG-7 draft-loss pattern. " +
+                "source=\n" + source.take(2000),
+            !source.contains("private fun OneThingCard("),
         )
     }
 }

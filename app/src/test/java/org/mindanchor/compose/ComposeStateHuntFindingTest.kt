@@ -159,26 +159,34 @@ class ComposeStateHuntFindingTest {
     // flipped pin asserts the rememberSaveable pattern exists inside
     // OneThingCard specifically (between the function definition and
     // its closing brace, with the `if (text == null)` branch above it).
+    //
+    // v0.28.0 (BPD-strict cut): OneThingCard Composable is removed
+    // from the home surface entirely. The data model (oneThing
+    // StateFlow + setOneThing method in LauncherViewModel) is
+    // preserved for the export payload. The original BUG-005
+    // rememberSaveable pin is replaced with a "composable is gone"
+    // pin — a regression that re-introduces the home-surface card
+    // would re-introduce the cognitive-load problem the v0.28.0
+    // cut explicitly removed.
 
     @Test
-    fun `BUG-005 OneThingCard CAPTURE-mode draft uses rememberSaveable (v0_25_10 fix)`() {
+    fun `BUG-005 v0_28_0 BPD-strict cut — OneThingCard Composable is removed from HomeScreen`() {
         val source = readSource("HomeScreen.kt", "launcher")
         assertNotNull(source)
         val src = source!!
-        val fnIdx = src.indexOf("private fun OneThingCard(")
-        // v0.25.14 fix: the file has 3 `var draft by rememberSaveable` lines
-        // (OneThingCard, OpenLoopCard, QuickNotesCard). Plain indexOf would
-        // return the first one — which is OpenLoopCard's, BEFORE OneThingCard.
-        // Search from fnIdx so the matched pattern is provably inside
-        // OneThingCard, not the file-scope first match.
-        val captureIdx = if (fnIdx >= 0) src.indexOf("if (text == null) {", fnIdx) else -1
-        val draftIdx = if (captureIdx >= 0) src.indexOf("var draft by rememberSaveable { mutableStateOf(\"\") }", captureIdx) else -1
+        // The v0.28.0 cut removes the OneThingCard Composable
+        // definition AND the call site from HomeScreen. A regression
+        // that re-introduces either flips this assertion red.
+        val defIdx = src.indexOf("private fun OneThingCard(")
+        val callIdx = src.indexOf("\n            OneThingCard(")
         assertTrue(
-            "OneThingCard CAPTURE-mode draft must use rememberSaveable (v0.25.10 fix). " +
-                "fnIdx=$fnIdx captureIdx=$captureIdx draftIdx=$draftIdx. " +
-                "The order must be: fn < capture < draft. " +
-                "source=\n$src",
-            fnIdx >= 0 && captureIdx > fnIdx && draftIdx > captureIdx,
+            "BUG-005 (v0.28.0 fix): OneThingCard Composable must be removed from " +
+                "HomeScreen.kt (BPD-strict cut: the first question on home is the " +
+                "Distress Thermometer, not 'one thing today'). " +
+                "defIdx=$defIdx callIdx=$callIdx. A regression that re-introduces the " +
+                "composable re-introduces the third task-capture card that " +
+                "v0.28.0 explicitly removed for the BPD-safe home.",
+            defIdx < 0 && callIdx < 0,
         )
     }
 

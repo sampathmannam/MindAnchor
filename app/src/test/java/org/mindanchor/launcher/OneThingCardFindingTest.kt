@@ -6,18 +6,27 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * v0.25.5 WP-F: the "today's one thing" micro-action card.
+ * v0.25.5 WP-F: the "today's one thing" data model.
  *
  * Martell 2013 review of goal-setting: a single, narrow, today's-
- * action text outperforms a list of goals on follow-through. The
- * affordance is one line, one tap, and silent when nothing is
- * set. A regression that grew it into a list (the obvious
- * "improvement" the moment the affordance is shipped) would
- * invert the finding.
+ * action text outperforms a list of goals on follow-through.
  *
- * The five tests below pin the data layer + the file shape of
- * the composable. The data layer is the contract; the composable
- * is the user-facing payoff.
+ * v0.28.0 (BPD-strict cut): the OneThingCard Composable was
+ * removed from the home surface (the first question the home
+ * asks is "how is it right now?", not "what's the one thing
+ * today?"). The data model — the prefs field, the StateFlow,
+ * the setOneThing method — is preserved for the export
+ * payload and any future re-introduction.
+ *
+ * The two tests below pin the data model:
+ *  1. LauncherPrefs.MAX_ONE_THING_LENGTH caps the stored text.
+ *  2. LauncherViewModel exposes oneThing as a StateFlow and has
+ *     setOneThing.
+ *
+ * The original three Composable-shape tests (silent-when-null,
+ * Done-with-it button, HomeScreen wiring) were removed in
+ * v0.28.0 because the Composable no longer exists. The data
+ * model is the contract that survives the cut.
  */
 class OneThingCardFindingTest {
 
@@ -32,48 +41,13 @@ class OneThingCardFindingTest {
     }
 
     @Test
-    fun `OneThingCard is silent when the text is null`() {
-        // The file-shape pin: the composable returns early (no
-        // rendering) when the text is null. A regression that
-        // rendered the label with an empty value would clutter
-        // the home corner with a permanent affordance the user
-        // never asked for.
-        val source = readSource("HomeScreen.kt")
-        assertNotNull("HomeScreen.kt must be readable for the file-shape pin", source)
-        assertTrue(
-            "OneThingCard is a private composable on HomeScreen.kt",
-            source!!.contains("private fun OneThingCard("),
-        )
-        assertTrue(
-            "OneThingCard returns early when text is null",
-            source.contains("if (text == null) {"),
-        )
-    }
-
-    @Test
-    fun `OneThingCard renders a 'Done with it' button when text is set`() {
-        // The "Done with it" button is the affordance that lets
-        // the user mark the day's one thing as done. A regression
-        // that made the card read-only (no clear button) would
-        // trap the user with whatever they typed yesterday,
-        // which is the opposite of "today's one thing".
-        val source = readSource("HomeScreen.kt")
-        assertNotNull(source)
-        assertTrue(
-            "OneThingCard has a 'Done with it' branch with onClick = onClear",
-            source!!.contains("Text(stringResource(R.string.one_thing_done)") &&
-                source.contains("onClick = onClear"),
-        )
-    }
-
-    @Test
     fun `LauncherViewModel exposes oneThing as a StateFlow and has setOneThing`() {
-        // The wire-through from the home card to the store goes
-        // through the ViewModel. A regression that put the
-        // oneThing on the home screen as a direct DataStore
-        // collectAsState would couple the screen to the store
+        // The data layer is the contract that survives the
+        // v0.28.0 Composable cut. A regression that put the
+        // oneThing on a different surface as a direct DataStore
+        // collectAsState would couple that surface to the store
         // shape, and a future refactor would have to touch the
-        // home composable.
+        // surface composable.
         val source = readSource("LauncherViewModel.kt")
         assertNotNull(source)
         assertTrue(
@@ -86,29 +60,6 @@ class OneThingCardFindingTest {
             "LauncherViewModel has setOneThing that writes to the store",
             source.contains("fun setOneThing(text: String?)") &&
                 source.contains("prefs.setOneThing(text)"),
-        )
-    }
-
-    @Test
-    fun `HomeScreen passes oneThing through to the OneThingCard`() {
-        // The home screen wires the ViewModel's oneThing into
-        // the OneThingCard. A regression that left either
-        // callback unwired would produce a card that does
-        // nothing on tap, which is the silent-failure mode the
-        // senior-tester audit has flagged before.
-        val source = readSource("HomeScreen.kt")
-        assertNotNull(source)
-        assertTrue(
-            "HomeScreen passes oneThing + callbacks into OneThingCard",
-            source!!.contains("oneThing = oneThing,") &&
-                source.contains("onSet = onOneThingSet,") &&
-                source.contains("onClear = onOneThingClear,"),
-        )
-        // The ViewModel callback is wired to the actual store write.
-        assertTrue(
-            "HomeScreen ties the OneThingCard callbacks to viewModel.setOneThing",
-            source.contains("onOneThingSet = viewModel::setOneThing") &&
-                source.contains("onOneThingClear = { viewModel.setOneThing(null) }"),
         )
     }
 

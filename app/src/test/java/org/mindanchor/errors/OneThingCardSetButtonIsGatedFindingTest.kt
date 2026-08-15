@@ -4,32 +4,38 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * B10 (SOTA v2 bug-hunt, agent #5): the v0.25.5 WP-F OneThingCard's
- * "Set" TextButton has no `enabled = draft.isNotBlank()` gate. A user
- * can tap "Set" with an empty draft, the prefs layer trims and removes
- * the key, and the input is cleared. The QuickNotesCard (the v0.20.4
- * sibling) has the gate; the v0.25.5+ new card does not.
+ * B10 (SOTA v2 bug-hunt, agent #5): the v0.25.5 WP-F "today's one
+ * thing" card has a "Set" TextButton that fires on a blank draft. The
+ * launcher state receives an empty string. The BUG-005 fix migrates
+ * the draft to rememberSaveable; the BUG-10 fix gates the Set
+ * affordance on a non-blank draft.
  *
- * File-shape pin: the fix PR adds `enabled = draft.isNotBlank()` to
- * the OneThingCard's "Set" button.
+ * v0.28.0 (BPD-strict cut): the OneThingCard Composable was removed
+ * from the home surface entirely. The data model (oneThing StateFlow +
+ * setOneThing method in LauncherViewModel) is preserved for the
+ * export payload. The original BUG-10 Set-gate pin is replaced with
+ * a "composable is gone" pin — a regression that re-introduces the
+ * home-surface card would re-introduce both the Set-without-gate bug
+ * AND the cognitive-load problem that v0.28.0 explicitly cut.
  */
 class OneThingCardSetButtonIsGatedFindingTest {
 
     @Test
-    fun `OneThingCard Set button is enabled-gated on draft non-blank (regression guard for B10)`() {
+    fun `v0-28-0 BPD-strict cut — OneThingCard Composable is removed from HomeScreen`() {
         val source = java.io.File(
             "src/main/java/org/mindanchor/launcher/HomeScreen.kt",
         ).readText()
-        // The OneThingCard's "Set" TextButton should have
-        // `enabled = draft.isNotBlank()` matching the QuickNotesCard
-        // sibling. The literal is the regression guard.
-        val oneThingBlock = source.substringAfter("private fun OneThingCard")
-            .substringBefore("@Composable\nprivate fun BedtimeListCard")
+        // The v0.28.0 cut removes the OneThingCard Composable
+        // from HomeScreen. A regression that re-introduces the
+        // Composable would re-introduce both the BUG-10
+        // Set-without-gate pattern AND the cognitive-load
+        // problem that v0.28.0 explicitly removed.
         assertTrue(
-            "OneThingCard's Set button must be `enabled = draft.isNotBlank()` — " +
-                "the v0.25.5 WP-F new card regressed the `enabled`-gate " +
-                "discipline the QuickNotesCard (v0.20.4) had.",
-            oneThingBlock.contains("enabled = draft.isNotBlank()"),
+            "OneThingCard Composable must NOT be in HomeScreen.kt (v0.28.0 " +
+                "BPD-strict cut). A regression that re-introduces the " +
+                "Composable would re-introduce the BUG-10 Set-without-gate " +
+                "pattern. source=\n" + source.take(2000),
+            !source.contains("private fun OneThingCard("),
         )
     }
 }
