@@ -363,6 +363,32 @@
             android:exported="false" />
 
         <!--
+            v0.28.0: BPD-strict rebuild — four research-grounded
+            single-screen Composables, each launched from SupportActivity.
+            Distress Thermometer (Linehan 1993 + Gross 1998), Letter to a
+            Part (IFS Schwartz 1995), ACCEPTS (DBT Linehan 1993 ch. 8
+            self-soothing), DBT Diary Card (Linehan 1993 ch. 11). All
+            non-exported; the 2am shell's "talk to someone" still goes
+            through SupportActivity (R1 honored — no hardcoded helpline
+            numbers).
+        -->
+        <activity
+            android:name=".support.DistressThermometerActivity"
+            android:exported="false" />
+        <activity
+            android:name=".support.LetterToPartActivity"
+            android:exported="false" />
+        <activity
+            android:name=".support.AcceptsActivity"
+            android:exported="false" />
+        <activity
+            android:name=".support.DiaryCardActivity"
+            android:exported="false" />
+        <activity
+            android:name=".support.OppositeActionActivity"
+            android:exported="false" />
+
+        <!--
             The pause, when an app was opened from somewhere other than the
             launcher. Its own taskAffinity so it sits in a task of its own
             on top of whatever opened, rather than joining that app's task
