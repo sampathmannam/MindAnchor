@@ -53,7 +53,10 @@ import org.mindanchor.R
  * "good" or "bad" anchor — every value is the right answer.
  */
 @Composable
-fun DistressThermometerScreen(onDone: () -> Unit) {
+fun DistressThermometerScreen(
+    onDone: () -> Unit,
+    onOpenSupport: () -> Unit = onDone,
+) {
     var value by remember { mutableFloatStateOf(50f) }
     val rounded = value.toInt()
     val (labelRes, suggestionRes) = when {
@@ -123,16 +126,17 @@ fun DistressThermometerScreen(onDone: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurface,
             )
             if (rounded >= 86) {
-                // The high-distress band gets a one-tap "open
-                // SupportActivity to the crisis lines" affordance.
-                // The user is in the moment of need; the affordance
-                // is one tap away, not buried.
+                // The high-distress band gets a one-tap "open the
+                // Support group" affordance. v0.28.0 wired this to
+                // onDone (a silent dismiss); v0.28.1 wires it to
+                // onOpenSupport so the affordance actually does what
+                // its label says.
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     TextButton(
-                        onClick = onDone,
+                        onClick = onOpenSupport,
                         modifier = Modifier
                             .weight(1f)
                             .heightIn(min = 48.dp)

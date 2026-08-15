@@ -1,6 +1,7 @@
 @file:Suppress("MagicNumber", "MaxLineLength", "FunctionNaming", "LongMethod")
 package org.mindanchor.support
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -16,9 +17,9 @@ import org.mindanchor.ui.CalmBackground
  *           labelling)
  *   61–85 → TIPP (temperature, intense movement, paced breath,
  *           paired muscle relaxation)
- *   86–100 → call a crisis line (the user is on the high end of
- *           the DBT Stage 1 crisis-survival band; this is the
- *           single most-evidenced moment to surface the line)
+ *   86–100 → open the Support group (DBT skills + the people the
+ *           user would actually call — no hardcoded numbers,
+ *           R1 honored)
  *
  * The matching is deterministic and BPD-safe. The activity does
  * not save, log, or score. The Done button dismisses; the
@@ -29,13 +30,31 @@ import org.mindanchor.ui.CalmBackground
  *   * Linehan 1993, DBT Emotion Regulation, PLEASE / opposite action
  *   * Gross 1998, emotion regulation process model
  *   * Lieberman 2007, affect labelling reduces amygdala response
+ *
+ * v0.28.1: the 86+ band's "Open Support" affordance now actually
+ * launches SupportActivity. Previously it called onDone (a silent
+ * dismiss), which was a false promise to a user in the high-distress
+ * band. R1 stays honored — no hardcoded helpline numbers anywhere.
  */
 class DistressThermometerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             CalmBackground { _ ->
-                DistressThermometerScreen(onDone = { finish() })
+                DistressThermometerScreen(
+                    onDone = { finish() },
+                    onOpenSupport = {
+                        // v0.28.1: the high-distress band reaches the
+                        // Support group directly. R1 honored — no
+                        // hardcoded numbers, just DBT skills + the
+                        // user's own contact list.
+                        startActivity(
+                            Intent(this, SupportActivity::class.java)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                        finish()
+                    },
+                )
             }
         }
     }
