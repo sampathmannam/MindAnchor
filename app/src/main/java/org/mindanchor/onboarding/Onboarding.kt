@@ -17,7 +17,7 @@ enum class Goal {
     INTERRUPTIONS, // -> notification batching
     COMPULSIVE_APPS, // -> friction gate
     SLEEP, // -> sunset mode + sleep rhythm
-    MEASUREMENT, // -> wellbeing pulse
+    MEASUREMENT, // -> health connect
 }
 
 class OnboardingPrefs(private val context: Context) {

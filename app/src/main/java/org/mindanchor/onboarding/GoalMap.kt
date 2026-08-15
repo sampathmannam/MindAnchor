@@ -11,12 +11,15 @@ enum class SettingsSection {
     WATCH,
     SUNSET,
     SLEEP,
-    PULSE,
     /**
      * v0.20.4: the Health Connect permission flow. Lives under
      * [Goal.MEASUREMENT] so a person who said "I want to track this
      * with my watch" lands on the connect screen rather than the
-     * sleep or pulse reading.
+     * sleep reading.
+     *
+     * v0.26.6: PULSE removed from this enum (and the pulse package
+     * removed from the app — third ad-hoc check-in alongside EMA +
+     * CheckIn). MEASUREMENT now points at HEALTH_CONNECT alone.
      */
     HEALTH_CONNECT,
     OWNER,
@@ -69,7 +72,7 @@ object GoalMap {
                     SettingsSection.GRAYSCALE,
                 )
 
-                Goal.MEASUREMENT -> setOf(SettingsSection.PULSE, SettingsSection.HEALTH_CONNECT)
+                Goal.MEASUREMENT -> setOf(SettingsSection.HEALTH_CONNECT)
             }
         }.toSet()
 

@@ -24,8 +24,8 @@ import java.nio.charset.StandardCharsets
  * `synchronized` block; the log file is a
  * single-writer, multi-reader resource. The
  * [ShareLogsEntryPoint] is the reader; the
- * friction gate, the pulse flow, and the bedtime
- * list are the writers.
+ * friction gate and the bedtime list are the
+ * writers.
  *
  * @wording-reviewed — the share-intent text and
  * the "what's in this file" note in settings are

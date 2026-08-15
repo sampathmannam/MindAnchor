@@ -12,15 +12,20 @@ import org.junit.Test
  * tactile feedback: a single haptic for "save" is information-poor;
  * distinct feedback types (long-press for save, soft "whoosh" for
  * clear, etc.) let the user navigate by feel. The fix widens the
- * surface to four call sites and at least two distinct
+ * surface to multiple call sites and at least two distinct
  * HapticFeedbackType values, so the user can tell the actions
  * apart without looking at the screen.
  *
- * The five tests below pin the surface: one per call site, plus
+ * v0.26.6: BedtimeListCard removed from the home surface, so
+ * the bedtime-save haptic site is gone. The surface is now
+ * three call sites (NoteScreen delete, LetterInbox delete,
+ * QuickNotesCard clear), still spanning at least two distinct
+ * HapticFeedbackType values.
+ *
+ * The tests below pin the surface: one per call site, plus
  * the type-variety assertion. A regression that copied the "save"
- * haptic to all four call sites would pass four of the tests
- * and fail the fifth — the type-variety test is the load-bearing
- * one.
+ * haptic to all the call sites would pass the per-site tests
+ * and fail the type-variety test — the load-bearing one.
  */
 class HapticRichCapturesFindingTest {
 
@@ -61,24 +66,6 @@ class HapticRichCapturesFindingTest {
             source.contains("haptics.performHapticFeedback(") &&
                 source.contains("HapticFeedbackType.LongPress") &&
                 source.contains("onDelete(pendingDeleteDate)"),
-        )
-    }
-
-    @Test
-    fun `BedtimeList save fires a haptic on tap`() {
-        val source = readSource("HomeScreen.kt")
-        assertNotNull(source)
-        // v0.25.16: the bedtime save button is in
-        // BedtimeListCard; the haptic is on the onClick
-        // handler. The haptic is routed through the
-        // [org.mindanchor.ui.HapticFeedbackGate]
-        // CompositionLocal.
-        assertTrue(
-            "HomeScreen.kt fires a LongPress haptic next to the bedtime save button " +
-                "(v0.25.16 fix routes through HapticFeedbackGate)",
-            source!!.contains("haptics.performHapticFeedback(HapticFeedbackType.LongPress)") &&
-                source.contains("onSave(drafts.toList())") &&
-                source.contains("org.mindanchor.ui.LocalHapticFeedbackGate"),
         )
     }
 

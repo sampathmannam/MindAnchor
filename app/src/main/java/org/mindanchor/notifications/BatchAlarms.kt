@@ -83,8 +83,8 @@ class BatchReleaseReceiver : BroadcastReceiver() {
  * Re-arms every alarm after a reboot.
  *
  * The list used to live here and had drifted out of date — check-in
- * prompts and the pulse reminder were missing from it, so both stopped
- * after a restart. It now lives in [org.mindanchor.Alarms], which the
+ * prompts were missing from it, so they stopped after a restart. It
+ * now lives in [org.mindanchor.Alarms], which the
  * exact-alarm permission receiver shares, so there is one list to keep
  * right instead of two to keep in step.
  */

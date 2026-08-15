@@ -83,7 +83,6 @@ class ComposeStateHuntFindingTest {
             "settings/SettingsScreen.kt" to "settings",
             "settings/GoogleDriveBackupSettingsSection.kt" to "settings",
             "vitals/PpgScreen.kt" to "vitals",
-            "pulse/PulseScreen.kt" to "pulse",
             "report/ReportScreen.kt" to "report",
             "support/SupportScreen.kt" to "support",
             "digest/DigestScreen.kt" to "digest",
@@ -123,7 +122,6 @@ class ComposeStateHuntFindingTest {
             "settings/SettingsScreen.kt" to "settings",
             "settings/GoogleDriveBackupSettingsSection.kt" to "settings",
             "vitals/PpgScreen.kt" to "vitals",
-            "pulse/PulseScreen.kt" to "pulse",
             "report/ReportScreen.kt" to "report",
             "support/SupportScreen.kt" to "support",
             "digest/DigestScreen.kt" to "digest",
@@ -248,43 +246,14 @@ class ComposeStateHuntFindingTest {
     // the SnapshotStateList to a plain `List<String>` for the Bundle
     // and rebuilds on restore.
     //
-    // The pin below is the v0.26.3 fix-shape: the drafts are wrapped
-    // in `rememberSaveable` AND the list is saved via `listSaver`
-    // (a `Saver<SnapshotStateList<String>, String>`), with the
-    // restore rebuilding a `mutableStateListOf` from the saved list.
-
-    @Test
-    fun `BUG-008 BedtimeListCard CAPTURE-mode drafts use rememberSaveable with listSaver (v0_26_3 fix)`() {
-        val source = readSource("HomeScreen.kt", "launcher")
-        assertNotNull(source)
-        val src = source!!
-        val fnIdx = src.indexOf("private fun BedtimeListCard(")
-        // v0.26.3 fix: scope the search to BedtimeListCard (the
-        // file has many `mutableStateListOf` sites; we want the one
-        // inside the CAPTURE branch of this specific function).
-        val captureIdx = if (fnIdx >= 0) src.indexOf("BedtimePhase.CAPTURE -> {", fnIdx) else -1
-        // v0.26.3: the rememberSaveable now uses a custom
-        // listSaver; the literal `val drafts = rememberSaveable {`
-        // substring won't match because the call is multi-line.
-        // Match on the more durable pattern.
-        val draftsIdx = if (captureIdx >= 0) src.indexOf("val drafts = rememberSaveable", captureIdx) else -1
-        // v0.26.3: the listSaver must be on the drafts. Match the
-        // `<SnapshotStateList<String>` + `listSaver` shape.
-        val listSaverIdx = if (draftsIdx >= 0) src.indexOf("listSaver<SnapshotStateList<String>, String>", draftsIdx) else -1
-        // The list must still be created with mutableStateListOf.
-        val listShapeIdx = if (listSaverIdx >= 0) src.indexOf("mutableStateListOf<String>().apply { add(\"\") }", listSaverIdx) else -1
-        assertTrue(
-            "BedtimeListCard CAPTURE-mode drafts must use rememberSaveable " +
-                "with a listSaver (v0.26.3 fix — auto-Saveable doesn't work for " +
-                "SnapshotStateList). fnIdx=$fnIdx captureIdx=$captureIdx " +
-                "draftsIdx=$draftsIdx listSaverIdx=$listSaverIdx " +
-                "listShapeIdx=$listShapeIdx. The order must be: " +
-                "fn < capture < drafts < listSaver < listShape. " +
-                "source=\n$src",
-            fnIdx >= 0 && captureIdx > fnIdx && draftsIdx > captureIdx &&
-                listSaverIdx > draftsIdx && listShapeIdx > listSaverIdx,
-        )
-    }
+    // v0.26.6: BedtimeListCard removed from the home surface.
+    // There is no BedtimeListCard in the file. The BUG-008
+    // fix-shape pin is no longer applicable — the file does not
+    // contain a `private fun BedtimeListCard(` declaration, so
+    // the `fnIdx` check would always be -1. A future v0.27.x
+    // DBT diary card may re-introduce a similar shape (multi-line
+    // draft list, process-death survival) and a similar test
+    // would be needed.
 
     // ----- BUG-009 (AppActionsDialog rename) -----
     //
@@ -338,22 +307,11 @@ class ComposeStateHuntFindingTest {
     // migration is the one-keyword `remember` → `rememberSaveable`
     // swap on both `answers` and `savedScore`. Scope the search
     // to the PulseScreen Composable.
-
-    @Test
-    fun `BUG-011 PulseScreen answers and savedScore use rememberSaveable (v0_25_15 fix)`() {
-        val source = readSource("PulseScreen.kt", "pulse")
-        assertNotNull(source)
-        val src = source!!
-        val fnIdx = src.indexOf("fun PulseScreen(")
-        val answersIdx = if (fnIdx >= 0) src.indexOf("var answers by rememberSaveable { mutableStateOf(List(WhoFive.ITEM_COUNT) { -1 }) }", fnIdx) else -1
-        val savedIdx = if (answersIdx >= 0) src.indexOf("var savedScore by rememberSaveable { mutableStateOf<Int?>(null) }", answersIdx) else -1
-        assertTrue(
-            "PulseScreen answers and savedScore must use rememberSaveable (v0.25.15 fix). " +
-                "fnIdx=$fnIdx answersIdx=$answersIdx savedIdx=$savedIdx. " +
-                "The order must be: fn < answers < saved. source=\n$src",
-            fnIdx >= 0 && answersIdx > fnIdx && savedIdx > answersIdx,
-        )
-    }
+    //
+    // v0.26.6: PulseScreen removed from the app (pulse package
+    // dropped). The BUG-011 fix-shape is no longer applicable —
+    // there is no PulseScreen to pin. A future v0.27.x DBT diary
+    // card may re-introduce a similar shape and a similar test.
 
     // ----- BUG-012 (LauncherRoot surface state) -----
     //

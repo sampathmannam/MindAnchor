@@ -16,12 +16,14 @@ import org.junit.Test
  * "above-the-fold" claim against the 1080x2400
  * baseline.
  *
- * The fix promotes QuickNotesCard to the top of
- * the action stack: after OpenLoop, before
- * OneThing and BedtimeList. The file-shape pin
- * here is the call-site order in the home scroll
- * Column — QuickNotesCard must be rendered
- * between OpenLoopCard and OneThingCard.
+ * v0.26.6: BedtimeListCard removed from the home
+ * surface (third task-capture card overlapping
+ * with OpenLoop + OneThing). The home scroll
+ * order is now OpenLoop -> QuickNotes -> OneThing.
+ *
+ * The file-shape pin here is the call-site order
+ * in the home scroll Column — QuickNotesCard must
+ * be rendered between OpenLoopCard and OneThingCard.
  */
 class QuickNotesCardAboveFoldFindingTest {
 
@@ -40,7 +42,6 @@ class QuickNotesCardAboveFoldFindingTest {
         val openLoopCall = source!!.indexOf("\n            OpenLoopCard(")
         val quickNotesCall = source.indexOf("\n            QuickNotesCard(")
         val oneThingCall = source.indexOf("\n            OneThingCard(")
-        val bedtimeCall = source.indexOf("\n            BedtimeListCard(")
         assertTrue(
             "OpenLoopCard call site must come before QuickNotesCard " +
                 "call site. openLoopCall=$openLoopCall " +
@@ -56,11 +57,20 @@ class QuickNotesCardAboveFoldFindingTest {
                 "oneThingCall=$oneThingCall.",
             quickNotesCall > 0 && oneThingCall > quickNotesCall,
         )
+        // v0.26.6: BedtimeListCard is no longer rendered
+        // on home. A regression that re-introduces it
+        // would (1) re-add the third task-capture card
+        // that v0.26.6 explicitly cut, and (2) push
+        // the OneThing and Wellness cards further down
+        // on 1080x2400.
+        val bedtimeCall = source.indexOf("\n            BedtimeListCard(")
         assertTrue(
-            "QuickNotesCard call site must come before BedtimeListCard " +
-                "call site. quickNotesCall=$quickNotesCall " +
-                "bedtimeCall=$bedtimeCall.",
-            quickNotesCall > 0 && bedtimeCall > quickNotesCall,
+            "BedtimeListCard must NOT be rendered on the home surface " +
+                "(v0.26.6 cut: three task-capture cards was one too many). " +
+                "bedtimeCall=$bedtimeCall. A regression that re-introduces " +
+                "the card on home would re-add the cognitive load v0.26.6 " +
+                "explicitly removed for the BPD-safe home.",
+            bedtimeCall < 0,
         )
     }
 

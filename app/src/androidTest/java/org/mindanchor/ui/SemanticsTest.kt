@@ -29,7 +29,6 @@ import org.mindanchor.launcher.DisplayApp
 import org.mindanchor.launcher.LauncherRoot
 import org.mindanchor.model.EmaScreen
 import org.mindanchor.onboarding.OnboardingScreen
-import org.mindanchor.pulse.PulseScreen
 import org.mindanchor.report.ReportScreen
 import org.mindanchor.settings.SettingsScreen
 import org.mindanchor.support.SupportScreen
@@ -181,12 +180,6 @@ class SemanticsTest {
         walk("support")
         scrollAndClick(R.string.action_edit)
         walk("support editing")
-    }
-
-    @Test
-    fun pulse() {
-        set { PulseScreen(onClose = {}) }
-        walk("pulse")
     }
 
     @Test

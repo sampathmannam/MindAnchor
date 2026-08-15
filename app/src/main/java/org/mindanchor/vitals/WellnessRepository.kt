@@ -10,8 +10,7 @@ import java.time.LocalDate
  * For each [WellnessSignal]:
  *  1. Read the day's value from Health Connect (or from the app's
  *     own measured store when the camera PPG path applies — HRV
- *     is the one signal the launcher is built to measure itself,
- *     see [org.mindanchor.pulse]).
+ *     is the one signal the launcher is built to measure itself.
  *  2. Persist today's value to the rolling history (upsert by
  *     day, prune to [WellnessHistoryStore.KEEP_DAYS]).
  *  3. Compute a personal baseline (median + MAD) over the days

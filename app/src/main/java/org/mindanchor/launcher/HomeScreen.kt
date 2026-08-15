@@ -76,8 +76,6 @@ import org.mindanchor.letters.LetterStore
 import org.mindanchor.model.Note
 import org.mindanchor.model.NoteActivity
 import org.mindanchor.reader.ReadingSize
-import org.mindanchor.sleep.BedtimeList
-import org.mindanchor.sleep.BedtimePhase
 import org.mindanchor.report.ReportScreen
 import org.mindanchor.report.ReportStore
 import org.mindanchor.settings.SettingsScreen
@@ -261,7 +259,6 @@ fun LauncherRoot(
     // BUG-004 finding test was probing.
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val openLoop by viewModel.openLoop.collectAsStateWithLifecycle()
-    val bedtimeList by viewModel.bedtimeList.collectAsStateWithLifecycle()
     val oneThing by viewModel.oneThing.collectAsStateWithLifecycle()
     val recentNotes by viewModel.notes.collectAsStateWithLifecycle()
     val wellnessReadings by viewModel.wellnessReadings.collectAsStateWithLifecycle()
@@ -513,10 +510,6 @@ fun LauncherRoot(
                 onOneThingSet = viewModel::setOneThing,
                 onOneThingClear = { viewModel.setOneThing(null) },
                 onOpenGroundMe = { surface = LauncherSurface.GroundMe },
-                bedtimePhase = bedtimeList.first,
-                bedtimeItems = bedtimeList.second,
-                onBedtimeSave = viewModel::saveBedtimeList,
-                onBedtimeClear = viewModel::clearBedtimeList,
                 recentNotes = recentNotes,
                 onAddQuickNote = viewModel::addQuickNote,
                 hasReport = hasReport,
@@ -1090,201 +1083,12 @@ private fun formatWallClock(at: Instant?, today: LocalDate): String {
 }
 
 /**
- * The bedtime to-do list — see [org.mindanchor.sleep.BedtimeList].
- *
- * Deliberately silent most of the time, exactly like the
- * [OpenLoopCard] sibling above. Appears once in the quiet hours to
- * take a 1–5 line list (with a specificity nudge, per Scullin
- * 2018 — the active ingredient is the *specific* item, not the
- * list shape), and once the next morning to hand it back. A home
- * screen that always has something to say is one people stop
- * reading.
- *
- * Distinct from the OpenLoop card on three points:
- *  - Multiple lines (1–5), not a single line.
- *  - The first line of the prompt is a *specificity nudge* — a
- *    heuristic in the data layer ([org.mindanchor.sleep.BedtimeList.isSpecific])
- *    marks a line as specific or not, and a vague list is
- *    encouraged to be re-written in more concrete terms before
- *    being put down.
- *  - The save button is "Put it down", not "Save" or "Done" — the
- *    user is parking the thought for the morning, not crossing
- *    it off.
+ * v0.26.6: BedtimeListCard removed from the home surface
+ * (three task-capture cards was one too many). The data
+ * model (sleep/BedtimeList.kt), the DataStore
+ * (data/LauncherPrefs.kt), the strings, and the bedtimeList
+ * state flow are kept — only the home-surface call is gone.
  */
-@Composable
-private fun BedtimeListCard(
-    sky: SkyContent,
-    phase: BedtimePhase,
-    items: List<String>,
-    onSave: (List<String>) -> Unit,
-    onClear: () -> Unit,
-) {
-    // v0.25.5 WP-G: haptic confirmation on save (Brewster CHI
-    // 2007 — distinct tactile feedback for distinct actions).
-    //
-    // v0.25.16 BUG-013: route the haptic through the
-    // [org.mindanchor.ui.HapticFeedbackGate] CompositionLocal
-    // so a user with the system haptics toggle off (or the
-    // "remove animations" a11y preference on) does not get
-    // the launcher's save / clear / delete-confirm ticks.
-    // Direct `LocalHapticFeedback.current` would bypass both.
-    val haptics = org.mindanchor.ui.LocalHapticFeedbackGate.current
-    when (phase) {
-        BedtimePhase.NONE -> Unit
-
-        BedtimePhase.CAPTURE -> {
-            // Up to BedtimeList.MAX_ITEMS draft lines. Each is a
-            // pair of (current value, setter) so the user can
-            // add lines, edit them, or remove the last one. A
-            // single text field per line is the deliberately
-            // simple shape — a multi-line text box would invite
-            // the "task list" failure mode the brief explicitly
-            // rules out.
-            //
-            // v0.25.15: `mutableStateListOf` is auto-Saveable
-            // (its default Saver writes the list as a Bundle
-            // array of strings), so a one-keyword `remember` →
-            // `rememberSaveable` migration is the whole fix. The
-            // user is mid-capture of "feed the cat, water the
-            // plants, lock the door" and a config change should
-            // not throw all three lines away.
-            //
-            // v0.26.3 fix: `mutableStateListOf` returns a
-            // `SnapshotStateList<String>` which is NOT
-            // auto-Saveable (the default `rememberSaveable`
-            // implementation rejects it with
-            // "cannot be saved using the current
-            // SaveableStateRegistry"). The fix is a
-            // `listSaver` that converts the SnapshotStateList
-            // to a plain `List<String>` for the Bundle, then
-            // rebuilds the SnapshotStateList on restore.
-            val drafts = rememberSaveable(
-                saver = listSaver<SnapshotStateList<String>, String>(
-                    save = { it.toList() },
-                    restore = { saved ->
-                        mutableStateListOf<String>().apply { addAll(saved) }
-                    },
-                ),
-            ) {
-                mutableStateListOf<String>().apply { add("") }
-            }
-
-            // Specificity nudge: shown when the user has at
-            // least one non-empty draft and at least one of
-            // those drafts is *not* specific per the heuristic.
-            // The nudge is a one-line hint, not a validation
-            // gate — the user is allowed to save a vague list;
-            // they are simply told the heuristic exists.
-            val hasAny = drafts.any { it.isNotBlank() }
-            val hasVague = hasAny && drafts.any {
-                BedtimeList.cleanLine(it)?.let { line -> !BedtimeList.isSpecific(line) } ?: true
-            }
-
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(
-                    text = stringResource(R.string.bedtime_capture),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = sky.textSecondary,
-                    textAlign = TextAlign.Center,
-                )
-                drafts.forEachIndexed { index, value ->
-                    // v0.20.9: each bedtime-list line carries
-                    // its own bringIntoViewOnFocus. The list
-                    // can grow to BedtimeList.MAX_ITEMS lines
-                    // and the one being typed into is the one
-                    // the user is looking at; the parent
-                    // scroll container needs the request per
-                    // line, not just per card, because the
-                    // requester is registered on the field
-                    // that is currently focused.
-                    OutlinedTextField(
-                        value = value,
-                        onValueChange = { drafts[index] = it },
-                        singleLine = true,
-                        placeholder = {
-                            Text(stringResource(R.string.bedtime_capture_hint))
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .bringIntoViewOnFocus()
-                            .padding(top = 8.dp),
-                    )
-                }
-                if (drafts.size < BedtimeList.MAX_ITEMS) {
-                    TextButton(
-        modifier = Modifier.semantics { role = Role.Button },
-        onClick = { drafts.add("") },
-                    ) {
-                        Text(
-                            stringResource(R.string.bedtime_add_line),
-                            color = sky.textSecondary,
-                        )
-                    }
-                }
-                if (hasVague) {
-                    Text(
-                        text = stringResource(R.string.bedtime_specificity_nudge),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = sky.textSecondary,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
-                }
-                TextButton(
-        modifier = Modifier.semantics { role = Role.Button },
-        onClick = {
-                        // v0.25.5 WP-G: confirmation pulse on save,
-                        // same shape as the QuickNotesCard save. The
-                        // user is parking the list for the morning —
-                        // the same confirmation fits.
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onSave(drafts.toList())
-                    },
-                    enabled = drafts.any { it.isNotBlank() },
-                    // v0.25.10 (B6): Role.Button
-
-                ) {
-                    Text(stringResource(R.string.bedtime_save), color = sky.textPrimary)
-                }
-            }
-        }
-
-        BedtimePhase.RETURN -> Column(
-            modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                text = stringResource(R.string.bedtime_return_intro),
-                style = MaterialTheme.typography.bodySmall,
-                color = sky.textSecondary,
-                textAlign = TextAlign.Center,
-            )
-            items.forEach { line ->
-                Text(
-                    text = line,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = sky.textPrimary,
-                    textAlign = TextAlign.Center,
-                )
-            }
-            TextButton(
-        modifier = Modifier.semantics { role = Role.Button },
-        onClick = onClear,
-                // v0.25.10 (B6): Role.Button
-
-            ) {
-                Text(
-                    stringResource(R.string.bedtime_clear),
-                    color = sky.textSecondary,
-                )
-            }
-        }
-    }
-}
-
 /**
  * The home-screen quick-notes card. v0.20.4.
  *
@@ -1702,10 +1506,6 @@ private fun HomeSurface(
     onOneThingClear: () -> Unit = {},
     /** v0.26.0 §3.2: long-press the clock. */
     onOpenGroundMe: () -> Unit = {},
-    bedtimePhase: BedtimePhase = BedtimePhase.NONE,
-    bedtimeItems: List<String> = emptyList(),
-    onBedtimeSave: (List<String>) -> Unit = {},
-    onBedtimeClear: () -> Unit = {},
     /** Shown only when last night's report actually has something in it. */
     hasReport: Boolean = false,
     onOpenReport: () -> Unit = {},
@@ -1961,20 +1761,18 @@ private fun HomeSurface(
                 onClear = onOneThingClear,
             )
 
-            // Sibling card to OpenLoopCard above. Same idiom (silent
-            // most of the time, fires once in the quiet hours, once
-            // in the morning), different mechanism (Scullin 2018:
-            // a specific bedtime list, not a single open loop).
-            // The two coexist; the brief is explicit that the
-            // bedtime list is *not* a replacement for the open loop,
-            // they close different kinds of unfinished work.
-            BedtimeListCard(
-                sky = sky,
-                phase = bedtimePhase,
-                items = bedtimeItems,
-                onSave = onBedtimeSave,
-                onClear = onBedtimeClear,
-            )
+            // v0.26.6: BedtimeListCard removed from the home surface.
+            // Three task-capture cards (OpenLoop + OneThing + BedtimeList)
+            // was one too many — for a person with BPD (DBT: low
+            // cognitive load is the floor), three competing
+            // capture affordances is exactly the kind of surface
+            // clutter that the brief specifically says to avoid.
+            // The data model (sleep/BedtimeList.kt), the DataStore
+            // (data/LauncherPrefs.kt), the strings, and the
+            // bedtimeList state flow are kept — only the
+            // composable's home-surface call is gone. A future
+            // release can re-introduce a bedtime surface under the
+            // v0.27.x DBT diary card if the user asks for it.
 
             // v0.20.5: the wellness card. Same idiom
             // as the report link — silent when there is

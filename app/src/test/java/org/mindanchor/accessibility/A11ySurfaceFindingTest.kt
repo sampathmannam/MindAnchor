@@ -398,7 +398,6 @@ class A11ySurfaceFindingTest {
             "app/src/main/java/org/mindanchor/digest/DigestScreen.kt",
             "app/src/main/java/org/mindanchor/support/SupportScreen.kt",
             "app/src/main/java/org/mindanchor/report/ReportScreen.kt",
-            "app/src/main/java/org/mindanchor/pulse/PulseScreen.kt",
             "app/src/main/java/org/mindanchor/vitals/PpgScreen.kt",
             "app/src/main/java/org/mindanchor/onboarding/OnboardingScreen.kt",
             "app/src/main/java/org/mindanchor/HomeActivity.kt",

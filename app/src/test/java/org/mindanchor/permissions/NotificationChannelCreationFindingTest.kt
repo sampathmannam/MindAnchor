@@ -192,20 +192,6 @@ class NotificationChannelCreationFindingTest {
     }
 
     @Test
-    fun `PulseReminder uses Channels_PULSE constant`() {
-        val src = readSource("app/src/main/java/org/mindanchor/pulse/PulseReminder.kt")
-        assertTrue("PulseReminder.kt must be readable", src != null)
-        assertTrue(
-            "PulseReminder must use Channels.PULSE for the channel id.",
-            src!!.contains("Channels.PULSE"),
-        )
-        assertFalse(
-            "PulseReminder must not contain a hard-coded \"pulse\" literal.",
-            src.contains("\"pulse\""),
-        )
-    }
-
-    @Test
     fun `GoingLightVpnService uses Channels_GOING_LIGHT constant`() {
         val src = readSource("app/src/main/java/org/mindanchor/goinglight/GoingLightVpnService.kt")
         assertTrue("GoingLightVpnService.kt must be readable", src != null)

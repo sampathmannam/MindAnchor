@@ -15,15 +15,18 @@ import org.mindanchor.R
  * [org.mindanchor.MindAnchorApp.onCreate].
  *
  * Pre-v0.25.19, six call sites (BatchReleaser, LetterScheduler,
- * SessionManager, EmaScheduler, PulseReminder, GoingLightVpnService)
- * each created the channel on every post, guarded by a
- * `getNotificationChannel(...) == null` check. The guard
- * prevented redundant work, but the channel creation was
- * scattered: a future channel had to be added in the right
- * call site, with the right id, with the right description,
- * with the right importance. The v0.25.11 SOTA sweep pinned
- * the guard but did not move the creation. v0.25.19 moves
- * it here.
+ * SessionManager, EmaScheduler, GoingLightVpnService,
+ * v0.26.6-removed-PulseReminder) each created the channel
+ * on every post, guarded by a `getNotificationChannel(...) == null`
+ * check. The guard prevented redundant work, but the channel
+ * creation was scattered: a future channel had to be added in
+ * the right call site, with the right id, with the right
+ * description, with the right importance. The v0.25.11 SOTA
+ * sweep pinned the guard but did not move the creation.
+ * v0.25.19 moves it here. v0.26.6 dropped the pulse package
+ * entirely (third ad-hoc check-in alongside EMA + CheckIn;
+ * see [v0.26.6 release notes](docs/releases/v0.26.6.md) for
+ * the reasoning).
  *
  * The contract enforced by the
  * [org.mindanchor.permissions.NotificationChannelCreationFindingTest]
@@ -45,9 +48,6 @@ object Channels {
 
     /** EMA (ecological momentary assessment) check-in prompt. */
     const val EMA = "ema"
-
-    /** Pulse check-in reminder. */
-    const val PULSE = "pulse"
 
     /** Going Light VPN foreground service. The id must match
      *  GoingLightVpnService.CHANNEL_ID — the value is stable
@@ -73,7 +73,6 @@ object Channels {
             letters(manager, context),
             sessions(manager, context),
             ema(manager, context),
-            pulse(manager, context),
             goingLight(manager, context),
             toneCheck(manager, context),
         )
@@ -116,15 +115,6 @@ object Channels {
         val channel = NotificationChannel(
             EMA,
             context.getString(R.string.ema_channel_name),
-            NotificationManager.IMPORTANCE_LOW,
-        )
-        manager.createNotificationChannel(channel)
-    }
-
-    private fun pulse(manager: NotificationManager, context: Context) {
-        val channel = NotificationChannel(
-            PULSE,
-            context.getString(R.string.pulse_channel_name),
             NotificationManager.IMPORTANCE_LOW,
         )
         manager.createNotificationChannel(channel)

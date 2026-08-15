@@ -13,9 +13,10 @@ import org.junit.Test
 /**
  * SOTA v2 bug-hunt, finding #10: `Alarms.canBeExact(context)` is
  * only surfaced to the user in the SettingsScreen batching section
- * (line 1029). The other five schedulers that need exact alarms —
- * LetterScheduler, EmaScheduler, PulseReminder, ReportScheduler,
- * SunsetController — are not surfaced.
+ * (line 1029). The other four schedulers that need exact alarms —
+ * LetterScheduler, EmaScheduler, ReportScheduler, SunsetController
+ * — are not surfaced. (v0.26.6 dropped PulseReminder with the
+ * pulse package — it is no longer in the schedulers list.)
  *
  * Concretely: a user who turns on the daily letter without
  * granting SCHEDULE_EXACT_ALARM will see the letter arrive an
@@ -82,7 +83,6 @@ class ExactAlarmPermissionCoverageFindingTest {
             "src/main/java/org/mindanchor/notifications/BatchAlarms.kt",
             "src/main/java/org/mindanchor/letters/LetterScheduler.kt",
             "src/main/java/org/mindanchor/model/EmaScheduler.kt",
-            "src/main/java/org/mindanchor/pulse/PulseReminder.kt",
             "src/main/java/org/mindanchor/report/ReportScheduler.kt",
             "src/main/java/org/mindanchor/sunset/SunsetController.kt",
             "src/main/java/org/mindanchor/friction/SessionManager.kt",
