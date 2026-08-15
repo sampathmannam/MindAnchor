@@ -506,9 +506,19 @@ fun LauncherRoot(
                 onLoopClear = viewModel::clearOpenLoop,
                 onLoopPostpone = viewModel::postponeOpenLoop,
                 onLoopCancelPostpone = viewModel::cancelOpenLoopPostponement,
-                oneThing = oneThing,
-                onOneThingSet = viewModel::setOneThing,
-                onOneThingClear = { viewModel.setOneThing(null) },
+                // v0.28.0: open the Distress Thermometer activity.
+                // The home card's "Ground me here" button routes here.
+                // The activity is non-exported; a misconfigured manifest
+                // would silently fail without the runCatching wrapper.
+                onOpenDistressThermometer = {
+                    runCatching {
+                        val distressIntent = android.content.Intent(
+                            context,
+                            org.mindanchor.support.DistressThermometerActivity::class.java,
+                        )
+                        context.startActivity(distressIntent)
+                    }
+                },
                 onOpenGroundMe = { surface = LauncherSurface.GroundMe },
                 recentNotes = recentNotes,
                 onAddQuickNote = viewModel::addQuickNote,
@@ -919,87 +929,65 @@ private fun OpenLoopCard(
 }
 
 /**
- * v0.25.5 WP-F: the "today's one thing" micro-action card.
+ * v0.28.0: the home-surface Distress Thermometer card. The first
+ * question the home surface asks — validation-first, before any
+ * task-capture or note-taking. A single Surface with the title,
+ * the caption, and a "Ground me here" button that opens
+ * [org.mindanchor.support.DistressThermometerActivity].
  *
- * Martell 2013 found that a single, narrow, today's-action text
- * outperforms a list of goals on follow-through. The card is silent
- * when [text] is null; the "Set" affordance lets the user name one
- * thing; the "Done with it" affordance clears it. The card is
- * deliberately small — a single sentence, not a project.
+ * The full 0-100 slider lives in the activity; the home card is
+ * the launcher. The card is BPD-safe by design: no directive
+ * language, no all-or-nothing framing, no comparative
+ * day-rating language. The caption is validate-then-suggest
+ * ("slide to where it is, not where you want it to be").
+ *
+ * Research: Linehan 1993 (DBT Distress Tolerance, ch. 8) +
+ * Gross 1998 (emotion regulation). The home card is the
+ * "check in with where you are" affordance that the rest of
+ * the launcher's surfaces assume has already happened.
+ *
+ * v0.25.5-v0.27.0 used to render a OneThingCard ("today's one
+ * thing" — Martell 2013) as a sibling to OpenLoopCard +
+ * QuickNotesCard. v0.28.0 removes the OneThingCard from the
+ * home surface (BPD-strict: the first question is "how is it
+ * right now?", not "what's the one thing today?"). The
+ * OneThing data model is preserved in
+ * [org.mindanchor.launcher.LauncherViewModel.oneThing] for
+ * the export payload and any future re-introduction.
  */
 @Suppress("FunctionNaming")
 @Composable
-private fun OneThingCard(
+private fun HomeDistressCard(
     sky: SkyContent,
-    text: String?,
-    onSet: (String) -> Unit,
-    onClear: () -> Unit,
+    onOpen: () -> Unit,
 ) {
-    if (text == null) {
-        // v0.25.10 (SOTA v2 bug-hunt B7): rememberSaveable so a draft
-        // survives a config change / process death.
-        var draft by rememberSaveable { mutableStateOf("") }
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = stringResource(R.string.home_distress_card_title),
+            style = MaterialTheme.typography.titleMedium,
+            color = sky.textPrimary,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            text = stringResource(R.string.home_distress_card_caption),
+            style = MaterialTheme.typography.bodySmall,
+            color = sky.textSecondary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        TextButton(
+            onClick = onOpen,
+            modifier = Modifier
+                .semantics { role = Role.Button }
+                .heightIn(min = 48.dp),
         ) {
             Text(
-                text = stringResource(R.string.one_thing_label),
-                style = MaterialTheme.typography.bodyMedium,
-                color = sky.textSecondary,
-                textAlign = TextAlign.Center,
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                OutlinedTextField(
-                    value = draft,
-                    onValueChange = { draft = it },
-                    singleLine = true,
-                    placeholder = { Text(stringResource(R.string.one_thing_hint)) },
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(
-                    // v0.25.10 (SOTA v2 bug-hunt B10): gate Set on a
-                    // non-blank draft so the affordance can't fire
-                    // an empty one-thing into the launcher state.
-                    enabled = draft.isNotBlank(),
-                    onClick = {
-                        onSet(draft)
-                        draft = ""
-                    },
-                    // v0.25.10 (B6): Role.Button
-                    modifier = Modifier.semantics { role = Role.Button },
-                ) {
-                    Text(stringResource(R.string.one_thing_set), color = sky.textPrimary)
-                }
-            }
-        }
-    } else {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                text = stringResource(R.string.one_thing_label),
-                style = MaterialTheme.typography.bodySmall,
-                color = sky.textSecondary,
-                textAlign = TextAlign.Center,
-            )
-            Text(
-                text = text,
-                style = MaterialTheme.typography.titleMedium,
+                text = stringResource(R.string.home_ground_me_button),
                 color = sky.textPrimary,
-                textAlign = TextAlign.Center,
             )
-            TextButton(
-        modifier = Modifier.semantics { role = Role.Button },
-        onClick = onClear,
-            ) {
-                Text(stringResource(R.string.one_thing_done), color = sky.textSecondary)
-            }
         }
     }
 }
@@ -1498,12 +1486,13 @@ private fun HomeSurface(
     onLoopClear: () -> Unit = {},
     onLoopPostpone: (Instant) -> Unit = {},
     onLoopCancelPostpone: () -> Unit = {},
-    /** v0.25.5 WP-F: the user's chosen one thing for today. Null = silent. */
-    oneThing: String? = null,
-    /** v0.25.5 WP-F: invoked when the user types and saves a one-thing. */
-    onOneThingSet: (String) -> Unit = {},
-    /** v0.25.5 WP-F: invoked when the user taps "Done with it" on a saved one-thing. */
-    onOneThingClear: () -> Unit = {},
+    /**
+     * v0.28.0: open the Distress Thermometer activity. Wired to
+     * the "Ground me here" button on the home Distress card.
+     * The first question the home surface asks is "how is it
+     * right now?" — validation-first, before any task-capture.
+     */
+    onOpenDistressThermometer: () -> Unit = {},
     /** v0.26.0 §3.2: long-press the clock. */
     onOpenGroundMe: () -> Unit = {},
     /** Shown only when last night's report actually has something in it. */
@@ -1707,6 +1696,19 @@ private fun HomeSurface(
                 )
             }
 
+            // v0.28.0: the Distress Thermometer card is the FIRST
+            // card on home — validation-first, before any task-
+            // capture or note-taking. The card opens the
+            // DistressThermometerActivity; the full 0-100 slider
+            // lives in the activity. The card is BPD-safe by
+            // design (no directive language, no all-or-nothing
+            // framing, no comparative day-rating language).
+            // Research: Linehan 1993 + Gross 1998.
+            HomeDistressCard(
+                sky = sky,
+                onOpen = onOpenDistressThermometer,
+            )
+
             OpenLoopCard(
                 sky = sky,
                 phase = loopPhase,
@@ -1747,20 +1749,21 @@ private fun HomeSurface(
                 onOpenAll = onOpenNotes,
             )
 
-            // v0.25.5 WP-F: today's one thing. Sibling card to the
-            // open-loop card. Silent when the field is null; the
-            // "Set" affordance lets the user name one thing; the
-            // "Done with it" affordance clears it. The card is
-            // deliberately small — Martell 2013 found that a
-            // single, narrow, today's-action text outperforms a
-            // list of goals on follow-through.
-            OneThingCard(
-                sky = sky,
-                text = oneThing,
-                onSet = onOneThingSet,
-                onClear = onOneThingClear,
-            )
-
+            // v0.28.0: OneThingCard removed from the home surface.
+            // The data model (the `oneThing` state and the
+            // viewModel::setOneThing wiring) is kept — OneThing
+            // is still part of the export payload and can be
+            // re-introduced in a different surface later. Three
+            // task-capture cards (OpenLoop + OneThing + BedtimeList)
+            // was already one too many for a BPD-strict home
+            // (DBT: low cognitive load is the floor); replacing
+            // OneThing with the Distress Thermometer as the
+            // primary surface makes the home BPD-strict: the
+            // first question the user answers is "how is it
+            // right now", and the rest of the cards become
+            // optional. See docs/research/14-v0.26.6-audit.md §3
+            // for the research basis.
+            //
             // v0.26.6: BedtimeListCard removed from the home surface.
             // Three task-capture cards (OpenLoop + OneThing + BedtimeList)
             // was one too many — for a person with BPD (DBT: low
