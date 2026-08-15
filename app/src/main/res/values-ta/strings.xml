@@ -41,8 +41,8 @@
     <string name="settings">settings</string>
     <string name="settings_group_quiet">Quiet</string>
     <string name="settings_group_quiet_desc">Batching, quiet hours, and colour.</string>
-    <string name="settings_group_pauses">Pauses</string>
-    <string name="settings_group_pauses_desc">A moment before an app opens.</string>
+    <string name="settings_group_pauses">When you want a breath</string>
+    <string name="settings_group_pauses_desc">A small pause before an app opens, on your terms.</string>
     <string name="settings_group_measuring">Measuring</string>
     <string name="settings_group_measuring_desc">What this phone notices, and what you tell it.</string>
     <string name="settings_group_reading">Reading</string>
@@ -216,7 +216,7 @@
     <string name="goals_none">You have not named anything yet. You do not have to.</string>
     <string name="goals_done">Done</string>
     <string name="goal_marker">One of yours</string>
-    <string name="watch_section">Where the pause applies</string>
+    <string name="watch_section">Across all your apps</string>
     <string name="watch_explainer">On its own, the pause only appears when you open an app from this screen. Tapping a notification, swiping through recents or following a link goes straight in — which is most of how a phone actually gets used. Turning this on means the pause applies however you arrive.</string>
     <string name="watch_cannot_read">Android calls this an accessibility service, and that sounds worse than it is. It is set up so it cannot read your screen — not messages, not passwords, not what you are looking at. It is told the name of the app that came to the front, and nothing else. Android enforces that, not us.</string>
     <string name="watch_on">On. The pause applies however you open an app.</string>
@@ -496,7 +496,7 @@
     <!-- v0.26.6: pulse_* strings removed (pulse package dropped). -->
 
 
-    <string name="support_shortcut">support</string>
+    <string name="support_shortcut">Open Support</string>
     <string name="notes_shortcut">notes</string>
     <string name="support_section">Your people and your plan</string>
     <string name="support_section_explainer">Somewhere to write down what helps, and the people you would want to talk to. Yours to fill in, whenever you feel like it.</string>
@@ -905,7 +905,7 @@
     <string name="distress_thermo_low_suggestion">A small breath, a slow walk, a glass of water. The body often settles first.</string>
     <string name="distress_thermo_mid_suggestion">Name what is here. Do not try to fix it yet. Naming the feeling reduces its grip (Lieberman 2007; Gross 1998).</string>
     <string name="distress_thermo_high_suggestion">A moment to land. TIPP — Temperature, Intense movement, Paced breath, Paired muscle relaxation. Two minutes.</string>
-    <string name="distress_thermo_extreme_suggestion">You are not alone. Tap a number below, or open the lock-screen tile. The line is free.</string>
+    <string name="distress_thermo_extreme_suggestion">You are not alone. The Support group has DBT skills and a place to add the people you would actually call. Open it below when you are ready.</string>
     <string name="distress_thermo_done">Done</string>
     <string name="distress_thermo_again">Adjust</string>
 
