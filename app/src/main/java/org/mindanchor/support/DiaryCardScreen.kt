@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -71,13 +72,22 @@ fun DiaryCardScreen(onDone: () -> Unit) {
     var skill by rememberSaveable { mutableStateOf("") }
     var outcome by rememberSaveable { mutableStateOf("") }
     var saved by rememberSaveable { mutableStateOf(false) }
-    val week by remember { mutableStateOf<List<Pair<LocalDate, DiaryCardEntry>>>(emptyList()) }
+    // v0.28.1: use mutableStateListOf so the list is a real
+    // SnapshotStateList. The previous code declared a List<>
+    // and cast it to SnapshotStateList inside LaunchedEffect,
+    // which crashed the activity on the first save (ClassCastException
+    // on an empty immutable list). The cast is gone; the list is
+    // already the right type, and .clear() / .addAll() are the
+    // public API.
+    val week = remember {
+        mutableStateListOf<Pair<LocalDate, DiaryCardEntry>>()
+    }
 
     LaunchedEffect(saved) {
         // Refresh the "this week" surface after a save.
         if (saved) {
-            (week as androidx.compose.runtime.snapshots.SnapshotStateList).clear()
-            prefs.lastWeek().forEach { (week as androidx.compose.runtime.snapshots.SnapshotStateList).add(it) }
+            week.clear()
+            week.addAll(prefs.lastWeek())
         }
     }
 
