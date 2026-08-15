@@ -249,6 +249,11 @@ fun SupportScreen(
             //     about to send a difficult text message" as the
             //     shape this fills.
             //
+            // v0.28.0: added five more research-grounded surfaces
+            // (Opposite Action, Distress Thermometer, ACCEPTS,
+            // Letter to a Part, Diary Card). See the comment block
+            // below for the research basis and audit references.
+            //
             // Audit references: docs/research/14-v0.26.6-audit.md
             // §3.1, §3.2, §3.4.
             Text(
@@ -311,6 +316,112 @@ fun SupportScreen(
                     .heightIn(min = 48.dp)
                     .semantics { role = Role.Button },
             ) { Text(stringResource(R.string.support_interpersonal_button)) }
+
+            // v0.28.0: BPD-strict rebuild — five more research-grounded
+            // surfaces, each opened from its own activity. The order
+            // moves from in-the-moment (Opposite Action) to reflective
+            // (Diary Card). All five are non-exported activities, no
+            // hardcoded crisis line numbers (R1 honored).
+            //
+            //   * Opposite Action (Linehan 1993 ch. 8) — 4 steps
+            //     with optional free-text fields, no save.
+            //   * Distress Thermometer (Linehan 1993 + Gross 1998) —
+            //     0-100 slider, band-matched skill suggestion.
+            //   * ACCEPTS (Linehan 1993 ch. 8) — 7-button grid for
+            //     self-soothing, no save.
+            //   * Letter to a Part (IFS Schwartz 1995) — 3 sub-
+            //     screens (pick / write to / write from), optional
+            //     free text, no save.
+            //   * Diary Card (Linehan 1993 ch. 11) — 5 fields per
+            //     day, DataStore round-trip, weekly view as list
+            //     (BPD-safe per audit §2.3 — chart implies
+            //     interpretation the project is not allowed to
+            //     make).
+            //
+            // Audit references: docs/research/14-v0.26.6-audit.md
+            // §2.5, §2.3, §3 (DBT Diary Card, Distress
+            // Thermometer, Opposite Action are the highest-fit
+            // remaining gaps for the target user).
+            TextButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(
+                                context,
+                                org.mindanchor.support.OppositeActionActivity::class.java,
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .semantics { role = Role.Button },
+            ) { Text(stringResource(R.string.support_opposite_action_button)) }
+            TextButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(
+                                context,
+                                org.mindanchor.support.DistressThermometerActivity::class.java,
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .semantics { role = Role.Button },
+            ) { Text(stringResource(R.string.support_distress_thermometer_button)) }
+            TextButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(
+                                context,
+                                org.mindanchor.support.AcceptsActivity::class.java,
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .semantics { role = Role.Button },
+            ) { Text(stringResource(R.string.support_accepts_button)) }
+            TextButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(
+                                context,
+                                org.mindanchor.support.LetterToPartActivity::class.java,
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .semantics { role = Role.Button },
+            ) { Text(stringResource(R.string.support_letter_to_part_button)) }
+            TextButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(
+                                context,
+                                org.mindanchor.support.DiaryCardActivity::class.java,
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .semantics { role = Role.Button },
+            ) { Text(stringResource(R.string.support_diary_card_button)) }
 
             // --- The plan ---
             Row(
