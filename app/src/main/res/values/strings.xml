@@ -904,8 +904,136 @@
     <string name="support_interpersonal_button">Interpersonal skills</string>
     <string name="support_self_compassion_button">Self-compassion break</string>
     <string name="support_radical_acceptance_button">Radical acceptance</string>
+    <!-- v0.28.0: BPD-strict rebuild buttons. Each opens a single
+         research-grounded surface (Linehan 1993, Schwartz 1995,
+         Neff 2003, DBT Module 4, DBT Diary Card). -->
+    <string name="support_opposite_action_button">Opposite action</string>
+    <string name="support_distress_thermometer_button">Distress thermometer</string>
+    <string name="support_accepts_button">A small way to land — ACCEPTS</string>
+    <string name="support_letter_to_part_button">A letter to the part that is loudest</string>
+    <string name="support_diary_card_button">Today\'s check-in</string>
     <string name="support_more_skills_section">More moments</string>
     <string name="support_more_skills_intro">Each is a short, evidence-grounded practice. Pick the one that fits what is happening right now.</string>
+
+    <!-- v0.28.0: BPD research rebuild — crisis lines (override R1
+         decision from 2026-08-08 per the user directive "design
+         strictly for borderline personality disorder" + the
+         research base in docs/audit/crisis-line-feature-rejected.md
+         that explicitly recommends hardcoded numbers in
+         digital tools for the target population). iCall /
+         Vandrevala / AASRA / 112 are the verified India lines;
+         988 is the US line (kept in the resource for users
+         in diaspora). The format is "verb — line, hours —
+         number" with no "crisis" or "suicide" language. -->
+    <string name="crisis_lines_title">If it feels too much, talking to a person can help</string>
+    <string name="crisis_lines_caption">Free, confidential, and staffed by people who know what this feels like. The lines below are not affiliated with MindAnchor — they are independent services.</string>
+    <string name="crisis_line_icall_label">iCall (Tata Institute) — psychosocial support, 8am–10pm Mon–Sat</string>
+    <string name="crisis_line_icall_number">9152987821</string>
+    <string name="crisis_line_vandrevala_label">Vandrevala Foundation — emotional support, 24/7, multilingual</string>
+    <string name="crisis_line_vandrevala_number">1860-2662-362</string>
+    <string name="crisis_line_aasra_label">AASRA — emotional support and crisis intervention, 24/7</string>
+    <string name="crisis_line_aasra_number">9820466726</string>
+    <string name="crisis_line_emergency_label">Emergency services (India)</string>
+    <string name="crisis_line_emergency_number">112</string>
+    <string name="crisis_line_988_label">988 (US) — Suicide and Crisis Lifeline, 24/7</string>
+    <string name="crisis_line_988_number">988</string>
+    <string name="crisis_line_call_button">Call</string>
+
+    <!-- v0.28.0: Distress Thermometer (DBT + Gross emotion
+         regulation). A 0–100 slider that matches the rating
+         to a single DBT skill. The skill matching is:
+           0–30  → mindfulness, sensory grounding
+           31–60 → emotion regulation (PLEASE, opposite action)
+           61–85 → distress tolerance (TIPP, self-soothe)
+           86–100 → crisis (call a line, ground me) -->
+    <string name="distress_thermo_title">How is it right now?</string>
+    <string name="distress_thermo_caption">Slide to where it is, not where you want it to be. There is no right answer.</string>
+    <string name="distress_thermo_value">%1$d</string>
+    <string name="distress_thermo_label_low">A small thing</string>
+    <string name="distress_thermo_label_mid">Noticeable</string>
+    <string name="distress_thermo_label_high">A lot</string>
+    <string name="distress_thermo_label_extreme">Right now, very hard</string>
+    <string name="distress_thermo_suggestion_intro">For where you are, one thing that often helps:</string>
+    <string name="distress_thermo_low_suggestion">A small breath, a slow walk, a glass of water. The body often settles first.</string>
+    <string name="distress_thermo_mid_suggestion">Name what is here. Do not try to fix it yet. Naming the feeling reduces its grip (Lieberman 2007; Gross 1998).</string>
+    <string name="distress_thermo_high_suggestion">A moment to land. TIPP — Temperature, Intense movement, Paced breath, Paired muscle relaxation. Two minutes.</string>
+    <string name="distress_thermo_extreme_suggestion">You are not alone. Tap a number below, or open the lock-screen tile. The line is free.</string>
+    <string name="distress_thermo_done">Done</string>
+    <string name="distress_thermo_again">Adjust</string>
+
+    <!-- v0.28.0: Letter to a Part (IFS Schwartz 1995). The user
+         writes a one-page letter to the part that is loudest
+         right now. The activity also lets them switch to a
+         "from the part" view to write back. No save, no log —
+         a letter is an act, not a record. -->
+    <string name="letter_to_part_title">A letter to the part that is loudest</string>
+    <string name="letter_to_part_caption">Pick a part. Write to it. There is no wrong way to begin.</string>
+    <string name="letter_to_part_pick_label">Which part is loudest right now?</string>
+    <string name="letter_to_part_pick_angry">The angry part</string>
+    <string name="letter_to_part_pick_scared">The scared part</string>
+    <string name="letter_to_part_pick_dislike">The part that wants to disappear</string>
+    <string name="letter_to_part_pick_critic">The critic part</string>
+    <string name="letter_to_part_pick_protector">The protector part</string>
+    <string name="letter_to_part_pick_other">A different one</string>
+    <string name="letter_to_part_to_label">To the part</string>
+    <string name="letter_to_part_to_hint">What do you want it to know? Start with the part\'s name if that helps.</string>
+    <string name="letter_to_part_from_label">From the part, back to you</string>
+    <string name="letter_to_part_from_hint">If the part could speak. There is no right answer.</string>
+    <string name="letter_to_part_switch">Switch to writing from the part</string>
+    <string name="letter_to_part_done">Done</string>
+    <string name="letter_to_part_a11y">Letter to a part. Pick which part is loudest, then write to it. Optionally switch to writing from the part back to you.</string>
+
+    <!-- v0.28.0: ACCEPTS self-soothing menu (DBT Linehan 1993
+         Distress Tolerance Module 2). 7 buttons, each a 2-minute
+         grounding practice. BPD-safe: each is a single
+         sensory action, no interpretation. -->
+    <string name="accepts_title">A small way to land</string>
+    <string name="accepts_caption">Pick one. Do it for two minutes. That is the whole task.</string>
+    <string name="accepts_activities">Activities</string>
+    <string name="accepts_activities_body">A small thing with your hands. Tidy one thing. Walk to the window and back. The body often settles first.</string>
+    <string name="accepts_contributing">Contributing</string>
+    <string name="accepts_contributing_body">Send one short text to someone who would smile to hear from you. The point is the act, not the reply.</string>
+    <string name="accepts_comparisons">Comparisons</string>
+    <string name="accepts_comparisons_body">A time it was hard and you came through. It is not a contest, it is a reminder.</string>
+    <string name="accepts_emotions">Other emotions</string>
+    <string name="accepts_emotions_body">Watch a short clip that makes you feel something softer — joy, tenderness, awe. The aim is to shift the channel for a moment, not to fix anything.</string>
+    <string name="accepts_pushaway">Push away</string>
+    <string name="accepts_pushaway_body">Mentally put the thing that is hurting on a shelf, behind glass, in another room. It will still be there in ten minutes. That is fine.</string>
+    <string name="accepts_thoughts">Thoughts</string>
+    <string name="accepts_thoughts_body">Count backwards from 100 by 7s. Name ten things you can see. Anything that asks the brain to do one thing.</string>
+    <string name="accepts_sensations">Sensations</string>
+    <string name="accepts_sensations_body">Hold something cold, smell something strong, listen to one thing on purpose. A sensation in is louder than a thought on its own.</string>
+    <string name="accepts_done">Done</string>
+
+    <!-- v0.28.0: DBT Diary Card (Linehan 1993 ch. 11; Dimeff et al.
+         2011). Single daily prompt, 5 fields. The card is the
+         gold standard for BPD mood tracking — replaces the ad-hoc
+         EMA + CheckIn in v0.28.0+. Optional. -->
+    <string name="diary_card_title">Today\'s check-in</string>
+    <string name="diary_card_caption">One a day. Five lines. There is no right answer — there is your answer.</string>
+    <string name="diary_card_urge_label">An urge that showed up</string>
+    <string name="diary_card_urge_hint">Anything. Send a text, shut down, check the phone. Whatever pulled at you.</string>
+    <string name="diary_card_emotion_label">An emotion that was loud</string>
+    <string name="diary_card_emotion_hint">A feeling, in one or two words. Ashamed, glad, scared, tender, numb, anything.</string>
+    <string name="diary_card_intensity_label">How loud, 0 to 10</string>
+    <string name="diary_card_intensity_hint">0 is barely there, 10 is the loudest it has been.</string>
+    <string name="diary_card_skill_label">A skill you used (or wish you had)</string>
+    <string name="diary_card_skill_hint">STOP, TIPP, opposite action, radical acceptance, a phone call. The skill that fits.</string>
+    <string name="diary_card_outcome_label">What happened next, in one line</string>
+    <string name="diary_card_outcome_hint">Optional. Anything you notice.</string>
+    <string name="diary_card_save">Save</string>
+    <string name="diary_card_saved">Saved for today. Tomorrow will be its own.</string>
+    <string name="diary_card_history">This week</string>
+    <string name="diary_card_history_empty">No check-ins yet. The first one is the one that counts.</string>
+    <string name="diary_card_a11y">DBT diary card. Five fields: urge, emotion, intensity, skill, outcome. Save at the bottom.</string>
+
+    <!-- v0.28.0: home surface — Distress Thermometer as the
+         first card. Reframes home from "todo list with BPD
+         features" to "now-based surface with one thing at a
+         time". -->
+    <string name="home_distress_card_title">How is it right now?</string>
+    <string name="home_distress_card_caption">Slide to where it is, not where you want it to be. There is no right answer.</string>
+    <string name="home_ground_me_button">Ground me here</string>
 
     <string name="self_compassion_title">Self-compassion break</string>
     <string name="self_compassion_caption">Three sentences, 45 seconds. There is no wrong way to read them.</string>
@@ -965,6 +1093,27 @@
     <string name="fast_draft_hint">Optional. No one sees this but you.</string>
     <string name="fast_done">Done</string>
     <string name="fast_a11y">FAST script. Four steps. Optional draft text field at the bottom.</string>
+
+    <!--
+        v0.28.0: Opposite Action (Linehan 1993, ch. 8).
+        When the emotion does not fit the facts, do the opposite
+        of the action urge. For BPD this counters the
+        all-or-nothing behaviour pattern that follows an
+        emotion-driven impulse. Four steps, each with a label and
+        an optional free-text field. No save, no score.
+    -->
+    <string name="opposite_action_title">Opposite action</string>
+    <string name="opposite_action_caption">When the emotion does not fit the facts, the skill is to do the opposite of the urge. Four short steps.</string>
+    <string name="opposite_action_step_1_label">1. Name the emotion</string>
+    <string name="opposite_action_step_1_hint">What is here. A feeling, in one or two words.</string>
+    <string name="opposite_action_step_2_label">2. Does it fit the facts?</string>
+    <string name="opposite_action_step_2_hint">What is the evidence for, what is the evidence against. Be honest.</string>
+    <string name="opposite_action_step_3_label">3. What is the action urge?</string>
+    <string name="opposite_action_step_3_hint">What does the emotion want you to do. Send, leave, shut down, fight, hide.</string>
+    <string name="opposite_action_step_4_label">4. The opposite action</string>
+    <string name="opposite_action_step_4_hint">If the urge is to send, the opposite is to wait. If the urge is to withdraw, the opposite is one small reach. Your call.</string>
+    <string name="opposite_action_done">Done</string>
+    <string name="opposite_action_a11y">Opposite action. Four steps. Optional free text per step. Done at the bottom.</string>
 
     <!-- v0.26.0: BPD profile -->
     <string name="bpd_profile_section">When things get hard</string>
