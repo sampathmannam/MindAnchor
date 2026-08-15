@@ -346,6 +346,23 @@
             android:exported="false" />
 
         <!--
+            v0.27.0: DBT Module 4 (Interpersonal Effectiveness) —
+            one activity, three sub-screens (DEAR MAN / GIVE / FAST).
+            Plus the Neff self-compassion break and the Linehan
+            radical acceptance exercise. All three are launched
+            from SupportActivity; each is a single-screen Composable.
+        -->
+        <activity
+            android:name=".support.SelfCompassionActivity"
+            android:exported="false" />
+        <activity
+            android:name=".support.RadicalAcceptanceActivity"
+            android:exported="false" />
+        <activity
+            android:name=".support.InterpersonalActivity"
+            android:exported="false" />
+
+        <!--
             The pause, when an app was opened from somewhere other than the
             launcher. Its own taskAffinity so it sits in a task of its own
             on top of whatever opened, rather than joining that app's task

@@ -187,4 +187,28 @@ class LetterThumbsDownFindingTest {
             screen.contains("OutlinedTextField") && screen.contains("reason"),
         )
     }
+
+    @Test fun `thumbs-down prompt is validation-first (audit §2_6 — BPD-safe)`() {
+        // v0.27.0: the thumbs-down prompt is "What would feel
+        // more like you?" — a soft open question, not a
+        // correction request. The pre-v0.27.0 prompt "Tell us
+        // what was off" is a correction-first frame that can
+        // trigger self-criticism in BPD (Fruzzetti 2006).
+        // The FindingTest pins the new copy exactly.
+        assertTrue(
+            "strings.xml must define the v0.27.0 validation-first prompt",
+            strings.contains("That is helpful. What would feel more like you?"),
+        )
+        // The old correction-first copy must NOT be present
+        // in strings.xml anymore.
+        assertTrue(
+            "strings.xml must NOT contain the pre-v0.27.0 correction-first copy 'Tell us what was off'",
+            !strings.contains("Tell us what was off"),
+        )
+        // The hint is the "no one sees this but you" line.
+        assertTrue(
+            "strings.xml must contain the v0.27.0 hint 'No one sees this but you'",
+            strings.contains("No one sees this but you"),
+        )
+    }
 }

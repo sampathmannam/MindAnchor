@@ -237,6 +237,81 @@ fun SupportScreen(
                 }
             }
 
+            // v0.27.0: three more evidence-grounded affordances for
+            // "right now". Each opens a dedicated activity.
+            //
+            //   * Self-compassion break (Neff 2003) — 3 lines, 45s.
+            //   * Radical acceptance (Linehan 1993) — 4 lines, 40s.
+            //   * Interpersonal skills (DBT Module 4 — DEAR MAN /
+            //     GIVE / FAST) — 3 scripts, optional draft text
+            //     field. Most-BPD-specific of the three; the brief
+            //     identified "the moment when a person with BPD is
+            //     about to send a difficult text message" as the
+            //     shape this fills.
+            //
+            // Audit references: docs/research/14-v0.26.6-audit.md
+            // §3.1, §3.2, §3.4.
+            Text(
+                text = stringResource(R.string.support_more_skills_section),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier
+                    .padding(top = 24.dp, bottom = 4.dp)
+                    .semantics { heading() },
+            )
+            Text(
+                text = stringResource(R.string.support_more_skills_intro),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            TextButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(
+                                context,
+                                org.mindanchor.support.SelfCompassionActivity::class.java,
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .semantics { role = Role.Button },
+            ) { Text(stringResource(R.string.support_self_compassion_button)) }
+            TextButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(
+                                context,
+                                org.mindanchor.support.RadicalAcceptanceActivity::class.java,
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .semantics { role = Role.Button },
+            ) { Text(stringResource(R.string.support_radical_acceptance_button)) }
+            TextButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(
+                                context,
+                                org.mindanchor.support.InterpersonalActivity::class.java,
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .semantics { role = Role.Button },
+            ) { Text(stringResource(R.string.support_interpersonal_button)) }
+
             // --- The plan ---
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 24.dp),

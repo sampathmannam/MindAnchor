@@ -809,10 +809,16 @@
     <string name="letters_write_save">Save</string>
     <string name="letters_use_ai">Use AI</string>
     <string name="letters_thumbs_down">👎 This got me wrong</string>
-    <string name="letters_thumbs_down_prompt">Tell us what was off</string>
-    <string name="letters_thumbs_down_hint">Optional</string>
+    <!-- v0.27.0: thumbs-down prompt is validation-first
+         (BPD-safe — see docs/research/14-v0.26.6-audit.md §2.6).
+         The previous copy asked the user to identify what the
+         AI got wrong, which can split into self-criticism. The
+         new copy is a soft open question about what would feel
+         more like them. -->
+    <string name="letters_thumbs_down_prompt">That is helpful. What would feel more like you?</string>
+    <string name="letters_thumbs_down_hint">Optional. No one sees this but you.</string>
     <string name="letters_thumbs_down_save">Save</string>
-    <string name="letters_thumbs_down_saved">Thanks — we\'ll use this to make the next one better.</string>
+    <string name="letters_thumbs_down_saved">Thanks — we will use this to make the next one better.</string>
     <string name="letters_thumbs_down_badge">👎 %1$d</string>
     <string name="letters_ai_label">AI</string>
     <!-- v0.25.2-B: reader-mode -->
@@ -890,13 +896,89 @@
     <string name="now_what_stay_up">I\'m up late tonight</string>
     <string name="now_what_a11y">It\'s late. What do you need right now?</string>
 
+    <!-- v0.27.0: DBT Module 4 (Interpersonal Effectiveness) and the
+         v0.26.6 audit additions — Neff self-compassion break and
+         Linehan radical acceptance. Each is a one-screen Composable
+         launched from SupportActivity. BPD-safe: no directive
+         language, validate-then-suggest, no all-or-nothing framing. -->
+    <string name="support_interpersonal_button">Interpersonal skills</string>
+    <string name="support_self_compassion_button">Self-compassion break</string>
+    <string name="support_radical_acceptance_button">Radical acceptance</string>
+    <string name="support_more_skills_section">More moments</string>
+    <string name="support_more_skills_intro">Each is a short, evidence-grounded practice. Pick the one that fits what is happening right now.</string>
+
+    <string name="self_compassion_title">Self-compassion break</string>
+    <string name="self_compassion_caption">Three sentences, 45 seconds. There is no wrong way to read them.</string>
+    <string name="self_compassion_line_1">This is a moment of suffering.</string>
+    <string name="self_compassion_line_2">Suffering is part of being human.</string>
+    <string name="self_compassion_line_3">May I be kind to myself.</string>
+    <string name="self_compassion_done">Done</string>
+    <string name="self_compassion_a11y">Self-compassion break. Three sentences at 15 seconds each. Tap Done to finish early.</string>
+
+    <string name="radical_acceptance_title">Radical acceptance</string>
+    <string name="radical_acceptance_caption">Four sentences, 40 seconds. It is what it is.</string>
+    <string name="radical_acceptance_line_1">Reality is what it is.</string>
+    <string name="radical_acceptance_line_2">The pain is part of the pain.</string>
+    <string name="radical_acceptance_line_3">Accepting reduces suffering.</string>
+    <string name="radical_acceptance_line_4">Refusing acceptance increases suffering.</string>
+    <string name="radical_acceptance_done">Done</string>
+    <string name="radical_acceptance_a11y">Radical acceptance. Four sentences at 10 seconds each. Tap Done to finish early.</string>
+
+    <string name="interpersonal_title">Interpersonal skills</string>
+    <string name="interpersonal_caption">DBT Module 4. Pick the one that fits what is happening right now.</string>
+    <string name="interpersonal_dear_man_button">I want to ask for something — DEAR MAN</string>
+    <string name="interpersonal_give_button">I want to keep this relationship OK — GIVE</string>
+    <string name="interpersonal_fast_button">I want to keep my self-respect — FAST</string>
+
+    <string name="dear_man_title">DEAR MAN</string>
+    <string name="dear_man_caption">For asking for what you want. Describe · Express · Assert · Reinforce · Mindful · Appear confident · Negotiate.</string>
+    <string name="dear_man_d">Describe — the situation, just the facts.</string>
+    <string name="dear_man_e">Express — how you feel about it, in one sentence.</string>
+    <string name="dear_man_a">Assert — what you want, plainly.</string>
+    <string name="dear_man_r">Reinforce — the good that comes from doing this.</string>
+    <string name="dear_man_m">Mindful — keep coming back to the point.</string>
+    <string name="dear_man_an">Appear confident — even if you do not feel it yet.</string>
+    <string name="dear_man_n">Negotiate — be willing to give to get.</string>
+    <string name="dear_man_draft_label">If you want, a draft of what you might say.</string>
+    <string name="dear_man_draft_hint">Optional. No one sees this but you.</string>
+    <string name="dear_man_done">Done</string>
+    <string name="dear_man_a11y">DEAR MAN script. Seven steps. Optional draft text field at the bottom.</string>
+
+    <string name="give_title">GIVE</string>
+    <string name="give_caption">For keeping a relationship OK while you say what you need. Gentle · Interested · Validate · Easy manner.</string>
+    <string name="give_g">Gentle — kind words, no attacks.</string>
+    <string name="give_i">Interested — listen, do not interrupt.</string>
+    <string name="give_v">Validate — show you see their side.</string>
+    <string name="give_e">Easy manner — a small smile goes a long way.</string>
+    <string name="give_draft_label">If you want, a draft of what you might say.</string>
+    <string name="give_draft_hint">Optional. No one sees this but you.</string>
+    <string name="give_done">Done</string>
+    <string name="give_a11y">GIVE script. Four steps. Optional draft text field at the bottom.</string>
+
+    <string name="fast_title">FAST</string>
+    <string name="fast_caption">For keeping your self-respect when the pressure is on. Fair · Apologies (skip the unnecessary ones) · Stick to values · Truthful.</string>
+    <string name="fast_f">Fair — to yourself and to them.</string>
+    <string name="fast_a">Apologies — only the ones that are actually owed.</string>
+    <string name="fast_s">Stick to your values — do not trade them for the argument.</string>
+    <string name="fast_t">Truthful — do not lie to keep the peace.</string>
+    <string name="fast_draft_label">If you want, a draft of what you might say.</string>
+    <string name="fast_draft_hint">Optional. No one sees this but you.</string>
+    <string name="fast_done">Done</string>
+    <string name="fast_a11y">FAST script. Four steps. Optional draft text field at the bottom.</string>
+
     <!-- v0.26.0: BPD profile -->
     <string name="bpd_profile_section">When things get hard</string>
-    <string name="bpd_profile_explainer">What do you want the app to do when things get hard? Anything you turn on is opt-in — the launcher\'s defaults are the safest.</string>
+    <!-- v0.27.0: shorter explainer (one sentence, validate-then-suggest
+         framing). The full multi-sentence explainer was moving the
+         opt-in to feel like a configuration task; this is closer
+         to a question. -->
+    <string name="bpd_profile_explainer">Anything you turn on is opt-in. The launcher\'s defaults are the safest.</string>
     <string name="bpd_profile_long_messages">Long messages I might regret</string>
     <string name="bpd_profile_late_night">Late-night impulses</string>
     <string name="bpd_profile_split">I split on people sometimes</string>
-    <string name="bpd_profile_named_person">I want a named person to call when it gets bad</string>
+    <!-- v0.27.0: shortened label (audit §2.2 — the original 10-word
+         label was a configuration-task shape; this is a question). -->
+    <string name="bpd_profile_named_person">A named person to call</string>
     <string name="bpd_profile_ok_at_night">I\'m OK at night</string>
 
     <string-array name="who5_items">
