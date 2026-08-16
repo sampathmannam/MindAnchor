@@ -45,8 +45,33 @@ namespace {
 // idempotent-by-design here: this flag just keeps the intent obvious.
 bool backend_ready = false;
 
+// v0.31.1: log redirect. llama.cpp's own LLAMA_LOG_ERROR /
+// LLAMA_LOG_INFO go to stderr by default — they never reach
+// logcat with the MindAnchor/llama tag, so a load failure
+// that prints "error loading model architecture: …" to
+// stderr is invisible to the user (or to the engineer
+// reading `adb logcat -s MindAnchor/llama:V`). Plug a
+// custom log callback that mirrors everything to logcat at
+// the matching priority. The level mapping is ggml's:
+//   LLAMA_LOG_LEVEL_ERROR / WARN / INFO / DEBUG. We map
+//   DEBUG to INFO so a debug build does not flood the
+//   buffer; the user-facing level on the Android side
+//   does not change.
+static void llama_log_redirect(enum ggml_log_level level, const char * text, void * /*user_data*/) {
+    int android_level;
+    switch (level) {
+        case GGML_LOG_LEVEL_ERROR: android_level = ANDROID_LOG_ERROR; break;
+        case GGML_LOG_LEVEL_WARN:  android_level = ANDROID_LOG_WARN;  break;
+        case GGML_LOG_LEVEL_INFO:  android_level = ANDROID_LOG_INFO;  break;
+        case GGML_LOG_LEVEL_DEBUG: android_level = ANDROID_LOG_INFO;  break;
+        default:                   android_level = ANDROID_LOG_INFO;  break;
+    }
+    __android_log_write(android_level, "MindAnchor/llama", text);
+}
+
 void ensure_backend() {
     if (!backend_ready) {
+        llama_log_set(llama_log_redirect, nullptr);
         llama_backend_init();
         backend_ready = true;
     }
@@ -132,6 +157,22 @@ Java_org_mindanchor_narrate_LlamaEngine_nativeGenerate(
     // gigabytes mapped between runs, and ModelSlot budgeted the phone on
     // the assumption that this process lets go.
     llama_model_params model_params = llama_model_default_params();
+    // v0.31.1 diagnostic: progress callback. llama_model_load_from_file
+    // returns null silently with no way to know which step failed
+    // (file open, mmap, header parse, tensor read, tensor upload). The
+    // progress callback fires during tensor load with values 0.0-1.0;
+    // logging each step tells us whether the load is reaching the
+    // weights (and failing on a particular one) or failing before any
+    // tensor is read (file format / mmap / header). The callback
+    // returns true to continue loading, so it is non-invasive.
+    model_params.progress_callback = [](float progress, void * /*user_data*/) -> bool {
+        ALOGI("load progress: %.1f%%", progress * 100.0f);
+        return true;
+    };
+    ALOGI("generate: about to call llama_model_load_from_file (mmap=%d mlock=%d n_gpu=%d)",
+          model_params.use_mmap ? 1 : 0,
+          model_params.use_mlock ? 1 : 0,
+          model_params.n_gpu_layers);
     llama_model *model = llama_model_load_from_file(model_path.c_str(), model_params);
     if (model == nullptr) {
         ALOGE("generate: llama_model_load_from_file returned null for %s", model_path.c_str());
@@ -194,6 +235,15 @@ Java_org_mindanchor_narrate_LlamaEngine_nativeGenerate(
     // its default for short-context inference.
     ctx_params.type_k = GGML_TYPE_Q8_0;
     ctx_params.type_v = GGML_TYPE_Q4_0;
+    // v0.31.2: V cache quantisation needs flash attention in
+    // b4792+. The Q4_0 V cache path bakes its rescale into the
+    // attention kernel, and llama.cpp's non-flash path does not
+    // have that kernel. flash_attn=true here is a CPU flash
+    // path (CPU backend supports it since b3265) — no GPU
+    // offload, no Metal/Vulkan, just the same compute budget
+    // with a smarter attention kernel. Marked [EXPERIMENTAL]
+    // in llama.h but stable enough for llama-cli's default.
+    ctx_params.flash_attn = true;
     // v0.31.1: no-GPU phone. The phone has no real GPU
     // backend; offload_kqv=true is the llama.cpp default
     // and a no-op without a GPU, but it adds a small
@@ -210,7 +260,20 @@ Java_org_mindanchor_narrate_LlamaEngine_nativeGenerate(
     // (which is 1 token at a time, n_ubatch-irrelevant).
     // n_batch (the cap) stays at n_tokens as before, so
     // n_batch >= n_ubatch is preserved.
-    ctx_params.n_ubatch = 128;
+    //
+    // v0.31.2 (b4792 upgrade + Q2_K + phone with 1.8 GB
+    // available): n_ubatch=128 still left the context
+    // init failing on the test device — the compute
+    // buffer at 128 is large enough that it pushed total
+    // RSS over the 1.8 GB ceiling. n_ubatch=32 cuts the
+    // compute scratch another 4× and the context inits
+    // cleanly. The cap is processed in chunks of 32
+    // (instead of one 282-token physical batch); the
+    // difference on a 1-3 paragraph narration is
+    // negligible. The model still generates the full
+    // response — n_ubatch only bounds the *peak* scratch,
+    // not the number of tokens decoded.
+    ctx_params.n_ubatch = 32;
     llama_context *ctx = llama_init_from_model(model, ctx_params);
     if (ctx == nullptr) {
         ALOGE("generate: llama_init_from_model returned null");
@@ -240,7 +303,10 @@ Java_org_mindanchor_narrate_LlamaEngine_nativeGenerate(
             break;
         }
         llama_token next = llama_sampler_sample(sampler, ctx, -1);
-        if (llama_vocab_is_eog(vocab, next)) break;
+        if (llama_vocab_is_eog(vocab, next)) {
+            ALOGI("generate: EOG after %d tokens", produced);
+            break;
+        }
 
         char piece[256];
         int32_t piece_len = llama_token_to_piece(
@@ -251,6 +317,20 @@ Java_org_mindanchor_narrate_LlamaEngine_nativeGenerate(
             break;
         }
         output.append(piece, static_cast<size_t>(piece_len));
+
+        // v0.31.2: progress log every 20 tokens. The Q2_K
+        // decode is ~1 tok/s on a phone, so 600 tokens
+        // takes 10 minutes. The decode loop had no
+        // progress indicator before, and the user cannot
+        // tell whether the model is generating or stuck
+        // — the difference is real when the OS background-
+        // limits the process after a few minutes and the
+        // decode throttles to 0.1 tok/s. A line every 20
+        // tokens is one per ~20 seconds, cheap.
+        if ((produced + 1) % 20 == 0) {
+            ALOGI("generate: produced %d tokens, %zu chars so far",
+                  produced + 1, output.size());
+        }
 
         batch = llama_batch_get_one(&next, 1);
     }
