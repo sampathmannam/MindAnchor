@@ -1,7 +1,6 @@
 @file:Suppress("MaxLineLength")
 package org.mindanchor.launcher
 
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -37,9 +36,9 @@ import org.mindanchor.testing.TestFileUtil.fileAt
  *      this red).
  *   4. HomeScreen passes onStayUp that calls
  *      `bpdProfilePrefs.update(... okAtNight = true)`.
- *   5. The label is defined in values/strings.xml and
- *      values-ta/strings.xml (Tamil may be a placeholder pending
- *      translation).
+ *   5. The label is defined in values/strings.xml.
+ *      v0.30.0: removed the values-ta/ pin (the Tamil placeholder
+ *      was deleted per the "no tamil needed" directive).
  *   6. The 4th option is visually subordinate (TextButton, NOT a
  *      NowWhatRow Surface) — keeps the calm "pick one" framing
  *      of the 3 main options intact.
@@ -59,11 +58,6 @@ class NowWhatStayUpFindingTest {
     private val strings: String
         get() = fileAt(
             "app/src/main/res/values/strings.xml",
-        ).readText()
-
-    private val stringsTa: String
-        get() = fileAt(
-            "app/src/main/res/values-ta/strings.xml",
         ).readText()
 
     @Test
@@ -162,19 +156,14 @@ class NowWhatStayUpFindingTest {
     }
 
     @Test
-    fun `strings xml defines now_what_stay_up in both locales`() {
-        // Both English and Tamil files must declare the new key.
-        // Tamil may still be a placeholder English copy (per the
-        // v0.25.18 note) — a translator is a v0.26.5+ follow-up.
+    fun `strings xml defines now_what_stay_up`() {
+        // v0.30.0: renamed from "in both locales" to English only
+        // (values-ta/ was removed per the "no tamil needed"
+        // directive). The English string is the source of truth
+        // for the 4th option's label.
         assertTrue(
             "values/strings.xml must define <string name=\"now_what_stay_up\">",
             strings.contains("name=\"now_what_stay_up\""),
-        )
-        assertNotNull(stringsTa)
-        assertTrue(
-            "values-ta/strings.xml must define <string name=\"now_what_stay_up\"> " +
-                "(value may be English placeholder pending translation)",
-            stringsTa.contains("name=\"now_what_stay_up\""),
         )
     }
 }

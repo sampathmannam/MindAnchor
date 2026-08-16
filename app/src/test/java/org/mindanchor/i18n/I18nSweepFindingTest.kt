@@ -20,9 +20,7 @@ import org.mindanchor.testing.TestFileUtil.fileAt
  * Background: v0.25.12 swept the 5 BPD surfaces and missed
  * the rest of the app. The hardcoded literals that survived
  * are not always wrong — a back arrow glyph "←" or a
- * separator "·" is decoration, not user-facing English —
- * but every one of them is a Tamil user hearing English in
- * TalkBack when the system is set to ta.
+ * separator "·" is decoration, not user-facing English.
  *
  * The test is intentionally tolerant. It whitelists:
  *
@@ -44,6 +42,14 @@ import org.mindanchor.testing.TestFileUtil.fileAt
  * `val label = stringResource(R.string.X)` in the
  * Composable scope, then assign it to `text =` or
  * `contentDescription =` inside the lambda.
+ *
+ * v0.30.0: the Tamil placeholder (`values-ta/strings.xml`)
+ * was removed per the user directive "no tamil needed".
+ * The `R_string note_close is defined in values and
+ * values-ta` test was deleted in the same commit. Tamil
+ * localisation is deferred indefinitely; the i18n sweep
+ * still pins the English migration but no longer asserts
+ * a Tamil shadow.
  */
 class I18nSweepFindingTest {
 
@@ -78,7 +84,7 @@ class I18nSweepFindingTest {
         val stripped = literal.trim().removePrefix("$").trim()
         if (stripped.isEmpty()) return true
         // pure non-letter content (only digits, punctuation,
-        // whitespace, CJK / Tamil / Arabic codepoints)
+        // whitespace, CJK / Arabic codepoints)
         if (!stripped.any { it.isLetter() && it.code < 128 }) return true
         return false
     }
@@ -157,28 +163,6 @@ class I18nSweepFindingTest {
                 "the call as `val label = stringResource(R.string.X)` in the " +
                 "Composable scope. Failures:\n" + failures.joinToString("\n\n"),
             failures.isEmpty(),
-        )
-    }
-
-    /**
-     * The new string for the close button on the notes
-     * TopAppBar must be present in both values/ and
-     * values-ta/. This pins the migration: removing the
-     * string from either file flips this test red.
-     */
-    @Test
-    fun `R_string note_close is defined in values and values-ta`() {
-        val english = fileAt("app/src/main/res/values/strings.xml").readText()
-        val tamil = fileAt("app/src/main/res/values-ta/strings.xml").readText()
-        assertTrue(
-            "values/strings.xml must define <string name=\"note_close\"> for " +
-                "the NoteScreen TopAppBar close button. v0.25.18 i18n sweep.",
-            english.contains("<string name=\"note_close\">"),
-        )
-        assertTrue(
-            "values-ta/strings.xml must define <string name=\"note_close\"> " +
-                "for the NoteScreen TopAppBar close button. v0.25.18 i18n sweep.",
-            tamil.contains("<string name=\"note_close\">"),
         )
     }
 }

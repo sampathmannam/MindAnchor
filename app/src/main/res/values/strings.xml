@@ -612,8 +612,9 @@
     <string name="note_body_hint">Start writing…</string>
     <string name="note_new">New note</string>
     <!-- v0.25.18 i18n sweep: was hardcoded "Close" in NoteScreen.kt's
-         TopAppBar navigationIcon. Pulled into a string so the Tamil
-         localiser can override. -->
+         TopAppBar navigationIcon. v0.30.0: comment updated to drop
+         the Tamil-localiser reference (values-ta/ was removed per
+         the "no tamil needed" directive). -->
     <string name="note_close">Close</string>
     <string name="note_list_empty">Nothing here yet. Type above and tap Save.</string>
     <string name="note_pin">Pin</string>

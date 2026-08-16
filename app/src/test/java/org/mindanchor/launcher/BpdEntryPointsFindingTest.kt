@@ -1,7 +1,6 @@
 @file:Suppress("MaxLineLength")
 package org.mindanchor.launcher
 
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -125,32 +124,6 @@ class BpdEntryPointsFindingTest {
             assertTrue(
                 "values/strings.xml must define <string name=\"$key\">",
                 strings.contains("name=\"$key\""),
-            )
-        }
-    }
-
-    @Test
-    fun `values-ta strings xml has Tamil Right now keys (placeholder English OK)`() {
-        // v0.26.4: the Tamil file must declare the five
-        // right_now_* keys. The values may still be English
-        // placeholders (Stream 4 left the file as English copy
-        // with the letter Tamil strings from Stream 3); a
-        // translator is a v0.26.5+ follow-up.
-        val ta = fileAt(
-            "app/src/main/res/values-ta/strings.xml",
-        ).readText()
-        assertNotNull(ta)
-        listOf(
-            "right_now_section",
-            "right_now_caption",
-            "right_now_chain",
-            "right_now_ifs",
-            "right_now_export",
-        ).forEach { key ->
-            assertTrue(
-                "values-ta/strings.xml must declare <string name=\"$key\"> " +
-                    "(value may be English placeholder pending translation)",
-                ta.contains("name=\"$key\""),
             )
         }
     }

@@ -13,8 +13,14 @@ import org.junit.Test
  * `Modifier.semantics { role = Role.Button }` and 30+
  * `stringResource(...)` calls for hardcoded text — but the
  * `contentDescription = "..."` strings in the 3 new BPD surfaces
- * were missed. They are user-facing accessibility text: a Tamil
- * user running a Tamil-localised build hears English in TalkBack.
+ * were missed. They are user-facing accessibility text: TalkBack
+ * would read them aloud as raw literals.
+ *
+ * v0.30.0: removed the Tamil-localisation framing from the
+ * Background (the `values-ta/` placeholder was deleted per
+ * the "no tamil needed" directive). The pin still asserts
+ * `stringResource(...)` for accessibility — the migration
+ * shape is what makes the strings swap-in, locale-agnostic.
  *
  * The fix is a single `stringResource(R.string.X_a11y, …)` local
  * val computed in the @Composable scope, then assigned to

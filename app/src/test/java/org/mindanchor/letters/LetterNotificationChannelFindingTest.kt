@@ -11,9 +11,8 @@ import org.mindanchor.testing.TestFileUtil.fileAt
  * The channel was first introduced in v0.25.x; v0.26.2
  * confirms the shape — `IMPORTANCE_DEFAULT` (gentle morning
  * letter, not an alert), a string resource for the channel
- * name (so the Tamil localization in
- * `app/src/main/res/values-ta/strings.xml` is what a
- * Tamil-locale phone reads).
+ * name (so the resource resolver picks the right value at
+ * runtime).
  *
  * v0.25.19: the channel creation moved from LetterScheduler.kt
  * to org.mindanchor.notifications.Channels (centralised for
@@ -23,13 +22,19 @@ import org.mindanchor.testing.TestFileUtil.fileAt
  * and `createNotificationChannel` is no longer called from
  * per-post sites.
  *
+ * v0.30.0: removed the `values-ta strings has a Tamil
+ * letters_channel_name localization` test (the Tamil
+ * placeholder was deleted per the "no tamil needed"
+ * directive). The English-only test
+ * `values default strings has a letters_channel_name`
+ * is the source-of-truth pin.
+ *
  * The FindingTest pins each leg in turn. A future refactor
  * that bumps importance to `IMPORTANCE_HIGH` (loud alert,
  * wrong shape for a morning letter), or hard-codes the
- * channel name in a Kotlin literal (losing the Tamil
- * localization), or moves the create call back into
- * LetterScheduler (scattering channel creation again) flips
- * the test red.
+ * channel name in a Kotlin literal, or moves the create call
+ * back into LetterScheduler (scattering channel creation
+ * again) flips the test red.
  */
 class LetterNotificationChannelFindingTest {
 
@@ -49,11 +54,6 @@ class LetterNotificationChannelFindingTest {
     private val stringsDefault: String
         get() = fileAt(
             "app/src/main/res/values/strings.xml",
-        ).readText()
-
-    private val stringsTa: String
-        get() = fileAt(
-            "app/src/main/res/values-ta/strings.xml",
         ).readText()
 
     @Test fun `Channels creates a NotificationChannel for the letters`() {
@@ -105,12 +105,11 @@ class LetterNotificationChannelFindingTest {
     @Test fun `Channels letter channel name uses the localised string resource (R string letters_channel_name)`() {
         // The channel name is `context.getString(R.string.letters_channel_name)`,
         // not a Kotlin literal. Android's resource resolver
-        // picks the right locale at runtime — a Tamil-locale
-        // phone reads the Tamil value from
-        // `values-ta/strings.xml` without any Kotlin change.
-        // A regression to a hard-coded "Daily letter"
-        // literal would break the Tamil localisation
-        // silently.
+        // picks the right resource entry at runtime. A
+        // regression to a hard-coded "Daily letter" literal
+        // would freeze the channel name across all locales
+        // and would not surface in any test that does not
+        // exercise the system locale.
         assertTrue(
             "Channels must use R.string.letters_channel_name (not a hard-coded literal) for the letter channel name",
             Regex(
@@ -124,46 +123,15 @@ class LetterNotificationChannelFindingTest {
     }
 
     @Test fun `values default strings has a letters_channel_name (English default)`() {
-        // The English default lives in values/strings.xml;
-        // the Tamil localization in values-ta/strings.xml.
-        // The default-key test pins that the resource is
-        // declared, not just referenced.
+        // The English default lives in values/strings.xml.
+        // v0.30.0: dropped the values-ta/ shadow reference
+        // (the Tamil placeholder was deleted per the
+        // "no tamil needed" directive). The default-key
+        // test pins that the resource is declared, not
+        // just referenced.
         assertTrue(
             "values/strings.xml must define <string name=\"letters_channel_name\">",
             stringsDefault.contains("name=\"letters_channel_name\""),
-        )
-    }
-
-    @Test fun `values-ta strings has a Tamil letters_channel_name localization`() {
-        // The Tamil localization is the user's experience on a
-        // Tamil-locale phone. The test pins the file's
-        // existence and the localisation entry; a future
-        // refactor that drops values-ta/ (a real risk on a
-        // non-translated project) flips the test red.
-        val ta = stringsTa
-        assertTrue(
-            "values-ta/strings.xml must exist and be readable",
-            ta.isNotBlank(),
-        )
-        assertTrue(
-            "values-ta/strings.xml must define <string name=\"letters_channel_name\"> with a Tamil value",
-            Regex(
-                """<string\s+name="letters_channel_name">[^<]+</string>""",
-            ).containsMatchIn(ta),
-        )
-        // The Tamil value must contain at least one Tamil
-        // character (Unicode range U+0B80–U+0BFF). A
-        // regression that pasted the English default into
-        // values-ta/ would compile and even work, but the
-        // Tamil user would see English. The test catches
-        // that.
-        val taChannelLine = Regex(
-            """<string\s+name="letters_channel_name">([^<]+)</string>""",
-        ).find(ta)?.groupValues?.get(1) ?: ""
-        val hasTamilScript = taChannelLine.any { c -> c.code in 0x0B80..0x0BFF }
-        assertTrue(
-            "Tamil letters_channel_name must contain Tamil-script characters (U+0B80-U+0BFF). Value: $taChannelLine",
-            hasTamilScript,
         )
     }
 

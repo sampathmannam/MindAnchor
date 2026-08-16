@@ -287,12 +287,12 @@ fun NoteScreen(
                         onClick = onClose,
                         modifier = Modifier.semantics {
                             // v0.25.18 i18n sweep: was the literal
-                            // English string "Close". A Tamil
-                            // user running a Tamil-localised build
-                            // heard English in TalkBack. The string
-                            // now lives in strings.xml as
-                            // R.string.note_close so the localiser
-                            // can override it.
+                            // English string "Close". The string now
+                            // lives in strings.xml as
+                            // R.string.note_close. v0.30.0: comment
+                            // updated to drop the Tamil-localiser
+                            // reference (values-ta/ was removed per
+                            // the "no tamil needed" directive).
                             contentDescription = closeDesc
                         },
                     ) {
