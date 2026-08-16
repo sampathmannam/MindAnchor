@@ -2,8 +2,8 @@ package org.mindanchor.report
 
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.File
 
+import org.mindanchor.testing.TestFileUtil.fileAt
 /**
  * Finding test for the v0.22.2 P3 fix in [ReportScreen].
  *
@@ -33,12 +33,6 @@ import java.io.File
  *     fix is additive, not a copy.
  */
 class ReportScreenEmptyFindingsTest {
-
-    private fun fileAt(relative: String): File {
-        val candidates = listOf(relative, "../$relative", "../../$relative")
-        return candidates.map(::File).firstOrNull { it.isFile }
-            ?: error("$relative not found from working directory ${File(".").absolutePath}.")
-    }
 
     private val screen: String
         get() = fileAt(

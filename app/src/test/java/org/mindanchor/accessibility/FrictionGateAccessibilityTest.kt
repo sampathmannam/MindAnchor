@@ -2,8 +2,8 @@ package org.mindanchor.accessibility
 
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.File
 
+import org.mindanchor.testing.TestFileUtil.fileAt
 /**
  * Structural test for the FrictionGate accessibility
  * patterns. The runtime test is the project owner's
@@ -22,12 +22,6 @@ import java.io.File
  * accessibility techniques reference.
  */
 class FrictionGateAccessibilityTest {
-
-    private fun fileAt(relative: String): File {
-        val candidates = listOf(relative, "../$relative", "../../$relative")
-        return candidates.map(::File).firstOrNull { it.isFile }
-            ?: error("$relative not found from working directory ${File(".").absolutePath}.")
-    }
 
     private val gate: String
         get() = fileAt(

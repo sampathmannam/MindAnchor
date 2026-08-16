@@ -1,11 +1,11 @@
 @file:Suppress("MaxLineLength")
 package org.mindanchor.launcher
 
-import java.io.File
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+import org.mindanchor.testing.TestFileUtil.fileAt
 /**
  * v0.26.5: 4th "I'm up late tonight" option on the 2am shell.
  *
@@ -45,12 +45,6 @@ import org.junit.Test
  *      of the 3 main options intact.
  */
 class NowWhatStayUpFindingTest {
-
-    private fun fileAt(relative: String): File {
-        val candidates = listOf(relative, "../$relative", "../../$relative")
-        return candidates.map(::File).firstOrNull { it.isFile }
-            ?: error("$relative not found from working directory ${File(".").absolutePath}.")
-    }
 
     private val nowWhatShell: String
         get() = fileAt(

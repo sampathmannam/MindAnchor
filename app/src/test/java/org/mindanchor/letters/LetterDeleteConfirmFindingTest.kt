@@ -3,16 +3,9 @@ package org.mindanchor.letters
 
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.mindanchor.testing.TestFileUtil.fileAt
 
 class LetterDeleteConfirmFindingTest {
-
-    private fun fileAt(relative: String): java.io.File {
-        val candidates = listOf(relative, "../$relative", "../../$relative")
-        return candidates
-            .map { java.io.File(it) }
-            .firstOrNull { it.isFile }
-            ?: error("$relative not found from working directory ${java.io.File(".").absolutePath}.")
-    }
 
     private val screen: String
         get() = fileAt(

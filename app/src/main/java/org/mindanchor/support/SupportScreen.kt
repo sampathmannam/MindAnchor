@@ -460,6 +460,28 @@ fun SupportScreen(
                     .heightIn(min = 48.dp)
                     .semantics { role = Role.Button },
             ) { Text(stringResource(R.string.support_interpersonal_button)) }
+            // v0.29.0: ACT values clarification (Hayes 2004).
+            // Sits at the end of the in-the-moment → reflective
+            // ordering — the *slowest* reflective practice
+            // (per docs/research/14-v0.26.6-audit.md §3.5). Placed
+            // last because the user needs time and quiet to write
+            // the values, not an in-the-moment skill.
+            TextButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(
+                                context,
+                                org.mindanchor.support.ValuesActivity::class.java,
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .semantics { role = Role.Button },
+            ) { Text(stringResource(R.string.support_values_button)) }
 
             // --- The plan ---
             Row(

@@ -2,8 +2,8 @@ package org.mindanchor.letters
 
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.File
 
+import org.mindanchor.testing.TestFileUtil.fileAt
 /**
  * Finding test for v0.25.3-WP-C (per-letter `read` flag).
  *
@@ -27,12 +27,6 @@ import java.io.File
  *     WP-C ships.
  */
 class LetterReadFlagFindingTest {
-
-    private fun fileAt(relative: String): File {
-        val candidates = listOf(relative, "../$relative", "../../$relative")
-        return candidates.map(::File).firstOrNull { it.isFile }
-            ?: error("$relative not found from working directory ${File(".").absolutePath}.")
-    }
 
     private val store: String
         get() = fileAt(

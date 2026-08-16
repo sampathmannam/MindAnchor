@@ -389,6 +389,20 @@
             android:exported="false" />
 
         <!--
+            v0.29.0: ACT values clarification (Hayes et al. 1999/2004;
+            Wilson & Murrell 2004). The eighth value domain is
+            "parenting" per the standard ACT taxonomy. The card
+            is saved to ValuesPrefs (DataStore) on a single Save
+            tap; the user can revisit and see their previously-
+            written values. Non-exported, opened from
+            SupportActivity as the last reflective practice in
+            the "More moments" group.
+        -->
+        <activity
+            android:name=".support.ValuesActivity"
+            android:exported="false" />
+
+        <!--
             The pause, when an app was opened from somewhere other than the
             launcher. Its own taskAffinity so it sits in a task of its own
             on top of whatever opened, rather than joining that app's task

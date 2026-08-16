@@ -3,8 +3,8 @@ package org.mindanchor.ci
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.File
 
+import org.mindanchor.testing.TestFileUtil.fileAt
 /**
  * Validates the structure of the detekt config and baseline.
  * detekt 1.23.8 is pinned in gradle/libs.versions.toml;
@@ -12,12 +12,6 @@ import java.io.File
  * so a careless edit cannot silently disable the gate.
  */
 class DetektConfigTest {
-
-    private fun fileAt(relative: String): File {
-        val candidates = listOf(relative, "../$relative", "../../$relative")
-        return candidates.map(::File).firstOrNull { it.isFile }
-            ?: error("$relative not found from working directory ${File(".").absolutePath}.")
-    }
 
     @Test
     fun `the detekt config exists and is non-empty`() {

@@ -20,7 +20,12 @@
  * skills makes the wrong surface the closest tap.
  *
  * The fix in v0.28.2: move the v0.27.0 reflective entries to AFTER
- * the v0.28.0 in-the-moment entries. The intended order is:
+ * the v0.28.0 in-the-moment entries.
+ *
+ * v0.29.0: ACT values clarification (Hayes 2004) is added at the
+ * end of the in-the-moment → reflective group — the *slowest*
+ * reflective practice (per docs/research/14-v0.26.6-audit.md
+ * §3.5). The intended order is:
  *   1. Opposite Action (v0.28.0)
  *   2. Distress Thermometer (v0.28.0)
  *   3. ACCEPTS (v0.28.0)
@@ -29,6 +34,7 @@
  *   6. Radical acceptance (v0.27.0)
  *   7. DBT Diary Card (v0.28.0)
  *   8. Interpersonal skills = DEAR MAN / GIVE / FAST (v0.27.0)
+ *   9. ACT values (v0.29.0)
  *
  * These tests pin the order as a positive shape (must appear in
  * this sequence) — a regression that puts any reflective entry
@@ -42,15 +48,9 @@ package org.mindanchor.support
 
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.File
 
+import org.mindanchor.testing.TestFileUtil.fileAt
 class SupportOrderFindingTest {
-    private fun fileAt(relative: String): File {
-        val candidates = listOf(relative, "../$relative", "../../$relative")
-        return candidates.map(::File).firstOrNull { it.isFile }
-            ?: error("$relative not found from working directory ${File(".").absolutePath}.")
-    }
-
     private val supportScreenPath =
         "app/src/main/java/org/mindanchor/support/SupportScreen.kt"
 
@@ -108,6 +108,7 @@ class SupportOrderFindingTest {
             "RadicalAcceptanceActivity" to "Radical acceptance (v0.27.0, reflective)",
             "DiaryCardActivity" to "DBT Diary Card (v0.28.0, reflective)",
             "InterpersonalActivity" to "Interpersonal = DEAR MAN/GIVE/FAST (v0.27.0, reflective)",
+            "ValuesActivity" to "ACT values (v0.29.0, reflective, slowest)",
         )
         val positions = expected.map { (cls, label) -> cls to (textButtonIndex(s, cls) to label) }
         // Negative: missing activity

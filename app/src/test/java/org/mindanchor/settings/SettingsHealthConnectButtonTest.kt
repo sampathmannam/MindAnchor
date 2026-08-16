@@ -2,8 +2,8 @@ package org.mindanchor.settings
 
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.File
 
+import org.mindanchor.testing.TestFileUtil.fileAt
 /**
  * Structural test for the "Connect to your watch" button in the
  * SettingsScreen's Measuring group.
@@ -32,12 +32,6 @@ import java.io.File
  * permission set
  */
 class SettingsHealthConnectButtonTest {
-
-    private fun fileAt(relative: String): File {
-        val candidates = listOf(relative, "../$relative", "../../$relative")
-        return candidates.map(::File).firstOrNull { it.isFile }
-            ?: error("$relative not found from working directory ${File(".").absolutePath}.")
-    }
 
     private val screen: String
         get() = fileAt(

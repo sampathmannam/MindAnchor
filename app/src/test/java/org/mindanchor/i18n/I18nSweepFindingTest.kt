@@ -9,8 +9,8 @@ package org.mindanchor.i18n
 
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.File
 
+import org.mindanchor.testing.TestFileUtil.fileAt
 /**
  * v0.25.18 i18n sweep: a FindingTest that asserts the 12
  * v0.25.18 source files contain no hardcoded English
@@ -46,12 +46,6 @@ import java.io.File
  * `contentDescription =` inside the lambda.
  */
 class I18nSweepFindingTest {
-
-    private fun fileAt(relative: String): File {
-        val candidates = listOf(relative, "../$relative", "../../$relative")
-        return candidates.map(::File).firstOrNull { it.isFile }
-            ?: error("$relative not found from working directory ${File(".").absolutePath}.")
-    }
 
     private val sweptFiles = listOf(
         "app/src/main/java/org/mindanchor/settings/SettingsScreen.kt",

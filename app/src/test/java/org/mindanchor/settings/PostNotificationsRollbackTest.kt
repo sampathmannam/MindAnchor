@@ -2,8 +2,8 @@ package org.mindanchor.settings
 
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.File
 
+import org.mindanchor.testing.TestFileUtil.fileAt
 /**
  * Finding test for the POST_NOTIFICATIONS permission flow.
  *
@@ -35,12 +35,6 @@ import java.io.File
  *     `viewModel.setEmaEnabled(false)`.
  */
 class PostNotificationsRollbackTest {
-
-    private fun fileAt(relative: String): File {
-        val candidates = listOf(relative, "../$relative", "../../$relative")
-        return candidates.map(::File).firstOrNull { it.isFile }
-            ?: error("$relative not found from working directory ${File(".").absolutePath}.")
-    }
 
     private val screen: String
         get() = fileAt(

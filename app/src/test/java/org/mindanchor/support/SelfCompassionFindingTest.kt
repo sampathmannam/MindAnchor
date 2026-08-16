@@ -1,11 +1,11 @@
 @file:Suppress("MaxLineLength")
 package org.mindanchor.support
 
-import java.io.File
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+import org.mindanchor.testing.TestFileUtil.fileAt
 /**
  * v0.27.0: the Neff (2003) self-compassion break surface.
  *
@@ -23,12 +23,6 @@ import org.junit.Test
  * user can dismiss at any time.
  */
 class SelfCompassionFindingTest {
-
-    private fun fileAt(relative: String): File {
-        val candidates = listOf(relative, "../$relative", "../../$relative")
-        return candidates.map(::File).firstOrNull { it.isFile }
-            ?: error("$relative not found from working directory ${File(".").absolutePath}.")
-    }
 
     private val activity: String
         get() = fileAt(

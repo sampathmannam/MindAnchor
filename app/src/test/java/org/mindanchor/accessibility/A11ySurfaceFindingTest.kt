@@ -10,8 +10,8 @@ package org.mindanchor.accessibility
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.File
 
+import org.mindanchor.testing.TestFileUtil.fileAt
 /**
  * SOTA v2 bug-hunt — accessibility, i18n, RTL, dark mode, touch
  * targets, content descriptions, haptics, animation respect.
@@ -28,12 +28,6 @@ import java.io.File
  * before it ever reaches the device.
  */
 class A11ySurfaceFindingTest {
-
-    private fun fileAt(relative: String): File {
-        val candidates = listOf(relative, "../$relative", "../../$relative")
-        return candidates.map(::File).firstOrNull { it.isFile }
-            ?: error("$relative not found from working directory ${File(".").absolutePath}.")
-    }
 
     // ---- B1: HomeScreen "letters" TextButton content is hardcoded English. ----
 

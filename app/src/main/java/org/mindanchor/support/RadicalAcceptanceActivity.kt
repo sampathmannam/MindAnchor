@@ -1,10 +1,7 @@
-@file:Suppress("MagicNumber")
+﻿@file:Suppress("MagicNumber")
 package org.mindanchor.support
 
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import org.mindanchor.ui.CalmBackground
+import androidx.compose.runtime.Composable
 
 /**
  * v0.27.0: the Linehan (1993) radical acceptance exercise, opened
@@ -12,6 +9,11 @@ import org.mindanchor.ui.CalmBackground
  * seconds total). The activity exists so the activity-launch
  * smoke tests can verify the surface; the whole Composable is
  * in [RadicalAcceptanceScreen].
+ *
+ * v0.29.0: the activity's lifecycle / theme scaffold is in
+ * [SupportSurfaceActivity]. This class only declares what the
+ * surface renders, not how the activity is wired into the
+ * Android lifecycle.
  *
  * ## What this is and what it is not
  *
@@ -28,13 +30,9 @@ import org.mindanchor.ui.CalmBackground
  * not "you must accept"). The Done button is always present.
  * The back gesture dismisses without consequence.
  */
-class RadicalAcceptanceActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent {
-            CalmBackground { _ ->
-                RadicalAcceptanceScreen(onDone = { finish() })
-            }
-        }
+class RadicalAcceptanceActivity : SupportSurfaceActivity() {
+    @Composable
+    override fun Surface(onDone: () -> Unit) {
+        RadicalAcceptanceScreen(onDone = onDone)
     }
 }

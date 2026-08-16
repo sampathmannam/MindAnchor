@@ -2,8 +2,8 @@ package org.mindanchor.report
 
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.File
 
+import org.mindanchor.testing.TestFileUtil.fileAt
 /**
  * Finding test for v0.25.3-WP-D: the report screen's
  * letter-reader-mode header (A- / A / A+ segmented control).
@@ -26,12 +26,6 @@ import java.io.File
  *     A- / A / A+ labels (no string resources).
  */
 class ReportScreenReadingSizeFindingTest {
-
-    private fun fileAt(relative: String): File {
-        val candidates = listOf(relative, "../$relative", "../../$relative")
-        return candidates.map(::File).firstOrNull { it.isFile }
-            ?: error("$relative not found from working directory ${File(".").absolutePath}.")
-    }
 
     private val screen: String
         get() = fileAt(

@@ -1,10 +1,10 @@
 @file:Suppress("MaxLineLength", "FunctionNaming", "MagicNumber")
 package org.mindanchor.letters
 
-import java.io.File
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+import org.mindanchor.testing.TestFileUtil.fileAt
 /**
  * v0.26.2: the letter time is configurable in Settings.
  *
@@ -23,12 +23,6 @@ import org.junit.Test
  * change flips the test red.
  */
 class LetterTimeConfigurableFindingTest {
-
-    private fun fileAt(relative: String): File {
-        val candidates = listOf(relative, "../$relative", "../../$relative")
-        return candidates.map(::File).firstOrNull { it.isFile }
-            ?: error("$relative not found from working directory ${File(".").absolutePath}.")
-    }
 
     private val settings: String
         get() = fileAt(

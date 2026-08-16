@@ -1,11 +1,11 @@
 @file:Suppress("MaxLineLength")
 package org.mindanchor.support
 
-import java.io.File
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+import org.mindanchor.testing.TestFileUtil.fileAt
 /**
  * v0.28.0: the IFS letter-to-a-part surface (Schwartz 1995).
  *
@@ -19,12 +19,6 @@ import org.junit.Test
  *  7. BPD-safe: no directive language.
  */
 class LetterToPartFindingTest {
-
-    private fun fileAt(relative: String): File {
-        val candidates = listOf(relative, "../$relative", "../../$relative")
-        return candidates.map(::File).firstOrNull { it.isFile }
-            ?: error("$relative not found from working directory ${File(".").absolutePath}.")
-    }
 
     private val manifest: String
         get() = fileAt("app/src/main/AndroidManifest.xml").readText()

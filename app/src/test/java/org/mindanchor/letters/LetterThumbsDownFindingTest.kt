@@ -1,10 +1,10 @@
 @file:Suppress("MaxLineLength", "FunctionNaming", "MagicNumber")
 package org.mindanchor.letters
 
-import java.io.File
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+import org.mindanchor.testing.TestFileUtil.fileAt
 /**
  * v0.26.2 "This got me wrong" thumbs-down on AI-generated
  * letters.
@@ -25,12 +25,6 @@ import org.junit.Test
  * feedback file storage are modelled.
  */
 class LetterThumbsDownFindingTest {
-
-    private fun fileAt(relative: String): File {
-        val candidates = listOf(relative, "../$relative", "../../$relative")
-        return candidates.map(::File).firstOrNull { it.isFile }
-            ?: error("$relative not found from working directory ${File(".").absolutePath}.")
-    }
 
     private val screen: String
         get() = fileAt(

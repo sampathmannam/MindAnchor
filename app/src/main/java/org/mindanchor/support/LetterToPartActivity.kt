@@ -1,10 +1,7 @@
 @file:Suppress("MagicNumber")
 package org.mindanchor.support
 
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import org.mindanchor.ui.CalmBackground
+import androidx.compose.runtime.Composable
 
 /**
  * v0.28.0: a letter to the part of you that is loudest right now
@@ -12,6 +9,11 @@ import org.mindanchor.ui.CalmBackground
  * (pick a part, write to it, optionally write from it back to
  * you) via a state var. The letter is not saved; it is an act,
  * not a record.
+ *
+ * v0.29.0: the activity's lifecycle / theme scaffold is in
+ * [SupportSurfaceActivity]. This class only declares what the
+ * surface renders, not how the activity is wired into the
+ * Android lifecycle.
  *
  * ## What this is and what it is not
  *
@@ -30,13 +32,9 @@ import org.mindanchor.ui.CalmBackground
  * The "from the part" view is an *invitation*, not a requirement
  * — the user can dismiss at any time.
  */
-class LetterToPartActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent {
-            CalmBackground { _ ->
-                LetterToPartScreen(onDone = { finish() })
-            }
-        }
+class LetterToPartActivity : SupportSurfaceActivity() {
+    @Composable
+    override fun Surface(onDone: () -> Unit) {
+        LetterToPartScreen(onDone = onDone)
     }
 }

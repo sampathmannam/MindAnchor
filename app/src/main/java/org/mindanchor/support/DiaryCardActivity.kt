@@ -1,14 +1,16 @@
 @file:Suppress("MagicNumber")
 package org.mindanchor.support
 
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import org.mindanchor.ui.CalmBackground
+import androidx.compose.runtime.Composable
 
 /**
  * v0.28.0: the DBT diary card (Linehan 1993 ch. 11;
  * Dimeff et al. 2011).
+ *
+ * v0.29.0: the activity's lifecycle / theme scaffold is in
+ * [SupportSurfaceActivity]. This class only declares what the
+ * surface renders, not how the activity is wired into the
+ * Android lifecycle.
  *
  * A single daily prompt: urge / emotion / intensity / skill /
  * outcome. The card is the gold standard for BPD mood tracking
@@ -20,8 +22,8 @@ import org.mindanchor.ui.CalmBackground
  * The card is in [DiaryCardPrefs] (DataStore). The
  * "this week" view shows the last 7 days as a list — never a
  * chart (per the v0.26.6 audit §2.3 BPD-safety rule that a
- * chart implies an interpretation the project is not allowed
- * to make).
+ * chart implies an interpretation the project is not allowed to
+ * make).
  *
  * ## BPD-safety
  *
@@ -32,13 +34,9 @@ import org.mindanchor.ui.CalmBackground
  * optional and the prompt names the skills by name — not "you
  * should have used...".
  */
-class DiaryCardActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent {
-            CalmBackground { _ ->
-                DiaryCardScreen(onDone = { finish() })
-            }
-        }
+class DiaryCardActivity : SupportSurfaceActivity() {
+    @Composable
+    override fun Surface(onDone: () -> Unit) {
+        DiaryCardScreen(onDone = onDone)
     }
 }

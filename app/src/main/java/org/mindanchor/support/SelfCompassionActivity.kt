@@ -1,17 +1,19 @@
 @file:Suppress("MagicNumber")
 package org.mindanchor.support
 
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import org.mindanchor.ui.CalmBackground
+import androidx.compose.runtime.Composable
 
 /**
- * v0.27.0: the Neff (2003) self-compassion break, opened from
- * SupportActivity. Three sentences at 15 seconds each (45 seconds
- * total). The activity exists so the activity-launch smoke tests
- * can verify the surface; the whole Composable is in
- * [SelfCompassionScreen].
+ * v0.27.0: the Neff (2003) self-compassion break, opened
+ * from SupportActivity. Three sentences at 15 seconds each (45 seconds
+ * total). The activity exists so the activity-launch
+ * smoke tests can verify the surface; the whole Composable is
+ * in [SelfCompassionScreen].
+ *
+ * v0.29.0: the activity's lifecycle / theme scaffold is in
+ * [SupportSurfaceActivity]. This class only declares what the
+ * surface renders, not how the activity is wired into the
+ * Android lifecycle.
  *
  * ## What this is and what it is not
  *
@@ -29,13 +31,9 @@ import org.mindanchor.ui.CalmBackground
  * framing. No good-vs-bad day. The user can dismiss at any time
  * via the Done button.
  */
-class SelfCompassionActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent {
-            CalmBackground { _ ->
-                SelfCompassionScreen(onDone = { finish() })
-            }
-        }
+class SelfCompassionActivity : SupportSurfaceActivity() {
+    @Composable
+    override fun Surface(onDone: () -> Unit) {
+        SelfCompassionScreen(onDone = onDone)
     }
 }

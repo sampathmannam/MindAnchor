@@ -1,17 +1,18 @@
 @file:Suppress("MagicNumber")
 package org.mindanchor.support
 
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import org.mindanchor.ui.CalmBackground
+import androidx.compose.runtime.Composable
 
 /**
  * v0.28.0: the Linehan (1993, ch. 8) Opposite Action skill, opened
  * from SupportActivity. Four steps, each with a label and an
- * optional free-text field. The activity exists so the activity-
- * launch smoke tests can verify the surface; the whole Composable
- * is in [OppositeActionScreen].
+ * optional free-text field. The whole Composable is in
+ * [OppositeActionScreen].
+ *
+ * v0.29.0: the activity's lifecycle / theme scaffold is in
+ * [SupportSurfaceActivity]. This class only declares what the
+ * surface renders, not how the activity is wired into the
+ * Android lifecycle.
  *
  * ## What this is and what it is not
  *
@@ -29,13 +30,9 @@ import org.mindanchor.ui.CalmBackground
  * "the opposite is yours to choose". The free-text fields are
  * optional. The Done button dismisses without consequence.
  */
-class OppositeActionActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent {
-            CalmBackground { _ ->
-                OppositeActionScreen(onDone = { finish() })
-            }
-        }
+class OppositeActionActivity : SupportSurfaceActivity() {
+    @Composable
+    override fun Surface(onDone: () -> Unit) {
+        OppositeActionScreen(onDone = onDone)
     }
 }

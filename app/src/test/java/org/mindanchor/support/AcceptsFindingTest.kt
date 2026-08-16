@@ -1,10 +1,10 @@
 @file:Suppress("MaxLineLength")
 package org.mindanchor.support
 
-import java.io.File
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.mindanchor.testing.TestFileUtil.fileAt
 
 /**
  * v0.28.0: the ACCEPTS self-soothing surface (DBT Linehan 1993 ch. 8).
@@ -18,12 +18,6 @@ import org.junit.Test
  *  6. BPD-safe: no directive language.
  */
 class AcceptsFindingTest {
-
-    private fun fileAt(relative: String): File {
-        val candidates = listOf(relative, "../$relative", "../../$relative")
-        return candidates.map(::File).firstOrNull { it.isFile }
-            ?: error("$relative not found from working directory ${File(".").absolutePath}.")
-    }
 
     private val manifest: String
         get() = fileAt("app/src/main/AndroidManifest.xml").readText()

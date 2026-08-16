@@ -912,6 +912,9 @@
     <string name="support_accepts_button">A small way to land — ACCEPTS</string>
     <string name="support_letter_to_part_button">A letter to the part that is loudest</string>
     <string name="support_diary_card_button">Today\'s check-in</string>
+    <!-- v0.29.0: ACT values clarification (Hayes 2004). Sits at the
+         end of the in-the-moment → reflective ordering. -->
+    <string name="support_values_button">What matters to me</string>
     <string name="support_more_skills_section">More moments</string>
     <string name="support_more_skills_intro">Each is a short, evidence-grounded practice. Pick the one that fits what is happening right now.</string>
 
@@ -1026,6 +1029,27 @@
     <string name="diary_card_history">This week</string>
     <string name="diary_card_history_empty">No check-ins yet. The first one is the one that counts.</string>
     <string name="diary_card_a11y">DBT diary card. Five fields: urge, emotion, intensity, skill, outcome. Save at the bottom.</string>
+
+    <!-- v0.29.0: ACT values clarification (Hayes et al. 1999/2004;
+         Wilson & Murrell 2004). The 8-domain standard ACT taxonomy
+         is the scaffold; the user's one sentence per domain is the
+         card. Saved to a single DataStore key on Save tap. No
+         score, no chart, no comparison — the card is the values,
+         nothing more. -->
+    <string name="values_title">What matters to me</string>
+    <string name="values_caption">Values are directions, not goals. You can never finish a value — you can only live it for a moment, and then the next.</string>
+    <string name="values_relationships_label">Relationships</string>
+    <string name="values_health_label">Health</string>
+    <string name="values_work_label">Work</string>
+    <string name="values_growth_label">Growth</string>
+    <string name="values_leisure_label">Leisure</string>
+    <string name="values_spirituality_label">Spirituality</string>
+    <string name="values_community_label">Community</string>
+    <string name="values_parenting_label">Parenting</string>
+    <string name="values_field_hint">In this corner of my life, I want to be the kind of person who…</string>
+    <string name="values_save">Save</string>
+    <string name="values_saved">Saved. Read it again when you want to.</string>
+    <string name="values_a11y">ACT values clarification. Eight domains: relationships, health, work, growth, leisure, spirituality, community, parenting. One sentence each. Save at the bottom.</string>
 
     <!-- v0.28.0: home surface — Distress Thermometer as the
          first card. Reframes home from "todo list with BPD

@@ -1,11 +1,11 @@
 @file:Suppress("MaxLineLength")
 package org.mindanchor.support
 
-import java.io.File
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+import org.mindanchor.testing.TestFileUtil.fileAt
 /**
  * v0.27.0: the Linehan (1993) radical acceptance exercise surface.
  *
@@ -24,12 +24,6 @@ import org.junit.Test
  * through them at 10 seconds each (40 seconds total).
  */
 class RadicalAcceptanceFindingTest {
-
-    private fun fileAt(relative: String): File {
-        val candidates = listOf(relative, "../$relative", "../../$relative")
-        return candidates.map(::File).firstOrNull { it.isFile }
-            ?: error("$relative not found from working directory ${File(".").absolutePath}.")
-    }
 
     private val manifest: String
         get() = fileAt("app/src/main/AndroidManifest.xml").readText()

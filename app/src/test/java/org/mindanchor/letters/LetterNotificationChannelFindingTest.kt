@@ -1,10 +1,10 @@
 @file:Suppress("MaxLineLength", "FunctionNaming", "MagicNumber")
 package org.mindanchor.letters
 
-import java.io.File
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+import org.mindanchor.testing.TestFileUtil.fileAt
 /**
  * v0.26.2: the letter notification channel.
  *
@@ -32,12 +32,6 @@ import org.junit.Test
  * the test red.
  */
 class LetterNotificationChannelFindingTest {
-
-    private fun fileAt(relative: String): File {
-        val candidates = listOf(relative, "../$relative", "../../$relative")
-        return candidates.map(::File).firstOrNull { it.isFile }
-            ?: error("$relative not found from working directory ${File(".").absolutePath}.")
-    }
 
     // v0.25.19: the channel creation moved from LetterScheduler.kt
     // to org.mindanchor.notifications.Channels (centralised).

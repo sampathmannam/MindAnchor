@@ -1,10 +1,7 @@
 @file:Suppress("MagicNumber")
 package org.mindanchor.support
 
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import org.mindanchor.ui.CalmBackground
+import androidx.compose.runtime.Composable
 
 /**
  * v0.27.0: the Linehan (1993) DBT Module 4 (Interpersonal
@@ -13,6 +10,11 @@ import org.mindanchor.ui.CalmBackground
  * menu and three sub-screens; navigation is via a state var, not
  * separate activities (the three screens share the same
  * visual idiom and the menu is a single tap).
+ *
+ * v0.29.0: the activity's lifecycle / theme scaffold is in
+ * [SupportSurfaceActivity]. This class only declares what the
+ * surface renders, not how the activity is wired into the
+ * Android lifecycle.
  *
  * ## What this is and what it is not
  *
@@ -28,13 +30,9 @@ import org.mindanchor.ui.CalmBackground
  * optional. There is no "you should send this" or "this is the
  * right text" copy anywhere.
  */
-class InterpersonalActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent {
-            CalmBackground { _ ->
-                InterpersonalScreen(onDone = { finish() })
-            }
-        }
+class InterpersonalActivity : SupportSurfaceActivity() {
+    @Composable
+    override fun Surface(onDone: () -> Unit) {
+        InterpersonalScreen(onDone = onDone)
     }
 }

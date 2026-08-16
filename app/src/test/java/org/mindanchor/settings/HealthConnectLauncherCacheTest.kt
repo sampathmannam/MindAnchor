@@ -2,8 +2,8 @@ package org.mindanchor.settings
 
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.File
 
+import org.mindanchor.testing.TestFileUtil.fileAt
 /**
  * Finding test for the v0.23.0 Health Connect launcher cache fix
  * in [SettingsScreen].
@@ -36,12 +36,6 @@ import java.io.File
  *     that re-reads the status.
  */
 class HealthConnectLauncherCacheTest {
-
-    private fun fileAt(relative: String): File {
-        val candidates = listOf(relative, "../$relative", "../../$relative")
-        return candidates.map(::File).firstOrNull { it.isFile }
-            ?: error("$relative not found from working directory ${File(".").absolutePath}.")
-    }
 
     private val screen: String
         get() = fileAt(

@@ -1,16 +1,18 @@
 @file:Suppress("MagicNumber")
 package org.mindanchor.support
 
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import org.mindanchor.ui.CalmBackground
+import androidx.compose.runtime.Composable
 
 /**
  * v0.28.0: ACCEPTS self-soothing menu (DBT Linehan 1993
  * Distress Tolerance Module 2). Seven buttons, each a 2-minute
  * grounding practice. The user picks one, reads the one-line
  * body, and is dismissed back. There is no log, no score.
+ *
+ * v0.29.0: the activity's lifecycle / theme scaffold is in
+ * [SupportSurfaceActivity]. This class only declares what the
+ * surface renders, not how the activity is wired into the
+ * Android lifecycle.
  *
  * ACCEPTS is a mnemonic in DBT distress tolerance:
  *   A — Activities
@@ -27,13 +29,9 @@ import org.mindanchor.ui.CalmBackground
  * needs *one* thing to do, not a menu of seven things to
  * remember.
  */
-class AcceptsActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent {
-            CalmBackground { _ ->
-                AcceptsScreen(onDone = { finish() })
-            }
-        }
+class AcceptsActivity : SupportSurfaceActivity() {
+    @Composable
+    override fun Surface(onDone: () -> Unit) {
+        AcceptsScreen(onDone = onDone)
     }
 }

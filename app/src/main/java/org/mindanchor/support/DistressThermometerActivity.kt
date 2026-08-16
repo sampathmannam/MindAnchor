@@ -2,10 +2,7 @@
 package org.mindanchor.support
 
 import android.content.Intent
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import org.mindanchor.ui.CalmBackground
+import androidx.compose.runtime.Composable
 
 /**
  * v0.28.0: the Distress Thermometer (DBT + Gross emotion
@@ -35,27 +32,29 @@ import org.mindanchor.ui.CalmBackground
  * launches SupportActivity. Previously it called onDone (a silent
  * dismiss), which was a false promise to a user in the high-distress
  * band. R1 stays honored — no hardcoded helpline numbers anywhere.
+ *
+ * v0.29.0: the activity's lifecycle / theme scaffold is in
+ * [SupportSurfaceActivity]. The 86+ band's "open Support" callback
+ * is wired here, in the Surface() override, because it is the
+ * only place that has both the activity context (for
+ * startActivity) and the screen.
  */
-class DistressThermometerActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent {
-            CalmBackground { _ ->
-                DistressThermometerScreen(
-                    onDone = { finish() },
-                    onOpenSupport = {
-                        // v0.28.1: the high-distress band reaches the
-                        // Support group directly. R1 honored — no
-                        // hardcoded numbers, just DBT skills + the
-                        // user's own contact list.
-                        startActivity(
-                            Intent(this, SupportActivity::class.java)
-                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                        )
-                        finish()
-                    },
+class DistressThermometerActivity : SupportSurfaceActivity() {
+    @Composable
+    override fun Surface(onDone: () -> Unit) {
+        DistressThermometerScreen(
+            onDone = onDone,
+            onOpenSupport = {
+                // v0.28.1: the high-distress band reaches the
+                // Support group directly. R1 honored — no
+                // hardcoded numbers, just DBT skills + the
+                // user's own contact list.
+                startActivity(
+                    Intent(this, SupportActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                 )
-            }
-        }
+                finish()
+            },
+        )
     }
 }
