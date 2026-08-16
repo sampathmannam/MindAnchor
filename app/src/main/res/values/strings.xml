@@ -337,6 +337,24 @@
     <string name="letters_channel_name">Daily letter</string>
     <string name="letters_channel_description">A weekly letter drawn from your own last week.</string>
     <!--
+        v0.32.1: the foreground-service channel for the
+        on-demand "Generate now" letter run. Low importance
+        so it does not sound an alert or pop a heads-up;
+        the user has already acknowledged the run with the
+        Toast. The status-bar icon is the "this is alive"
+        signal; its replacement by the done/failed
+        notification is the "finished" signal.
+    -->
+    <string name="letters_generation_channel_name">Letter generation</string>
+    <string name="letters_generation_channel_description">A small ongoing icon while MindAnchor is writing tonight\'s letter on this phone.</string>
+    <string name="letters_generation_ongoing_title">Generating tonight\'s letter</string>
+    <string name="letters_generation_ongoing_text">The Q2_K model on this phone takes 30–60 minutes. The letter appears in the inbox when it finishes.</string>
+    <string name="letters_generation_done_title">Tonight\'s letter is ready</string>
+    <string name="letters_generation_failed_title">Letter generation didn\'t complete</string>
+    <string name="letters_generation_failed_text">%1$s — tap to open the inbox and try again.</string>
+    <string name="letters_generation_failed_empty">The model returned no text for this week\'s data.</string>
+    <string name="letters_generation_failed_unknown">An unexpected error stopped the generation.</string>
+    <!--
         v0.26.4 §3.4: the BPD "right now" home surface.
         Three low-friction affordances for a person
         mid-dysregulation to externalise the moment

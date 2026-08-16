@@ -73,8 +73,6 @@ import org.mindanchor.friction.LoopPhase
 import org.mindanchor.letters.Letter
 import org.mindanchor.letters.LetterScreen
 import org.mindanchor.letters.LetterStore
-import org.mindanchor.letters.LetterWriter
-import org.mindanchor.letters.WeekDataCollector
 import org.mindanchor.model.Note
 import org.mindanchor.model.NoteActivity
 import org.mindanchor.reader.ReadingSize
@@ -759,39 +757,44 @@ fun LauncherRoot(
                 // rejection never crashes the launcher — the
                 // user sees an empty inbox, exactly as they
                 // did before v0.31.0.
+                //
+                // v0.32.1: the work is now hosted by a
+                // [org.mindanchor.letters.LettersGenerationService]
+                // foreground service. Pre-v0.32.1 the
+                // coroutine was tied to this Composable's
+                // `letterScope = rememberCoroutineScope()`
+                // and died when the user navigated away, or
+                // (more often on a 1.8 GB MemAvailable
+                // phone) when the OS reaped the process
+                // mid-decode. The service holds a partial
+                // wake lock, posts an ongoing notification
+                // for visibility, and runs until the letter
+                // is saved or the run fails. The same
+                // pipeline ([WeekDataCollector] →
+                // [LetterWriter] → [LetterStore.saveUserLetter])
+                // — just hosted in a place that survives
+                // the Composable.
                 onGenerateNow = {
-                    // v0.32.0: the user has been told "overnight speed" is
-                    // what the design is. The Q2_K decode on a phone
-                    // takes 30-60 minutes. A tap on "Generate now" used
-                    // to be a silent no-op from the UI's perspective
-                    // for that whole window. The Toast here is the
-                    // minimum honest signal: "yes, it kicked off; the
-                    // inbox will gain a letter when it finishes". The
-                    // existing write() / saveUserLetter() already
-                    // surface a success path; the failure path is
-                    // still silent because the overnight path is the
-                    // canonical one and the "Generate now" affordance
-                    // is "I want to look at the running signal", not
-                    // "I want to read the paragraph in three minutes".
+                    // The Toast is the immediate user-side
+                    // confirmation: "yes, the button worked;
+                    // the system has the work." The
+                    // notification will appear in the
+                    // status bar a moment later; that is
+                    // the "this is still running" signal.
+                    // The letter itself appears in the
+                    // inbox when the generation finishes
+                    // (and the user gets a one-shot
+                    // "Tonight's letter is ready"
+                    // notification at that point).
                     android.widget.Toast.makeText(
                         context.applicationContext,
                         "Generating tonight's letter \u2014 the Q2_K model on this phone takes 30\u201360 minutes. The letter appears in the inbox when it finishes.",
                         android.widget.Toast.LENGTH_LONG,
                     ).show()
-                    letterScope.launch {
-                        runCatching {
-                            val week = WeekDataCollector(context.applicationContext).collectLastWeek()
-                            val body = LetterWriter(context.applicationContext).write(week)
-                            if (body != null) {
-                                letterStore.saveUserLetter(java.time.LocalDate.now(), body)
-                                android.widget.Toast.makeText(
-                                    context.applicationContext,
-                                    "Letter saved",
-                                    android.widget.Toast.LENGTH_SHORT,
-                                ).show()
-                            }
-                        }
-                    }
+                    val appContext = context.applicationContext
+                    appContext.startForegroundService(
+                        org.mindanchor.letters.LettersGenerationService.intent(appContext),
+                    )
                 },
                 // v0.26.2: persist a thumbs-down. The body
                 // comes from the feedback dialog's optional

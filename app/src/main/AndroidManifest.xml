@@ -844,6 +844,28 @@
                 <action android:name="android.provider.Telephony.SMS_RECEIVED" />
             </intent-filter>
         </receiver>
+
+        <!--
+            v0.32.1: the foreground service that hosts the
+            on-demand letter generation. Pre-v0.32.1 the
+            work ran in a coroutine tied to the Letters
+            inbox's Composable lifecycle; on a 1.8 GB
+            MemAvailable phone the OS reaped the process
+            mid-decode and no letter was saved. The
+            foreground service + partial wake lock + ongoing
+            notification is the Android-canonical way to
+            keep the Q2_K decode alive long enough to
+            produce a 600-token letter.
+
+            The foregroundServiceType="dataSync" pairs with
+            the FOREGROUND_SERVICE_DATA_SYNC permission
+            declared at the top of this file. Pinned by
+            LettersGenerationServiceManifestFindingTest.
+        -->
+        <service
+            android:name=".letters.LettersGenerationService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
     </application>
 
 </manifest>

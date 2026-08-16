@@ -58,6 +58,17 @@ object Channels {
     const val TONE_CHECK = "org.mindanchor.tonecheck"
 
     /**
+     * v0.32.1: the foreground-service notification for the
+     * "Generate now" / overnight letter run. The channel is
+     * IMPORTANCE_LOW so the user gets a status-bar icon (and
+     * can pull down to read the progress text) without a
+     * heads-up pop, a sound, or a launcher badge. Same shape
+     * as [GOING_LIGHT] — an ongoing foreground service whose
+     * presence in the bar is itself the signal, not the alert.
+     */
+    const val LETTERS_GENERATION = "org.mindanchor.letters.generation"
+
+    /**
      * Create every channel. Idempotent on Android 8+ (the
      * `createNotificationChannel` call is a no-op if a
      * channel with the same id already exists, so the
@@ -75,6 +86,7 @@ object Channels {
             ema(manager, context),
             goingLight(manager, context),
             toneCheck(manager, context),
+            lettersGeneration(manager, context),
         )
     }
 
@@ -150,6 +162,25 @@ object Channels {
             NotificationManager.IMPORTANCE_HIGH,
         ).apply {
             description = context.getString(R.string.tone_check_channel_description)
+        }
+        manager.createNotificationChannel(channel)
+    }
+
+    private fun lettersGeneration(manager: NotificationManager, context: Context) {
+        // v0.32.1: the ongoing "Generating tonight's letter"
+        // notification. Same shape as goingLight: ongoing, low
+        // importance, no badge, no sound. The user sees a small
+        // status-bar icon and can pull down for the progress
+        // text. The letter has already been announced by the
+        // Toast on the home screen; this notification is the
+        // "still running, you can ignore me" signal.
+        val channel = NotificationChannel(
+            LETTERS_GENERATION,
+            context.getString(R.string.letters_generation_channel_name),
+            NotificationManager.IMPORTANCE_LOW,
+        ).apply {
+            description = context.getString(R.string.letters_generation_channel_description)
+            setShowBadge(false)
         }
         manager.createNotificationChannel(channel)
     }
