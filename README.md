@@ -52,4 +52,4 @@ Every release so far is debug-signed, so Play Protect will warn about the APK; s
 
 ## License
 
-[GPL-3.0-only](LICENSE).
+[Apache 2.0](LICENSE).
