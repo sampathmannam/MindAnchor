@@ -103,7 +103,7 @@ class LetterWriter(private val context: Context) {
          * comfortable ceiling that lets the model finish a
          * sentence without running away.
          */
-        const val MAX_NEW_TOKENS = 30
+        const val MAX_NEW_TOKENS = 600
         // 64-bit FNV-style seed. The exact value is a non-secret
         // constant — it just needs to be a large odd prime with
         // good distribution across the 64-bit space.

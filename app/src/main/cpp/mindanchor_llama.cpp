@@ -327,7 +327,17 @@ Java_org_mindanchor_narrate_LlamaEngine_nativeGenerate(
         // limits the process after a few minutes and the
         // decode throttles to 0.1 tok/s. A line every 20
         // tokens is one per ~20 seconds, cheap.
-        if ((produced + 1) % 20 == 0) {
+        //
+        // v0.32.0: tightened to every 5 tokens because the
+        // Q2_K decode turned out slower than the v0.31.2
+        // estimate — closer to 0.2 tok/s on the Moto G84
+        // with b4792 + flash_attn + KV-Q4_0. A 600-token
+        // generation takes ~50 minutes; the user only
+        // needs to know *something is happening* every
+        // couple of minutes. 5 tokens = ~25 sec on this
+        // phone, which is a "this is alive" tick without
+        // flooding the buffer.
+        if ((produced + 1) % 5 == 0) {
             ALOGI("generate: produced %d tokens, %zu chars so far",
                   produced + 1, output.size());
         }

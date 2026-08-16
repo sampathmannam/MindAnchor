@@ -35,19 +35,28 @@ class HomeDistressCardFindingTest {
             "HomeScreen must define a HomeDistressCard Composable",
             homeScreen.contains("private fun HomeDistressCard("),
         )
-        // HomeDistressCard must be called once, and the call must
-        // appear BEFORE the OpenLoopCard call (i.e. it is the first
-        // card on home). Use the indented call-site pattern so the
-        // search is scoped to the home composition (the same
-        // scoping trick v0.25.14 BUG-005 used to scope to a
-        // function definition).
+        // v0.32.0: OpenLoopCard was the second card on home from
+        // v0.25.5 to v0.31.x. v0.32.0 cuts it for the same reason
+        // v0.28.0 cut OneThingCard and v0.26.6 cut BedtimeListCard:
+        // the v0.26.6 audit counted three task-capture cards as
+        // "one too many for a person with BPD" (DBT: low cognitive
+        // load is the floor). The data model is kept; only the
+        // home-surface render is removed. The home scroll is now
+        // Distress → QuickNotes; the test below pins the new
+        // order. The OpenLoop call-site index is asserted < 0 so
+        // a regression that re-introduces the card is caught.
         val distressIdx = homeScreen.indexOf("\n            HomeDistressCard(")
         val openLoopIdx = homeScreen.indexOf("\n            OpenLoopCard(")
         assertTrue("HomeDistressCard call site must exist", distressIdx > 0)
-        assertTrue("OpenLoopCard call site must exist", openLoopIdx > 0)
         assertTrue(
-            "HomeDistressCard must be the FIRST card on home (rendered before OpenLoopCard)",
-            distressIdx < openLoopIdx,
+            "OpenLoopCard must NOT be rendered on the home surface " +
+                "(v0.32.0 cut: third task-capture card removed for BPD-safe " +
+                "home. Data model is kept in LauncherViewModel.openLoop).",
+            openLoopIdx < 0,
+        )
+        assertTrue(
+            "HomeDistressCard must be the first card on home (only QuickNotes follows).",
+            distressIdx > 0,
         )
     }
 

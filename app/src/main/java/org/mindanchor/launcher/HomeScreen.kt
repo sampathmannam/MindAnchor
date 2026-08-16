@@ -760,12 +760,35 @@ fun LauncherRoot(
                 // user sees an empty inbox, exactly as they
                 // did before v0.31.0.
                 onGenerateNow = {
+                    // v0.32.0: the user has been told "overnight speed" is
+                    // what the design is. The Q2_K decode on a phone
+                    // takes 30-60 minutes. A tap on "Generate now" used
+                    // to be a silent no-op from the UI's perspective
+                    // for that whole window. The Toast here is the
+                    // minimum honest signal: "yes, it kicked off; the
+                    // inbox will gain a letter when it finishes". The
+                    // existing write() / saveUserLetter() already
+                    // surface a success path; the failure path is
+                    // still silent because the overnight path is the
+                    // canonical one and the "Generate now" affordance
+                    // is "I want to look at the running signal", not
+                    // "I want to read the paragraph in three minutes".
+                    android.widget.Toast.makeText(
+                        context.applicationContext,
+                        "Generating tonight's letter \u2014 the Q2_K model on this phone takes 30\u201360 minutes. The letter appears in the inbox when it finishes.",
+                        android.widget.Toast.LENGTH_LONG,
+                    ).show()
                     letterScope.launch {
                         runCatching {
                             val week = WeekDataCollector(context.applicationContext).collectLastWeek()
                             val body = LetterWriter(context.applicationContext).write(week)
                             if (body != null) {
                                 letterStore.saveUserLetter(java.time.LocalDate.now(), body)
+                                android.widget.Toast.makeText(
+                                    context.applicationContext,
+                                    "Letter saved",
+                                    android.widget.Toast.LENGTH_SHORT,
+                                ).show()
                             }
                         }
                     }
@@ -1734,16 +1757,22 @@ private fun HomeSurface(
                 onOpen = onOpenDistressThermometer,
             )
 
-            OpenLoopCard(
-                sky = sky,
-                phase = loopPhase,
-                note = loopNote,
-                postponedAt = loopPostponedAt,
-                onSave = onLoopSave,
-                onClear = onLoopClear,
-                onPostpone = onLoopPostpone,
-                onCancelPostpone = onLoopCancelPostpone,
-            )
+            // v0.32.0: OpenLoopCard removed from the home surface.
+            // v0.28.0 removed OneThingCard and BedtimeListCard
+            // for the same reason; v0.32.0 removes the last of
+            // the three task-capture cards the v0.26.6 audit
+            // counted as "one too many for a person with BPD".
+            // The data model (LauncherViewModel.openLoop +
+            // saveOpenLoop + postponeOpenLoop + clearOpenLoop
+            // + CorosVitalSource.mergeWith's open-loop window)
+            // is kept untouched: a future re-introduction, or
+            // a "more moments" surface, can render the same
+            // composable. The home scroll is now the smallest
+            // it has ever been — Distress Thermometer →
+            // QuickNotes — and the only input card on a quiet
+            // night is the one the brief calls the
+            // URL-bar-equivalent. See
+            // docs/research/14-v0.26.6-audit.md §3.
 
             // v0.20.4: the quick-notes card. Always
             // visible — the brief is "I want to
