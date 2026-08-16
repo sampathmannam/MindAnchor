@@ -506,7 +506,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { readerPrefs.setSize(size) }
     }
 
-    // --- modelFits (v0.25.16 BUG-017) ---------------------------------
+    // --- modelFits (v0.25.16 BUG-017, v0.30.1 BUG-046) -----------------
     //
     // The letter inbox's "Generate now" affordance is gated on whether
     // the on-device Phi-4 model is present in the right place and
@@ -519,24 +519,25 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     // `collectAsStateWithLifecycle` (BUG-004) and reflects into the
     // `LetterScreen` argument.
     //
-    // The model file lives under the app's internal storage as
-    // `phi-4-mini-q4.gguf`; the path is a single file the launcher
-    // owns, so `file.exists()` is the truthful test. The flow is
-    // seeded with `false` and updated once on first composition; a
-    // future change that wants to react to a download completing
-    // mid-session can swap the `MutableStateFlow` for a real
-    // `flow { ... }` and re-emit on `phi4ModelRepo.observe()`.
-    private val _modelFits = MutableStateFlow(false)
-    val modelFits: StateFlow<Boolean> = _modelFits.asStateFlow()
+    // v0.30.1 (BUG-046): the previous `init { ... }` block checked a
+    // hard-coded `phi-4-mini-q4.gguf` path that v0.23.0 had renamed
+    // to `model.gguf` in [ModelStore.MODEL_FILE_NAME]. The launcher
+    // was always reading "model not on file" and the Letters "Use AI"
+    // and "Generate now" buttons were always greyed, even after a
+    // successful import. Backing this flow with [ModelStore.fitFlow]
+    // — the same singleton flow [SettingsViewModel] publishes into
+    // after every import/clear — means the launcher and the settings
+    // screen agree without either having to know the other exists.
+    val modelFits: StateFlow<Boolean> = org.mindanchor.narrate.ModelStore.fitFlow()
 
     init {
+        // Make sure the singleton fitState reflects the
+        // current file on disk the first time the launcher
+        // is composed. The Settings VM also calls this on
+        // every entry, so this is just the "cold start
+        // from the launcher" path.
         viewModelScope.launch(Dispatchers.IO) {
-            val modelFile = java.io.File(application.filesDir, "phi-4-mini-q4.gguf")
-            // The threshold is loose — the file just has to be present
-            // and not zero bytes. The actual on-load check is in the
-            // llama.cpp layer; the launcher-side flag is "should we
-            // even offer the affordance".
-            _modelFits.value = modelFile.exists() && modelFile.length() > 0L
+            org.mindanchor.narrate.ModelStore.refreshFit(application)
         }
     }
 

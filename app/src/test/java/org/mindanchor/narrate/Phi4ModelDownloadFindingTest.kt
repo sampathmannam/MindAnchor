@@ -121,4 +121,46 @@ class Phi4ModelDownloadFindingTest {
             Phi4ModelDownload.isPhi4File(contentUri),
         )
     }
+
+    /**
+     * The Android [DownloadManager] appends `-N` to the
+     * destination filename when a file with the requested
+     * name already exists in the public Downloads
+     * collection. The launcher must still recognise the
+     * download as the Phi-4 model — otherwise a user who
+     * has any prior download attempt on the device (a
+     * browser download, a previous in-app retry) will see
+     * "no model on file" even after the system download
+     * completed. v0.30.1 (auto-integration bug).
+     */
+    @Test
+    fun `isPhi4File accepts the DownloadManager collision-suffix basename`() {
+        // The actual filename observed on the test phone
+        // after the v0.30.0 download collided with the
+        // earlier `Phi-4-mini-instruct-Q4_K_M.gguf` that
+        // an earlier session had left in the public
+        // Downloads dir.
+        val collisionOne = "file:///storage/emulated/0/Download/Phi-4-mini-instruct-Q4_K_M-1.gguf"
+        assertTrue(
+            "first collision suffix must be accepted",
+            Phi4ModelDownload.isPhi4File(collisionOne),
+        )
+        val collisionFour = "file:///storage/emulated/0/Download/Phi-4-mini-instruct-Q4_K_M-4.gguf"
+        assertTrue(
+            "later collision suffix must be accepted",
+            Phi4ModelDownload.isPhi4File(collisionFour),
+        )
+        // Negative cases — the prefix + extension check
+        // must not over-accept.
+        val almostRight = "file:///storage/emulated/0/Download/Phi-4-mini-instruct-Q8_0.gguf"
+        assertFalse(
+            "a different quantisation with the same family prefix must be rejected",
+            Phi4ModelDownload.isPhi4File(almostRight),
+        )
+        val fakePhi = "file:///storage/emulated/0/Download/Phi-4-mini-instruct-Q4_K_M.txt"
+        assertFalse(
+            "the right prefix with the wrong extension must be rejected",
+            Phi4ModelDownload.isPhi4File(fakePhi),
+        )
+    }
 }

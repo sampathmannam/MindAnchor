@@ -297,6 +297,18 @@
     <string name="model_download_use">Use this model</string>
     <string name="model_download_dismiss">Not now</string>
     <!--
+        v0.30.1: when the system Downloads
+        collection already contains a Phi-4 file
+        (e.g. a previous in-app attempt whose
+        completion broadcast was missed, or a
+        browser download), offer to import the
+        existing file instead of asking the user to
+        re-download 2.49 GB.
+    -->
+    <string name="model_existing_offer">A Phi-4 file is already in the phone\'s Downloads folder. Use it as the narrate model?</string>
+    <string name="model_existing_use">Use the file in Downloads</string>
+    <string name="model_existing_dismiss">Not now</string>
+    <!--
         v0.24.0: opt-in daily letter. Reuses the
         v0.23.0 Phi-4 mini on-device engine; runs at
         user-chosen time; gated on the model being

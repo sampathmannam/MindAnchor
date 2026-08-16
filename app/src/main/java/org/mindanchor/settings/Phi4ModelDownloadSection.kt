@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -65,50 +66,56 @@ import org.mindanchor.narrate.Phi4ModelDownload
 @Suppress("FunctionNaming") // @Composable: PascalCase is the Compose convention.
 @Composable
 fun Phi4ModelDownloadSection(viewModel: SettingsViewModel) {
-    val context = LocalContext.current
     var pendingDownloadUri by remember { mutableStateOf<Uri?>(null) }
-    var enqueueMessage by remember { mutableStateOf<Int?>(null) }
+    var existingDownloadUri by remember { mutableStateOf<Uri?>(null) }
 
-    DisposableEffect(context) {
-        val receiver = object : BroadcastReceiver() {
-            override fun onReceive(ctx: Context, intent: Intent) {
-                val id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L)
-                if (id != downloadId) return
-                val manager = ctx.getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager
-                    ?: return
-                val query = DownloadManager.Query().setFilterById(id)
-                val cursor = runCatching { manager.query(query) }.getOrNull() ?: return
-                cursor.use { c ->
-                    if (c.moveToFirst()) {
-                        val localUriString = c.getString(c.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI))
-                        // Defense in depth: the
-                        // downloadId match should already
-                        // be enough, but if the user has
-                        // another download in flight at
-                        // the same time, the basename
-                        // check keeps the receiver from
-                        // acting on someone else's file.
-                        if (Phi4ModelDownload.isPhi4File(localUriString)) {
-                            val localUri = localUriString?.let(Uri::parse)
-                            if (localUri != null) {
-                                pendingDownloadUri = localUri
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        val filter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
-        ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
-        onDispose {
-            runCatching { context.unregisterReceiver(receiver) }
-        }
-    }
+    Phi4DownloadReceiver(
+        onPhi4Downloaded = { uri -> pendingDownloadUri = uri },
+    )
+    ScanForExistingDownload(
+        onFound = { uri -> existingDownloadUri = uri },
+    )
+
+    DownloadControls(
+        viewModel = viewModel,
+        existingDownloadUri = existingDownloadUri,
+        onExistingUsed = { existingDownloadUri = null },
+        pendingDownloadUri = pendingDownloadUri,
+        onPendingUsed = { pendingDownloadUri = null },
+    )
+}
+
+/**
+ * The download button + the "your download is ready" /
+ * "your existing file is ready" prompts. v0.30.1 split
+ * out of [Phi4ModelDownloadSection] so the section
+ * itself stays inside detekt's 60-line method cap.
+ */
+@Suppress("FunctionNaming") // @Composable: PascalCase is the Compose convention.
+@Composable
+private fun DownloadControls(
+    viewModel: SettingsViewModel,
+    existingDownloadUri: Uri?,
+    onExistingUsed: () -> Unit,
+    pendingDownloadUri: Uri?,
+    onPendingUsed: () -> Unit,
+) {
+    val context = LocalContext.current
+    var enqueueMessage by remember { mutableStateOf<Int?>(null) }
 
     Column(
         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
+        ExistingDownloadOffer(
+            uri = existingDownloadUri,
+            onUse = { uri ->
+                viewModel.importModel(uri)
+                onExistingUsed()
+            },
+            onDismiss = onExistingUsed,
+        )
+
         TextButton(
             onClick = {
                 val id = Phi4ModelDownload.enqueue(context)
@@ -140,13 +147,122 @@ fun Phi4ModelDownloadSection(viewModel: SettingsViewModel) {
             )
             TextButton(onClick = {
                 viewModel.importModel(readyUri)
-                pendingDownloadUri = null
+                onPendingUsed()
             }) {
                 Text(stringResource(R.string.model_download_use))
             }
-            TextButton(onClick = { pendingDownloadUri = null }) {
+            TextButton(onClick = onPendingUsed) {
                 Text(stringResource(R.string.model_download_dismiss))
             }
+        }
+    }
+}
+
+/**
+ * The "a Phi-4 file is already in your Downloads folder"
+ * offer. v0.30.1. Renders nothing when [uri] is null.
+ */
+@Suppress("FunctionNaming") // @Composable: PascalCase is the Compose convention.
+@Composable
+private fun ExistingDownloadOffer(
+    uri: Uri?,
+    onUse: (Uri) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    if (uri == null) return
+    Text(
+        text = stringResource(R.string.model_existing_offer),
+        style = MaterialTheme.typography.bodyMedium,
+        modifier = Modifier.padding(top = 4.dp),
+    )
+    TextButton(onClick = { onUse(uri) }) {
+        Text(stringResource(R.string.model_existing_use))
+    }
+    TextButton(onClick = onDismiss) {
+        Text(stringResource(R.string.model_existing_dismiss))
+    }
+}
+
+/**
+ * Scans the public Downloads dir for an existing
+ * Phi-4 file once per composition. v0.30.1 split
+ * out of [Phi4ModelDownloadSection] so the section
+ * itself stays inside detekt's 60-line method cap.
+ *
+ * The scan runs once; the result is held in the
+ * caller's state, so the offer does not flicker
+ * across recompositions. The caller's UI is
+ * "no existing download found" when nothing is on
+ * disk — the same state as before — and the user
+ * can fall back to the regular download flow.
+ */
+@Suppress("FunctionNaming") // @Composable: PascalCase is the Compose convention.
+@Composable
+private fun ScanForExistingDownload(
+    onFound: (Uri) -> Unit,
+) {
+    var done by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (done) return@LaunchedEffect
+        val found = Phi4ModelDownload.findExistingDownload()
+        if (found != null) onFound(found)
+        // Mark done either way, so we don't re-scan
+        // on every recomposition.
+        done = true
+    }
+}
+
+/**
+ * The BroadcastReceiver that listens for a fresh
+ * Phi-4 download to complete and surfaces its
+ * local URI to [onPhi4Downloaded]. v0.30.1 split
+ * out of [Phi4ModelDownloadSection] so the section
+ * itself stays inside detekt's 60-line method cap.
+ *
+ * The receiver is registered with the activity's
+ * context (RECEIVER_NOT_EXPORTED) because the
+ * ACTION_DOWNLOAD_COMPLETE broadcast is delivered
+ * only to the app that enqueued the download.
+ */
+@Suppress("FunctionNaming") // @Composable: PascalCase is the Compose convention.
+@Composable
+private fun Phi4DownloadReceiver(
+    onPhi4Downloaded: (Uri) -> Unit,
+) {
+    val context = LocalContext.current
+    DisposableEffect(context) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(ctx: Context, intent: Intent) {
+                val id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L)
+                if (id != downloadId) return
+                val manager = ctx.getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager
+                    ?: return
+                val query = DownloadManager.Query().setFilterById(id)
+                val cursor = runCatching { manager.query(query) }.getOrNull() ?: return
+                cursor.use { c ->
+                    if (c.moveToFirst()) {
+                        val localUriString = c.getString(c.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI))
+                        // Defense in depth: the
+                        // downloadId match should already
+                        // be enough, but if the user has
+                        // another download in flight at
+                        // the same time, the basename
+                        // check keeps the receiver from
+                        // acting on someone else's file.
+                        if (Phi4ModelDownload.isPhi4File(localUriString)) {
+                            val localUri = localUriString?.let(Uri::parse)
+                            if (localUri != null) {
+                                onPhi4Downloaded(localUri)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        val filter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
+        ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        onDispose {
+            runCatching { context.unregisterReceiver(receiver) }
         }
     }
 }

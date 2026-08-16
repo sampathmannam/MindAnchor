@@ -3,7 +3,9 @@ package org.mindanchor.narrate
 import android.app.DownloadManager
 import android.content.Context
 import android.net.Uri
+import android.os.Environment
 import android.util.Log
+import java.io.File
 
 /**
  * The Phi-4 mini GGUF download surface. v0.23.0.
@@ -139,6 +141,36 @@ object Phi4ModelDownload {
     }
 
     /**
+     * The basename prefix the launcher accepts as a
+     * Phi-4 download notification. Pinned as a
+     * separate constant so the suffix-collision
+     * logic is testable in isolation: the [DownloadManager]
+     * appends `-N` to the destination filename when
+     * a file with the requested name already exists in
+     * the public Downloads collection (a user who has
+     * downloaded the same file from a browser, or who
+     * hit "retry" on a previous in-app download that
+     * left a partially-completed file in place). The
+     * launcher treats `Phi-4-mini-instruct-Q4_K_M.gguf`
+     * and `Phi-4-mini-instruct-Q4_K_M-4.gguf` as the
+     * same artefact; only the prefix and the `.gguf`
+     * extension are checked.
+     */
+    const val DOWNLOAD_BASENAME_PREFIX: String = "Phi-4-mini-instruct-Q4_K_M"
+
+    /**
+     * The minimum file size, in bytes, for a candidate
+     * in the public Downloads dir to be considered a
+     * real model file rather than a partial / aborted
+     * download. 100 MB is well below the model's actual
+     * size (~2.49 GB) and well above the typical size of
+     * an in-progress download. A lower threshold would
+     * mis-import truncated files; a higher one would
+     * miss a small (or Q2-quantised) Phi-4 build.
+     */
+    const val EXISTING_FILE_MIN_BYTES: Long = 100L * 1024L * 1024L
+
+    /**
      * Whether [uri] looks like a download notification
      * for the Phi-4 file. The system delivers the
      * download ID via the intent's extras; the local
@@ -161,6 +193,86 @@ object Phi4ModelDownload {
         // `content://.../name.gguf` both end with the
         // same last path segment.
         val name = uriString.substringAfterLast('/')
-        return name == DOWNLOAD_SUBPATH
+        // Match on prefix + .gguf extension, so the
+        // DownloadManager's `-N` collision suffix
+        // (e.g. `Phi-4-mini-instruct-Q4_K_M-4.gguf`)
+        // is still recognised. Pin the canonical
+        // filename too, so the no-collision case
+        // (the first download) keeps working.
+        return name.startsWith(DOWNLOAD_BASENAME_PREFIX) && name.endsWith(".gguf")
     }
+
+    /**
+     * Scans the system public Downloads collection
+     * for a previously-downloaded Phi-4 file, and
+     * returns the most recent one as a `file://` URI,
+     * or `null` if none is on disk. v0.30.1.
+     *
+     * ## Why this exists
+     *
+     * The [DownloadManager] suffix-collides any
+     * second download for the same target name with
+     * a `-N` integer. The receiver in
+     * [org.mindanchor.settings.Phi4ModelDownloadSection]
+     * already accepts those suffixed names — see
+     * [isPhi4File] — but a download that completed
+     * BEFORE the receiver was listening (because the
+     * user was on a different screen, or because the
+     * app process was killed between completion and
+     * the next opening of the settings surface) is
+     * never re-broadcast, and the file sits on disk
+     * with no in-app way to act on it. The user would
+     * have to manually re-download the 2.49 GB to get
+     * the receiver to fire, which is the very
+     * "manual integrating" the v0.30.0 phone test
+     * surfaced as the worst usability cliff on the
+     * reading surface.
+     *
+     * This scan closes that cliff: the settings
+     * surface offers a "Use existing download" tap
+     * that imports the file the system already has.
+     *
+     * ## Why most-recent wins
+     *
+     * A user who has downloaded the same file twice
+     * (perhaps the first time crashed, perhaps the
+     * second time was a different model build) is
+     * almost always looking for the latest one —
+     * older downloads of a large model are typically
+     * partial / corrupt / left over from a previous
+     * attempt. We pick the file with the highest
+     * lastModified timestamp; ties go to the
+     * lexicographically largest name, which after
+     * `-N` collision means the highest-N file wins.
+     *
+     * Returns `null` (not throws) if anything in the
+     * scan fails. The caller's UI is "no existing
+     * download found" — the same state as before —
+     * and the user can fall back to the regular
+     * download flow.
+     */
+    fun findExistingDownload(): Uri? = runCatching {
+        val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        val candidates = downloadsDir
+            .listFiles { file ->
+                val name = file.name
+                // Same shape as isPhi4File's URI-string
+                // check, but applied to a File's name
+                // directly. The basename test is the
+                // one we actually care about; the
+                // size floor of 100 MB is a cheap
+                // "this is a real model file, not a
+                // stray partial download" guard.
+                name.startsWith(DOWNLOAD_BASENAME_PREFIX) &&
+                    name.endsWith(".gguf") &&
+                    file.length() > EXISTING_FILE_MIN_BYTES
+            }
+            ?.toList()
+            ?: return@runCatching null
+        if (candidates.isEmpty()) return@runCatching null
+        val mostRecent = candidates.maxWithOrNull(
+            compareBy<File> { it.lastModified() }.thenByDescending { it.name },
+        ) ?: return@runCatching null
+        Uri.fromFile(mostRecent)
+    }.getOrNull()
 }
