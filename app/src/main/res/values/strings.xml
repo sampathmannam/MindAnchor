@@ -290,7 +290,7 @@
         the launcher prompts the user with a one-tap
         "Use this as the narrate model?" Yes-then-import.
     -->
-    <string name="model_download">Download Phi-4 mini (Q4_K_M, 2.49 GB)</string>
+    <string name="model_download">Download Phi-4 mini (Q2_K, 1.6 GB)</string>
     <string name="model_download_enqueued">Download started. MindAnchor will prompt you when the file has landed.</string>
     <string name="model_download_failed">The system refused the download. Check the network or storage and try again.</string>
     <string name="model_download_prompt">Phi-4 mini downloaded. Use this as the narrate model?</string>
@@ -303,7 +303,7 @@
         completion broadcast was missed, or a
         browser download), offer to import the
         existing file instead of asking the user to
-        re-download 2.49 GB.
+        re-download 1.6 GB.
     -->
     <string name="model_existing_offer">A Phi-4 file is already in the phone\'s Downloads folder. Use it as the narrate model?</string>
     <string name="model_existing_use">Use the file in Downloads</string>

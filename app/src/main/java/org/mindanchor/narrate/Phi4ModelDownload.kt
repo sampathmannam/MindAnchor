@@ -63,47 +63,63 @@ object Phi4ModelDownload {
     private const val LOG_TAG = "MindAnchor/Phi4"
 
     /**
-     * The default size of the Phi-4 mini Q4_K_M
+     * The default size of the Phi-4 mini Q2_K
      * weights, in bytes. The actual download may be
      * a few kilobytes off (HuggingFace occasionally
      * rebuilds the GGUF with a slightly different
      * header), but the order of magnitude is what the
-     * UI's "2.49 GB" copy advertises.
+     * UI's "1.6 GB" copy advertises. v0.31.1: was
+     * 2,490,000,000 for Q4_K_M; dropped to 1,683,000,000
+     * for the Q2_K quant.
      */
-    const val APPROXIMATE_BYTES: Long = 2_490_000_000L
+    const val APPROXIMATE_BYTES: Long = 1_683_000_000L
 
     /**
-     * The Unsloth GGUF mirror for Phi-4-mini. Unsloth
-     * is the most-downloaded, most-rebuilt GGUF
-     * mirror in the open-weights community.
+     * The Unsloth GGUF mirror for Phi-4-mini. v0.31.1:
+     * dropped from Q4_K_M (2.32 GB) to Q2_K (1.57 GB).
+     * The Q4_K_M file exceeded the free RAM on phones
+     * with 1.5-2 GB available (e.g. the Moto G84 used
+     * for the v0.30.x phone test) — llama.cpp's
+     * `llama_model_load_from_file` would return null
+     * because the model's mmap'd working set plus
+     * runtime overhead needed ~3-4 GB. The Q2_K
+     * quantisation is 33% smaller on disk, fits in
+     * 1.8 GB free with margin, and the quality loss for
+     * 1-3 paragraph English-prose summaries is
+     * acceptable (per llama.cpp's published perplexity
+     * deltas, +0.87 ppl over FP16 — visible on close
+     * reading, not catastrophic for short summarisation).
+     * The settings card's "2.49 GB" copy is updated to
+     * "1.6 GB" via [APPROXIMATE_BYTES] below.
      */
     const val PRIMARY_URL: String =
         "https://huggingface.co/unsloth/Phi-4-mini-instruct-GGUF/resolve/main/" +
-            "Phi-4-mini-instruct-Q4_K_M.gguf"
+            "Phi-4-mini-instruct-Q2_K.gguf"
 
     /**
      * Microsoft's official GGUF mirror for Phi-4-mini.
-     * The fallback if the Unsloth URL changes.
+     * The fallback if the Unsloth URL changes. v0.31.1:
+     * also Q2_K (matching the primary).
      */
     const val FALLBACK_URL: String =
         "https://huggingface.co/microsoft/Phi-4-mini-instruct-GGUF/resolve/main/" +
-            "Phi-4-mini-instruct-Q4_K_M.gguf"
+            "Phi-4-mini-instruct-Q2_K.gguf"
 
     /**
      * The filename the launcher suggests to the
      * system's Downloads collection. Picked to match
      * the upstream artefact so a user who has the file
      * already on disk finds the prompt-by-name
-     * obvious.
+     * obvious. v0.31.1: matches the Q2_K quant above.
      */
-    const val DOWNLOAD_SUBPATH: String = "Phi-4-mini-instruct-Q4_K_M.gguf"
+    const val DOWNLOAD_SUBPATH: String = "Phi-4-mini-instruct-Q2_K.gguf"
 
     /**
      * The human-readable description shown in the
      * system notification. Kept short — the system
-     * truncates long titles.
+     * truncates long titles. v0.31.1: Q4_K_M → Q2_K.
      */
-    const val DOWNLOAD_TITLE: String = "Phi-4 mini (Q4_K_M)"
+    const val DOWNLOAD_TITLE: String = "Phi-4 mini (Q2_K)"
 
     /**
      * Enqueue a system download for the Phi-4-mini
@@ -156,7 +172,21 @@ object Phi4ModelDownload {
      * same artefact; only the prefix and the `.gguf`
      * extension are checked.
      */
-    const val DOWNLOAD_BASENAME_PREFIX: String = "Phi-4-mini-instruct-Q4_K_M"
+    /**
+     * v0.31.1: was "Phi-4-mini-instruct-Q4_K_M" (matched
+     * the v0.30.x recommended quant). Widened to the
+     * model family prefix so both the v0.30.x Q4_K_M
+     * files and the new v0.31.1 Q2_K file are
+     * recognised by the suffix-collision check. The
+     * loader itself does not care which quant was
+     * downloaded; llama.cpp picks up the actual format
+     * from the GGUF header. The v0.30.x Q4_K_M files
+     * on a phone with 1.5-2 GB free RAM will still fail
+     * at load time — see the model_load_failed_out_of_memory
+     * string for the user-facing message; the new
+     * Q2_K download is what fixes the problem.
+     */
+    const val DOWNLOAD_BASENAME_PREFIX: String = "Phi-4-mini-instruct-Q"
 
     /**
      * The minimum file size, in bytes, for a candidate

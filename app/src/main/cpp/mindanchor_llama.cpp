@@ -176,6 +176,41 @@ Java_org_mindanchor_narrate_LlamaEngine_nativeGenerate(
     ctx_params.n_batch = static_cast<uint32_t>(n_tokens);
     ctx_params.n_threads = threads;
     ctx_params.n_threads_batch = threads;
+    // v0.31.1: KV cache quantisation. The Phi-4-mini Q4_K_M
+    // model is 2.32 GB on disk; on a phone with 1.5-2 GB free
+    // RAM, the F16 KV cache (256 MB at n_ctx=2048) is the
+    // biggest single allocation that pushes the load over
+    // the line. llama.cpp supports per-tensor K and V
+    // quantisation since b2366, and the recommended
+    // production split is K=Q8_0, V=Q4_0: K is more
+    // attention-sensitive, V is more tolerant of
+    // quantisation error. At n_ctx=2048 this drops the
+    // cache from 256 MB to ~104 MB — a 152 MB saving,
+    // which is the order of magnitude the 1.8 GB-available
+    // Moto G84 needs. Both types are unconditional in
+    // ggml (no extra build flag), the fields are marked
+    // [EXPERIMENTAL] in llama.h but stable since 2024,
+    // and this is the same split `llama-cli` ships as
+    // its default for short-context inference.
+    ctx_params.type_k = GGML_TYPE_Q8_0;
+    ctx_params.type_v = GGML_TYPE_Q4_0;
+    // v0.31.1: no-GPU phone. The phone has no real GPU
+    // backend; offload_kqv=true is the llama.cpp default
+    // and a no-op without a GPU, but it adds a small
+    // bookkeeping branch in llama_kv_cache_init that we
+    // don't need. Set it false explicitly so a future
+    // llama.cpp change in the offload path can't
+    // accidentally cost us a frame.
+    ctx_params.offload_kqv = false;
+    // v0.31.1: tighter physical-batch cap. The default is
+    // 512 (llama.cpp:9336); our prompts are ~500 tokens,
+    // processed in one physical batch of 500 anyway.
+    // Setting n_ubatch = 128 reduces the peak compute
+    // scratch by roughly 4× without affecting decode
+    // (which is 1 token at a time, n_ubatch-irrelevant).
+    // n_batch (the cap) stays at n_tokens as before, so
+    // n_batch >= n_ubatch is preserved.
+    ctx_params.n_ubatch = 128;
     llama_context *ctx = llama_init_from_model(model, ctx_params);
     if (ctx == nullptr) {
         ALOGE("generate: llama_init_from_model returned null");

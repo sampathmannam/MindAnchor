@@ -23,10 +23,13 @@ class Phi4ModelDownloadFindingTest {
      * behaviour change for the user.
      */
     @Test
-    fun `primary URL is the Unsloth mirror`() {
+    fun `primary URL is the Unsloth mirror and points to Q2_K`() {
+        // v0.31.1: Q4_K_M (2.32 GB) was too large for
+        // phones with 1.5-2 GB free RAM. The Q2_K
+        // quantisation (1.57 GB) fits with margin.
         assertEquals(
             "https://huggingface.co/unsloth/Phi-4-mini-instruct-GGUF/resolve/main/" +
-                "Phi-4-mini-instruct-Q4_K_M.gguf",
+                "Phi-4-mini-instruct-Q2_K.gguf",
             Phi4ModelDownload.PRIMARY_URL,
         )
     }
@@ -39,10 +42,11 @@ class Phi4ModelDownloadFindingTest {
      * "official" second choice.
      */
     @Test
-    fun `fallback URL is the Microsoft mirror`() {
+    fun `fallback URL is the Microsoft mirror and points to Q2_K`() {
+        // v0.31.1: matches the new primary.
         assertEquals(
             "https://huggingface.co/microsoft/Phi-4-mini-instruct-GGUF/resolve/main/" +
-                "Phi-4-mini-instruct-Q4_K_M.gguf",
+                "Phi-4-mini-instruct-Q2_K.gguf",
             Phi4ModelDownload.FALLBACK_URL,
         )
     }
@@ -55,9 +59,10 @@ class Phi4ModelDownloadFindingTest {
      * "already-downloaded" fast path is obvious.
      */
     @Test
-    fun `download subpath matches the upstream filename`() {
+    fun `download subpath matches the upstream Q2_K filename`() {
+        // v0.31.1: was Q4_K_M, now Q2_K.
         assertEquals(
-            "Phi-4-mini-instruct-Q4_K_M.gguf",
+            "Phi-4-mini-instruct-Q2_K.gguf",
             Phi4ModelDownload.DOWNLOAD_SUBPATH,
         )
     }
@@ -69,13 +74,15 @@ class Phi4ModelDownloadFindingTest {
      * user is told to expect.
      */
     @Test
-    fun `approximate size is in the 2-point-4 GB ballpark`() {
+    fun `approximate size is in the 1-point-5 GB ballpark`() {
+        // v0.31.1: was Q4_K_M (2.0-3.0 GB ballpark).
+        // Q2_K is 1.5-1.7 GB.
         val size = Phi4ModelDownload.APPROXIMATE_BYTES
-        // 2.0 GB .. 3.0 GB. The exact figure varies
+        // 1.0 GB .. 2.0 GB. The exact figure varies
         // slightly across HuggingFace rebuilds; the
         // bracket pins the order of magnitude.
-        assertTrue("size must be at least 2 GB: $size", size >= 2_000_000_000L)
-        assertTrue("size must be at most 3 GB: $size", size <= 3_000_000_000L)
+        assertTrue("size must be at least 1 GB: $size", size >= 1_000_000_000L)
+        assertTrue("size must be at most 2 GB: $size", size <= 2_000_000_000L)
     }
 
     /**
@@ -87,9 +94,10 @@ class Phi4ModelDownloadFindingTest {
      * to update both URLs together.
      */
     @Test
-    fun `both URLs target the Q4_K_M file`() {
-        assertTrue(Phi4ModelDownload.PRIMARY_URL.contains("Q4_K_M"))
-        assertTrue(Phi4ModelDownload.FALLBACK_URL.contains("Q4_K_M"))
+    fun `both URLs target the Q2_K file`() {
+        // v0.31.1: was Q4_K_M, now Q2_K.
+        assertTrue(Phi4ModelDownload.PRIMARY_URL.contains("Q2_K"))
+        assertTrue(Phi4ModelDownload.FALLBACK_URL.contains("Q2_K"))
         // The basename is the same in both, so a
         // download started from one and finished from
         // the other would land in the same destination.
@@ -135,29 +143,38 @@ class Phi4ModelDownloadFindingTest {
      */
     @Test
     fun `isPhi4File accepts the DownloadManager collision-suffix basename`() {
-        // The actual filename observed on the test phone
-        // after the v0.30.0 download collided with the
-        // earlier `Phi-4-mini-instruct-Q4_K_M.gguf` that
-        // an earlier session had left in the public
-        // Downloads dir.
-        val collisionOne = "file:///storage/emulated/0/Download/Phi-4-mini-instruct-Q4_K_M-1.gguf"
+        // v0.31.1: the basename prefix is now
+        // "Phi-4-mini-instruct-Q" (covers both the
+        // v0.30.x Q4_K_M files already on disk and
+        // the new Q2_K download). The collision
+        // suffix is unchanged — Android's
+        // DownloadManager still appends `-N` on
+        // filename collision.
+        val collisionOne = "file:///storage/emulated/0/Download/Phi-4-mini-instruct-Q2_K-1.gguf"
         assertTrue(
             "first collision suffix must be accepted",
             Phi4ModelDownload.isPhi4File(collisionOne),
         )
-        val collisionFour = "file:///storage/emulated/0/Download/Phi-4-mini-instruct-Q4_K_M-4.gguf"
+        val collisionFour = "file:///storage/emulated/0/Download/Phi-4-mini-instruct-Q2_K-4.gguf"
         assertTrue(
             "later collision suffix must be accepted",
             Phi4ModelDownload.isPhi4File(collisionFour),
         )
-        // Negative cases — the prefix + extension check
-        // must not over-accept.
-        val almostRight = "file:///storage/emulated/0/Download/Phi-4-mini-instruct-Q8_0.gguf"
+        // Negative cases — the prefix + extension
+        // check must not over-accept. The v0.31.1
+        // prefix is "Phi-4-mini-instruct-Q" which
+        // matches Q2_K, Q3_K_*, Q4_K_*, etc. So
+        // a different QUANT of the same family is
+        // still a positive match — the loader
+        // picks up the actual format from the GGUF
+        // header. The negative case is therefore
+        // "wrong file family" or "wrong extension".
+        val wrongFamily = "file:///storage/emulated/0/Download/Phi-4-mini-reasoning-Q2_K.gguf"
         assertFalse(
-            "a different quantisation with the same family prefix must be rejected",
-            Phi4ModelDownload.isPhi4File(almostRight),
+            "a different model family with the same family prefix must be rejected",
+            Phi4ModelDownload.isPhi4File(wrongFamily),
         )
-        val fakePhi = "file:///storage/emulated/0/Download/Phi-4-mini-instruct-Q4_K_M.txt"
+        val fakePhi = "file:///storage/emulated/0/Download/Phi-4-mini-instruct-Q2_K.txt"
         assertFalse(
             "the right prefix with the wrong extension must be rejected",
             Phi4ModelDownload.isPhi4File(fakePhi),
