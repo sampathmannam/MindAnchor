@@ -92,24 +92,36 @@ class LetterInboxEmptyStateFindingTest {
         }
     }
 
-    @Test fun `Write a letter now button calls onWriteNow (which the inbox wires to onSaveUserLetter)`() {
-        // The primary button is the user-authored path; the
-        // inbox's `onWriteNow` callback is wired to
-        // `onSaveUserLetter(today, "")` so the user's tap on
-        // the empty-state button becomes a "save the
-        // composer's content" call. (The composer's own
-        // rendering is a follow-up; v0.26.2 ships the
-        // button + the save callback wiring — the in-line
-        // composer is the v0.26.3 work package.)
-        val onWriteNow = screen.indexOf("onWriteNow =")
+    @Test fun `Write a letter now button forwards onWriteNow to the inbox`() {
+        // v0.31.0: the empty-state button passes the
+        // inbox-supplied `onWriteNow` callback straight through.
+        // The inbox wires that callback to "open the composer
+        // dialog" — pre-v0.31.0 the inbox wired it to
+        // `onSaveUserLetter(today, "")`, but that called
+        // LetterStore.saveUserLetter with a blank body, which
+        // the store silently rejected at line 246 (`if
+        // (body.isBlank()) return`). The user's tap was a
+        // no-op. v0.31.0: the composer dialog is what they
+        // wanted all along — a place to type a body, then
+        // save it. The button just opens it.
+        //
+        // The first `onWriteNow =` in the file is the inbox's
+        // own wiring (`onWriteNow = { composerOpen.value = ...}`)
+        // — the *second* is the call site in LetterInboxContent
+        // that hands the parameter to the empty state. The
+        // test pins the second match, which is the one that
+        // matters for the empty-state contract.
+        val first = screen.indexOf("onWriteNow =")
+        val second = screen.indexOf("onWriteNow =", first + 1)
         assertTrue(
             "LetterInboxContent must pass an onWriteNow callback to LetterInboxEmptyState",
-            onWriteNow >= 0,
+            second > 0,
         )
-        val slice = screen.substring(onWriteNow, minOf(onWriteNow + 300, screen.length))
+        val slice = screen.substring(second, minOf(second + 300, screen.length))
         assertTrue(
-            "LetterInboxContent.onWriteNow must call onSaveUserLetter(today, ...)",
-            slice.contains("onSaveUserLetter(today"),
+            "LetterInboxEmptyState.onWriteNow must be wired to the inbox's onWriteNow parameter " +
+                "(not inlined to onSaveUserLetter(today, ...))",
+            slice.contains("onWriteNow = onWriteNow"),
         )
     }
 

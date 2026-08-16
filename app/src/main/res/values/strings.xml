@@ -309,6 +309,26 @@
     <string name="model_existing_use">Use the file in Downloads</string>
     <string name="model_existing_dismiss">Not now</string>
     <!--
+        v0.31.0: returned when the model file is on
+        disk but llama_model_load_from_file fails.
+        The most common reason at the moment is
+        that the phone does not have enough free
+        memory at the moment the model is asked to
+        load — 2.32 GB of weights plus KV cache plus
+        runtime needs ~3-4 GB, and an actively-used
+        phone typically has only 1.5-2 GB free. The
+        settings card's "with room to spare" line is
+        correct for the *idle, charging* overnight
+        case, where the system has drained other
+        processes; tapping "Generate now" during the
+        day can run into this. Closing other apps
+        and trying again is the first thing to try;
+        the runtime that ships the model in
+        /storage/emulated/0/Download/ is otherwise
+        unchanged.
+    -->
+    <string name="model_load_failed_out_of_memory">The model file is on this phone, but the launcher could not load it. Most often the phone does not have enough free memory right now — close other apps and try again. The full report is in `adb logcat -s MindAnchor/llama`.</string>
+    <!--
         v0.24.0: opt-in daily letter. Reuses the
         v0.23.0 Phi-4 mini on-device engine; runs at
         user-chosen time; gated on the model being
@@ -820,6 +840,18 @@
     <string name="letters_write_now">Write a letter now</string>
     <string name="letters_write_hint">What would you like to remember about today?</string>
     <string name="letters_write_save">Save</string>
+    <!--
+        v0.31.0: the user-authored composer dialog. The
+        empty-state "Write a letter now" button used to call
+        LetterStore.saveUserLetter with a blank body, which
+        the store silently rejected. The dialog is the
+        proper fix — the user types a body, then the typed
+        body is what gets saved.
+    -->
+    <string name="letters_compose_title">Write a letter</string>
+    <string name="letters_compose_placeholder">What would you like to remember about today?</string>
+    <string name="letters_compose_save">Save</string>
+    <string name="letters_compose_dismiss">Not now</string>
     <string name="letters_use_ai">Use AI</string>
     <string name="letters_thumbs_down">👎 This got me wrong</string>
     <!-- v0.27.0: thumbs-down prompt is validation-first

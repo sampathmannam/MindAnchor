@@ -43,4 +43,12 @@ add_library(mindanchor_llama SHARED mindanchor_llama.cpp)
 
 # The llama target exports its own and ggml's include directories, so
 # linking it is also what makes <llama.h> resolvable.
-target_link_libraries(mindanchor_llama PRIVATE llama)
+# v0.31.0: `log` is the Android system log library. The
+# native wrapper now uses __android_log_print so the
+# v0.30.0 phone E2E test can `adb logcat -s
+# MindAnchor/llama:V` and see why model generation
+# returns null (every failure path was silent
+# before — see the file KDoc). The library is in the
+# NDK sysroot and has been since the platform's
+# earliest days; linking it is a one-line addition.
+target_link_libraries(mindanchor_llama PRIVATE llama log)

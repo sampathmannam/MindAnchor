@@ -73,6 +73,8 @@ import org.mindanchor.friction.LoopPhase
 import org.mindanchor.letters.Letter
 import org.mindanchor.letters.LetterScreen
 import org.mindanchor.letters.LetterStore
+import org.mindanchor.letters.LetterWriter
+import org.mindanchor.letters.WeekDataCollector
 import org.mindanchor.model.Note
 import org.mindanchor.model.NoteActivity
 import org.mindanchor.reader.ReadingSize
@@ -744,6 +746,29 @@ fun LauncherRoot(
                 // dispatcher via the store.
                 onSaveUserLetter = { date, body ->
                     letterScope.launch { letterStore.saveUserLetter(date, body) }
+                },
+                // v0.31.0: the inbox's "Generate now" / "Use
+                // AI" affordance now actually runs. The
+                // pipeline: collect this week's data via
+                // [WeekDataCollector], call [LetterWriter] on
+                // the IO dispatcher, save the result as
+                // today's letter if the model produced
+                // anything safe. The whole call is wrapped
+                // in runCatching so a model load failure, a
+                // generation timeout, or a [NarrationGuard]
+                // rejection never crashes the launcher — the
+                // user sees an empty inbox, exactly as they
+                // did before v0.31.0.
+                onGenerateNow = {
+                    letterScope.launch {
+                        runCatching {
+                            val week = WeekDataCollector(context.applicationContext).collectLastWeek()
+                            val body = LetterWriter(context.applicationContext).write(week)
+                            if (body != null) {
+                                letterStore.saveUserLetter(java.time.LocalDate.now(), body)
+                            }
+                        }
+                    }
                 },
                 // v0.26.2: persist a thumbs-down. The body
                 // comes from the feedback dialog's optional

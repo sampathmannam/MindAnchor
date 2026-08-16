@@ -94,6 +94,18 @@ fun LetterScreen(
      * alone is the signal).
      */
     onSaveFeedback: (LocalDate, String) -> Unit = { _, _ -> },
+    /**
+     * v0.31.0: invoked when the user taps the inbox's
+     * "Generate now" or the empty-state "Use AI" affordance.
+     * The parent is expected to call the on-device
+     * generation pipeline (WeekDataCollector +
+     * LetterWriter) and save the result via
+     * [onSaveUserLetter] when generation succeeds.
+     * Generation may take seconds; the parent is also
+     * expected to surface a "Thinking…" state for the
+     * duration.
+     */
+    onGenerateNow: () -> Unit = {},
 ) {
     if (date != null) {
         val letter = letters.firstOrNull { it.date == date }
@@ -115,6 +127,7 @@ fun LetterScreen(
             onDelete = onDelete,
             onBack = onBack,
             onSaveUserLetter = onSaveUserLetter,
+            onGenerateNow = onGenerateNow,
         )
     }
 }
@@ -130,6 +143,7 @@ private fun LetterInbox(
     onDelete: (LocalDate) -> Unit,
     onBack: () -> Unit,
     onSaveUserLetter: (LocalDate, String) -> Unit,
+    onGenerateNow: () -> Unit = {},
 ) {
     // The dialog belongs to the inbox, not the row: only one
     // confirm can be open at a time, and dismissing it must clear
@@ -139,6 +153,14 @@ private fun LetterInbox(
     // touching pendingDelete directly, so the dialog host stays
     // in this function and the content stays layout-only.
     val pendingDelete = remember { mutableStateOf<LocalDate?>(null) }
+    // v0.31.0: the user-authored composer. The empty state's
+    // "Write a letter now" button used to call onSaveUserLetter
+    // with a blank body, which the store silently rejected
+    // (LetterStore.saveUserLetter:246). That made the button
+    // a no-op tap. The proper fix is a composer the user types
+    // into, then the typed body is what gets saved. The state
+    // is `true` when the dialog is up, `false` otherwise.
+    val composerOpen = remember { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -154,7 +176,16 @@ private fun LetterInbox(
             onBack = onBack,
             onSelect = onSelect,
             onDeleteRequest = { pendingDelete.value = it },
-            onSaveUserLetter = onSaveUserLetter,
+            // v0.31.0: the empty-state button now opens the
+            // composer rather than trying to save an empty body.
+            onWriteNow = { composerOpen.value = true },
+            // v0.31.0: the "Generate now" / "Use AI" affordance
+            // is wired to the parent's generation pipeline
+            // (WeekDataCollector + LetterWriter). The button
+            // is still disabled when modelFits = false — this
+            // hook only fires when the parent has confirmed
+            // the model is on file and runnable.
+            onGenerateNow = onGenerateNow,
         )
     }
     val pendingDeleteDate = pendingDelete.value
@@ -178,6 +209,16 @@ private fun LetterInbox(
             onDismiss = { pendingDelete.value = null },
         )
     }
+    if (composerOpen.value) {
+        val today = LocalDate.now()
+        LetterComposerDialog(
+            onSave = { body ->
+                onSaveUserLetter(today, body)
+                composerOpen.value = false
+            },
+            onDismiss = { composerOpen.value = false },
+        )
+    }
 }
 
 /**
@@ -199,9 +240,9 @@ private fun LetterInboxContent(
     onBack: () -> Unit,
     onSelect: (LocalDate) -> Unit,
     onDeleteRequest: (LocalDate) -> Unit,
-    onSaveUserLetter: (LocalDate, String) -> Unit,
+    onWriteNow: () -> Unit,
+    onGenerateNow: () -> Unit,
 ) {
-    val today = LocalDate.now()
     TextButton(
         onClick = onBack,
         // v0.25.10 (B6): Role.Button
@@ -228,13 +269,17 @@ private fun LetterInboxContent(
         // state is about (write a letter). The old paragraph
         // ("No letters yet. The first arrives at 8 AM…") was
         // honest but read like a status line, not an action.
+        // v0.31.0: the button now opens an inline composer
+        // dialog (LetterComposerDialog) so the user types
+        // a body. Pre-v0.31.0 this called onSaveUserLetter
+        // with a blank body, which the store silently
+        // rejected — making the tap a no-op.
         LetterInboxEmptyState(
             modelFits = modelFits,
-            onWriteNow = {
-                onSaveUserLetter(today, "")
-            },
+            onWriteNow = onWriteNow,
         )
     } else {
+        val today = LocalDate.now()
         // Newest first: store gives oldest first; the inbox shows
         // newest first. Group by friendly-date so "Today" sits
         // above "Yesterday" above the rest.
@@ -262,9 +307,15 @@ private fun LetterInboxContent(
     // when the model is installed. The button is always visible
     // so a user who doesn't know about the daily alarm can still
     // request a letter.
+    // v0.31.0: wired to onGenerateNow. Pre-v0.31.0 the onClick
+    // was a placeholder (`/* wired in Task 10 */`) and tapping
+    // it did nothing — the surface looked finished but the
+    // hook was missing. The parent (HomeScreen) implements
+    // it via WeekDataCollector + LetterWriter, and shows a
+    // "Thinking…" state while the model runs.
     TextButton(
         enabled = modelFits,
-        onClick = { /* wired in Task 10 */ },
+        onClick = onGenerateNow,
         // v0.25.10 (B6): Role.Button
         modifier = Modifier
             .padding(top = Spacing.Loose)
@@ -389,6 +440,76 @@ private fun LetterDeleteDialog(
                 modifier = Modifier.semantics { role = Role.Button },
             ) {
                 Text(stringResource(R.string.letters_delete_keep))
+            }
+        },
+    )
+}
+
+/**
+ * The user-authored letter composer. v0.31.0.
+ *
+ * Pre-v0.31.0 the empty-state "Write a letter now" button
+ * called [LetterStore.saveUserLetter] with a blank body,
+ * which the store silently rejected (`saveUserLetter:246`:
+ * `if (body.isBlank()) return`). The button looked like it
+ * did nothing. This dialog is the proper fix: the user types
+ * a body, the typed body is what gets saved, and the save
+ * button is disabled while the body is blank so the rejection
+ * path can never trigger again.
+ *
+ * The dialog is intentionally a plain [AlertDialog] with an
+ * [OutlinedTextField] — it is a small compose surface, not a
+ * full screen. The text field is multi-line and grows with
+ * the content. A user who wants to write a long letter can;
+ * a user who wants a sentence-and-tap-save can. Both reach
+ * the same save call.
+ *
+ * "Today" is supplied by the parent ([LetterInbox]), so the
+ * dialog itself does not read the clock.
+ */
+@Suppress("FunctionNaming")
+@Composable
+private fun LetterComposerDialog(
+    onSave: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val body = remember { mutableStateOf("") }
+    val trimmedBlank = body.value.trim().isBlank()
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.letters_compose_title)) },
+        text = {
+            OutlinedTextField(
+                value = body.value,
+                onValueChange = { body.value = it },
+                // v0.25.10 (B6): the text field is a real
+                // input target, not a button. The implicit
+                // `OutlinedTextField` role already covers
+                // this; no `Modifier.semantics` override
+                // needed.
+                placeholder = { Text(stringResource(R.string.letters_compose_placeholder)) },
+                minLines = 4,
+                maxLines = 10,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onSave(body.value.trim()) },
+                enabled = !trimmedBlank,
+                // v0.25.10 (B6): Role.Button
+                modifier = Modifier.semantics { role = Role.Button },
+            ) {
+                Text(stringResource(R.string.letters_compose_save))
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                // v0.25.10 (B6): Role.Button
+                modifier = Modifier.semantics { role = Role.Button },
+            ) {
+                Text(stringResource(R.string.letters_compose_dismiss))
             }
         },
     )

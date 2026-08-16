@@ -19,6 +19,26 @@
 
 #include "llama.h"
 
+#include <android/log.h>
+
+// v0.31.0: diagnostic logging. The whole native layer is
+// deliberately silent on failure (every error returns
+// null, never throws) — see the file KDoc. The v0.30.0
+// phone E2E test surfaced a case where the report's
+// narration was always null and we could not tell which
+// of the eleven "return null" paths was the cause. The
+// phone user does not have a developer console, and
+// `adb logcat` is the only realistic diagnostic surface.
+// These tags are not stripped from release builds
+// because they go through __android_log_print, which
+// costs nothing at runtime and is what Logcat will see
+// when an end user runs `adb logcat -s MindAnchor/llama:V`
+// in support.
+#define LOG_TAG "MindAnchor/llama"
+#define ALOGI(...) __android_log_print(ANDROID_LOG_INFO,  LOG_TAG, __VA_ARGS__)
+#define ALOGW(...) __android_log_print(ANDROID_LOG_WARN,  LOG_TAG, __VA_ARGS__)
+#define ALOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+
 namespace {
 
 // One backend init for the process. llama_backend_init is cheap and
@@ -100,8 +120,12 @@ Java_org_mindanchor_narrate_LlamaEngine_nativeGenerate(
     const std::string system = from_jstring(env, jsystem);
     const std::string user = from_jstring(env, jprompt);
     if (model_path.empty() || context_tokens <= 0 || max_new_tokens <= 0) {
+        ALOGW("generate refused: empty path or non-positive budget (path=%s ctx=%d max=%d)",
+              model_path.empty() ? "<empty>" : model_path.c_str(), context_tokens, max_new_tokens);
         return nullptr;
     }
+    ALOGI("generate: model=%s ctx=%d max_new=%d threads=%d prompt_chars=%zu",
+          model_path.c_str(), context_tokens, max_new_tokens, threads, user.size());
 
     // Load the model for this one generation and free it before
     // returning. One paragraph a night does not justify holding
@@ -109,10 +133,15 @@ Java_org_mindanchor_narrate_LlamaEngine_nativeGenerate(
     // the assumption that this process lets go.
     llama_model_params model_params = llama_model_default_params();
     llama_model *model = llama_model_load_from_file(model_path.c_str(), model_params);
-    if (model == nullptr) return nullptr;
+    if (model == nullptr) {
+        ALOGE("generate: llama_model_load_from_file returned null for %s", model_path.c_str());
+        return nullptr;
+    }
+    ALOGI("generate: model loaded");
 
     const llama_vocab *vocab = llama_model_get_vocab(model);
     if (vocab == nullptr) {
+        ALOGE("generate: llama_model_get_vocab returned null");
         llama_model_free(model);
         return nullptr;
     }
@@ -134,9 +163,12 @@ Java_org_mindanchor_narrate_LlamaEngine_nativeGenerate(
             tokens.data(), static_cast<int32_t>(tokens.size()), true, true);
     }
     if (n_tokens <= 0 || n_tokens + max_new_tokens > context_tokens) {
+        ALOGW("generate: prompt did not fit (n_tokens=%d max_new=%d context=%d)",
+              n_tokens, max_new_tokens, context_tokens);
         llama_model_free(model);
         return nullptr;
     }
+    ALOGI("generate: tokenised %d tokens (budget %d)", n_tokens, context_tokens);
     tokens.resize(static_cast<size_t>(n_tokens));
 
     llama_context_params ctx_params = llama_context_default_params();
@@ -146,9 +178,11 @@ Java_org_mindanchor_narrate_LlamaEngine_nativeGenerate(
     ctx_params.n_threads_batch = threads;
     llama_context *ctx = llama_init_from_model(model, ctx_params);
     if (ctx == nullptr) {
+        ALOGE("generate: llama_init_from_model returned null");
         llama_model_free(model);
         return nullptr;
     }
+    ALOGI("generate: context initialised");
 
     // Modest temperature under a fixed, caller-supplied seed: the same
     // report must produce the same paragraph, for the same reason
@@ -166,6 +200,7 @@ Java_org_mindanchor_narrate_LlamaEngine_nativeGenerate(
     llama_batch batch = llama_batch_get_one(tokens.data(), n_tokens);
     for (int produced = 0; produced < max_new_tokens; produced++) {
         if (llama_decode(ctx, batch) != 0) {
+            ALOGE("generate: llama_decode failed at token %d", produced);
             failed = true;
             break;
         }
@@ -176,6 +211,7 @@ Java_org_mindanchor_narrate_LlamaEngine_nativeGenerate(
         int32_t piece_len = llama_token_to_piece(
             vocab, next, piece, sizeof(piece), /*lstrip=*/0, /*special=*/false);
         if (piece_len < 0) {
+            ALOGE("generate: llama_token_to_piece failed at token %d", produced);
             failed = true;
             break;
         }
@@ -188,7 +224,15 @@ Java_org_mindanchor_narrate_LlamaEngine_nativeGenerate(
     llama_free(ctx);
     llama_model_free(model);
 
-    if (failed || output.empty()) return nullptr;
+    if (failed) {
+        ALOGE("generate: failed mid-stream, output=%zu chars", output.size());
+        return nullptr;
+    }
+    if (output.empty()) {
+        ALOGW("generate: empty output (model produced zero tokens before EOG)");
+        return nullptr;
+    }
+    ALOGI("generate: produced %zu chars", output.size());
     jbyteArray result = env->NewByteArray(static_cast<jsize>(output.size()));
     if (result == nullptr) return nullptr;
     env->SetByteArrayRegion(result, 0, static_cast<jsize>(output.size()),
