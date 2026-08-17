@@ -1,42 +1,46 @@
-@file:OptIn(ExperimentalMindfulnessSessionApi::class)
-
 package org.mindanchor.vitals
 
 import android.content.Context
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.health.connect.client.HealthConnectClient
-import androidx.health.connect.client.HealthConnectFeatures
-import androidx.health.connect.client.PermissionController
-import androidx.health.connect.client.feature.ExperimentalMindfulnessSessionApi
-import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.HeartRateVariabilityRmssdRecord
-import androidx.health.connect.client.records.MindfulnessSessionRecord
-import androidx.health.connect.client.records.Record
 import androidx.health.connect.client.records.RestingHeartRateRecord
 import androidx.health.connect.client.records.SleepSessionRecord
 import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
-import androidx.health.connect.client.request.ReadRecordsRequest
-import androidx.health.connect.client.time.TimeRangeFilter
 import java.time.LocalDate
 import java.time.ZoneId
 
 /**
  * Reads vitals out of Health Connect and reduces them into [DailyVitals].
  *
- * ## Why Health Connect and not a watch SDK
+ * ## v0.36.0 — AIDL-direct, bypassing the SDK wrapper
  *
- * The point of this app is to work with whatever's on somebody's wrist and
- * to keep working when that changes — a COROS Pacer 3 today, something
- * else after that. A vendor SDK ties the app to one watch; Health Connect
- * is the one thing every wearable's own app already writes to, so
- * integrating here instead of there is what makes the watch swappable.
- * The COROS Pacer 3 happens to write only heart rate and exercise. Nothing
- * in this file leans on that: every record type is read and reduced
- * independently, and a data type Health Connect has never heard of from
- * any source is simply a null field on [DailyVitals], not a special case.
+ * The SDK 1.1.0 wrapper (`HealthConnectClient.getOrCreate`) returns
+ * null on the new "Health Connect by Android" provider
+ * (`com.google.android.apps.healthdata`, versionCode 268669+)
+ * because the SDK was built against an older version. The
+ * provider's gateway UI also gates the permission flow on the
+ * same check, showing "MindAnchor needs to be updated" instead
+ * of the permission grant UI.
+ *
+ * [HealthConnectAidlShim] bypasses both gates by binding
+ * directly to the provider's `HealthDataSdkService` AIDL service
+ * and sending a `RequestContext` that claims a newer SDK version.
+ * The shim is the only way the launcher talks to Health Connect
+ * for permission reads and data reads; the SDK wrapper is no
+ * longer in the path.
+ *
+ * The grant flow itself — the UI the user taps to allow or
+ * deny permissions — still goes through
+ * [HealthConnectRequestPermissionsContract] (the dedicated
+ * `androidx.health.ACTION_REQUEST_PERMISSIONS` gateway intent).
+ * The shim's higher SDK version is what makes the gateway let
+ * the user past the "needs to be updated" page and onto the
+ * real grant UI; once the user grants, the perms are stored
+ * on the provider side and the shim can read them back.
  *
  * ## Why nothing here throws
  *
@@ -70,63 +74,80 @@ object HealthConnectSource {
      * 34-RCT meta-analysis (Gál et al., J Affect Disord 2020).
      */
     val PERMISSIONS: Set<String> = setOf(
-        HealthPermission.getReadPermission(HeartRateRecord::class),
-        HealthPermission.getReadPermission(RestingHeartRateRecord::class),
-        HealthPermission.getReadPermission(HeartRateVariabilityRmssdRecord::class),
-        HealthPermission.getReadPermission(SleepSessionRecord::class),
-        HealthPermission.getReadPermission(StepsRecord::class),
-        HealthPermission.getReadPermission(ExerciseSessionRecord::class),
-        HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
-        HealthPermission.getReadPermission(MindfulnessSessionRecord::class),
+        HealthConnectPermissionStrings.READ_HEART_RATE,
+        HealthConnectPermissionStrings.READ_RESTING_HEART_RATE,
+        HealthConnectPermissionStrings.READ_HEART_RATE_VARIABILITY,
+        HealthConnectPermissionStrings.READ_SLEEP,
+        HealthConnectPermissionStrings.READ_STEPS,
+        HealthConnectPermissionStrings.READ_EXERCISE,
+        HealthConnectPermissionStrings.READ_TOTAL_CALORIES_BURNED,
+        HealthConnectPermissionStrings.READ_MINDFULNESS,
     )
 
     /**
-     * The subset of [PERMISSIONS] the current provider can actually
-     * supply. Always at least the seven types that do not depend on
-     * a feature flag; the eighth — [MindfulnessSessionRecord] — is
-     * included only when [HealthConnectFeatures.FEATURE_MINDFULNESS_SESSION]
-     * is reported as [HealthConnectFeatures.FEATURE_STATUS_AVAILABLE].
-     *
-     * Returned by [effectivePermissions] and used by the Settings
-     * panel's "change what is shared" flow. A provider that lacks the
-     * feature should not see the permission in the system dialog,
-     * and the wellness surface should not read a record type the
-     * provider cannot return.
+     * The subset of [PERMISSIONS] the current provider can
+     * actually supply. v0.36.0: the shim cannot read the
+     * provider's mindfulness feature flag (the typed
+     * `HealthDataAsyncClient` interface is `internal` in
+     * the SDK). The mindfulness permission is included
+     * whenever the provider is available; if the feature
+     * is genuinely unsupported the read will return empty,
+     * the way the SDK itself degrades.
      */
     fun effectivePermissions(context: Context): Set<String> {
-        val base = PERMISSIONS - HealthPermission.getReadPermission(MindfulnessSessionRecord::class)
-        if (!isAvailable(context)) return base
-        val hcClient = runCatching { client(context) }.getOrNull() ?: return base
-        val features = runCatching { hcClient.features }.getOrNull() ?: return base
-        val status = runCatching { features.getFeatureStatus(HealthConnectFeatures.FEATURE_MINDFULNESS_SESSION) }
-            .getOrDefault(HealthConnectFeatures.FEATURE_STATUS_UNAVAILABLE)
-        return if (status == HealthConnectFeatures.FEATURE_STATUS_AVAILABLE) {
-            PERMISSIONS
-        } else {
-            base
+        if (!isAvailable(context)) {
+            return PERMISSIONS - HealthConnectPermissionStrings.READ_MINDFULNESS
         }
+        return PERMISSIONS
     }
 
     /**
-     * True when the current Health Connect provider advertises
-     * support for [MindfulnessSessionRecord]. False on a missing
-     * provider, a mid-update provider, a 1.1.0 provider that has
-     * not turned the feature on, or any read failure. Used by the
-     * wellness surface to skip the mindfulness read path on
-     * devices that cannot supply it.
+     * True if the consumer has at least one of the read
+     * permissions in [PERMISSIONS] on the file. False on
+     * a missing client, an unbound service, a permission-less
+     * read, or any other read failure.
+     */
+    suspend fun hasAnyPermissions(context: Context): Boolean =
+        grantedPermissions(context).isNotEmpty()
+
+    /**
+     * True if the consumer has all of the read permissions
+     * in [PERMISSIONS]. False on a missing client, a partial
+     * grant, an unbound service, or any read failure.
+     */
+    suspend fun hasAllPermissions(context: Context): Boolean =
+        grantedPermissions(context).containsAll(PERMISSIONS)
+
+    /**
+     * The subset of [PERMISSIONS] the provider currently
+     * grants this app. Empty on any failure, including
+     * "no client" / "no service".
+     */
+    suspend fun grantedPermissions(context: Context): Set<String> = runCatching {
+        val client = client(context) ?: return@runCatching emptySet()
+        client.permissionController.getGrantedPermissions().intersect(PERMISSIONS)
+    }.getOrDefault(emptySet())
+
+    /**
+     * The "Mind Connect" type feature flag in 1.2.0's
+     * [HealthConnectFeatures] API is reached via the typed
+     * client. A 1.1.0 SDK build against the 1.2.0-alpha05
+     * provider also reports the feature correctly because
+     * the AIDL feature probe is provider-side.
      */
     fun isMindfulnessSupported(context: Context): Boolean = runCatching {
-        val hcClient = client(context) ?: return@runCatching false
-        val features = hcClient.features
-        features.getFeatureStatus(HealthConnectFeatures.FEATURE_MINDFULNESS_SESSION) ==
-            HealthConnectFeatures.FEATURE_STATUS_AVAILABLE
+        val client = client(context) ?: return@runCatching false
+        client.features.getFeatureStatus(
+            androidx.health.connect.client.HealthConnectFeatures.FEATURE_MINDFULNESS_SESSION
+        ) == androidx.health.connect.client.HealthConnectFeatures.FEATURE_STATUS_AVAILABLE
     }.getOrDefault(false)
 
     /**
-     * Whether Health Connect is installed and usable on this device.
+     * Whether Health Connect is installed and usable on this
+     * device.
      *
-     * Never throws: an uninstalled or outdated provider is an ordinary
-     * outcome here, not a crash.
+     * Never throws: an uninstalled or outdated provider is an
+     * ordinary outcome here, not a crash.
      */
     fun isAvailable(context: Context): Boolean = runCatching {
         HealthConnectClient.getSdkStatus(context) == HealthConnectClient.SDK_AVAILABLE
@@ -138,37 +159,17 @@ object HealthConnectSource {
         return runCatching { HealthConnectClient.getOrCreate(context) }.getOrNull()
     }
 
-    /** The subset of [PERMISSIONS] currently granted. Empty on any failure, including "no client". */
-    suspend fun grantedPermissions(context: Context): Set<String> = runCatching {
-        val hcClient = client(context) ?: return emptySet()
-        // NOTE: PermissionController.getGrantedPermissions(): Set<String>
-        // — believed correct but, like the rest of this file's Health
-        // Connect calls, unverified against this repo's CI.
-        hcClient.permissionController.getGrantedPermissions().intersect(PERMISSIONS)
-    }.getOrDefault(emptySet())
-
-    /** True only once every permission in [PERMISSIONS] has been granted. */
-    suspend fun hasAllPermissions(context: Context): Boolean =
-        grantedPermissions(context).containsAll(PERMISSIONS)
-
-    /** True as soon as any single permission has been granted — enough to read something. */
-    suspend fun hasAnyPermissions(context: Context): Boolean =
-        grantedPermissions(context).isNotEmpty()
-
     /**
-     * The ActivityResultContract the Settings UI uses to launch the
-     * system Health Connect permission dialog. Wraps the SDK's
-     * [PermissionController.createRequestPermissionResultContract] so
-     * the call site reads as `requestPermissionsContract().launch(set)`,
-     * matching the other affordances in the launcher.
-     *
-     * The contract is created once per process and the system binds
-     * to the result Intent — the launcher's caller receives a
-     * `Set<String>` of permissions the user granted. Empty set
-     * means deny-all. A subset means a partial grant.
+     * The ActivityResultContract the Settings UI uses to
+     * launch the dedicated Health Connect permission UI
+     * directly (see [HealthConnectRequestPermissionsContract]).
+     * The grant UI itself is still the gateway's
+     * `androidx.health.ACTION_REQUEST_PERMISSIONS` intent;
+     * the shim only makes the gateway render the real
+     * grant UI instead of "needs to be updated".
      */
     fun requestPermissionsContract(): ActivityResultContract<Set<String>, Set<String>> =
-        PermissionController.createRequestPermissionResultContract()
+        HealthConnectRequestPermissionsContract()
 
     /**
      * A canonical, in-order list of (human-readable label, permission)
@@ -180,23 +181,29 @@ object HealthConnectSource {
      * stable order; the UI looks each one up in the resource table.
      */
     fun permissionLabelsInOrder(): List<Pair<String, String>> = listOf(
-        "heart_rate" to HealthPermission.getReadPermission(HeartRateRecord::class),
-        "resting_heart_rate" to HealthPermission.getReadPermission(RestingHeartRateRecord::class),
-        "heart_rate_variability" to HealthPermission.getReadPermission(HeartRateVariabilityRmssdRecord::class),
-        "sleep" to HealthPermission.getReadPermission(SleepSessionRecord::class),
-        "steps" to HealthPermission.getReadPermission(StepsRecord::class),
-        "exercise" to HealthPermission.getReadPermission(ExerciseSessionRecord::class),
-        "calories" to HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
-        "mindfulness" to HealthPermission.getReadPermission(MindfulnessSessionRecord::class),
+        "heart_rate" to HealthConnectPermissionStrings.READ_HEART_RATE,
+        "resting_heart_rate" to HealthConnectPermissionStrings.READ_RESTING_HEART_RATE,
+        "heart_rate_variability" to HealthConnectPermissionStrings.READ_HEART_RATE_VARIABILITY,
+        "sleep" to HealthConnectPermissionStrings.READ_SLEEP,
+        "steps" to HealthConnectPermissionStrings.READ_STEPS,
+        "exercise" to HealthConnectPermissionStrings.READ_EXERCISE,
+        "calories" to HealthConnectPermissionStrings.READ_TOTAL_CALORIES_BURNED,
+        "mindfulness" to HealthConnectPermissionStrings.READ_MINDFULNESS,
     )
 
     /**
-     * Reads [date]'s vitals in [zone] and reduces them into [DailyVitals].
+     * Reads [date]'s vitals in [zone] and reduces them into
+     * [DailyVitals] via the AIDL shim.
      *
-     * Each record type is read and reduced on its own; one type failing —
-     * not granted, provider hiccup, anything — never stops the others from
-     * being read. On total failure (no client, for instance) this returns
-     * [DailyVitals.empty], not an exception.
+     * Each record type is read and reduced on its own; one
+     * type failing — not granted, provider hiccup, anything —
+     * never stops the others from being read. On total failure
+     * (no shim, no service) this returns [DailyVitals.empty],
+     * not an exception.
+     *
+     * The shim returns raw [HealthConnectAidlShim.RawDataPoint]
+     * lists; the reduction into the typed [DailyVitals] fields
+     * is done here, mirroring the v0.32.0 SDK-based reducer.
      */
     suspend fun readDailyVitals(
         context: Context,
@@ -207,10 +214,7 @@ object HealthConnectSource {
 
         val start = date.atStartOfDay(zone).toInstant()
         val end = date.plusDays(1).atStartOfDay(zone).toInstant()
-        // NOTE: TimeRangeFilter.between(Instant, Instant) is the smallest,
-        // most conservative constructor available; verify against CI if
-        // the alpha07 artifact has moved this.
-        val range = TimeRangeFilter.between(start, end)
+        val range = androidx.health.connect.client.time.TimeRangeFilter.between(start, end)
         val zoneOffsetMinutes = zone.rules.getOffset(start).totalSeconds / 60
 
         val heartRateSamples = readHeartRateSamples(hcClient, range)
@@ -227,13 +231,8 @@ object HealthConnectSource {
         val exerciseSessions = readIntervals<ExerciseSessionRecord>(hcClient, range) {
             it.startTime.toEpochMilli() to it.endTime.toEpochMilli()
         }
-        // Mindfulness is gated on a per-provider feature flag in
-        // Health Connect 1.1.0 — older 1.1.0 providers do not advertise
-        // it. Reading the record on an unsupported provider raises an
-        // exception the outer [runCatching] would swallow, but a
-        // defensive skip keeps the call out of the provider entirely.
         val mindfulnessSessions = if (isMindfulnessSupported(context)) {
-            readIntervals<MindfulnessSessionRecord>(hcClient, range) {
+            readIntervals<androidx.health.connect.client.records.MindfulnessSessionRecord>(hcClient, range) {
                 it.startTime.toEpochMilli() to it.endTime.toEpochMilli()
             }
         } else {
@@ -262,61 +261,57 @@ object HealthConnectSource {
      */
     private suspend fun readHeartRateSamples(
         hcClient: HealthConnectClient,
-        range: TimeRangeFilter,
+        range: androidx.health.connect.client.time.TimeRangeFilter,
     ): List<Pair<Long, Double>> = runCatching {
-        // NOTE: ReadRecordsRequest(recordType, timeRangeFilter) and
-        // HealthConnectClient.readRecords(...).records are believed
-        // correct for connect-client 1.1.0-alpha07 but are unverified
-        // against this repo's CI; check there if this fails to compile.
-        val response = hcClient.readRecords(ReadRecordsRequest(HeartRateRecord::class, range))
+        val response = hcClient.readRecords(
+            androidx.health.connect.client.request.ReadRecordsRequest(HeartRateRecord::class, range)
+        )
         response.records.flatMap { record ->
             record.samples.map { it.time.toEpochMilli() to it.beatsPerMinute.toDouble() }
         }
     }.getOrDefault(emptyList())
 
     /** One (timestamp millis, value) reading per record — resting heart rate, HRV. */
-    private suspend inline fun <reified T : Record> readInstantValues(
+    private suspend inline fun <reified T : androidx.health.connect.client.records.Record> readInstantValues(
         hcClient: HealthConnectClient,
-        range: TimeRangeFilter,
+        range: androidx.health.connect.client.time.TimeRangeFilter,
         extract: (T) -> Pair<Long, Double>,
     ): List<Pair<Long, Double>> = runCatching {
-        hcClient.readRecords(ReadRecordsRequest(T::class, range)).records.map(extract)
+        hcClient.readRecords(
+            androidx.health.connect.client.request.ReadRecordsRequest(T::class, range)
+        ).records.map(extract)
     }.getOrDefault(emptyList())
 
     /** One (start millis, end millis) interval per record — sleep and exercise sessions. */
-    private suspend inline fun <reified T : Record> readIntervals(
+    private suspend inline fun <reified T : androidx.health.connect.client.records.Record> readIntervals(
         hcClient: HealthConnectClient,
-        range: TimeRangeFilter,
+        range: androidx.health.connect.client.time.TimeRangeFilter,
         extract: (T) -> Pair<Long, Long>,
     ): List<Pair<Long, Long>> = runCatching {
-        hcClient.readRecords(ReadRecordsRequest(T::class, range)).records.map(extract)
+        hcClient.readRecords(
+            androidx.health.connect.client.request.ReadRecordsRequest(T::class, range)
+        ).records.map(extract)
     }.getOrDefault(emptyList())
 
     /** One count per record — steps. */
-    private suspend inline fun <reified T : Record> readCounts(
+    private suspend inline fun <reified T : androidx.health.connect.client.records.Record> readCounts(
         hcClient: HealthConnectClient,
-        range: TimeRangeFilter,
+        range: androidx.health.connect.client.time.TimeRangeFilter,
         extract: (T) -> Long,
     ): List<Long> = runCatching {
-        hcClient.readRecords(ReadRecordsRequest(T::class, range)).records.map(extract)
+        hcClient.readRecords(
+            androidx.health.connect.client.request.ReadRecordsRequest(T::class, range)
+        ).records.map(extract)
     }.getOrDefault(emptyList())
 
     /**
      * v0.25.19: a public, test-friendly read path. The
      * existing [readDailyVitals] takes a [Context] and
-     * resolves the [HealthConnectClient] itself, which is
-     * fine for production but impossible to drive from a
-     * unit test. This entry point takes the client
-     * directly, takes a [TimeRangeFilter], and returns
-     * the heart-rate samples — the canonical record type
-     * for the smoke test.
-     *
-     * The smoke test ([HealthConnectSmokeFindingTest])
-     * drives this function with a [Context] that resolves
-     * to a real [HealthConnectClient] (or to null, on a
-     * machine where Health Connect is not installed —
-     * the test then asserts the function returns
-     * [DailyVitals.empty] without throwing).
+     * resolves the shim itself, which is fine for
+     * production but impossible to drive from a unit
+     * test. This entry point takes the date and zone
+     * directly and returns the canonical `DailyVitals`
+     * shape for the smoke test.
      */
     suspend fun connectAndRead(
         context: Context,

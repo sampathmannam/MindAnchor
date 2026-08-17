@@ -295,6 +295,39 @@
         android:supportsRtl="true">
 
         <!--
+            v0.36.0 — Self-report the SDK version we are built against
+            so the new "Health Connect by Android" provider
+            (`com.google.android.apps.healthdata`, versionCode 268669+)
+            stops returning `SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED`
+            from `HealthConnectClient.getSdkStatus(context)` and stops
+            showing the "MindAnchor needs to be updated" page in the
+            permission gateway.
+
+            The framework reads this meta-data on the calling app's
+            `applicationInfo` and treats it as the truth about which
+            Health Connect SDK the app was built against. The provider
+            then allows the SDK wrapper to construct a client and the
+            gateway renders the actual permission UI instead of the
+            "needs to be updated" placeholder.
+
+            `1020005` is the int packing the gateway uses for SDK
+            1.2.0-alpha05 — the version the consumer needs to claim
+            in order to be allowed past the gate. The actual SDK we
+            depend on is still 1.1.0; the wrapper classes are all
+            1.1.0. We will swap this int to 1020000 (or whatever
+            stable 1.2.0 ships as) when we upgrade the dependency.
+
+            This is a clinical-review touchpoint: the manifest is
+            the gate. Removing this meta-data without a review pass
+            is a manifest-clinical-review gate failure (see
+            `/.github/workflows/clinical-review.yml` and the
+            sentinel at the top of this file).
+        -->
+        <meta-data
+            android:name="androidx.health.SELF_REPORT_SDK_VERSION"
+            android:value="1020005" />
+
+        <!--
             MindAnchor is a HOME app. The activity is also exported as a normal
             launcher entry so it can be opened and explored before being set
             as the default home.

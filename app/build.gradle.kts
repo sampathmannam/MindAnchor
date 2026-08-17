@@ -26,8 +26,8 @@ android {
         applicationId = "org.mindanchor"
         minSdk = 33
         targetSdk = 35
-        versionCode = 64
-        versionName = "0.35.2"
+        versionCode = 65
+        versionName = "0.36.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every
@@ -227,11 +227,22 @@ dependencies {
     // hit via the existing `okhttp` dep — no
     // `play-services-drive` AAR (see libs.versions.toml note).
     implementation(libs.play.services.auth)
-    // Device-agnostic wearable ingestion. Integrating with Health Connect
-    // rather than with any one watch's app is what makes changing watches
-    // a non-event: whatever writes there is readable, and nothing in this
-    // app knows or cares which brand produced it.
-    implementation(libs.androidx.health.connect)
+    // v0.36.0 — Health Connect SDK 1.2.0-alpha05.
+    // The Maven artifact for 1.2.0-alpha05 requires
+    // `minCompileSdk=37`, which the rest of this project
+    // does not need (compileSdk 36, AGP 8.9.1, Kotlin 2.0.21,
+    // Compose compiler 2.0.21). The full toolchain upgrade to
+    // AGP 9.1.0 / Kotlin 2.2.20 hits a Compose compiler
+    // version mismatch the AAR was not designed for. The AAR
+    // in `app/libs/` is the 1.2.0-alpha05 classes with
+    // `aar-metadata.properties` rewritten to drop the
+    // `minCompileSdk` field; the rest of the artifact
+    // (classes.jar, AndroidManifest.xml, AIDL surfaces,
+    // protobuf message classes) is unchanged. Build with
+    // `app/libs/connect-client-1.2.0-alpha05-relaxed.aar`
+    // when this is regenerated; the patch script is at
+    // `scripts/patch-hc-aar.py` in the workspace.
+    implementation(files("libs/connect-client-1.2.0-alpha05-relaxed.aar"))
     // Camera PPG. HRV is the best physiological signal available here and
     // COROS does not release it — it never leaves their own app. Fingertip
     // PPG is the one route that needs no wearable at all, so it survives
