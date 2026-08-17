@@ -836,7 +836,7 @@
     <string name="letters_running_now">Generating…</string>
     <string name="letters_open_inbox">Open inbox (%1$d)</string>
     <string name="letters_empty">No letters yet. The first arrives at 8 AM, once enough days have passed.</string>
-    <string name="letters_empty_no_model">No letters yet. Phi-4 isn\'t installed — open Settings → Model to install it.</string>
+    <string name="letters_empty_no_model">Phi-4 isn\'t installed — open Settings → Model to install it.</string>
     <string name="letters_delete">Delete this letter</string>
     <string name="letters_delete_confirm">Delete this letter?</string>
     <string name="letters_delete_body">It will be removed from your inbox. This can\'t be undone.</string>
