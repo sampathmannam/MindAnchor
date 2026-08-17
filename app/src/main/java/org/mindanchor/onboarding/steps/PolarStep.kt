@@ -1,15 +1,16 @@
 /*
- * v0.35.1 — Coros web-bridge step.
+ * v0.37.0 — Polar step.
  *
- * Embeds the existing `PolarSection` (email + password form for
- * the OAuth2 web bridge). The user signs in, the launcher fetches
- * the 7-day nightly-recharge and continuous-heart-rate data, and
- * the data is available in the wellness card the next time the
- * home is composed.
+ * Renamed from `CorosStep` in v0.37.0. The setup-wizard step
+ * always hosted the Polar OAuth2 web bridge (`PolarSection`);
+ * the class name was a pre-rename leftover from an earlier
+ * Coros bridge that was removed. The function still calls
+ * `PolarSection` and the user-visible copy is now "Your Polar
+ * account" via the renamed `setup_wizard_polar_*` strings.
  *
- * Same "next" + "Skip" shape as PairWatchStep. The user does not
- * have to be signed in to advance — they can come back from
- * Settings at any time.
+ * Same "Continue" + "Skip" shape as PairWatchStep. The user
+ * does not have to be signed in to advance — they can come
+ * back from Settings at any time.
  */
 package org.mindanchor.onboarding.steps
 
@@ -36,7 +37,7 @@ import org.mindanchor.settings.PolarSection
 
 @Suppress("FunctionNaming")
 @Composable
-fun CorosStep(
+fun PolarStep(
     onSkip: () -> Unit,
     onDone: () -> Unit,
 ) {
@@ -49,11 +50,11 @@ fun CorosStep(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text(
-            text = stringResource(R.string.setup_wizard_coros_title),
+            text = stringResource(R.string.setup_wizard_polar_title),
             style = MaterialTheme.typography.headlineSmall,
         )
         Text(
-            text = stringResource(R.string.setup_wizard_coros_body),
+            text = stringResource(R.string.setup_wizard_polar_body),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

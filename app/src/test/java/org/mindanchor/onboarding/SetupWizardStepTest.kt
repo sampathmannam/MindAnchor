@@ -41,9 +41,9 @@ class SetupWizardStepTest {
                 source.contains("setup_wizard_source_watch_detail"),
         )
         assertTrue(
-            "WelcomeStep must reference coros label + detail",
-            source.contains("setup_wizard_source_coros_label") &&
-                source.contains("setup_wizard_source_coros_detail"),
+            "WelcomeStep must reference polar label + detail",
+            source.contains("setup_wizard_source_polar_label") &&
+                source.contains("setup_wizard_source_polar_detail"),
         )
         assertTrue(
             "WelcomeStep must reference ppg label + detail",
@@ -140,24 +140,28 @@ class SetupWizardStepTest {
     }
 
     @Test
-    fun `CorosStep Composable embeds PolarSection and has continue + skip (v0-35-1)`() {
-        val source = readStepSource("CorosStep.kt")
-        assertNotNull("CorosStep.kt must exist", source)
+    fun `PolarStep Composable embeds PolarSection and has continue + skip (v0-37-0)`() {
+        // v0.37.0: the step was previously named `CorosStep`. The
+        // rename brought the file name in line with what the
+        // composable always did — host the `PolarSection` for the
+        // Polar Flow OAuth2 web bridge.
+        val source = readStepSource("PolarStep.kt")
+        assertNotNull("PolarStep.kt must exist", source)
         assertTrue(
-            "CorosStep must be a public @Composable function",
-            source!!.contains("fun CorosStep("),
+            "PolarStep must be a public @Composable function",
+            source!!.contains("fun PolarStep("),
         )
         assertTrue(
-            "CorosStep must embed the existing PolarSection " +
+            "PolarStep must embed the existing PolarSection " +
                 "(email + password form for the OAuth2 web bridge)",
             source.contains("PolarSection()"),
         )
         assertTrue(
-            "CorosStep must have a Continue button",
+            "PolarStep must have a Continue button",
             source.contains("setup_wizard_continue"),
         )
         assertTrue(
-            "CorosStep must have a Skip button",
+            "PolarStep must have a Skip button",
             source.contains("setup_wizard_skip"),
         )
     }
@@ -202,7 +206,7 @@ class SetupWizardStepTest {
         for (label in listOf(
             "setup_wizard_source_health_connect_label",
             "setup_wizard_source_watch_label",
-            "setup_wizard_source_coros_label",
+            "setup_wizard_source_polar_label",
             "setup_wizard_source_ppg_label",
         )) {
             assertTrue(
@@ -230,7 +234,7 @@ class SetupWizardStepTest {
             "WelcomeStep(",
             "HealthConnectStep(",
             "PairWatchStep(",
-            "CorosStep(",
+            "PolarStep(",
             "PpgStep(",
             "DoneStep(",
         )) {
@@ -246,7 +250,7 @@ class SetupWizardStepTest {
         val source = readOnboardingSource("SetupWizardViewModel.kt")
         assertNotNull("SetupWizardViewModel.kt must exist", source)
         // The 6 SetupStep enum entries exist
-        for (entry in listOf("WELCOME", "HEALTH_CONNECT", "PAIR_WATCH", "COROS", "PPG", "DONE")) {
+        for (entry in listOf("WELCOME", "HEALTH_CONNECT", "PAIR_WATCH", "POLAR", "PPG", "DONE")) {
             assertTrue(
                 "SetupWizardViewModel must reference SetupStep.$entry",
                 source!!.contains("SetupStep.$entry"),
@@ -271,7 +275,7 @@ class SetupWizardStepTest {
         assertTrue("SetupPrefs must have wizardCompleted", source.contains("wizardCompleted"))
         assertTrue("SetupPrefs must have userDismissedWizard", source.contains("userDismissedWizard"))
         // The 4 skip flags
-        for (flag in listOf("healthConnectSkipped", "pairWatchSkipped", "corosSkipped", "ppgSkipped")) {
+        for (flag in listOf("healthConnectSkipped", "pairWatchSkipped", "polarSkipped", "ppgSkipped")) {
             assertTrue(
                 "SetupPrefs.progress must include $flag",
                 source.contains(flag),

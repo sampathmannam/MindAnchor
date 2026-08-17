@@ -39,7 +39,17 @@ enum class SetupStep {
     WELCOME,
     HEALTH_CONNECT,
     PAIR_WATCH,
-    COROS,
+    /**
+     * v0.37.0: was `COROS`. Renamed to match the step's actual
+     * behaviour (it always hosted `PolarSection`; the class
+     * name was a pre-rename leftover from an earlier Coros
+     * bridge that was removed). The `corosSkippedKey` in the
+     * DataStore below is intentionally left as-is — the
+     * on-disk key name must not change without a migration,
+     * and the field name `polarSkipped` in `SetupProgress`
+     * is the only thing visible to the rest of the app.
+     */
+    POLAR,
     PPG,
     DONE,
 }
@@ -54,7 +64,13 @@ enum class SetupStep {
 data class SetupProgress(
     val healthConnectSkipped: Boolean = false,
     val pairWatchSkipped: Boolean = false,
-    val corosSkipped: Boolean = false,
+    /**
+     * v0.37.0: was `corosSkipped`. Renamed to match the
+     * renamed `SetupStep.POLAR`. The on-disk key
+     * `corosSkippedKey` is left as-is so existing users'
+     * skip state is preserved.
+     */
+    val polarSkipped: Boolean = false,
     val ppgSkipped: Boolean = false,
 ) {
     /** The first non-skipped step at or after [after]. */
@@ -62,19 +78,19 @@ data class SetupProgress(
         SetupStep.WELCOME ->
             if (!healthConnectSkipped) SetupStep.HEALTH_CONNECT
             else if (!pairWatchSkipped) SetupStep.PAIR_WATCH
-            else if (!corosSkipped) SetupStep.COROS
+            else if (!polarSkipped) SetupStep.POLAR
             else if (!ppgSkipped) SetupStep.PPG
             else SetupStep.DONE
         SetupStep.HEALTH_CONNECT ->
             if (!pairWatchSkipped) SetupStep.PAIR_WATCH
-            else if (!corosSkipped) SetupStep.COROS
+            else if (!polarSkipped) SetupStep.POLAR
             else if (!ppgSkipped) SetupStep.PPG
             else SetupStep.DONE
         SetupStep.PAIR_WATCH ->
-            if (!corosSkipped) SetupStep.COROS
+            if (!polarSkipped) SetupStep.POLAR
             else if (!ppgSkipped) SetupStep.PPG
             else SetupStep.DONE
-        SetupStep.COROS ->
+        SetupStep.POLAR ->
             if (!ppgSkipped) SetupStep.PPG
             else SetupStep.DONE
         SetupStep.PPG -> SetupStep.DONE
@@ -102,7 +118,7 @@ class SetupPrefs(private val context: Context) {
         SetupProgress(
             healthConnectSkipped = prefs[healthConnectSkippedKey] ?: false,
             pairWatchSkipped = prefs[pairWatchSkippedKey] ?: false,
-            corosSkipped = prefs[corosSkippedKey] ?: false,
+            polarSkipped = prefs[corosSkippedKey] ?: false,
             ppgSkipped = prefs[ppgSkippedKey] ?: false,
         )
     }
@@ -130,14 +146,22 @@ class SetupPrefs(private val context: Context) {
         val key = when (step) {
             SetupStep.HEALTH_CONNECT -> healthConnectSkippedKey
             SetupStep.PAIR_WATCH -> pairWatchSkippedKey
-            SetupStep.COROS -> corosSkippedKey
+            SetupStep.POLAR -> corosSkippedKey
             SetupStep.PPG -> ppgSkippedKey
             else -> return // WELCOME and DONE are not skippable
         }
         context.setupWizardDataStore.edit { it[key] = skipped }
     }
 
-    /** Clear the dismissed flag plus the per-step skipped flags. Used on re-run from Settings. */
+    /**
+     * Clear the dismissed flag plus the per-step skipped flags.
+     * Used on re-run from Settings.
+     *
+     * v0.37.0: the on-disk `corosSkippedKey` is intentionally
+     * left as-is (the byte-string in the DataStore file is
+     * `coros_skipped` so changing it would reset every existing
+     * user's skip state).
+     */
     suspend fun reset() {
         context.setupWizardDataStore.edit { prefs ->
             prefs[userDismissedKey] = false

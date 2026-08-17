@@ -79,8 +79,8 @@ class SetupWizardViewModel(
             SetupStep.WELCOME -> return
             SetupStep.HEALTH_CONNECT -> SetupStep.WELCOME
             SetupStep.PAIR_WATCH -> SetupStep.HEALTH_CONNECT
-            SetupStep.COROS -> SetupStep.PAIR_WATCH
-            SetupStep.PPG -> SetupStep.COROS
+            SetupStep.POLAR -> SetupStep.PAIR_WATCH
+            SetupStep.PPG -> SetupStep.POLAR
             SetupStep.DONE -> {
                 // From Done, back goes to the last non-skipped
                 // step before DONE, so the user can re-touch it.

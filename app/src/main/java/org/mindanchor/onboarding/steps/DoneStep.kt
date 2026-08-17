@@ -67,7 +67,7 @@ fun DoneStep(
             state = stringResource(R.string.setup_wizard_done_set_in_settings),
         )
         SourceRow(
-            label = stringResource(R.string.setup_wizard_source_coros_label),
+            label = stringResource(R.string.setup_wizard_source_polar_label),
             state = stringResource(R.string.setup_wizard_done_set_in_settings),
         )
         SourceRow(

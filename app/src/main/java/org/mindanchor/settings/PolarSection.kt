@@ -227,7 +227,7 @@ fun PolarSection(modifier: Modifier = Modifier) {
             ) {
                 Text(
                     text = if (loginInProgress) {
-                        stringResource(R.string.coros_login_in_progress)
+                        stringResource(R.string.settings_polar_login_in_progress)
                     } else {
                         stringResource(R.string.settings_polar_connect_button)
                     },

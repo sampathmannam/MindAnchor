@@ -1240,6 +1240,7 @@
     <string name="settings_polar_disconnect_button">Disconnect</string>
     <string name="settings_polar_sync_now">Sync now</string>
     <string name="settings_polar_login_failed">Sign-in failed: %1$s</string>
+    <string name="settings_polar_login_in_progress">Signing in…</string>
     <string name="settings_polar_connected_as">Connected as %1$s.</string>
     <string name="settings_polar_not_connected">Not connected. Sign in to pull nightly HRV and continuous heart rate.</string>
 
@@ -1420,8 +1421,8 @@
     <string name="setup_wizard_source_health_connect_detail">Where your phone already keeps steps, sleep and heart data from any wearable.</string>
     <string name="setup_wizard_source_watch_label">A Bluetooth watch or chest strap</string>
     <string name="setup_wizard_source_watch_detail">A universal connector for any Bluetooth heart-rate sensor. No app to install on the watch side.</string>
-    <string name="setup_wizard_source_coros_label">Your COROS account</string>
-    <string name="setup_wizard_source_coros_detail">The COROS Training Hub web bridge. Email and password, kept on this device only.</string>
+    <string name="setup_wizard_source_polar_label">Your Polar account</string>
+    <string name="setup_wizard_source_polar_detail">The Polar Flow OAuth2 web bridge. Email and password, kept on this device only.</string>
     <string name="setup_wizard_source_ppg_label">A baseline camera reading</string>
     <string name="setup_wizard_source_ppg_detail">Fingertip on the back-camera lens for 90 seconds. No image is stored or sent anywhere.</string>
     <string name="setup_wizard_begin">Begin</string>
@@ -1437,8 +1438,8 @@
     <string name="setup_wizard_pair_watch_title">Pair a watch</string>
     <string name="setup_wizard_pair_watch_body">Any Bluetooth heart-rate sensor works. The launcher connects to it directly — no app on the watch, no account to create.</string>
 
-    <string name="setup_wizard_coros_title">Your COROS account</string>
-    <string name="setup_wizard_coros_body">If you have a COROS watch, the launcher can also pull the seven-day nightly-recharge and continuous-heart-rate data. Email and password are stored only on this device.</string>
+    <string name="setup_wizard_polar_title">Your Polar account</string>
+    <string name="setup_wizard_polar_body">If you have a Polar watch, the launcher can pull the seven-day nightly-recharge and continuous-heart-rate data. Email and password are stored only on this device.</string>
 
     <string name="setup_wizard_ppg_title">A baseline reading</string>
     <string name="setup_wizard_ppg_body">A 90-second fingertip reading gives the launcher a personal baseline. Without one, your numbers show up as a count of days — useful, but less personal.</string>

@@ -33,10 +33,10 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
-import org.mindanchor.onboarding.steps.CorosStep
 import org.mindanchor.onboarding.steps.DoneStep
 import org.mindanchor.onboarding.steps.HealthConnectStep
 import org.mindanchor.onboarding.steps.PairWatchStep
+import org.mindanchor.onboarding.steps.PolarStep
 import org.mindanchor.onboarding.steps.PpgStep
 import org.mindanchor.onboarding.steps.WelcomeStep
 import org.mindanchor.ui.MindAnchorTheme
@@ -97,8 +97,8 @@ private fun WizardRoot(
             onDone = { viewModel.advance() },
         )
 
-        SetupStep.COROS -> CorosStep(
-            onSkip = { viewModel.skip(SetupStep.COROS) },
+        SetupStep.POLAR -> PolarStep(
+            onSkip = { viewModel.skip(SetupStep.POLAR) },
             onDone = { viewModel.advance() },
         )
 

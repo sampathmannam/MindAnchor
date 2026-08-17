@@ -65,8 +65,8 @@ fun WelcomeStep(
             detail = stringResource(R.string.setup_wizard_source_watch_detail),
         )
         SourceLine(
-            label = stringResource(R.string.setup_wizard_source_coros_label),
-            detail = stringResource(R.string.setup_wizard_source_coros_detail),
+            label = stringResource(R.string.setup_wizard_source_polar_label),
+            detail = stringResource(R.string.setup_wizard_source_polar_detail),
         )
         SourceLine(
             label = stringResource(R.string.setup_wizard_source_ppg_label),
