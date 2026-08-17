@@ -1,21 +1,48 @@
 /*
- * v0.35.1 — Health Connect step.
+ * v0.35.2 — Health Connect step.
  *
- * Requests the 8 HC read permissions via the system permission
- * contract. The user lands back on the wizard after granting (or
- * denying) — both outcomes are valid, both advance the wizard.
+ * Requests the 8 HC read permissions via the explicit Health
+ * Connect intent. The contract lives in
+ * `vitals/HealthConnectRequestContract.kt` so the Settings →
+ * Sources → Health Connect section uses the same launcher (and
+ * the same "remember the contract" fix that the v0.23.0 launcher
+ * cache applied to the previous contract).
  *
- * The permission flow uses `rememberLauncherForActivityResult` with
- * the system `RequestMultiplePermissions` contract. The 8
- * permission strings are the same set `HealthConnectSource.PERMISSIONS`
- * uses for reading.
+ * Why a custom contract (and not the SDK one):
+ *   `androidx.health.connect.client.PermissionController.createRequestPermissionResultContract()`
+ *   delegates to the system `RequestMultiplePermissions` contract on
+ *   Android 14+ (verified in the SDK 1.1.0 bytecode — the
+ *   `HealthPermissionsRequestModuleContract` constructor wraps
+ *   `ActivityResultContracts.RequestMultiplePermissions`). The system
+ *   contract dismisses itself immediately because
+ *   `android.permission.health.*` are not standard runtime
+ *   permissions; the system has no UI to render and closes the
+ *   dialog in ~50ms, advancing the wizard without granting anything.
+ *
+ *   The right UI is the dedicated Health Connect controller
+ *   (`com.google.android.healthconnect.controller` on Android 14+,
+ *   `com.google.android.apps.healthdata` on 13 and below). We pick
+ *   the right package at runtime and launch it directly. The
+ *   result is read back via `getGrantedPermissions()` from the SDK
+ *   after the user returns — that avoids depending on the result
+ *   Intent, which the dedicated UI does not always set.
+ *
+ * The 8 permission strings come from `HealthConnectSource.PERMISSIONS`
+ * (filtered to those the current provider can actually supply) so
+ * the Settings "change what is shared" flow and the wizard stay in
+ * lockstep.
+ *
+ * The user lands back on the wizard after granting (or denying) —
+ * both outcomes are valid, both advance the wizard. A user who
+ * denied is still on the home — the DataSourcesCard will tell them
+ * they have not connected HC and they can re-run the wizard from
+ * Settings.
  *
  * No "back" affordance — system back goes to Welcome.
  */
 package org.mindanchor.onboarding.steps
 
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -32,9 +59,12 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import org.mindanchor.R
+import org.mindanchor.vitals.HealthConnectRequestPermissionsContract
+import org.mindanchor.vitals.HealthConnectSource
 
 @Suppress("FunctionNaming")
 @Composable
@@ -42,13 +72,14 @@ fun HealthConnectStep(
     onSkip: () -> Unit,
     onDone: () -> Unit,
 ) {
+    val context = LocalContext.current
     val launcher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions(),
+        contract = HealthConnectRequestPermissionsContract(),
     ) { _ ->
-        // Both granted and denied advance the wizard. A user who
-        // denied is still on the home — the DataSourcesCard will
-        // tell them they have not connected HC and they can re-run
-        // the wizard from Settings.
+        // Whatever happened, advance the wizard. If the user granted
+        // some permissions, the next Sync will surface them. If they
+        // denied, the home's DataSourcesCard will say "no sources
+        // connected" and they can re-run the wizard from Settings.
         onDone()
     }
 
@@ -75,7 +106,14 @@ fun HealthConnectStep(
         )
         Spacer(modifier = Modifier.height(8.dp))
         Button(
-            onClick = { launcher.launch(HEALTH_CONNECT_PERMISSIONS) },
+            onClick = {
+                val perms = HealthConnectSource.effectivePermissions(context)
+                if (perms.isEmpty()) {
+                    onDone()
+                } else {
+                    launcher.launch(perms)
+                }
+            },
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(stringResource(R.string.setup_wizard_health_connect_grant))
@@ -88,27 +126,3 @@ fun HealthConnectStep(
         }
     }
 }
-
-/**
- * The 8 Health Connect read permissions the launcher requests. The
- * list mirrors `HealthConnectSource.PERMISSIONS` — if a future version
- * adds a record there, add the permission here.
- *
- * The names are string literals because the Health Connect
- * permissions are declared in AndroidManifest.xml as custom
- * `android.permission.health.*` permissions and are not in the
- * `android.Manifest.permission` SDK constants. The runtime
- * permission request goes through the standard
- * `RequestMultiplePermissions` contract with the string names;
- * the system routes them to the Health Connect provider.
- */
-private val HEALTH_CONNECT_PERMISSIONS: Array<String> = arrayOf(
-    "android.permission.health.READ_HEART_RATE",
-    "android.permission.health.READ_RESTING_HEART_RATE",
-    "android.permission.health.READ_HEART_RATE_VARIABILITY",
-    "android.permission.health.READ_SLEEP",
-    "android.permission.health.READ_STEPS",
-    "android.permission.health.READ_EXERCISE",
-    "android.permission.health.READ_TOTAL_CALORIES_BURNED",
-    "android.permission.health.READ_MINDFULNESS",
-)

@@ -84,6 +84,7 @@ import org.mindanchor.onboarding.GoalMap
 import org.mindanchor.onboarding.SettingsSection
 import org.mindanchor.reader.ReadingSize
 import org.mindanchor.sunset.Chronotype
+import org.mindanchor.vitals.HealthConnectRequestPermissionsContract
 import org.mindanchor.vitals.HealthConnectSource
 import org.mindanchor.vitals.coros.CorosConnectionState
 import org.mindanchor.vitals.coros.CorosSyncWorker
@@ -2192,7 +2193,7 @@ fun SettingsScreen(
             // local would silently bind to the wrong one the next
             // time a maintainer added a button in this block.
             val healthConnectPermissionContract = remember {
-                HealthConnectSource.requestPermissionsContract()
+                HealthConnectRequestPermissionsContract()
             }
             // v0.25.3-WP-B: hcLaunchError surfaces a launch-dispatch
             // failure (ActivityNotFoundException, SecurityException,

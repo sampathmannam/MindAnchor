@@ -60,29 +60,52 @@ class SetupWizardStepTest {
     @Test
     fun `HealthConnectStep Composable exists and grants the 8 HC permissions (v0-35-1)`() {
         val source = readStepSource("HealthConnectStep.kt")
+        val contract = readStepSource("vitals/HealthConnectRequestContract.kt")
         assertNotNull("HealthConnectStep.kt must exist", source)
+        assertNotNull("HealthConnectRequestContract.kt must exist", contract)
         assertTrue(
             "HealthConnectStep must be a public @Composable function",
             source!!.contains("fun HealthConnectStep("),
         )
-        // The 8 HC read permissions are the contract — same set as
-        // HealthConnectSource.PERMISSIONS.
-        val expected = listOf(
-            "READ_HEART_RATE",
-            "READ_RESTING_HEART_RATE",
-            "READ_HEART_RATE_VARIABILITY",
-            "READ_SLEEP",
-            "READ_STEPS",
-            "READ_EXERCISE",
-            "READ_TOTAL_CALORIES_BURNED",
-            "READ_MINDFULNESS",
+        // v0.35.2: must use the shared `HealthConnectRequestPermissionsContract`
+        // (defined in `vitals/`) which fires the dedicated Health Connect
+        // UI directly. The SDK 1.1.0 contract on Android 14+ wraps the
+        // system `RequestMultiplePermissions` which dismisses itself
+        // immediately for `android.permission.health.*` because those
+        // are not standard runtime permissions.
+        assertTrue(
+            "HealthConnectStep must use HealthConnectRequestPermissionsContract",
+            source.contains("HealthConnectRequestPermissionsContract()"),
         )
-        for (perm in expected) {
-            assertTrue(
-                "HealthConnectStep must request $perm",
-                source.contains(perm),
-            )
-        }
+        // The shared contract must fire the dedicated Health Connect
+        // intent. The legacy `android.health.connect.action.REQUEST_HEALTH_PERMISSIONS`
+        // is signature-protected on Android 17 (`SecurityException: requires
+        // GRANT_RUNTIME_PERMISSIONS`); the modern gateway is
+        // `androidx.health.ACTION_REQUEST_PERMISSIONS` handled by
+        // `com.google.android.apps.healthdata/.deeplink.DefaultGateway`.
+        assertTrue(
+            "HealthConnectRequestPermissionsContract must fire the modern Health Connect intent",
+            contract!!.contains("androidx.health.ACTION_REQUEST_PERMISSIONS"),
+        )
+        assertTrue(
+            "HealthConnectRequestPermissionsContract must NOT pin a package (works with both new and legacy providers)",
+            !contract.contains(".setPackage("),
+        )
+        // Permission set still comes from HealthConnectSource so
+        // Settings and the wizard stay in lockstep.
+        assertTrue(
+            "HealthConnectStep must delegate to HealthConnectSource.effectivePermissions",
+            source.contains("HealthConnectSource.effectivePermissions("),
+        )
+        // Must NOT use the broken SDK contract.
+        assertTrue(
+            "HealthConnectStep must NOT use HealthConnectSource.requestPermissionsContract",
+            !source.contains("HealthConnectSource.requestPermissionsContract("),
+        )
+        assertTrue(
+            "HealthConnectStep must NOT import the system RequestMultiplePermissions contract",
+            !source.contains("import androidx.activity.result.contract.ActivityResultContracts"),
+        )
         assertTrue(
             "HealthConnectStep must surface a grant button",
             source.contains("setup_wizard_health_connect_grant"),
