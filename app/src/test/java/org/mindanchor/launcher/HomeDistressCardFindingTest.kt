@@ -7,18 +7,34 @@ import org.junit.Test
 
 import org.mindanchor.testing.TestFileUtil.fileAt
 /**
- * v0.28.0: the home-surface Distress Thermometer card.
+ * v0.35.0: the home-surface NeedsCard replaces the v0.32.x
+ * HomeDistressCard.
+ *
+ * The v0.28.0 design rendered a "How is it right now?" Distress
+ * Thermometer as the first card on home. v0.33.0 + v0.35.0
+ * replace it with a "What do you need right now?" 2×2 needs
+ * card (Be heard / A moment / Check in / Get through this)
+ * — DBT validate-then-suggest, IFS (Schwartz 1995), and
+ * Lindsay 2024 JMIR all point at "ask what is needed first"
+ * over "ask how distressed you are" as the better BPD-strict
+ * primary surface.
  *
  * Pins:
- *  1. HomeScreen calls HomeDistressCard as the FIRST card on home
- *     (before OpenLoopCard and the right-now section).
- *  2. HomeDistressCard renders the title, caption, and "Ground me
- *     here" button.
- *  3. HomeScreen wires `onOpenDistressThermometer` to launch
- *     DistressThermometerActivity.
- *  4. OneThingCard is no longer rendered on home (data model kept).
- *  5. Strings exist for the home card title, caption, and button.
- *  6. BPD-safe: no directive language; no "good day / bad day" framing.
+ *  1. NeedsCard is the FIRST card on home (before QuickNotesCard).
+ *  2. NeedsCard renders the four affordance labels.
+ *  3. The v0.28.0 HomeDistressCard Composable is no longer
+ *     called from the home surface (the function definition
+ *     is kept for callers outside the home — Distress
+ *     Thermometer is still reachable from Settings → Pauses).
+ *  4. The data model (oneThing, openLoop) is kept untouched.
+ *  5. Strings exist for the needs-card title, caption, and
+ *     four affordance labels.
+ *  6. BPD-safe: no directive language; no "good day / bad day"
+ *     framing in the new card.
+ *
+ * @wording-reviewed — clinical-review-required. The four
+ * affordance labels are the clinical-review surface; wording
+ * changes here must be re-reviewed per docs/CLINICAL_REVIEW.md.
  */
 class HomeDistressCardFindingTest {
 
@@ -29,93 +45,102 @@ class HomeDistressCardFindingTest {
         get() = fileAt("app/src/main/res/values/strings.xml").readText()
 
     @Test
-    fun `HomeDistressCard Composable is defined and is the first card on home`() {
+    fun `NeedsCard Composable is defined and is the first card on home (v0-35-0)`() {
         assertNotNull(homeScreen)
         assertTrue(
-            "HomeScreen must define a HomeDistressCard Composable",
-            homeScreen.contains("private fun HomeDistressCard("),
+            "HomeScreen must call NeedsCard as the first card on home (v0.35.0 redesign)",
+            homeScreen.contains("\n            NeedsCard("),
         )
-        // v0.32.0: OpenLoopCard was the second card on home from
-        // v0.25.5 to v0.31.x. v0.32.0 cuts it for the same reason
-        // v0.28.0 cut OneThingCard and v0.26.6 cut BedtimeListCard:
-        // the v0.26.6 audit counted three task-capture cards as
-        // "one too many for a person with BPD" (DBT: low cognitive
-        // load is the floor). The data model is kept; only the
-        // home-surface render is removed. The home scroll is now
-        // Distress → QuickNotes; the test below pins the new
-        // order. The OpenLoop call-site index is asserted < 0 so
-        // a regression that re-introduces the card is caught.
-        val distressIdx = homeScreen.indexOf("\n            HomeDistressCard(")
-        val openLoopIdx = homeScreen.indexOf("\n            OpenLoopCard(")
-        assertTrue("HomeDistressCard call site must exist", distressIdx > 0)
-        assertTrue(
-            "OpenLoopCard must NOT be rendered on the home surface " +
-                "(v0.32.0 cut: third task-capture card removed for BPD-safe " +
-                "home. Data model is kept in LauncherViewModel.openLoop).",
-            openLoopIdx < 0,
-        )
-        assertTrue(
-            "HomeDistressCard must be the first card on home (only QuickNotes follows).",
-            distressIdx > 0,
-        )
-    }
-
-    @Test
-    fun `HomeDistressCard has the title, caption, and Ground-me-here button`() {
-        assertNotNull(homeScreen)
-        // Title, caption, button — all from the home card strings.
+        // OpenLoopCard, OneThingCard, BedtimeListCard — all removed
+        // from the home surface (v0.26.6, v0.28.0, v0.32.0 cuts).
+        // The data model is kept; the home-surface render is not.
         listOf(
-            "R.string.home_distress_card_title",
-            "R.string.home_distress_card_caption",
-            "R.string.home_ground_me_button",
+            "OpenLoopCard(",
+            "OneThingCard(",
+            "BedtimeListCard(",
         ).forEach { token ->
             assertTrue(
-                "HomeDistressCard must render $token",
-                homeScreen.contains(token),
+                "HomeScreen must NOT render $token on the home surface",
+                !homeScreen.contains("\n            $token"),
             )
         }
     }
 
     @Test
-    fun `HomeScreen wires onOpenDistressThermometer to launch DistressThermometerActivity`() {
-        assertNotNull(homeScreen)
+    fun `HomeDistressCard call site is removed from home (v0-35-0)`() {
+        // v0.35.0: the v0.28.0-v0.32.x HomeDistressCard call
+        // site is removed from the home scroll. The Composable
+        // definition is kept in HomeScreen.kt for callers
+        // outside the home (Settings → Pauses still uses it);
+        // only the home-surface call is gone.
+        val homeDistressCallIdx = homeScreen.indexOf("\n            HomeDistressCard(")
         assertTrue(
-            "HomeScreen must have an onOpenDistressThermometer parameter",
-            homeScreen.contains("onOpenDistressThermometer: () -> Unit"),
-        )
-        assertTrue(
-            "HomeScreen must wire onOpenDistressThermometer to launch DistressThermometerActivity",
-            homeScreen.contains("DistressThermometerActivity::class.java"),
-        )
-    }
-
-    @Test
-    fun `OneThingCard is removed entirely from the launcher (v0-28-0 BPD-strict cut)`() {
-        assertNotNull(homeScreen)
-        // v0.28.0: OneThingCard Composable is removed. The
-        // data model (oneThing StateFlow + setOneThing method in
-        // LauncherViewModel) is kept for the export payload and
-        // any future re-introduction — but the home-surface
-        // Composable is gone. The function definition AND the
-        // call site must be absent (the word "OneThingCard" is
-        // still in the v0.28.0 comment, which is fine).
-        val defIdx = homeScreen.indexOf("private fun OneThingCard(")
-        val callIdx = homeScreen.indexOf("\n            OneThingCard(")
-        assertTrue(
-            "HomeScreen must NOT define OneThingCard Composable " +
-                "(v0.28.0 BPD-strict cut: the data model is kept in " +
-                "LauncherViewModel; the home Composable is removed). " +
-                "defIdx=$defIdx callIdx=$callIdx",
-            defIdx < 0 && callIdx < 0,
+            "HomeDistressCard call site must NOT be on the home surface (v0.35.0 " +
+                "replaced it with NeedsCard). homeDistressCallIdx=$homeDistressCallIdx",
+            homeDistressCallIdx < 0,
         )
     }
 
     @Test
-    fun `strings xml defines home card title, caption, and button`() {
+    fun `NeedsCard has the four affordance labels (v0-35-0)`() {
+        assertNotNull(homeScreen)
+        // v0.35.0: HomeScreen.kt calls NeedsCard(sky = ..., ...)
+        // — the title, caption, and all four affordance labels
+        // live in launcher/NeedsCard.kt. The test pins all
+        // six from the NeedsCard source. The home_screen
+        // check is just that the NeedsCard call site exists.
+        assertTrue(
+            "HomeScreen must call NeedsCard (the v0.35.0 first card on home)",
+            homeScreen.contains("\n            NeedsCard("),
+        )
+        val needsCard = fileAt("app/src/main/java/org/mindanchor/launcher/NeedsCard.kt")
+            .readText()
         listOf(
-            "home_distress_card_title",
-            "home_distress_card_caption",
-            "home_ground_me_button",
+            "R.string.home_needs_title",
+            "R.string.home_needs_caption",
+            "R.string.home_needs_be_heard",
+            "R.string.home_needs_moment",
+            "R.string.home_needs_check_in",
+            "R.string.home_needs_get_through",
+        ).forEach { token ->
+            assertTrue(
+                "NeedsCard must render $token",
+                needsCard.contains(token),
+            )
+        }
+    }
+
+    @Test
+    fun `NeedsCard wires the four affordance callbacks to the corresponding activities`() {
+        assertNotNull(homeScreen)
+        // The 4 affordance callbacks. The exact call pattern
+        // (onBeHeard / onMoment / onCheckIn / onGetThrough)
+        // is pinned here so a refactor that drops one of the
+        // four is caught — that would be a regression to a
+        // needs-first surface.
+        listOf(
+            "onBeHeard = onOpenSupport",
+            "onMoment = onOpenAccepts",
+            "onCheckIn = onOpenDiaryCard",
+            "onGetThrough = onOpenGetThrough",
+        ).forEach { wiring ->
+            assertTrue(
+                "NeedsCard must wire $wiring (the four affordance callbacks are the " +
+                    "BPD-safe primary surface of the home)",
+                homeScreen.contains(wiring),
+            )
+        }
+    }
+
+    @Test
+    fun `strings xml defines the needs-card title, caption, and four affordance labels`() {
+        listOf(
+            "home_needs_title",
+            "home_needs_caption",
+            "home_needs_be_heard",
+            "home_needs_moment",
+            "home_needs_check_in",
+            "home_needs_get_through",
         ).forEach { key ->
             assertTrue(
                 "values/strings.xml must define <string name=\"$key\">",
@@ -125,17 +150,19 @@ class HomeDistressCardFindingTest {
     }
 
     @Test
-    fun `HomeDistressCard has no directive language (BPD-safe per audit)`() {
+    fun `NeedsCard has no directive language (BPD-safe per audit)`() {
         assertNotNull(homeScreen)
         assertTrue(
-            "HomeDistressCard must not contain directive phrases (BPD-safe)",
+            "NeedsCard must not contain directive phrases (BPD-safe)",
             !homeScreen.contains("you should", ignoreCase = true) &&
                 !homeScreen.contains("you must", ignoreCase = true) &&
                 !homeScreen.contains("you need to", ignoreCase = true),
         )
-        // No "good day" / "bad day" framing — BPD-safe per audit §2.3.
+        // No "good day" / "bad day" framing — BPD-safe per
+        // audit §2.3. The needs card does not rate the user's
+        // day; it asks what is needed.
         assertTrue(
-            "HomeDistressCard must not use 'good day' / 'bad day' framing (BPD-safe)",
+            "NeedsCard must not use 'good day' / 'bad day' framing (BPD-safe)",
             !homeScreen.contains("good day", ignoreCase = true) &&
                 !homeScreen.contains("bad day", ignoreCase = true),
         )

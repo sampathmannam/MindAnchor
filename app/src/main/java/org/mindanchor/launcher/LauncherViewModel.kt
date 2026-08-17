@@ -541,6 +541,110 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    // --- v0.35.0: three StateFlows for the data-sources card -----------
+    //
+    // The "Where it comes from" home card surfaces the last sync /
+    // last reading for each source the user has opted in to.
+    // Each flow degrades to "no source" on any failure (a missing
+    // Health Connect install, an unwired Coros bridge, an empty
+    // PPG log) — the card paints a single line "Nothing paired
+    // yet" in that case. The flow shape is the same
+    // WhileSubscribed-5s idiom the rest of this VM uses, so a
+    // backgrounded home screen does not pay the DataStore read
+    // cost.
+    //
+    // Why a Coros + PPG + HC trio and not a single SmartwatchRegistry
+    // state: the registry is for live BLE/wearable data. The data-
+    // sources card is for "when did I last have a reading", which
+    // is a cache-warmth question answered by each source's own
+    // DataStore. The two read paths are deliberately independent —
+    // a user with only a PPG camera and a Coros app (no BLE
+    // watch) should still see two rows on the card.
+
+    /** Where the Health Connect side of the data is right now. */
+    sealed interface HealthConnectStatus {
+        /** HC is not on this device at all. */
+        data object Unavailable : HealthConnectStatus
+        /** HC is installed but no permissions have been granted. */
+        data object NotGranted : HealthConnectStatus
+        /** At least one HC permission is granted — readings can flow. */
+        data object Granted : HealthConnectStatus
+    }
+
+    /** Where the Coros side-channel side of the data is right now. */
+    sealed interface CorosDataStatus {
+        /** No credentials on file. The user has not opted in. */
+        data object NotConnected : CorosDataStatus
+        /** Connected; the worker has never synced (or wiped the cache). */
+        data class ConnectedNoData(val email: String) : CorosDataStatus
+        /** Connected, with a fresh (or stale) last-sync stamp. */
+        data class Connected(val email: String, val lastSyncEpochMs: Long) : CorosDataStatus
+    }
+
+    /** One PPG measurement, on the home card's "last reading" line. */
+    data class PpgLastMeasurement(
+        val startEpochMs: Long,
+        val endEpochMs: Long,
+        val meanHr: Double?,
+    )
+
+    val healthConnectStatus: StateFlow<HealthConnectStatus> = flow {
+        // Re-emit whenever the user returns to the home surface;
+        // the call is a single HC SDK-status check + a permissions
+        // read, both cheap.
+        val ctx = getApplication<Application>()
+        val status = when {
+            !org.mindanchor.vitals.HealthConnectSource.isAvailable(ctx) ->
+                HealthConnectStatus.Unavailable
+            !org.mindanchor.vitals.HealthConnectSource.hasAnyPermissions(ctx) ->
+                HealthConnectStatus.NotGranted
+            else -> HealthConnectStatus.Granted
+        }
+        emit(status)
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        HealthConnectStatus.NotGranted,
+    )
+
+    private val corosVitalSource = org.mindanchor.vitals.coros.CorosVitalSource(application)
+    private val corosAuth = org.mindanchor.vitals.coros.CorosAuth(application)
+    private val ppgSessionStore = org.mindanchor.vitals.PpgSessionStore(application)
+
+    val corosDataStatus: StateFlow<CorosDataStatus> = flow {
+        val corosState = corosAuth.connectionState(lastSyncEpochMs = null)
+        if (corosState !is org.mindanchor.vitals.coros.CorosConnectionState.Connected) {
+            emit(CorosDataStatus.NotConnected)
+        } else {
+            val email = corosState.email
+            val lastSync = corosVitalSource.lastSyncEpochMs.first()
+            if (lastSync == null) {
+                emit(CorosDataStatus.ConnectedNoData(email))
+            } else {
+                emit(CorosDataStatus.Connected(email, lastSync))
+            }
+        }
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        CorosDataStatus.NotConnected,
+    )
+
+    val ppgLastMeasurement: StateFlow<PpgLastMeasurement?> = ppgSessionStore.lastSession()
+        .map { session ->
+            session?.let {
+                PpgLastMeasurement(
+                    startEpochMs = it.start.toEpochMilli(),
+                    endEpochMs = it.end.toEpochMilli(),
+                    meanHr = it.meanHr,
+                )
+            }
+        }.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            null,
+        )
+
     // --- Today's one thing (v0.25.5 WP-F) -------------------------------
     //
     // A single, narrow, today's-action text on the home corner.

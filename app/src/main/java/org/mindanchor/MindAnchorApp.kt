@@ -5,6 +5,7 @@ package org.mindanchor
 import android.app.Application
 import org.mindanchor.crash.CrashReporter
 import org.mindanchor.notifications.Channels
+import org.mindanchor.watch.connector.PolarAccessLinkConnector
 import org.mindanchor.watch.connector.SmartwatchRegistry
 import org.mindanchor.watch.connector.ble.GenericBleHrConnector
 
@@ -56,16 +57,17 @@ class MindAnchorApp : Application() {
 
     private fun registerWearableConnectors() {
         // v0.34.0 ships the universal BLE Heart Rate
-        // Service connector (GATT 0x180D). v0.34.1
-        // adds the vendor web-API connectors — Garmin
-        // Connect, Polar AccessLink, Fitbit, Withings —
-        // each as a `register(...)` line below. The
-        // order is the order the data-sources card
-        // renders the roster; the universal BLE
-        // connector is first because it is the "any
-        // watch" fallback.
+        // Service connector (GATT 0x180D). v0.35.0
+        // adds the vendor web-API connectors — Polar
+        // AccessLink first (free self-serve, HRV
+        // included), with Garmin, Fitbit, and Withings
+        // coming in v0.36.0+. The order is the order
+        // the data-sources card renders the roster;
+        // the universal BLE connector is first because
+        // it is the "any watch" fallback.
         val registry = SmartwatchRegistry.get(this)
         registry.register(GenericBleHrConnector())
+        registry.register(PolarAccessLinkConnector())
     }
 
     private fun installCrashReporter() {

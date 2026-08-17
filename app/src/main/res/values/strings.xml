@@ -1192,6 +1192,57 @@
     <string name="home_sources_status_last_reading">Last reading %1$s.</string>
     <string name="home_sources_status_loading">Checking what\'s available…</string>
 
+    <!--
+        v0.35.0: "Smartwatches" settings section. Renders the
+        connector roster from SmartwatchRegistry.state (BLE
+        heart rate, Polar AccessLink, ...), lets the user scan
+        for BLE devices, and pairs with their existing
+        credential store when present.
+
+        @wording-reviewed — clinical-review-required. The
+        "Always reconnect" toggle is a wearable-power trade-off
+        that affects battery life; the wording is deliberately
+        neutral, not coercive.
+    -->
+    <string name="settings_smartwatches_title">Smartwatches</string>
+    <string name="settings_smartwatches_caption">Any watch that talks Bluetooth heart-rate, plus the web bridges that some watches need.</string>
+    <string name="settings_smartwatches_grant_button">Tap to grant Bluetooth access</string>
+    <string name="settings_smartwatches_scan_button">Scan for watches</string>
+    <string name="settings_smartwatches_scanning">Scanning…</string>
+    <string name="settings_smartwatches_no_devices">No watches nearby. Make sure the watch is awake and visible to nearby devices.</string>
+    <string name="settings_smartwatches_disconnect">Disconnect</string>
+    <string name="settings_smartwatches_connect">Connect</string>
+    <string name="settings_smartwatches_always_reconnect">Always reconnect</string>
+    <string name="settings_smartwatches_unavailable">%1$s</string>
+
+    <!--
+        v0.35.0: Polar AccessLink section. The user-facing
+        form is email + password (Polar's oauth2/authorization
+        accepts the same flow as the Flow web app), with a
+        status line and a one-shot "Sync now" button.
+
+        The Polar credentials are Keystore-encrypted (same
+        EncryptedSharedPreferences path the COROS bridge
+        uses). The user can wipe them with the "Disconnect"
+        button.
+
+        @wording-reviewed — clinical-review-required. The
+        status strings are honest about the auth lifecycle
+        ("Connected as", "Sign-in failed"). Wording changes
+        here are a clinical-review-surface change per
+        docs/CLINICAL_REVIEW.md.
+    -->
+    <string name="settings_polar_title">Polar</string>
+    <string name="settings_polar_caption">Polar Flow, signed in directly. The launcher holds the access token for three days, then signs in again.</string>
+    <string name="settings_polar_email_hint">Polar Flow email</string>
+    <string name="settings_polar_password_hint">Password</string>
+    <string name="settings_polar_connect_button">Connect Polar</string>
+    <string name="settings_polar_disconnect_button">Disconnect</string>
+    <string name="settings_polar_sync_now">Sync now</string>
+    <string name="settings_polar_login_failed">Sign-in failed: %1$s</string>
+    <string name="settings_polar_connected_as">Connected as %1$s.</string>
+    <string name="settings_polar_not_connected">Not connected. Sign in to pull nightly HRV and continuous heart rate.</string>
+
     <string name="self_compassion_title">Self-compassion break</string>
     <string name="self_compassion_caption">Three sentences, 45 seconds. There is no wrong way to read them.</string>
     <string name="self_compassion_line_1">This is a moment of suffering.</string>

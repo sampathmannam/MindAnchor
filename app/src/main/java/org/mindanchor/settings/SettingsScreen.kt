@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
@@ -2588,6 +2590,32 @@ fun SettingsScreen(
                 )
                 ProbeLine(R.string.signal_steps, vitals.steps?.toString())
             }
+        }
+
+        if (group == SettingsGroup.MEASURING) {
+            // --- v0.35.0: Smartwatches + Polar AccessLink ---
+            //
+            // The "Where it comes from" home card surfaces the
+            // three wearable sources the user has. The
+            // settings section is the action surface: pair a
+            // watch, scan for one, set auto-reconnect, and
+            // for Polar specifically, sign in to the web
+            // bridge that pulls nightly HRV.
+            //
+            // The two blocks (Smartwatches roster + Polar
+            // sign-in) are siblings inside the same
+            // "Sources" group, in that order. The roster
+            // surfaces the connector that is already wired
+            // (the universal BLE HR connector from v0.34.0)
+            // and the Polar section surfaces the second
+            // connector in the static roster. New vendors
+            // land as a `register(...)` call in
+            // MindAnchorApp.onCreate and as a sibling block
+            // here — no other surface changes.
+            Spacer(Modifier.height(24.dp))
+            SmartwatchesSection()
+            Spacer(Modifier.height(16.dp))
+            PolarSection()
         }
 
         if (group == SettingsGroup.PLAN) {

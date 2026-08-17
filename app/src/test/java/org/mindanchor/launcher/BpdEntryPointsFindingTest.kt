@@ -6,26 +6,26 @@ import org.junit.Test
 
 import org.mindanchor.testing.TestFileUtil.fileAt
 /**
- * v0.26.4: the BPD "Right now" entry points on the home surface.
+ * v0.35.0: the BPD reflective-action entry points.
  *
- * The §3.4 spec chain capture, IFS picker, and data export are
- * built (in v0.26.1 and v0.26.3) but unreachable without a
- * home-surface wire. v0.26.4 wires the three affordances into a
- * single "Right now" section on the home, with one tap from the
- * home to the activity.
+ * The §3.4 spec chain capture (ChainCaptureActivity), IFS
+ * picker (IfsPickerActivity), and data export (ExportActivity)
+ * are still built and reachable. v0.32.0 surfaced them as
+ * the v0.26.4 "Right now" home section. v0.35.0 moves them
+ * to the "Get through this" needs-card door → GetThroughSubMenu
+ * stacked surface (a sibling of Home, Settings, Drawer).
  *
  * The FindingTest pins:
- *   1. The home surface renders the "Right now" section header
- *      and the three button labels.
- *   2. Each button dispatches an Intent to the corresponding
- *      activity class.
- *   3. The three activities are non-exported (only this same
- *      app launches them — the runCatching + same-app
- *      startActivity pattern is the security model).
+ *  1. The GetThroughSubMenu Composable renders the three
+ *     reflective-action labels.
+ *  2. The home surface dispatches Intents to the three
+ *     activities (now from the sub-menu callback path, not
+ *     from the home Column directly).
+ *  3. The strings for the sub-menu are defined.
  *
- * A future refactor that drops the entry points, re-orders the
- * section, or changes the Intent pattern flips one of the
- * assertions red.
+ * A future refactor that drops the entry points, re-orders
+ * the sub-menu, or changes the Intent pattern flips one of
+ * the assertions red.
  */
 class BpdEntryPointsFindingTest {
 
@@ -40,56 +40,45 @@ class BpdEntryPointsFindingTest {
         ).readText()
 
     @Test
-    fun `HomeSurface renders the Right now section header and caption`() {
+    fun `GetThroughSubMenu renders the three reflective-action labels`() {
+        // v0.35.0: the three buttons on the sub-menu are
+        // "What just happened?", "Which part is loud?", and
+        // "Export for my therapist". The sub-menu is its own
+        // Composable (GetThroughSubMenu.kt); the strings are
+        // re-used from the v0.33.0 strings.xml block.
+        val subMenu = fileAt("app/src/main/java/org/mindanchor/launcher/GetThroughSubMenu.kt")
+            .readText()
         assertTrue(
-            "HomeScreen must call stringResource(R.string.right_now_section) — the " +
-                "BPD entry-point section header",
-            homeScreen.contains("stringResource(R.string.right_now_section)"),
+            "GetThroughSubMenu must call stringResource(R.string.home_get_through_title) " +
+                "for the sub-menu header",
+            subMenu.contains("stringResource(R.string.home_get_through_title)"),
         )
-        assertTrue(
-            "HomeScreen must call stringResource(R.string.right_now_caption) — the " +
-                "one-line caption below the header",
-            homeScreen.contains("stringResource(R.string.right_now_caption)"),
-        )
+        listOf(
+            "R.string.home_get_through_what_happened",
+            "R.string.home_get_through_which_part",
+            "R.string.home_get_through_export",
+        ).forEach { token ->
+            assertTrue(
+                "GetThroughSubMenu must render $token",
+                subMenu.contains(token),
+            )
+        }
     }
 
     @Test
-    fun `HomeSurface renders the three BPD button labels`() {
-        // v0.26.4: the three button labels — "What just happened?",
-        // "Which part is loud?", and "Export for my therapist".
-        assertTrue(
-            "HomeScreen must call stringResource(R.string.right_now_chain) for the " +
-                "chain-capture button",
-            homeScreen.contains("stringResource(R.string.right_now_chain)"),
-        )
-        assertTrue(
-            "HomeScreen must call stringResource(R.string.right_now_ifs) for the " +
-                "IFS-picker button",
-            homeScreen.contains("stringResource(R.string.right_now_ifs)"),
-        )
-        assertTrue(
-            "HomeScreen must call stringResource(R.string.right_now_export) for the " +
-                "data-export button",
-            homeScreen.contains("stringResource(R.string.right_now_export)"),
-        )
-    }
-
-    @Test
-    fun `HomeSurface dispatches Intents to the three BPD activities`() {
-        // v0.26.4: each button starts the corresponding activity.
-        // The class names are .chain.ChainCaptureActivity,
-        // .ifs.IfsPickerActivity, and .export.ExportActivity.
-        // The runCatching pattern is the same as onOpenNotes +
-        // onOpenCheckInHistory (defensive against a misconfigured
-        // manifest). The Intent constructor spans multiple
-        // lines (val intent = android.content.Intent(\n context, ...))
-        // so the regex tolerates whitespace + newlines.
+    fun `HomeScreen dispatches Intents to the three BPD activities from the GetThrough sub-menu`() {
+        // v0.35.0: each reflective-action callback starts the
+        // corresponding activity. The Intent pattern is the
+        // same runCatching + startActivity shape the rest of
+        // the launcher uses (defensive against a misconfigured
+        // manifest). The Intents live inside the
+        // LauncherSurface.GetThrough when-branch.
         val chainPattern = Regex(
             """runCatching\s*\{[\s\S]*?Intent\([\s\S]*?context[\s\S]*?org\.mindanchor\.chain\.ChainCaptureActivity::class\.java[\s\S]*?\)""",
         )
         assertTrue(
             "HomeScreen must dispatch an Intent to org.mindanchor.chain.ChainCaptureActivity " +
-                "from the 'What just happened?' button (runCatching + startActivity)",
+                "from the 'What just happened?' button (GetThrough sub-menu)",
             chainPattern.containsMatchIn(homeScreen),
         )
         val ifsPattern = Regex(
@@ -97,7 +86,7 @@ class BpdEntryPointsFindingTest {
         )
         assertTrue(
             "HomeScreen must dispatch an Intent to org.mindanchor.ifs.IfsPickerActivity " +
-                "from the 'Which part is loud?' button (runCatching + startActivity)",
+                "from the 'Which part is loud?' button (GetThrough sub-menu)",
             ifsPattern.containsMatchIn(homeScreen),
         )
         val exportPattern = Regex(
@@ -105,26 +94,59 @@ class BpdEntryPointsFindingTest {
         )
         assertTrue(
             "HomeScreen must dispatch an Intent to org.mindanchor.export.ExportActivity " +
-                "from the 'Export for my therapist' button (runCatching + startActivity)",
+                "from the 'Export for my therapist' button (GetThrough sub-menu)",
             exportPattern.containsMatchIn(homeScreen),
         )
     }
 
     @Test
-    fun `strings xml defines the five Right now keys`() {
-        // The five keys are: right_now_section, right_now_caption,
-        // right_now_chain, right_now_ifs, right_now_export.
+    fun `strings xml defines the GetThrough sub-menu keys`() {
+        // The four keys are: home_get_through_title,
+        // home_get_through_what_happened, home_get_through_which_part,
+        // home_get_through_export. (Captions are also defined
+        // but the title + 3 affordance labels are the user-
+        // visible surface.)
         listOf(
-            "right_now_section",
-            "right_now_caption",
-            "right_now_chain",
-            "right_now_ifs",
-            "right_now_export",
+            "home_get_through_title",
+            "home_get_through_what_happened",
+            "home_get_through_which_part",
+            "home_get_through_export",
         ).forEach { key ->
             assertTrue(
                 "values/strings.xml must define <string name=\"$key\">",
                 strings.contains("name=\"$key\""),
             )
         }
+    }
+
+    @Test
+    fun `v0-32-0 Right now section is removed from the home surface (v0-35-0)`() {
+        // v0.32.0 rendered the BPD entry points as a "Right now"
+        // home section (right_now_section, right_now_chain,
+        // right_now_ifs, right_now_export). v0.35.0 moves them
+        // to the GetThrough sub-menu. The old section is no
+        // longer on the home surface — the right_now_section /
+        // right_now_caption strings are still defined (for any
+        // historic reference) but not called from HomeScreen.kt.
+        assertTrue(
+            "HomeScreen must NOT call stringResource(R.string.right_now_section) " +
+                "— the v0.32.0 Right now section was replaced by the GetThrough sub-menu",
+            !homeScreen.contains("stringResource(R.string.right_now_section)"),
+        )
+        assertTrue(
+            "HomeScreen must NOT call stringResource(R.string.right_now_chain) " +
+                "— the v0.32.0 chain-capture home button is now in the sub-menu",
+            !homeScreen.contains("stringResource(R.string.right_now_chain)"),
+        )
+        assertTrue(
+            "HomeScreen must NOT call stringResource(R.string.right_now_ifs) " +
+                "— the v0.32.0 IFS-picker home button is now in the sub-menu",
+            !homeScreen.contains("stringResource(R.string.right_now_ifs)"),
+        )
+        assertTrue(
+            "HomeScreen must NOT call stringResource(R.string.right_now_export) " +
+                "— the v0.32.0 export home button is now in the sub-menu",
+            !homeScreen.contains("stringResource(R.string.right_now_export)"),
+        )
     }
 }

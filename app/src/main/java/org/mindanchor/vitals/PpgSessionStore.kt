@@ -39,6 +39,24 @@ class PpgSessionStore(private val context: Context) {
         }
 
     /**
+     * v0.35.0: the single most recent session, or null when the
+     * user has never sat down with the camera PPG. The home
+     * "Where it comes from" card surfaces this as the PPG row —
+     * "Last reading 18 minutes ago" — the same way the
+     * Coros row surfaces the last-sync timestamp.
+     *
+     * Cold Flow that re-emits whenever the underlying DataStore
+     * file changes. The home card composes a [collectAsStateWithLifecycle]
+     * over it; the result is a one-liner that updates when a PPG
+     * session is recorded.
+     */
+    fun lastSession(): kotlinx.coroutines.flow.Flow<PpgSession?> =
+        context.ppgSessionDataStore.data.map { prefs ->
+            PpgSessionLog.decode(prefs[sessionsKey].orEmpty())
+                .maxByOrNull { it.start }
+        }
+
+    /**
      * Append a session and prune anything older than [KEEP_DAYS].
      *
      * Never throws: this is called from the moment a reading

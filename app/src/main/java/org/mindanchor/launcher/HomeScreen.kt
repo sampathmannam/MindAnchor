@@ -108,6 +108,14 @@ private enum class LauncherSurface {
     // v0.26.0
     GroundMe,
     BeforeYouSend,
+    // v0.35.0: the "Get through this" sub-menu. A
+    // sibling of the home, the settings, and the
+    // drawer; not a separate activity because the
+    // three reflective actions it surfaces are
+    // existing activities, and a sub-menu is
+    // cheaper to navigate between than a fresh
+    // Intent trip.
+    GetThrough,
 }
 
 /**
@@ -262,6 +270,14 @@ fun LauncherRoot(
     val oneThing by viewModel.oneThing.collectAsStateWithLifecycle()
     val recentNotes by viewModel.notes.collectAsStateWithLifecycle()
     val wellnessReadings by viewModel.wellnessReadings.collectAsStateWithLifecycle()
+    // v0.35.0: the data-sources card reads three StateFlows.
+    // Each is a cold read of a per-source DataStore; the
+    // WhileSubscribed(5_000) in the VM keeps a backgrounded
+    // home from paying the read cost. The collectAsStateWithLifecycle
+    // is the BUG-004 primitive: no collection while STOPPED.
+    val healthConnectStatus by viewModel.healthConnectStatus.collectAsStateWithLifecycle()
+    val corosDataStatus by viewModel.corosDataStatus.collectAsStateWithLifecycle()
+    val ppgLastMeasurement by viewModel.ppgLastMeasurement.collectAsStateWithLifecycle()
     // v0.26.0 §3.5
     val ctx = LocalContext.current
     val bpdProfilePrefs = remember { org.mindanchor.data.BpdProfilePrefs(ctx.applicationContext) }
@@ -597,6 +613,41 @@ fun LauncherRoot(
                         context.startActivity(intent)
                     }
                 },
+                // v0.35.0: the four needs-card doors.
+                onOpenSupport = {
+                    runCatching {
+                        val intent = android.content.Intent(
+                            context, org.mindanchor.support.SupportActivity::class.java,
+                        )
+                        context.startActivity(intent)
+                    }
+                },
+                onOpenAccepts = {
+                    runCatching {
+                        val intent = android.content.Intent(
+                            context, org.mindanchor.support.AcceptsActivity::class.java,
+                        )
+                        context.startActivity(intent)
+                    }
+                },
+                onOpenDiaryCard = {
+                    runCatching {
+                        val intent = android.content.Intent(
+                            context, org.mindanchor.support.DiaryCardActivity::class.java,
+                        )
+                        context.startActivity(intent)
+                    }
+                },
+                onOpenGetThrough = {
+                    surface = LauncherSurface.GetThrough
+                },
+                // v0.35.0: the data-sources card reads these
+                // three StateFlows. The card is hidden entirely
+                // when no source has data; the empty-state
+                // visibility rule lives in DataSourcesCard.
+                healthConnectStatus = healthConnectStatus,
+                corosDataStatus = corosDataStatus,
+                ppgLastMeasurement = ppgLastMeasurement,
                 wellnessReadings = wellnessReadings,
                 showIntroCallout = showIntroCallout,
                 onRecordLaunch = viewModel::recordHomeLaunch,
@@ -818,6 +869,51 @@ fun LauncherRoot(
         LauncherSurface.BeforeYouSend -> BeforeYouSendDemo(
             onDismiss = { surface = LauncherSurface.Home },
         )
+        // v0.35.0: the "Get through this" sub-menu. A
+        // stacked surface rather than a fresh activity
+        // because the three reflective actions it surfaces
+        // are existing activities and a sub-menu is cheaper
+        // to navigate between than a fresh Intent trip.
+        // The sub-menu routes to the same activities the
+        // v0.32.0 "Right now" section did (chain capture,
+        // IFS picker, export); the entry point moves from
+        // "a section of the home" to "the 4th door of the
+        // needs card". The back button on the sub-menu
+        // returns to the home, not to the needs card,
+        // because the needs card is the surface the user
+        // came from.
+        LauncherSurface.GetThrough -> Surface(modifier = Modifier.fillMaxSize()) {
+            CalmBackground { sky ->
+                GetThroughSubMenu(
+                    sky = sky,
+                    onWhatHappened = {
+                        runCatching {
+                            val intent = android.content.Intent(
+                                context, org.mindanchor.chain.ChainCaptureActivity::class.java,
+                            )
+                            context.startActivity(intent)
+                        }
+                    },
+                    onWhichPart = {
+                        runCatching {
+                            val intent = android.content.Intent(
+                                context, org.mindanchor.ifs.IfsPickerActivity::class.java,
+                            )
+                            context.startActivity(intent)
+                        }
+                    },
+                    onExport = {
+                        runCatching {
+                            val intent = android.content.Intent(
+                                context, org.mindanchor.export.ExportActivity::class.java,
+                            )
+                            context.startActivity(intent)
+                        }
+                    },
+                    onBack = { surface = LauncherSurface.Home },
+                )
+            }
+        }
     }
 
     actionsFor?.let { app ->
@@ -1612,6 +1708,57 @@ private fun HomeSurface(
      */
     onOpenExport: () -> Unit = {},
     /**
+     * v0.35.0: the "Be heard" affordance on the needs card.
+     * Routes to [org.mindanchor.support.SupportActivity] —
+     * the launcher's existing 8-surface support menu
+     * (self-compassion, radical acceptance, opposite action,
+     * interpersonal, ACCEPTS, half-smile, IMPROVE, the
+     * check-the-facts skill). The "Be heard" label is the
+     * need-language the home asks for; the activity it
+     * opens is the existing surface.
+     */
+    onOpenSupport: () -> Unit = {},
+    /**
+     * v0.35.0: the "A moment" affordance. Routes to
+     * [org.mindanchor.support.AcceptsActivity] — the DBT
+     * ACCEPTS skill (Activities, Contributing, Comparisons,
+     * Emotions, Pushing away, Thoughts, Sensations). A
+     * single-tap DBT path for the "I need to come down"
+     * need, which is what the home asks the user to name
+     * before routing.
+     */
+    onOpenAccepts: () -> Unit = {},
+    /**
+     * v0.35.0: the "Check in" affordance. Routes to
+     * [org.mindanchor.support.DiaryCardActivity] — the
+     * DBT diary card (DBT skills training handouts,
+     * Linehan 2015). A one-tap path to the diary card
+     * the user already fills in at the day's end; the
+     * "Check in" door is the same diary card, framed as
+     * a needs-first affordance.
+     */
+    onOpenDiaryCard: () -> Unit = {},
+    /**
+     * v0.35.0: the "Get through this" affordance. Opens
+     * the [LauncherSurface.GetThrough] sub-menu — a
+     * three-button sheet that surfaces the existing
+     * chain capture, IFS picker, and export activities
+     * in the order a person mid-dysregulation is most
+     * likely to want them.
+     */
+    onOpenGetThrough: () -> Unit = {},
+    /**
+     * v0.35.0: the three StateFlows the "Where it comes
+     * from" home card reads. The card itself is hidden
+     * entirely when no source has any data to surface —
+     * see [DataSourcesCard] for the visibility rules.
+     */
+    healthConnectStatus: LauncherViewModel.HealthConnectStatus =
+        LauncherViewModel.HealthConnectStatus.NotGranted,
+    corosDataStatus: LauncherViewModel.CorosDataStatus =
+        LauncherViewModel.CorosDataStatus.NotConnected,
+    ppgLastMeasurement: LauncherViewModel.PpgLastMeasurement? = null,
+    /**
      * v0.20.4: the home-screen quick-notes
      * affordance. The card shows a one-line
      * input, a save button, and the most recent
@@ -1747,35 +1894,47 @@ private fun HomeSurface(
                 )
             }
 
-            // v0.28.0: the Distress Thermometer card is the FIRST
-            // card on home — validation-first, before any task-
-            // capture or note-taking. The card opens the
-            // DistressThermometerActivity; the full 0-100 slider
-            // lives in the activity. The card is BPD-safe by
-            // design (no directive language, no all-or-nothing
-            // framing, no comparative day-rating language).
-            // Research: Linehan 1993 + Gross 1998.
-            HomeDistressCard(
+            // v0.35.0: the "What do you need right now?"
+            // 2×2 needs card replaces the v0.32.x Distress
+            // Thermometer card. The Distress Thermometer
+            // (0-100 slider, "how is it right now") is no
+            // longer a home card; it is still reachable
+            // from Settings → Pauses, and the full v0.28.0
+            // rationale (DBT validate-then-suggest, the
+            // first question is "what do you need" not
+            // "how distressed are you") is in
+            // NeedsCard.kt's KDoc.
+            //
+            // The four doors are need-language ("I need X"),
+            // not action-language ("do X"). The home asks
+            // what is needed first, then offers one
+            // well-shaped path. Research: Linehan 1993
+            // (DBT ch. 8), Schwartz 1995 (IFS), Lindsay
+            // 2024 (JMIR).
+            NeedsCard(
                 sky = sky,
-                onOpen = onOpenDistressThermometer,
+                onBeHeard = onOpenSupport,
+                onMoment = onOpenAccepts,
+                onCheckIn = onOpenDiaryCard,
+                onGetThrough = onOpenGetThrough,
             )
 
-            // v0.32.0: OpenLoopCard removed from the home surface.
-            // v0.28.0 removed OneThingCard and BedtimeListCard
-            // for the same reason; v0.32.0 removes the last of
-            // the three task-capture cards the v0.26.6 audit
-            // counted as "one too many for a person with BPD".
-            // The data model (LauncherViewModel.openLoop +
-            // saveOpenLoop + postponeOpenLoop + clearOpenLoop
-            // + CorosVitalSource.mergeWith's open-loop window)
-            // is kept untouched: a future re-introduction, or
-            // a "more moments" surface, can render the same
-            // composable. The home scroll is now the smallest
-            // it has ever been — Distress Thermometer →
-            // QuickNotes — and the only input card on a quiet
-            // night is the one the brief calls the
-            // URL-bar-equivalent. See
-            // docs/research/14-v0.26.6-audit.md §3.
+            // v0.35.0: the "Where it comes from" data-sources
+            // card. Surfaces the three wearable sources the
+            // user has (or has not) opted in to: Health
+            // Connect (the "any watch" surface), Coros Pace 3
+            // (the side-channel), and PPG (the camera HRV).
+            // The card is hidden entirely when no source has
+            // any data — see DataSourcesCard for the
+            // visibility rules. The card is provenance, not
+            // summary; it does not surface clinical
+            // judgments, scores, or "good/bad" labels.
+            DataSourcesCard(
+                sky = sky,
+                healthConnectStatus = healthConnectStatus,
+                corosDataStatus = corosDataStatus,
+                ppgLastMeasurement = ppgLastMeasurement,
+            )
 
             // v0.20.4: the quick-notes card. Always
             // visible — the brief is "I want to
@@ -1866,83 +2025,17 @@ private fun HomeSurface(
                 )
             }
 
-            // v0.26.4 §3.4: the BPD "right now" surface.
-            // Three low-friction affordances for a person
-            // mid-dysregulation to externalise the moment
-            // before acting on it:
-            //   * "What just happened?" → 5-field chain capture
-            //   * "Which part is loud?" → IFS picker chip grid
-            //   * "Export for my therapist" → JSON dump + share
-            // Each is one tap from the home surface, no
-            // settings, no scroll. The "right now" heading is
-            // one line of small text in the same idiom as the
-            // rest of the home cards (intro_callout, report
-            // section) — a label, not a button.
-            Text(
-                text = stringResource(R.string.right_now_section),
-                style = MaterialTheme.typography.titleMedium,
-                color = sky.textSecondary,
-                modifier = Modifier
-                    .heightIn(min = 48.dp)
-                    .padding(top = 16.dp)
-                    .wrapContentHeight(Alignment.CenterVertically),
-            )
-            Text(
-                text = stringResource(R.string.right_now_caption),
-                style = MaterialTheme.typography.bodySmall,
-                color = sky.textSecondary,
-                modifier = Modifier.padding(bottom = 8.dp),
-            )
-            // Three buttons in a row. Each gets the 48dp
-            // tap-target minimum and Role.Button for
-            // screen readers. The pattern mirrors the
-            // top-corner (Letters / notes / history) but
-            // uses a Column instead of a Row because the
-            // captions are long and a 3-up grid is the
-            // standard mental model.
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                TextButton(
-                    onClick = onOpenChainCapture,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 48.dp)
-                        .semantics { role = Role.Button },
-                ) {
-                    Text(
-                        text = stringResource(R.string.right_now_chain),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = sky.textPrimary,
-                    )
-                }
-                TextButton(
-                    onClick = onOpenIfsPicker,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 48.dp)
-                        .semantics { role = Role.Button },
-                ) {
-                    Text(
-                        text = stringResource(R.string.right_now_ifs),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = sky.textPrimary,
-                    )
-                }
-                TextButton(
-                    onClick = onOpenExport,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 48.dp)
-                        .semantics { role = Role.Button },
-                ) {
-                    Text(
-                        text = stringResource(R.string.right_now_export),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = sky.textPrimary,
-                    )
-                }
-            }
+            // v0.35.0: the "Right now" section that v0.32.0
+            // added is removed. The three reflective actions
+            // it surfaced (chain capture, IFS picker, export)
+            // are now reached from the "Get through this"
+            // needs-card door → GetThroughSubMenu. The
+            // surface stack stays shorter (one fewer card
+            // on the home) and the sub-menu is the
+            // discoverable path for the user who knows what
+            // they need. The data model (the three activities
+            // themselves) is untouched — the sub-menu just
+            // re-routes the entry point.
 
             Column(
                 modifier = Modifier.padding(top = 40.dp),
