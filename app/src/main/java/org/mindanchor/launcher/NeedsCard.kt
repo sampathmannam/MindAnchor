@@ -3,10 +3,8 @@ package org.mindanchor.launcher
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -26,6 +24,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.mindanchor.R
 import org.mindanchor.ui.SkyContent
@@ -74,7 +73,6 @@ fun NeedsCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(IntrinsicSize.Min)
             .padding(top = 24.dp, bottom = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -91,26 +89,25 @@ fun NeedsCard(
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
         )
-        // v0.37.1: the outer Column is `height(IntrinsicSize.Min)` so
-        // the two Rows below can `fillMaxHeight()` and share the
-        // tallest cell's height. v0.35.0 only had `heightIn(min = 96.dp)`
-        // on each cell, which let each cell grow independently and
-        // produced a top row that ended taller than the bottom row
-        // (3- vs 4-line captions). Equalising the two rows means the
-        // 2x2 reads as one grid, not two unrelated rows.
+        // v0.37.1: each cell's caption is now capped at
+        // `maxLines = 3, overflow = Ellipsis` (see NeedsCardCell
+        // below) so the four doors land at a uniform 3-line
+        // height. v0.35.0 left the captions uncapped, which
+        // gave "A moment" four lines and "Get through this"
+        // two — a 2×2 with mismatched row heights.
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             NeedsCardCell(
-                modifier = Modifier.weight(1f).fillMaxHeight(),
+                modifier = Modifier.weight(1f),
                 sky = sky,
                 titleRes = R.string.home_needs_be_heard,
                 captionRes = R.string.home_needs_be_heard_caption,
                 onClick = onBeHeard,
             )
             NeedsCardCell(
-                modifier = Modifier.weight(1f).fillMaxHeight(),
+                modifier = Modifier.weight(1f),
                 sky = sky,
                 titleRes = R.string.home_needs_moment,
                 captionRes = R.string.home_needs_moment_caption,
@@ -123,14 +120,14 @@ fun NeedsCard(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             NeedsCardCell(
-                modifier = Modifier.weight(1f).fillMaxHeight(),
+                modifier = Modifier.weight(1f),
                 sky = sky,
                 titleRes = R.string.home_needs_check_in,
                 captionRes = R.string.home_needs_check_in_caption,
                 onClick = onCheckIn,
             )
             NeedsCardCell(
-                modifier = Modifier.weight(1f).fillMaxHeight(),
+                modifier = Modifier.weight(1f),
                 sky = sky,
                 titleRes = R.string.home_needs_get_through,
                 captionRes = R.string.home_needs_get_through_caption,
@@ -187,6 +184,18 @@ private fun NeedsCardCell(
         )
         Text(
             text = stringResource(captionRes),
+            // v0.37.1: cap the caption at 3 lines with
+            // ellipsis so the four cells land at a uniform
+            // height. v0.35.0 had uncapped captions that
+            // produced 2/3/4-line cells and a 2×2 with
+            // mismatched row heights. Truncation is safer
+            // than widening the cells: the door label is the
+            // first line ("Be heard", etc.), and the
+            // second/third lines are the only thing the user
+            // loses — they can always long-press or read
+            // more in the support hub.
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
             style = MaterialTheme.typography.bodySmall,
             color = sky.textSecondary,
             modifier = Modifier.padding(top = 4.dp),
