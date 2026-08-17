@@ -41,3 +41,5 @@ _debug_output.txt
 *.java.disabled
 *.aidl.disabled
 app/src/main/java/org/mindanchor/vitals/.disabled/
+build-v*.log
+build-v*.exit
