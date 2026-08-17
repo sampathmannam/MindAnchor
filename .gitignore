@@ -32,3 +32,12 @@ _*.py
 _*.py.tmp
 _*.tmp
 _debug_output.txt
+
+# Source files moved aside via .kt.disabled (e.g. raw AIDL shims that
+# became obsolete after an SDK upgrade). Kept on disk for the record
+# so we can resurrect the approach if the upstream gate re-opens, but
+# not part of the build and not in version control.
+*.kt.disabled
+*.java.disabled
+*.aidl.disabled
+app/src/main/java/org/mindanchor/vitals/.disabled/
