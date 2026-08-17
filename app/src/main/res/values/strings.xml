@@ -25,8 +25,8 @@
     <string name="settings_group_quiet_desc">Batching, quiet hours, and colour.</string>
     <string name="settings_group_pauses">When you want a breath</string>
     <string name="settings_group_pauses_desc">A small pause before an app opens, on your terms.</string>
-    <string name="settings_group_measuring">Measuring</string>
-    <string name="settings_group_measuring_desc">What this phone notices, and what you tell it.</string>
+    <string name="settings_group_measuring">Sources</string>
+    <string name="settings_group_measuring_desc">Where today\'s readings come from. Three of them, each one opt-in.</string>
     <string name="settings_group_reading">Reading</string>
     <string name="settings_group_reading_desc">Last night\'s look, the research behind it, and the model.</string>
     <string name="settings_group_plan">Your plan</string>
@@ -1121,6 +1121,76 @@
     <string name="home_distress_card_title">How is it right now?</string>
     <string name="home_distress_card_caption">Slide to where it is, not where you want it to be. There is no right answer.</string>
     <string name="home_ground_me_button">Ground me here</string>
+
+    <!--
+        v0.33.0: "What do you need right now?" — the needs-first
+        card. Replaces the v0.28.0-v0.32.1 Distress Thermometer
+        card on the home surface. The Distress Thermometer is
+        still reachable via the "A moment" affordance below.
+
+        The validate-then-suggest pattern (Linehan 1993, DBT
+        Distress Tolerance, ch. 8) is rendered as four one-tap
+        doors instead of one card-and-button. The four doors
+        are need-language ("I need X") not action-language
+        ("do X"), on purpose: the home asks what is needed
+        first, then offers one well-shaped path.
+
+        @wording-reviewed — clinical-review-required. Any change
+        to a string in this block is a clinical-review-surface
+        change per docs/CLINICAL_REVIEW.md.
+    -->
+    <string name="home_needs_title">What do you need right now?</string>
+    <string name="home_needs_caption">Four doors. Pick the one that\'s closest to what you need. There is no wrong door.</string>
+    <string name="home_needs_be_heard">Be heard</string>
+    <string name="home_needs_be_heard_caption">Write something down, longer than a quick note. The launch will open a free-text page.</string>
+    <string name="home_needs_moment">A moment</string>
+    <string name="home_needs_moment_caption">Slide where it is right now. The launcher will match a small thing to that band.</string>
+    <string name="home_needs_check_in">Check in</string>
+    <string name="home_needs_check_in_caption">See today\'s five signals against your last 14 days. No goals, no grades.</string>
+    <string name="home_needs_get_through">Get through this</string>
+    <string name="home_needs_get_through_caption">Three things, in the order you might want them.</string>
+
+    <!-- v0.33.0: "Get through this" sub-menu (replaces the v0.32.0
+         "Right now" home section). -->
+    <string name="home_get_through_title">Pick what fits this moment</string>
+    <string name="home_get_through_what_happened">What just happened?</string>
+    <string name="home_get_through_what_happened_caption">Five short fields. About 90 seconds.</string>
+    <string name="home_get_through_which_part">Which part is loud?</string>
+    <string name="home_get_through_which_part_caption">Pick one. No analysis, no save unless you ask.</string>
+    <string name="home_get_through_export">Export for my therapist</string>
+    <string name="home_get_through_export_caption">A one-time JSON you can hand over. No upload, no email.</string>
+
+    <!--
+        v0.33.0: "Where it comes from" — the data sources card.
+        Surfaces the Health Connect + Coros + PPG integration
+        for the first time on the home. The three rows are
+        provenance, not guidance. No scores, no "your data is
+        great/worrying" labels.
+
+        Apple Health's "preferred source" pattern is the
+        reference (apptizo.com 2026): when multiple sources
+        have a reading for the same day, the launcher picks
+        one — HC wins when available, COROS fills the gaps,
+        PPG is the manual fallback. v0.33.0 makes the pick
+        visible on the home.
+
+        @wording-reviewed — clinical-review-required. The
+        status lines are honest about the data lifecycle
+        ("last sync 2h ago", "no readings yet", "not
+        connected"). The data sources are NOT a clinical
+        judgment; the wording never asserts that any source
+        is "better" or "worse" than the others.
+    -->
+    <string name="home_sources_title">Where it comes from</string>
+    <string name="home_sources_caption">Three readings. The watch on your wrist, the watch you wear, and the finger you put on the camera. None of them is right or wrong.</string>
+    <string name="home_sources_wearable">Wearable</string>
+    <string name="home_sources_coros">Coros Pace 3</string>
+    <string name="home_sources_ppg">PPG</string>
+    <string name="home_sources_status_not_connected">Not connected. Tap to set up.</string>
+    <string name="home_sources_status_no_readings">No readings yet.</string>
+    <string name="home_sources_status_last_sync">Last sync %1$s.</string>
+    <string name="home_sources_status_last_reading">Last reading %1$s.</string>
+    <string name="home_sources_status_loading">Checking what\'s available…</string>
 
     <string name="self_compassion_title">Self-compassion break</string>
     <string name="self_compassion_caption">Three sentences, 45 seconds. There is no wrong way to read them.</string>

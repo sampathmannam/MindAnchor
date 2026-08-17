@@ -140,6 +140,24 @@
     <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_HISTORY" />
 
     <!--
+        v0.34.0 — WRITE half of Health Connect, added so the
+        universal smartwatch connector can persist its readings
+        to the same store every other wearable already writes to.
+        A vendor's BLE GATT stream → connector → Health Connect
+        → WellnessRepository → home card is the new pipeline,
+        and the WRITE side is the segment the connector
+        owns. The READ side above is unchanged — the launcher
+        still only *reads* its own data back, never re-publishes
+        it. A future privacy review (the `RECORDING_METHOD_*`
+        attribution rules + device metadata) lands in v0.34.1
+        alongside the Garmin / Polar / Fitbit web-API
+        connectors.
+    -->
+    <uses-permission android:name="android.permission.health.WRITE_HEART_RATE" />
+    <uses-permission android:name="android.permission.health.WRITE_HEART_RATE_VARIABILITY" />
+    <uses-permission android:name="android.permission.health.WRITE_RESTING_HEART_RATE" />
+
+    <!--
         Required by the VpnService API to capture loopback
         traffic. The privacy promise — the app makes zero
         outbound calls — is enforced by
@@ -194,6 +212,52 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera.flash" android:required="false" />
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+
+    <!--
+        v0.34.0 — the universal smartwatch connector. The BLE Heart Rate
+        Service (GATT 0x180D) is the single profile every Bluetooth
+        heart-rate sensor advertises (chest straps, optical wrist
+        watches, smart rings). The connector ([GenericBleHrConnector])
+        talks only to that service and is the "connect to any smart
+        watch" promise in code.
+
+        On API 31+ the runtime permissions are `BLUETOOTH_SCAN` and
+        `BLUETOOTH_CONNECT`. The `neverForLocation` flag on SCAN
+        suppresses the legacy "allow location to scan" dialog —
+        confirmed against android.com/bluetooth/permissions.
+
+        The `maxSdkVersion="30"` entries cover API 30 and below, where
+        the older `BLUETOOTH` / `BLUETOOTH_ADMIN` install-time
+        permissions and `ACCESS_FINE_LOCATION` runtime permission
+        are the trio. A `maxSdkVersion` keeps the newer permissions
+        from being declared on the older OSes that would reject
+        them at install.
+
+        The `uses-feature` line declares the BLE radio without
+        making it required — the launcher is not a Bluetooth
+        peripheral, it is a Central that talks to a paired
+        wearable, and a phone without BLE is still a valid
+        MindAnchor device (it just shows "No Bluetooth radio"
+        in the data-sources card).
+    -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.ACCESS_FINE_LOCATION"
+        android:maxSdkVersion="30" />
+    <uses-feature
+        android:name="android.hardware.bluetooth_le"
+        android:required="false" />
 
     <!--
         Granted over adb, once, by someone who wants it — never requestable

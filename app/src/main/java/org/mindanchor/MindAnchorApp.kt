@@ -5,6 +5,8 @@ package org.mindanchor
 import android.app.Application
 import org.mindanchor.crash.CrashReporter
 import org.mindanchor.notifications.Channels
+import org.mindanchor.watch.connector.SmartwatchRegistry
+import org.mindanchor.watch.connector.ble.GenericBleHrConnector
 
 /**
  * v0.25.19: the MindAnchor [Application] subclass.
@@ -27,6 +29,13 @@ import org.mindanchor.notifications.Channels
  *     are pure `manager.notify(...)` with no channel
  *     guard.
  *
+ * v0.34.0: a third responsibility — register every
+ * wearable connector with the [SmartwatchRegistry] so
+ * the data-sources card on the home screen and the
+ * settings screen can surface them. The list is a
+ * static roster: new vendors land as a `register(...)`
+ * call here and no other file changes.
+ *
  * Listed in the manifest as `android:name=".MindAnchorApp"`.
  */
 class MindAnchorApp : Application() {
@@ -42,6 +51,21 @@ class MindAnchorApp : Application() {
         // crash would not be reported.
         installCrashReporter()
         Channels.ensureAll(this)
+        registerWearableConnectors()
+    }
+
+    private fun registerWearableConnectors() {
+        // v0.34.0 ships the universal BLE Heart Rate
+        // Service connector (GATT 0x180D). v0.34.1
+        // adds the vendor web-API connectors — Garmin
+        // Connect, Polar AccessLink, Fitbit, Withings —
+        // each as a `register(...)` line below. The
+        // order is the order the data-sources card
+        // renders the roster; the universal BLE
+        // connector is first because it is the "any
+        // watch" fallback.
+        val registry = SmartwatchRegistry.get(this)
+        registry.register(GenericBleHrConnector())
     }
 
     private fun installCrashReporter() {
