@@ -837,9 +837,20 @@ fun LauncherRoot(
                     // (and the user gets a one-shot
                     // "Tonight's letter is ready"
                     // notification at that point).
+                    //
+                    // v0.37.0 (BPD-safety WARN remediation):
+                    // the previous copy spelled out the
+                    // 30–60 min window, which read as
+                    // latency pressure for a person in
+                    // distress. The new copy names the
+                    // outcome ("in your inbox by morning")
+                    // without quantifying the wait, and
+                    // keeps "tonight's" as the only time
+                    // reference so the user doesn't have
+                    // to do the arithmetic.
                     android.widget.Toast.makeText(
                         context.applicationContext,
-                        "Generating tonight's letter \u2014 the Q2_K model on this phone takes 30\u201360 minutes. The letter appears in the inbox when it finishes.",
+                        "Started. Tonight's letter will be in your inbox by morning.",
                         android.widget.Toast.LENGTH_LONG,
                     ).show()
                     val appContext = context.applicationContext
