@@ -3,8 +3,10 @@ package org.mindanchor.launcher
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -72,6 +74,7 @@ fun NeedsCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .height(IntrinsicSize.Min)
             .padding(top = 24.dp, bottom = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -88,23 +91,26 @@ fun NeedsCard(
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
         )
-        // 2×2 grid. The Row weight on each cell makes them share
-        // the available width; the heightIn on each cell keeps
-        // the two rows the same height even when the captions
-        // differ in length.
+        // v0.37.1: the outer Column is `height(IntrinsicSize.Min)` so
+        // the two Rows below can `fillMaxHeight()` and share the
+        // tallest cell's height. v0.35.0 only had `heightIn(min = 96.dp)`
+        // on each cell, which let each cell grow independently and
+        // produced a top row that ended taller than the bottom row
+        // (3- vs 4-line captions). Equalising the two rows means the
+        // 2x2 reads as one grid, not two unrelated rows.
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             NeedsCardCell(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).fillMaxHeight(),
                 sky = sky,
                 titleRes = R.string.home_needs_be_heard,
                 captionRes = R.string.home_needs_be_heard_caption,
                 onClick = onBeHeard,
             )
             NeedsCardCell(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).fillMaxHeight(),
                 sky = sky,
                 titleRes = R.string.home_needs_moment,
                 captionRes = R.string.home_needs_moment_caption,
@@ -117,14 +123,14 @@ fun NeedsCard(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             NeedsCardCell(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).fillMaxHeight(),
                 sky = sky,
                 titleRes = R.string.home_needs_check_in,
                 captionRes = R.string.home_needs_check_in_caption,
                 onClick = onCheckIn,
             )
             NeedsCardCell(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).fillMaxHeight(),
                 sky = sky,
                 titleRes = R.string.home_needs_get_through,
                 captionRes = R.string.home_needs_get_through_caption,

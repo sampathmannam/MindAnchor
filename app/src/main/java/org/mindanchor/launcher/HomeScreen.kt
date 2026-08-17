@@ -2211,8 +2211,18 @@ private fun HomeSurface(
         onClick = onOpenLetters,
                 // v0.25.10 (B1): use stringResource for the label.
                 // v0.25.10 (B6): Role.Button for screen readers.
+                // v0.37.1: matched labelMedium + sky.textSecondary
+                // so the three stacked TopEnd buttons (Letters,
+                // notes, history) read as one quiet nav column
+                // instead of "Letters looks like a primary CTA".
 
-            ) { Text(stringResource(R.string.letters_shortcut)) }
+            ) {
+                Text(
+                    text = stringResource(R.string.letters_shortcut),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = sky.textSecondary,
+                )
+            }
             TextButton(
         modifier = Modifier.semantics { role = Role.Button },
         onClick = onOpenNotes,
