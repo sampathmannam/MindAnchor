@@ -475,6 +475,55 @@ private fun BpdProfileCheckbox(checked: Boolean, labelRes: Int, onToggle: (Boole
  * than something to read, and the index is not exempt from that just
  * because it is new.
  */
+
+/**
+ * v0.35.1: "Run setup wizard again" affordance in Settings →
+ * Sources. A row of label + description + a button. The button
+ * launches the wizard activity and clears the per-step skipped
+ * flags so the user lands on the first not-yet-completed step,
+ * not on Welcome. The button is a one-shot action, not a
+ * toggle, so a single tap fires `runCatching { startActivity }`
+ * and the result is the user looking at the wizard.
+ */
+@Composable
+private fun RerunSetupWizardRow() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    Column {
+        Text(
+            text = stringResource(R.string.setup_wizard_rerun_label),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Text(
+            text = stringResource(R.string.setup_wizard_rerun_description),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        // A11y: TextButton in SettingsScreen must carry
+        // `role = Role.Button` so screen readers announce the
+        // element as a button. The a11y finding test
+        // (B6) enforces the count match — every TextButton call
+        // site in this file must have a corresponding
+        // `role = Role.Button` semantic.
+        androidx.compose.material3.TextButton(
+            modifier = Modifier.semantics { role = androidx.compose.ui.semantics.Role.Button },
+            onClick = {
+                scope.launch {
+                    runCatching {
+                        val intent = android.content.Intent(
+                            context,
+                            org.mindanchor.onboarding.SetupWizardActivity::class.java,
+                        )
+                        context.startActivity(intent)
+                    }
+                }
+            },
+        ) {
+            Text(stringResource(R.string.setup_wizard_continue))
+        }
+    }
+}
+
 @Composable
 private fun GroupRow(titleRes: Int, descriptionRes: Int, marked: Boolean, onClick: () -> Unit) {
     Column(
@@ -2616,6 +2665,16 @@ fun SettingsScreen(
             SmartwatchesSection()
             Spacer(Modifier.height(16.dp))
             PolarSection()
+            // v0.35.1: the "Run setup wizard again" affordance.
+            // Sits in the Sources group, below the per-source
+            // sections, because the wizard is the guided tour of
+            // this exact group. A tap launches the wizard
+            // activity and the user can re-walk the 5 steps. The
+            // wizard clears its per-step skipped flags on entry
+            // so the user lands on the first not-yet-completed
+            // step, not from Welcome.
+            Spacer(Modifier.height(16.dp))
+            RerunSetupWizardRow()
         }
 
         if (group == SettingsGroup.PLAN) {

@@ -1399,4 +1399,57 @@
     <string name="tone_check_channel_description">A short prompt that appears when an SMS arrives, asking you to glance at the message before you reply.</string>
     <string name="tone_check_title">Tone check before sending.</string>
     <string name="tone_check_text">A message just arrived from %1$s. Open to read it before you reply.</string>
+
+    <!--
+        v0.35.1: setup wizard strings. Clinical-review-required —
+        user-facing copy that explains the launcher's role in the
+        3-way data-source integration. The wizard runs on first
+        cold start after the goal-elicitation onboarding, and is
+        re-runnable from Settings → "Run setup wizard again".
+
+        The four `setup_wizard_source_*_detail` strings are the
+        one-line explainers for each data source shown on the
+        Welcome step. The "Source: Health Connect / Watch / Coros
+        / PPG" labels are the same words used on the home's
+        DataSourcesCard, so a user who has read the wizard
+        recognises them at a glance when they land on the home.
+    -->
+    <string name="setup_wizard_welcome_title">Set up your data sources</string>
+    <string name="setup_wizard_welcome_body">MindAnchor reads from three places. You can connect all of them, or only some, or skip the wizard and add them later from Settings. Each step is one decision.</string>
+    <string name="setup_wizard_source_health_connect_label">Health Connect</string>
+    <string name="setup_wizard_source_health_connect_detail">Where your phone already keeps steps, sleep and heart data from any wearable.</string>
+    <string name="setup_wizard_source_watch_label">A Bluetooth watch or chest strap</string>
+    <string name="setup_wizard_source_watch_detail">A universal connector for any Bluetooth heart-rate sensor. No app to install on the watch side.</string>
+    <string name="setup_wizard_source_coros_label">Your COROS account</string>
+    <string name="setup_wizard_source_coros_detail">The COROS Training Hub web bridge. Email and password, kept on this device only.</string>
+    <string name="setup_wizard_source_ppg_label">A baseline camera reading</string>
+    <string name="setup_wizard_source_ppg_detail">Fingertip on the back-camera lens for 90 seconds. No image is stored or sent anywhere.</string>
+    <string name="setup_wizard_begin">Begin</string>
+    <string name="setup_wizard_skip_hint">You can revisit any of these from Settings → Sources.</string>
+    <string name="setup_wizard_skip">Skip for now</string>
+    <string name="setup_wizard_continue">Continue</string>
+
+    <string name="setup_wizard_health_connect_title">Health Connect</string>
+    <string name="setup_wizard_health_connect_body">MindAnchor reads eight record types from Health Connect: heart rate, resting heart rate, HRV, sleep, steps, exercise, calories, mindfulness. None of it leaves this phone.</string>
+    <string name="setup_wizard_health_connect_what">The system Health Connect dialog will list each one. Grant what you want; the launcher works with whatever you grant.</string>
+    <string name="setup_wizard_health_connect_grant">Grant Health Connect access</string>
+
+    <string name="setup_wizard_pair_watch_title">Pair a watch</string>
+    <string name="setup_wizard_pair_watch_body">Any Bluetooth heart-rate sensor works. The launcher connects to it directly — no app on the watch, no account to create.</string>
+
+    <string name="setup_wizard_coros_title">Your COROS account</string>
+    <string name="setup_wizard_coros_body">If you have a COROS watch, the launcher can also pull the seven-day nightly-recharge and continuous-heart-rate data. Email and password are stored only on this device.</string>
+
+    <string name="setup_wizard_ppg_title">A baseline reading</string>
+    <string name="setup_wizard_ppg_body">A 90-second fingertip reading gives the launcher a personal baseline. Without one, your numbers show up as a count of days — useful, but less personal.</string>
+    <string name="setup_wizard_ppg_take_baseline">Take a baseline reading</string>
+    <string name="setup_wizard_ppg_hint">Tap below when you are somewhere calm. The camera lens goes on your fingertip, the torch comes on, and you wait 90 seconds.</string>
+
+    <string name="setup_wizard_done_title">You\'re set up</string>
+    <string name="setup_wizard_done_body">The home will show what is connected. Anything you skipped, you can come back to from Settings → Sources.</string>
+    <string name="setup_wizard_done_set_in_settings">Set in Settings</string>
+    <string name="setup_wizard_done_finish">Open the home</string>
+
+    <string name="setup_wizard_rerun_label">Run setup wizard again</string>
+    <string name="setup_wizard_rerun_description">Walk through Health Connect, a watch, the COROS bridge, and a baseline reading again — one step at a time.</string>
 </resources>

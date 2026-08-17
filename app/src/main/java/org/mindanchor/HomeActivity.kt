@@ -106,6 +106,12 @@ class HomeActivity : ComponentActivity() {
         }
         val onboardingPrefs = OnboardingPrefs(applicationContext)
         val sunsetPrefs = SunsetPrefs(applicationContext)
+        // v0.35.1: the setup wizard for data sources. Runs on
+        // cold start if the goal-elicitation onboarding is done
+        // and the data-source wizard is not. The wizard is
+        // re-runnable from Settings at any time regardless of
+        // this flag.
+        val setupPrefs = org.mindanchor.onboarding.SetupPrefs(applicationContext)
         // v0.25.2-A (Task 8): if the activity was cold-launched from a
         // letter notification, the letter_date extra is on the launching
         // intent. setIntent(intent) is implicit (the activity does it for
@@ -159,11 +165,50 @@ class HomeActivity : ComponentActivity() {
                             },
                         )
 
-                        true -> LauncherRoot(
-                            goHomeSignal = goHome,
-                            letterDateSignal = letterDate,
-                            onLetterDateConsumed = ::consumeLetterDate,
-                        )
+                        true -> {
+                            // v0.35.1: route to the data-source
+                            // setup wizard on first cold start
+                            // after the goal-elicitation onboarding
+                            // is done. The wizard finishes itself,
+                            // the user lands on the home, and the
+                            // home's DataSourcesCard shows the per-
+                            // source state.
+                            // initialValue = true: the home
+                            // shows on the first composition,
+                            // before the DataStore has answered.
+                            // The DataStore answer comes a moment
+                            // later, and if the wizard has not
+                            // been completed or dismissed, the
+                            // second composition launches it.
+                            // Setting the initial value to false
+                            // would launch the wizard on the
+                            // first composition AND every
+                            // subsequent cold start that happens
+                            // to race the DataStore — the wizard
+                            // would re-open for a user who has
+                            // already completed it.
+                            val setupCompleted by setupPrefs.wizardCompleted.collectAsStateWithLifecycle(initialValue = true)
+                            val setupDismissed by setupPrefs.userDismissedWizard.collectAsStateWithLifecycle(initialValue = true)
+                            if (!setupCompleted && !setupDismissed) {
+                                val wizardIntent = android.content.Intent(
+                                    this@HomeActivity,
+                                    org.mindanchor.onboarding.SetupWizardActivity::class.java,
+                                )
+                                // No `finish()` here — the wizard
+                                // sits on top of HomeActivity in the
+                                // back stack, and when the user
+                                // finishes the wizard they should
+                                // pop back to the home, not to the
+                                // launcher.
+                                startActivity(wizardIntent)
+                            } else {
+                                LauncherRoot(
+                                    goHomeSignal = goHome,
+                                    letterDateSignal = letterDate,
+                                    onLetterDateConsumed = ::consumeLetterDate,
+                                )
+                            }
+                        }
                     }
                 }
             }

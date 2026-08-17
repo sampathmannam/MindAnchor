@@ -405,6 +405,16 @@
             android:name=".digest.DigestActivity"
             android:exported="false" />
 
+        <!--
+            v0.35.1: the data-source setup wizard. Cold-launched
+            from HomeActivity on first start (after the goal-
+            elicitation onboarding is done) and re-runnable from
+            Settings. Non-exported — no other app can launch it.
+        -->
+        <activity
+            android:name=".onboarding.SetupWizardActivity"
+            android:exported="false" />
+
         <activity
             android:name=".support.SupportActivity"
             android:exported="false" />
