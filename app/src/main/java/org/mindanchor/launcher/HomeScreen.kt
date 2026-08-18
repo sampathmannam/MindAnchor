@@ -86,6 +86,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+// v0.51.0: custom-drawn kind icons live in
+// [KindGlyph] (Box + primitive shapes).
+// Using primitives instead of
+// material-icons-extended keeps the APK
+// lean (extended adds ~7MB) and matches
+// the existing [PinGlyph] pattern from
+// v0.49.0 — the launcher's design language
+// is "draw it, don't depend on it".
 import org.mindanchor.R
 import org.mindanchor.digest.DigestActivity
 import org.mindanchor.friction.FrictionGate
@@ -231,6 +239,210 @@ private fun PinGlyph(
                     shape = androidx.compose.foundation.shape.CircleShape,
                 ),
         )
+    }
+}
+
+/**
+ * v0.51.0: a custom-drawn kind icon for the
+ * Notes tab row. Each of the three note
+ * kinds (Quick / Task / Reminder) has a
+ * unique shape, all rendered as primitives
+ * (Box + Canvas-aware shapes) so the APK
+ * does not need the 7MB
+ * `material-icons-extended` artefact.
+ *
+ * The icons are 18dp inside a 36dp chip;
+ * each uses 1.5dp stroke width so the
+ * shape reads as an outline, not a fill,
+ * and matches the design language of the
+ * rest of the launcher (PinGlyph's
+ * hollow-circle variant, the home-card
+ * mood-emoji slots).
+ *
+ * - [KindGlyphKind.NOTE] (Quick note): a
+ *   page with a folded top-right corner.
+ *   Drawn as a 16x16dp rounded square
+ *   with a 6x6dp corner notch (Box
+ *   behind a smaller Box) plus a
+ *   horizontal "lines" stroke (2x12dp
+ *   Box) below the fold. The fold reads
+ *   as "this is a document, not a card
+ *   or a chip".
+ *
+ * - [KindGlyphKind.TASK]: a checkbox.
+ *   Drawn as a 16dp rounded square
+ *   outline (Box + border, 1.5dp) with
+ *   a 2x10dp diagonal "check" stroke
+ *   inside. The shape mirrors the
+ *   Material Checkbox on the right
+ *   column of TASK rows, so the user's
+ *   eye learns "checkbox == Task" once.
+ *
+ * - [KindGlyphKind.REMINDER]: a clock.
+ *   Drawn as a 16dp circle outline
+ *   (Box + border) plus two short
+ *   strokes inside for the 12-hand and
+ *   the 3-hand. Reads as "this is about
+ *   a time", not a generic notification.
+ */
+private enum class KindGlyphKind { NOTE, TASK, REMINDER }
+
+@Composable
+private fun KindGlyph(
+    kind: KindGlyphKind,
+    color: Color,
+) {
+    val strokeWidth = 1.5.dp
+    when (kind) {
+        KindGlyphKind.NOTE -> {
+            // A page with a folded top-right
+            // corner. The fold is a 6x6dp
+            // triangle in the top-right of
+            // an 18dp box; the page outline
+            // is the Box border, and a
+            // small "line" stroke below
+            // the fold reads as text.
+            Box(modifier = Modifier.size(18.dp)) {
+                // Page outline (the box).
+                Box(
+                    modifier = Modifier
+                        .size(18.dp)
+                        .border(
+                            width = strokeWidth,
+                            color = color,
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(2.dp),
+                        ),
+                )
+                // Fold notch (a smaller box in
+                // the top-right corner, in the
+                // chip background colour, with
+                // an L-shaped stroke in the
+                // glyph colour). The notch
+                // suggests a folded paper
+                // corner.
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(6.dp)
+                        .background(
+                            color = androidx.compose.ui.graphics.Color.Transparent,
+                        ),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .size(6.dp)
+                            .border(
+                                width = strokeWidth,
+                                color = color,
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(
+                                    bottomStart = 2.dp,
+                                ),
+                            ),
+                    )
+                }
+                // "Line" stroke (text). Sits
+                // below the fold, fills about
+                // 60% of the page width.
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(start = 3.dp, bottom = 3.dp)
+                        .width(10.dp)
+                        .height(1.5.dp)
+                        .background(color),
+                )
+            }
+        }
+        KindGlyphKind.TASK -> {
+            // A checkbox with a check mark.
+            Box(modifier = Modifier.size(18.dp)) {
+                Box(
+                    modifier = Modifier
+                        .size(16.dp)
+                        .align(Alignment.Center)
+                        .border(
+                            width = strokeWidth,
+                            color = color,
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(3.dp),
+                        ),
+                )
+                // The check is two strokes:
+                // a short downward-left segment
+                // and a longer upward-right
+                // segment. Approximated by
+                // rotating a small Box 45deg.
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(width = 9.dp, height = 7.dp)
+                        .background(
+                            color = androidx.compose.ui.graphics.Color.Transparent,
+                        ),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterStart)
+                            .padding(start = 1.dp)
+                            .width(7.dp)
+                            .height(1.5.dp)
+                            .background(color),
+                    )
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(end = 1.dp)
+                            .width(2.5.dp)
+                            .height(1.5.dp)
+                            .background(color),
+                    )
+                }
+            }
+        }
+        KindGlyphKind.REMINDER -> {
+            // A clock. The face is a 16dp
+            // circle (Box + CircleShape
+            // border) with two short
+            // strokes inside: the vertical
+            // 12-hand and the horizontal
+            // 3-hand. The "12-hand" is
+            // shorter to look like a real
+            // clock, the "3-hand" longer.
+            Box(modifier = Modifier.size(18.dp)) {
+                Box(
+                    modifier = Modifier
+                        .size(16.dp)
+                        .align(Alignment.Center)
+                        .border(
+                            width = strokeWidth,
+                            color = color,
+                            shape = androidx.compose.foundation.shape.CircleShape,
+                        ),
+                )
+                // The 12-hand: vertical
+                // 1.5x6dp box from centre to
+                // top.
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 3.dp)
+                        .width(1.5.dp)
+                        .height(5.dp)
+                        .background(color),
+                )
+                // The 3-hand: horizontal
+                // 5x1.5dp box from centre to
+                // right.
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 3.dp)
+                        .width(5.dp)
+                        .height(1.5.dp)
+                        .background(color),
+                )
+            }
+        }
     }
 }
 
@@ -3499,25 +3711,162 @@ private fun NotesSurfaceBody(
                 // the field data shows a
                 // larger distribution.
                 val sorted = org.mindanchor.model.NoteStore.sortedForList(allNotes)
+                // v0.51.0: group the sorted list by
+                // the day the note was created.
+                // The previous flat list had two
+                // problems for a long-running user:
+                // 1) 100+ notes in a single
+                //    chronological list mean the
+                //    eye has to scan past a whole
+                //    week to find "yesterday's"
+                //    thought.
+                // 2) Without a date anchor, the
+                //    "16/08/26" subtitle on each
+                //    row is the ONLY date signal;
+                //    it is per-row, not per-group,
+                //    so the brain has to read each
+                //    one.
+                // Grouping by day gives the list
+                // a paragraph structure: a date
+                // header, then the thoughts of
+                // that day. The user can scroll
+                // past a whole week in a single
+                // swipe, and the "Today" /
+                // "Yesterday" labels make the most
+                // recent days findable without
+                // reading any dates.
+                val groups = groupNotesByDay(sorted)
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 24.dp)
                         .verticalScroll(rememberScrollState()),
                 ) {
-                    sorted.forEach { note ->
-                        NotesTabRow(
+                    groups.forEach { group ->
+                        NotesDayHeader(
                             sky = sky,
-                            note = note,
-                            onDelete = onDeleteNote,
-                            onPin = onPinNote,
-                            onMarkDone = onMarkNoteDone,
+                            label = group.header,
                         )
+                        group.notes.forEach { note ->
+                            NotesTabRow(
+                                sky = sky,
+                                note = note,
+                                onDelete = onDeleteNote,
+                                onPin = onPinNote,
+                                onMarkDone = onMarkNoteDone,
+                            )
+                        }
                     }
                 }
             }
         }
     }
+}
+
+/**
+ * v0.51.0: a single day-group inside the
+ * Notes tab. The list is grouped by the
+ * calendar day the note was created, and
+ * each group carries a [header] label that
+ * is either "Today", "Yesterday", or a
+ * formatted date like "17 Aug 2026".
+ *
+ * The [key] is a stable, comparable string
+ * for use in Compose keys if/when the list
+ * becomes a LazyColumn (Today = "0",
+ * Yesterday = "1", older dates = ISO date
+ * string). The notes within [notes] are
+ * already sorted in display order (newest
+ * first within a day).
+ */
+private data class NotesDayGroup(
+    val key: String,
+    val header: String,
+    val notes: List<Note>,
+)
+
+/**
+ * v0.51.0: group a list of notes by the
+ * calendar day of [Note.createdAt]. The
+ * input is expected to already be sorted
+ * newest-first (see [NoteStore.sortedForList]).
+ *
+ * Buckets:
+ * - Today: "Today"
+ * - Yesterday: "Yesterday"
+ * - This calendar year: "17 Aug"
+ * - Older: "17 Aug 2025"
+ *
+ * The system zone is used for "today"
+ * because the launcher's calm-clock
+ * background is also wall-clock based, so
+ * a note created at 23:30 and one created
+ * at 00:30 are different days even if the
+ * wall clock is in the same night.
+ */
+private fun groupNotesByDay(
+    notes: List<Note>,
+): List<NotesDayGroup> {
+    if (notes.isEmpty()) return emptyList()
+    val zone = java.time.ZoneId.systemDefault()
+    val today = java.time.LocalDate.now(zone)
+    val yesterday = today.minusDays(1)
+    val currentYear = today.year
+    val byDay = notes
+        .groupBy { note ->
+            java.time.Instant
+                .ofEpochMilli(note.createdAt)
+                .atZone(zone)
+                .toLocalDate()
+        }
+        .toSortedMap(compareByDescending { it })
+    return byDay.map { (date, dayNotes) ->
+        val (key, header) = when (date) {
+            today -> "0_today" to "Today"
+            yesterday -> "1_yesterday" to "Yesterday"
+            else -> {
+                val pattern = if (date.year == currentYear) {
+                    "d MMM"
+                } else {
+                    "d MMM yyyy"
+                }
+                val label = date.format(
+                    java.time.format.DateTimeFormatter.ofPattern(pattern)
+                )
+                "${2 + (today.toEpochDay() - date.toEpochDay())}_$label" to label
+            }
+        }
+        NotesDayGroup(
+            key = key,
+            header = header,
+            notes = dayNotes,
+        )
+    }
+}
+
+/**
+ * v0.51.0: a small date header above a
+ * group of notes. The header is rendered
+ * as a single line of labelLarge text in
+ * the secondary text colour, with a top
+ * padding of 16dp before the first header
+ * and 8dp between groups. The visual
+ * weight is intentionally low so the
+ * headers "land" between groups rather
+ * than competing with the row titles for
+ * attention.
+ */
+@Composable
+private fun NotesDayHeader(
+    sky: SkyContent,
+    label: String,
+) {
+    Text(
+        text = label,
+        style = MaterialTheme.typography.labelLarge,
+        color = sky.textSecondary,
+        modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
+    )
 }
 
 /**
@@ -3577,34 +3926,59 @@ private fun NotesTabRow(
         // sage == Task, indigo == Reminder,
         // anywhere the user sees those colours
         // they mean the same thing.
-        val (chipBg, chipFg, chipLabel) = when (note.type) {
-            org.mindanchor.model.NoteType.REMINDER ->
-                Triple(KindIndigoBg, KindIndigoFg, "R")
-            org.mindanchor.model.NoteType.TASK ->
-                Triple(KindSageBg, KindSageFg, "T")
-            else -> Triple(Color.Transparent, Color.Transparent, "")
+        //
+        // v0.51.0: the chip's plain "T" / "R"
+        // text is replaced with a custom
+        // [KindGlyph]. Three glyphs, each
+        // semantically tied to the note kind:
+        // - Quick note: NOTE (page with
+        //   folded corner + line stroke) —
+        //   the universal "note" shape,
+        //   distinguishes from a checkbox.
+        // - Task: TASK (square with a check
+        //   inside) — the same shape as the
+        //   Material Checkbox on the right
+        //   column, so the eye learns
+        //   "checkbox == Task" once and
+        //   reuses the learning forever.
+        // - Reminder: REMINDER (clock face
+        //   with 12- and 3-hands) — about
+        //   TIME, not generic notifications.
+        //   A bell ("Notifications") would
+        //   read as "app push"; a clock reads
+        //   as "scheduled time" which is the
+        //   actual semantics of a Reminder.
+        // The glyphs are drawn from Box
+        // primitives so the launcher's APK
+        // stays lean (no
+        // material-icons-extended bloat).
+        val (chipBg, chipFg, kindGlyph) = when (note.type) {
+            org.mindanchor.model.NoteType.REMINDER -> Triple(
+                KindIndigoBg,
+                KindIndigoFg,
+                KindGlyphKind.REMINDER,
+            )
+            org.mindanchor.model.NoteType.TASK -> Triple(
+                KindSageBg,
+                KindSageFg,
+                KindGlyphKind.TASK,
+            )
+            else -> Triple(
+                Color.Transparent,
+                sky.textSecondary,
+                KindGlyphKind.NOTE,
+            )
         }
-        if (chipLabel.isNotEmpty()) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .background(
-                        color = chipBg,
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = chipLabel,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = chipFg,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                )
-            }
-        } else {
-            // Quick note: keep the 36dp slot so
-            // titles align with Task/Reminder rows.
-            Spacer(Modifier.size(36.dp))
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .background(
+                    color = chipBg,
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            KindGlyph(kind = kindGlyph, color = chipFg)
         }
         // v0.45.0: TASK notes show a
         // checkbox; non-task rows skip it.
