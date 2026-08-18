@@ -503,6 +503,42 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     /**
+     * v0.46.0: log a mood with one tap. The body is the
+     * emoji itself; the type is [NoteType.GENERAL]
+     * (a mood is not a Task or a Reminder). The mood
+     * log shows on the home card and the Notes tab as a
+     * one-row note with the emoji as the body — the
+     * emoji is the entry, no text required.
+     *
+     * A mood log is what the 56-app competitor survey
+     * identified as the single most-replicated
+     * interaction in the mental-health category (Daylio
+     * 2-tap, Bearable emoji grid, Moodflow gesture+haptic,
+     * Wysa penguin). The 1-tap version is the floor the
+     * category has converged on.
+     *
+     * A blank body is a no-op. The classifier is
+     * NOT enqueued — a one-tap mood log is a deliberate,
+     * user-typed-into-emoji gesture, and the classifier
+     * would either mark it as GENERAL anyway or
+     * interpret the emoji as something the user did not
+     * mean. The user-owned `type = GENERAL` is the
+     * honest signal.
+     */
+    fun addMoodLog(emoji: String) {
+        if (emoji.isEmpty()) return
+        val now = System.currentTimeMillis()
+        val note = Note(
+            id = nextNoteId(),
+            body = emoji,
+            createdAt = now,
+            updatedAt = now,
+            type = org.mindanchor.model.NoteType.GENERAL,
+        )
+        viewModelScope.launch { notesPrefs.add(note) }
+    }
+
+    /**
      * v0.44.0: toggle a note's `done` flag.
      * Wired to the checkbox on a TASK row. A no-op
      * if the id is not in the store. The toggle

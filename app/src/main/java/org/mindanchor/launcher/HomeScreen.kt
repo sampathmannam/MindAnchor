@@ -632,6 +632,11 @@ fun LauncherRoot(
                 onOpenGroundMe = { surface = LauncherSurface.GroundMe },
                 recentNotes = pinnedNotes,
                 onAddQuickNote = { body, pinned -> viewModel.addQuickNote(body, pinned) },
+                // v0.46.0: forward the mood-log
+                // tap to the VM. The VM owns the
+                // note store write; the card
+                // owns the emoji row.
+                onAddMoodLog = { emoji -> viewModel.addMoodLog(emoji) },
                 onDeleteNote = onDeleteNote,
                 // v0.44.0: forward the new
                 // task / reminder / done
@@ -1972,6 +1977,93 @@ private fun QuickNotesCard(
 }
 
 /**
+ * v0.46.0: the 1-tap Mood Card. Five emoji in a
+ * single row above the QuickNotesCard. Tapping
+ * an emoji creates a Note with that emoji as
+ * the body and type=GENERAL. No text required,
+ * no classifier, no task checkbox, no reminder.
+ *
+ * The card is intentionally small (one row, 5
+ * emoji) — the home is a glanceable surface, not
+ * a dashboard. The "what is it right now?"
+ * question is the home's first ask; this is the
+ * one-tap answer. Same shape as the v0.28.0
+ * Distress Thermometer affordance, but one tap
+ * instead of one activity.
+ *
+ * Why 5 emoji and not 9 or 11: the 5-emoji
+ * floor is the convergence point in the
+ * competitor survey. Daylio defaults to a
+ * 5-point scale; Bearable's default grid is
+ * 5-emoji wide; Moodflow's gesture-driven
+ * scale is 5-emoji visible at a glance. 9+
+ * is more granular but the home is not the
+ * place for granularity.
+ *
+ * The emoji themselves are intentionally not
+ * clinical (no "depressed", "anxious", "numb"
+ * labels). A mental-health surface that does
+ * not pathologise a moment in the user's day
+ * is the right starting posture; the user can
+ * add a body to the note in the Notes tab if
+ * they want to be more specific. The five
+ * chosen emoji are affect-first, not
+ * diagnostic-first.
+ */
+@Composable
+private fun MoodCard(
+    sky: SkyContent,
+    onLog: (String) -> Unit,
+) {
+    val haptics = org.mindanchor.ui.LocalHapticFeedbackGate.current
+    val moodEmojis = listOf(
+        "😞" to "low",
+        "😕" to "off",
+        "😐" to "neutral",
+        "🙂" to "ok",
+        "😊" to "good",
+    )
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        // v0.46.0: the Mood Card has no
+        // header text. The 5 emoji are
+        // self-explanatory; a "How is it?"
+        // label would be clinical, and the
+        // home already has the greeting
+        // ("Winding down.") that does the
+        // "right now" work. The card is
+        // here to capture, not to ask.
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            moodEmojis.forEach { (emoji, _) ->
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clickable {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onLog(emoji)
+                        }
+                        .semantics { role = Role.RadioButton },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = emoji,
+                        style = MaterialTheme.typography.headlineMedium,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
  * Format a note's timestamp for the home card.
  *
  * The list view uses the absolute date+time; the
@@ -2371,6 +2463,17 @@ private fun HomeSurface(
      */
     onAddQuickNote: (String, Boolean) -> Unit = { _, _ -> },
     /**
+     * v0.46.0: log a 1-tap mood. The body is the
+     * emoji itself. The full save lives in
+     * [org.mindanchor.launcher.LauncherViewModel.addMoodLog].
+     * The mood card is the "what is it right
+     * now?" door the home surface asks the
+     * user to answer first — same shape as
+     * the v0.28.0 Distress Thermometer, but
+     * one tap instead of one activity.
+     */
+    onAddMoodLog: (String) -> Unit = {},
+    /**
      * v0.43.0: delete a note from the home card. Wired
      * to the × on each recent-note row. The full delete
      * lives in [org.mindanchor.launcher.LauncherViewModel.deleteNote];
@@ -2561,6 +2664,21 @@ private fun HomeSurface(
             // recent notes with a one-tap delete × on
             // each row. Empty state sits below the input
             // and Save, framed as a quiet invitation.
+            //
+            // v0.46.0: a 1-tap Mood Card lives ABOVE
+            // the QuickNotesCard. The 5-emoji row is
+            // the single most-replicated interaction
+            // in the mental-health category (Daylio,
+            // Bearable, Moodflow, Wysa). Tapping an
+            // emoji creates a Note with that emoji as
+            // the body — the row is visible in the
+            // Notes tab as a one-line entry. No
+            // classifier, no task checkbox, no
+            // reminder. The card stays small (one
+            // row of 5 emoji) so the home does not
+            // become a dashboard.
+            MoodCard(sky = sky, onLog = onAddMoodLog)
+
             QuickNotesCard(
                 sky = sky,
                 recent = recentNotes,
