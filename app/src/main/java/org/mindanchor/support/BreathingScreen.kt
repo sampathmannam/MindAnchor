@@ -112,6 +112,18 @@ fun BreathingScreen(onDone: () -> Unit) {
     // is a single confirmation pulse; not a "tick" pattern,
     // which would compete with the breath. The user feels the
     // moment the breath changes, not a metronome.
+    //
+    // v0.38.1 (debug cleanup): a previous version of this
+    // LaunchedEffect body had Log.d statements that were added
+    // to chase a suspected state desync. The logcat output
+    // confirmed the state machine runs at exactly 4s INHALE
+    // / 7s HOLD / 8s EXHALE per the Log.d, and screenshots at
+    // deterministic timestamps showed the label + color + scale
+    // all consistent. The "desync" was a screencap timing
+    // artifact (screencap buffers frames, occasionally
+    // returning a frame from before the navigation
+    // completed), not a state machine bug. The Log.d
+    // statements are removed here.
     LaunchedEffect(phase) {
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         when (phase) {
