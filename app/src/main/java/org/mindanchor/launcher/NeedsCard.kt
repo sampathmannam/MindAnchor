@@ -26,8 +26,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import org.mindanchor.R
 import org.mindanchor.ui.SkyContent
+import org.mindanchor.ui.theme.SoftContent
 
 /**
  * v0.33.0 / v0.35.0: the home-card that replaces the v0.32.x
@@ -178,9 +180,24 @@ private fun NeedsCardCell(
     ) {
         Text(
             text = stringResource(titleRes),
-            style = MaterialTheme.typography.titleSmall,
+            // v0.40.1: the home doors now use the same Lora
+            // voice as the support DBT skill titles. The home
+            // needs cards ("Be heard", "A moment", "Check in",
+            // "Get through this") are the soft content of the
+            // home surface — they describe what the user
+            // needs, not what the system is doing — so the
+            // serif treatment tells the reader "this is for
+            // you, the rest of the screen is the chrome."
+            // v0.39.0 left the doors in the sans system voice,
+            // which read as "options" rather than "invitations."
+            // 16sp Medium is the right weight for a 2×2 cell:
+            // 18sp (the support DBT skill size) was visually
+            // heavier than the cell could hold.
+            style = SoftContent.copy(
+                fontWeight = FontWeight.Medium,
+                fontSize = 16.sp,
+            ),
             color = sky.textPrimary,
-            fontWeight = FontWeight.SemiBold,
         )
         Text(
             text = stringResource(captionRes),
