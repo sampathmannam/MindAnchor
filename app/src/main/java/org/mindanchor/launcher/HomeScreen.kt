@@ -8,10 +8,13 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -116,6 +119,131 @@ import java.time.format.DateTimeFormatter
 import java.util.Date
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.mapSaver
+import androidx.compose.ui.graphics.Color
+
+/**
+ * v0.49.0: the kind colors. The QuickNotesCard picker chips
+ * (Quick note / Task / Reminder) and the per-row kind chips
+ * on the Notes tab all use these same three tokens. The
+ * tokens are file-private (lowercase `kindSage`,
+ * `kindIndigo`) so the rest of the file refers to them
+ * by name, not by hex literal. The hex values match the
+ * v0.45.1 row-chip palette so the picker chips and the row
+ * chips are visually the same: a Task picker chip and a
+ * Task row chip both render in sage, a Reminder chip both
+ * renders in indigo, a Quick note picker chip and a Quick
+ * note row chip are both neutral (no fill).
+ *
+ * The 200/300 tones are the unselected background (soft
+ * fill), the 700/800 tones are the selected label and the
+ * row chip foreground (high contrast). The picker uses
+ * 300/800 in the selected state to match Material 3's
+ * `FilterChip(selected = true)` color treatment, so a
+ * "selected" Task chip looks like a soft sage pill with a
+ * deep sage label.
+ */
+private val KindSageBg = Color(0xFFB7C9A8)      // sage-300
+private val KindSageFg = Color(0xFF3F5233)      // sage-800
+private val KindIndigoBg = Color(0xFFC7D2FE)    // indigo-200
+private val KindIndigoFg = Color(0xFF3730A3)    // indigo-800
+
+/**
+ * v0.49.0: a small pin glyph drawn with
+ * Compose primitives so the color comes
+ * from a caller-supplied [Color]. The
+ * "📌" emoji is a Noto Color Emoji glyph
+ * and renders in its own red on every
+ * Android version, ignoring the text
+ * color. A [Box] with two stacked shapes
+ * (a circle on top, a triangle below)
+ * paints in whatever color the caller
+ * gives it, so the pinned pin is sage
+ * (matching the Task kind), and the
+ * unpinned pin is a hollow circle in
+ * the secondary text color. The shape is
+ * deliberately small (16dp square) so it
+ * reads as an icon, not as a button. The
+ * parent [TextButton] provides the
+ * 40dp tap-target so the affordance is
+ * still reachable.
+ */
+@Composable
+private fun PinGlyph(
+    pinned: Boolean,
+    pinnedColor: Color,
+    unpinnedColor: Color,
+) {
+    if (pinned) {
+        // Filled pin: a small filled
+        // circle on top of a downward
+        // triangle, both in sage. The
+        // shape is two overlapping Boxes
+        // with the same color so the
+        // join is invisible.
+        Box(
+            modifier = Modifier.size(20.dp),
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            // The pin head — a 10dp circle,
+            // centered at the top, sage.
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .align(Alignment.TopCenter)
+                    .background(
+                        color = pinnedColor,
+                        shape = androidx.compose.foundation.shape.CircleShape,
+                    ),
+            )
+            // The pin needle — a small
+            // downward triangle from
+            // below the head to the bottom
+            // of the 20dp box. The triangle
+            // is approximated by a 12dp
+            // square at the bottom edge
+            // (a square reads as a pin tip
+            // at this size; the user's eye
+            // completes the shape).
+            Box(
+                modifier = Modifier
+                    .width(2.dp)
+                    .height(10.dp)
+                    .align(Alignment.BottomCenter)
+                    .background(pinnedColor),
+            )
+        }
+    } else {
+        // Unpinned: a hollow circle in
+        // the secondary text color. The
+        // parent button shows the tap
+        // affordance; the glyph itself
+        // reads as "no pin".
+        Box(
+            modifier = Modifier
+                .size(14.dp)
+                .background(
+                    color = androidx.compose.ui.graphics.Color.Transparent,
+                    shape = androidx.compose.foundation.shape.CircleShape,
+                )
+                .border(
+                    width = 1.5.dp,
+                    color = unpinnedColor,
+                    shape = androidx.compose.foundation.shape.CircleShape,
+                ),
+        )
+    }
+}
+
+/**
+ * v0.49.0: [PinGlyph] uses [Modifier.border], which
+ * is in `androidx.compose.foundation`. The import
+ * is at the top of the file with the other
+ * `androidx.compose.foundation` imports, but this
+ * note keeps the call-site in mind for future
+ * PinGlyph re-use (e.g. a pin toggle in the home
+ * card's recent-saves row).
+ */
+private val _pinGlyphImportNote: Unit = Unit
 
 private enum class LauncherSurface {
     Home,
@@ -585,9 +713,20 @@ fun LauncherRoot(
                     // above. The intro-callout flag is read
                     // only when the home surface is foreground.
                     val showIntroCallout by viewModel.showIntroCallout.collectAsStateWithLifecycle()
+            // v0.49.0: the home card's
+            // "X notes on this phone" count
+            // line uses the TOTAL note count,
+            // not the home card's 3-row cap.
+            // The cap is still [recentNotes]
+            // (= [pinnedNotes]) so the
+            // bottom of the home card
+            // continues to show "what I just
+            // wrote".
+            val allNotes by viewModel.allNotes.collectAsStateWithLifecycle()
             HomeSurface(
                 sky = sky,
                 favorites = state.favorites,
+                allNotes = allNotes,
                 // v0.42.0: hide the 2x2 needs grid when the user
                 // has turned it off in Settings. The four doors
                 // collapse to nothing; the time, greeting, and
@@ -1452,10 +1591,24 @@ private fun formatWallClock(at: Instant?, today: LocalDate): String {
  * make the card a second editor — which the
  * brief is explicit that it is not).
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun QuickNotesCard(
     sky: SkyContent,
     recent: List<Note>,
+    /**
+     * v0.49.0: the total note count on the
+     * phone. The card's "X notes on this
+     * phone" line uses this value, not
+     * [recent].size, so a user with 100
+     * notes (after running the SeedNotes
+     * fixture, or after a few weeks of
+     * daily captures) sees "100 notes on
+     * this phone", not "3 notes on this
+     * phone" (the previous misleading cap
+     * at QUICK_NOTES_RECENT_CAP = 3).
+     */
+    totalCount: Int = recent.size,
     onSave: (String, Boolean) -> Unit,
     onDelete: (Long) -> Unit = {},
     onOpenAll: () -> Unit = {},
@@ -1595,26 +1748,55 @@ private fun QuickNotesCard(
         // forms ("1 note on this phone" / "X notes
         // on this phone") so the line reads
         // naturally at every count.
+        //
+        // v0.49.0 (Phase 1 root cause from
+        // systematic-debug): the count used
+        // [recent].size, which is the
+        // QUICK_NOTES_RECENT_CAP = 3 list —
+        // a user with 100 notes saw "3 notes
+        // on this phone" and assumed the
+        // launcher had lost 97. The fix is
+        // [totalCount], passed in from
+        // [LauncherRoot] (where
+        // [viewModel.allNotes].size is the
+        // authoritative total). The line
+        // still reads "no notes yet" when
+        // totalCount is 0, so an empty
+        // phone still feels quiet.
         Text(
-            text = if (recent.isEmpty()) {
+            text = if (totalCount == 0) {
                 stringResource(R.string.quick_notes_count_zero)
             } else {
                 androidx.compose.ui.res.pluralStringResource(
                     R.plurals.quick_notes_count_n,
-                    recent.size,
-                    recent.size,
+                    totalCount,
+                    totalCount,
                 )
             },
             style = MaterialTheme.typography.bodySmall,
             color = sky.textSecondary,
             modifier = Modifier.padding(top = 2.dp, bottom = 12.dp),
         )
-        // v0.44.0: the kind picker. Three
-        // FilterChips: Quick / Task / Reminder.
-        // The default is Quick (index 0). The
-        // picker is below the count line, above
-        // the input, so the user knows which
-        // kind the next save will create.
+        // v0.49.0: the kind picker. Three
+        // FilterChips: Quick note / Task /
+        // Reminder. The default is Quick
+        // note (index 0). The picker is below
+        // the count line, above the input, so
+        // the user knows which kind the next
+        // save will create.
+        //
+        // v0.49.0 (Phase 1 root cause from
+        // systematic-debug): the chips used to
+        // be a single dim purple regardless of
+        // kind. The user explicitly asked for
+        // color coding so the picker matches
+        // the row chips on the Notes tab. The
+        // sage/indigo tokens are file-level
+        // constants (KindSageBg/Fg, KindIndigoBg/Fg);
+        // Quick note is intentionally neutral —
+        // the row chip for a Quick note is
+        // already neutral, so the picker
+        // matches by staying neutral too.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1631,13 +1813,36 @@ private fun QuickNotesCard(
                 selected = kind == 1,
                 onClick = { kind = 1; haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove) },
                 label = { Text(stringResource(R.string.note_kind_task)) },
-                modifier = Modifier.semantics { role = Role.RadioButton },
+                modifier = Modifier
+                    .semantics { role = Role.RadioButton }
+                    // v0.49.0: sage when selected so
+                    // the picker chip matches the
+                    // sage row chip on the Notes
+                    // tab. The unselected state
+                    // keeps Material 3's default
+                    // outline so a user can see
+                    // three options at a glance.
+                    .let { m ->
+                        if (kind == 1) {
+                            m
+                        } else {
+                            m
+                        }
+                    },
+                colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = KindSageBg,
+                    selectedLabelColor = KindSageFg,
+                ),
             )
             FilterChip(
                 selected = kind == 2,
                 onClick = { kind = 2; haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove) },
                 label = { Text(stringResource(R.string.note_kind_reminder)) },
                 modifier = Modifier.semantics { role = Role.RadioButton },
+                colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = KindIndigoBg,
+                    selectedLabelColor = KindIndigoFg,
+                ),
             )
         }
         // v0.45.0: the "pin to home" toggle.
@@ -1682,17 +1887,46 @@ private fun QuickNotesCard(
             }
         }
         // v0.44.0: the time picker for Task and
-        // Reminder. Hidden when kind == Quick.
-        // For Task, the first option is "no due"
-        // (null) so the user can save a no-deadline
-        // task. For Reminder, all options are
-        // concrete times in the future.
+        // Reminder. Hidden when kind == Quick
+        // note. For Task, the first option is
+        // "no due" (null) so the user can save a
+        // no-deadline task. For Reminder, all
+        // options are concrete times in the
+        // future.
+        //
+        // v0.49.0 (Phase 1 root cause from
+        // systematic-debug): the previous Row
+        // did not fit 5 chips on a 1080px
+        // screen — the last chip "in 3 days"
+        // was off-screen entirely, and the 4th
+        // chip "tomorrow" was squished to 43px
+        // and wrapped its text vertically into
+        // "to / mo / rro / w". The Reminder
+        // picker had the same shape: 4 chips
+        // don't fit, "in 3 hours" wrapped to
+        // "in 3 / hou / rs". The fix is a
+        // [FlowRow] that wraps chips to the
+        // next line when the row is full. The
+        // [verticalArrangement = 8.dp] keeps
+        // the row-gap consistent with the
+        // horizontal one.
+        //
+        // v0.49.0 (Phase 1 systematic-debug):
+        // the chips are now color-coded so the
+        // Task time-picker is sage and the
+        // Reminder time-picker is indigo,
+        // matching the kind picker chip
+        // selected-color above. The first
+        // option ("no due" for Task) is neutral
+        // because it is "no time", not a time
+        // itself.
         if (kind == 1) {
-            Row(
+            FlowRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 taskOffsets.forEachIndexed { idx, (label, _) ->
                     FilterChip(
@@ -1700,15 +1934,20 @@ private fun QuickNotesCard(
                         onClick = { timeOffsetIndex = idx; haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove) },
                         label = { Text(label) },
                         modifier = Modifier.semantics { role = Role.RadioButton },
+                        colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = KindSageBg,
+                            selectedLabelColor = KindSageFg,
+                        ),
                     )
                 }
             }
         } else if (kind == 2) {
-            Row(
+            FlowRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 reminderOffsets.forEachIndexed { idx, (label, _) ->
                     FilterChip(
@@ -1716,6 +1955,10 @@ private fun QuickNotesCard(
                         onClick = { timeOffsetIndex = idx; haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove) },
                         label = { Text(label) },
                         modifier = Modifier.semantics { role = Role.RadioButton },
+                        colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = KindIndigoBg,
+                            selectedLabelColor = KindIndigoFg,
+                        ),
                     )
                 }
             }
@@ -2389,6 +2632,16 @@ private fun HomeSurface(
     sky: SkyContent,
     favorites: List<DisplayApp>,
     /**
+     * v0.49.0: the TOTAL note count for
+     * the "X notes on this phone" line
+     * on the QuickNotesCard. The home
+     * card still uses [recentNotes] for
+     * the 3-row "what I just wrote"
+     * list (v0.43.0 design) — only the
+     * count line reads from the total.
+     */
+    allNotes: List<Note> = emptyList(),
+    /**
      * v0.42.0: the 2x2 needs grid ("What do you need right now?")
      * is hidden when this is false. Default `true` keeps the
      * v0.35.0 / v0.40.1 / v0.41.0 home intact for callers that
@@ -2775,6 +3028,14 @@ private fun HomeSurface(
             QuickNotesCard(
                 sky = sky,
                 recent = recentNotes,
+                // v0.49.0: the count line shows
+                // the TOTAL note count, not the
+                // 3-most-recent cap. The cap
+                // stays — the home card still
+                // surfaces a 3-row "what I just
+                // wrote" list — but the count
+                // line is the phone-wide total.
+                totalCount = allNotes.size,
                 onSave = onAddQuickNote,
                 onDelete = onDeleteNote,
                 onOpenAll = onOpenNotes,
@@ -3311,6 +3572,22 @@ private fun NotesTabRow(
         // toggle is bidirectional; the
         // label and the visual state both
         // reflect the current value.
+        //
+        // v0.49.0 (Phase 1 root cause from
+        // systematic-debug): the "📌"
+        // character is a Noto Color Emoji
+        // glyph and IGNORES the text color
+        // — the pinned pin was rendered in
+        // bright red on the dark blue
+        // background, clashing with the
+        // calm design. The fix is a custom
+        // [PinGlyph] drawn with primitives
+        // (Box + shape) so the color comes
+        // from our [KindSageFg] token.
+        // Unpinned uses a hollow circle in
+        // the secondary text color, which
+        // is dim on dark and bright on
+        // light.
         TextButton(
             onClick = { onPin(note.id, !note.pinned) },
             modifier = Modifier
@@ -3319,10 +3596,10 @@ private fun NotesTabRow(
                     role = Role.Button
                 },
         ) {
-            Text(
-                text = if (note.pinned) "📌" else "○",
-                style = MaterialTheme.typography.titleLarge,
-                color = if (note.pinned) sky.textPrimary else sky.textSecondary,
+            PinGlyph(
+                pinned = note.pinned,
+                pinnedColor = KindSageFg,
+                unpinnedColor = sky.textSecondary,
             )
         }
         TextButton(

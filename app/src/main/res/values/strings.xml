@@ -736,8 +736,14 @@
         <item quantity="one">%1$d note on this phone</item>
         <item quantity="other">%1$d notes on this phone</item>
     </plurals>
-    <!-- v0.44.0: kind picker + Task / Reminder save flow. -->
-    <string name="note_kind_quick">Quick</string>
+    <!-- v0.49.0: kind picker + Task / Reminder save flow.
+         Renamed "Quick" → "Quick note" so the chip is unambiguous
+         (a user reading just the chip label knows it's a note, not
+         a shortcut). The chip stays the default — the user can
+         override with Task or Reminder for time-bound work.
+         "Reminder" stays singular — the picker creates one reminder
+         at a time, plural is misleading. -->
+    <string name="note_kind_quick">Quick note</string>
     <string name="note_kind_task">Task</string>
     <string name="note_kind_reminder">Reminder</string>
     <string name="quick_notes_input_hint_task">What needs doing — the body is the task, the picker is the deadline.</string>
