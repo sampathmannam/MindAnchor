@@ -613,6 +613,20 @@ data class NotesState(
         copy(notes = notes.map { if (it.id == id) it.copy(pinned = !it.pinned) else it })
 
     /**
+     * v0.45.0: set the [Note.pinned] flag on
+     * the note with the matching [id]. Pure
+     * function. A no-op if the id is not in
+     * the store, or if the flag already matches
+     * [pinned]. The caller can use
+     * `next === current` to detect the no-op.
+     */
+    fun setPinned(id: Long, pinned: Boolean): NotesState {
+        val match = notes.firstOrNull { it.id == id } ?: return this
+        if (match.pinned == pinned) return this
+        return copy(notes = notes.map { if (it.id == id) it.copy(pinned = pinned) else it })
+    }
+
+    /**
      * Delete a note. Pure function.
      */
     fun delete(id: Long): NotesState =

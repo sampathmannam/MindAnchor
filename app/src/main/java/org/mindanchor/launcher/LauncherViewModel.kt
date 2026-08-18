@@ -369,7 +369,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
      * string and the list view would show a blank
      * row, which is the worst kind of clutter.
      */
-    fun addQuickNote(body: String) {
+    fun addQuickNote(body: String, pinned: Boolean = false) {
         val trimmed = body.trim().take(Note.MAX_BODY)
         if (trimmed.isEmpty()) return
         val now = System.currentTimeMillis()
@@ -378,6 +378,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             body = trimmed,
             createdAt = now,
             updatedAt = now,
+            pinned = pinned,
         )
         viewModelScope.launch {
             notesPrefs.add(note)
@@ -438,7 +439,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
      * task — tasks do not fire alarms. The user
      * sees the due time on the row.
      */
-    fun addTaskNote(body: String, dueAt: Long?) {
+    fun addTaskNote(body: String, dueAt: Long?, pinned: Boolean = false) {
         val trimmed = body.trim().take(Note.MAX_BODY)
         if (trimmed.isEmpty()) return
         val now = System.currentTimeMillis()
@@ -450,6 +451,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             type = org.mindanchor.model.NoteType.TASK,
             dueAt = dueAt,
             done = false,
+            pinned = pinned,
         )
         viewModelScope.launch { notesPrefs.add(note) }
     }
@@ -472,7 +474,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
      * no-op. A reminder without a time is not a
      * reminder.
      */
-    fun addReminderNote(body: String, reminderAt: Long?) {
+    fun addReminderNote(body: String, reminderAt: Long?, pinned: Boolean = false) {
         val trimmed = body.trim().take(Note.MAX_BODY)
         if (trimmed.isEmpty()) return
         val at = reminderAt ?: return
@@ -484,6 +486,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             updatedAt = now,
             type = org.mindanchor.model.NoteType.REMINDER,
             reminderAt = at,
+            pinned = pinned,
         )
         viewModelScope.launch {
             notesPrefs.add(note)
@@ -509,6 +512,24 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun markNoteDone(id: Long, done: Boolean) {
         if (id <= 0L) return
         viewModelScope.launch { notesPrefs.setDone(id, done) }
+    }
+
+    /**
+     * v0.45.0: pin a note to the home card. The
+     * home card shows only pinned notes (max 3).
+     * The Notes tab shows every note regardless
+     * of pin state. Wired to the "Pin to home"
+     * toggle on the QuickNotesCard input and on
+     * each row of the Notes tab. The toggle is
+     * bidirectional — pinning an unpinned note
+     * surfaces it on the home; unpinning a pinned
+     * note removes it from the home (the note is
+     * still in the Notes tab). A no-op if the id
+     * is not in the store.
+     */
+    fun pinNote(id: Long, pinned: Boolean) {
+        if (id <= 0L) return
+        viewModelScope.launch { notesPrefs.setPinned(id, pinned) }
     }
 
     // --- Wellness signals (N-of-1, from Health Connect) ---

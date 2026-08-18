@@ -171,6 +171,24 @@ class NotesPrefs(private val context: Context) {
     }
 
     /**
+     * v0.45.0: set the [org.mindanchor.model.Note.pinned]
+     * flag on the note with the matching id. Pass
+     * `true` to pin (the note shows on the home
+     * card), `false` to unpin (the note only shows
+     * in the Notes tab). A no-op if the id is not
+     * in the store. The [org.mindanchor.model.NotesState.setPinned]
+     * underlying function is no-op-safe.
+     */
+    suspend fun setPinned(id: Long, pinned: Boolean) {
+        context.notesDataStore.edit { prefs ->
+            val current = SealedCodecs.decodeNotes(prefs[notesKey].orEmpty())
+            val next = current.setPinned(id, pinned)
+            if (next === current) return@edit // id not found or already correct
+            prefs[notesKey] = SealedCodecs.encodeNotes(next)
+        }
+    }
+
+    /**
      * Delete a note. A no-op if the id is not in
      * the store.
      */

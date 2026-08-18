@@ -728,6 +728,15 @@
     <string name="reminder_notification_title">Reminder</string>
     <string name="reminder_channel_name">Reminders</string>
     <string name="reminder_channel_description">Alarms you set on a note — they fire at the time you picked.</string>
+    <!-- v0.45.0: the Notes tab and pin-to-home affordances. -->
+    <string name="notes_button">Notes</string>
+    <string name="notes_tab_title">Notes</string>
+    <string name="notes_tab_back">Back</string>
+    <string name="notes_tab_count_zero">no notes</string>
+    <string name="notes_tab_count_n">%1$d notes</string>
+    <string name="notes_tab_empty">No notes yet. Go back home and write the first one.</string>
+    <string name="pin_to_home">Pin to home</string>
+    <string name="pin_to_home_explainer">Pinned notes appear on the home screen. Unpinned notes live only in the Notes tab.</string>
 
     <!-- Health Connect permission flow (Phase 2) -->
     <string name="health_connect_title">Wearable</string>

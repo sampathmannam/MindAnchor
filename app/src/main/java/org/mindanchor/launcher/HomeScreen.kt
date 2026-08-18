@@ -16,6 +16,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -42,6 +43,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.animation.core.RepeatMode
@@ -133,6 +135,16 @@ private enum class LauncherSurface {
     // cheaper to navigate between than a fresh
     // Intent trip.
     GetThrough,
+    // v0.45.0: the "all notes" tab. A sibling of
+    // the home, the drawer, and the settings. Not
+    // a separate activity because the list view is
+    // a thin projection of the same [NotesPrefs]
+    // the home card reads from — the only state
+    // the surface holds is "back to home". A
+    // sub-screen is cheaper to navigate between
+    // than a fresh Intent trip, and the surface
+    // shares the lifecycle-scoped data flows.
+    Notes,
 }
 
 /**
@@ -304,6 +316,28 @@ fun LauncherRoot(
     val openLoop by viewModel.openLoop.collectAsStateWithLifecycle()
     val oneThing by viewModel.oneThing.collectAsStateWithLifecycle()
     val recentNotes by viewModel.notes.collectAsStateWithLifecycle()
+    // v0.45.0: the home card shows only pinned
+    // notes (max 3). The full list — pinned +
+    // unpinned — is on the Notes tab. The
+    // filter is on the launcher root, not on
+    // the QuickNotesCard body, so the
+    // "View all" affordance from v0.43.0
+    // continues to route to the Notes tab
+    // (which is the all-notes view).
+    val pinnedNotes = recentNotes.filter { it.pinned }.take(3)
+    // v0.45.0: the note-action callbacks are
+    // declared at the launcher-root level so
+    // both the HomeSurface (inside the home's
+    // CalmBackground lambda) and the NotesSurface
+    // (outside that lambda, in the `when (surface)`
+    // dispatch) can use them. Before v0.45.0
+    // the callbacks were only declared inside
+    // the home branch, which meant the Notes
+    // tab could not reuse them. Promoting to
+    // the root level is the simplest fix.
+    val onDeleteNote: (Long) -> Unit = { id -> viewModel.deleteNote(id) }
+    val onPinNote: (Long, Boolean) -> Unit = { id, pinned -> viewModel.pinNote(id, pinned) }
+    val onMarkNoteDone: (Long, Boolean) -> Unit = { id, done -> viewModel.markNoteDone(id, done) }
     val wellnessReadings by viewModel.wellnessReadings.collectAsStateWithLifecycle()
     // v0.35.0: the data-sources card reads three StateFlows.
     // Each is a cold read of a per-source DataStore; the
@@ -563,6 +597,16 @@ fun LauncherRoot(
                 needsGridVisible = needsGridVisible,
                 onOpenDrawer = { surface = LauncherSurface.Drawer },
                 onOpenSettings = { surface = LauncherSurface.Settings },
+                // v0.45.0: top-right "Notes"
+                // button. Routes to the new
+                // Notes tab. The button lives
+                // in the same chrome slot the
+                // v0.42.0 Letters/notes/history
+                // stack used to occupy — top
+                // end — so the position is
+                // familiar to a user upgrading
+                // from a previous build.
+                onOpenNotes = { surface = LauncherSurface.Notes },
                 onLaunch = ::attemptLaunch,
                 onLongPress = { actionsFor = it },
                 loopPhase = openLoop.first,
@@ -586,9 +630,9 @@ fun LauncherRoot(
                     }
                 },
                 onOpenGroundMe = { surface = LauncherSurface.GroundMe },
-                recentNotes = recentNotes,
-                onAddQuickNote = viewModel::addQuickNote,
-                onDeleteNote = viewModel::deleteNote,
+                recentNotes = pinnedNotes,
+                onAddQuickNote = { body, pinned -> viewModel.addQuickNote(body, pinned) },
+                onDeleteNote = onDeleteNote,
                 // v0.44.0: forward the new
                 // task / reminder / done
                 // operations from the home card
@@ -597,28 +641,20 @@ fun LauncherRoot(
                 // wiring; the card owns the
                 // type picker and the time
                 // picker.
-                onAddTaskNote = { body, dueAt -> viewModel.addTaskNote(body, dueAt) },
-                onAddReminderNote = { body, reminderAt -> viewModel.addReminderNote(body, reminderAt) },
-                onMarkNoteDone = { id, done -> viewModel.markNoteDone(id, done) },
+                onAddTaskNote = { body, dueAt, pinned -> viewModel.addTaskNote(body, dueAt, pinned) },
+                onAddReminderNote = { body, reminderAt, pinned -> viewModel.addReminderNote(body, reminderAt, pinned) },
+                onMarkNoteDone = onMarkNoteDone,
+                // v0.45.0: pin a note to the home
+                // card. Forwarded to the VM,
+                // which writes the pinned flag
+                // to NotesPrefs. The home
+                // card re-renders with the
+                // pinned note on top.
+                onPinNote = onPinNote,
                 hasReport = hasReport,
                 onOpenReport = {
                     reportCameFrom = LauncherSurface.Home
                     surface = LauncherSurface.Report
-                },
-                onOpenNotes = {
-                    // v0.20.1 round 5: route to the
-                    // notes activity. runCatching
-                    // because a misconfigured
-                    // manifest is the easiest way to
-                    // ship a broken entry point, and
-                    // the cost of catching is one
-                    // try-frame, not a UX failure.
-                    runCatching {
-                        val notesIntent = android.content.Intent(
-                            context, org.mindanchor.model.NoteActivity::class.java,
-                        )
-                        context.startActivity(notesIntent)
-                    }
                 },
                 onOpenCheckInHistory = {
                     // v0.20.1 round 5 follow-up:
@@ -777,6 +813,27 @@ fun LauncherRoot(
             // who tapped the line on the home screen into settings would
             // be a small, daily disorientation.
             ReportScreen(onBack = { surface = reportCameFrom })
+        }
+
+        // v0.45.0: the all-notes tab. The list
+        // is a thin projection of [NotesPrefs]
+        // the home card reads from. The back
+        // button returns to home — there is
+        // no other parent the user could have
+        // come from. The screen is a
+        // sibling of the home, the drawer,
+        // and the settings; not a separate
+        // activity, so the lifecycle-scoped
+        // data flows are shared with the
+        // home card and the "View all" affordance.
+        LauncherSurface.Notes -> Surface(modifier = Modifier.fillMaxSize()) {
+            NotesSurface(
+                allNotes = recentNotes,
+                onBack = { surface = LauncherSurface.Home },
+                onDeleteNote = onDeleteNote,
+                onPinNote = onPinNote,
+                onMarkNoteDone = onMarkNoteDone,
+            )
         }
 
         // v0.25.2-A (Task 6): the letter inbox + reader. Dispatched
@@ -1365,7 +1422,7 @@ private fun formatWallClock(at: Instant?, today: LocalDate): String {
 private fun QuickNotesCard(
     sky: SkyContent,
     recent: List<Note>,
-    onSave: (String) -> Unit,
+    onSave: (String, Boolean) -> Unit,
     onDelete: (Long) -> Unit = {},
     onOpenAll: () -> Unit = {},
     /**
@@ -1375,9 +1432,10 @@ private fun QuickNotesCard(
      * "no deadline". The card surfaces a
      * quick "no due / in 1h / in 3h / in
      * 1d / in 3d" picker; the selected
-     * value is forwarded here.
+     * value is forwarded here. The third
+     * parameter is the pin state (v0.45.0).
      */
-    onSaveTask: (String, Long?) -> Unit = { _, _ -> },
+    onSaveTask: (String, Long?, Boolean) -> Unit = { _, _, _ -> },
     /**
      * v0.44.0: save a REMINDER note. The
      * second parameter is the reminder
@@ -1387,9 +1445,10 @@ private fun QuickNotesCard(
      * future offsets). The card surfaces
      * a quick "in 5m / in 15m / in 1h /
      * in 3h" picker; the selected value
-     * is forwarded here.
+     * is forwarded here. The third
+     * parameter is the pin state (v0.45.0).
      */
-    onSaveReminder: (String, Long) -> Unit = { _, _ -> },
+    onSaveReminder: (String, Long, Boolean) -> Unit = { _, _, _ -> },
     /**
      * v0.44.0: mark a TASK note done. The
      * second parameter is the new `done`
@@ -1409,6 +1468,16 @@ private fun QuickNotesCard(
     // becomes "Save as <kind>". The picker is a row
     // of three FilterChips above the input.
     var kind by rememberSaveable { mutableStateOf(0) } // 0=Quick, 1=Task, 2=Reminder
+    // v0.45.0: the "pin to home" toggle. When
+    // true, the saved note is the only kind of
+    // note that shows on the home card (along
+    // with the next two pinned notes). When
+    // false, the note is created in the store
+    // but is only visible in the Notes tab. The
+    // default is false — most notes are not
+    // pinned, the user opts in to pinning the
+    // ones they want quick access to.
+    var pinned by rememberSaveable { mutableStateOf(false) }
     // v0.44.0: the time offset for Task and Reminder.
     // Indexes into a known list of millis-from-now
     // values. -1 means "no due time" (only for Task).
@@ -1514,6 +1583,47 @@ private fun QuickNotesCard(
                 modifier = Modifier.semantics { role = Role.RadioButton },
             )
         }
+        // v0.45.0: the "pin to home" toggle.
+        // Always visible regardless of kind —
+        // the pin state is orthogonal to the
+        // kind. A pinned note shows on the
+        // home card; an unpinned note only
+        // shows in the Notes tab. The toggle
+        // is a labelled Switch — the label
+        // is the affordance, the switch is
+        // the state. A Checkbox is also
+        // valid; a Switch matches the rest
+        // of the launcher's settings
+        // surface and reads as a
+        // "binary, persistent preference".
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Switch(
+                checked = pinned,
+                onCheckedChange = {
+                    pinned = it
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                },
+                modifier = Modifier.semantics { role = Role.Switch },
+            )
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text(
+                    text = stringResource(R.string.pin_to_home),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = sky.textPrimary,
+                )
+                Text(
+                    text = stringResource(R.string.pin_to_home_explainer),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = sky.textSecondary,
+                )
+            }
+        }
         // v0.44.0: the time picker for Task and
         // Reminder. Hidden when kind == Quick.
         // For Task, the first option is "no due"
@@ -1610,15 +1720,22 @@ private fun QuickNotesCard(
                     when (kind) {
                         1 -> {
                             val due = taskOffsets[timeOffsetIndex.coerceIn(0, taskOffsets.lastIndex)].second
-                            onSaveTask(draft, due)
+                            onSaveTask(draft, due, pinned)
                         }
                         2 -> {
                             val at = reminderOffsets[timeOffsetIndex.coerceIn(0, reminderOffsets.lastIndex)].second
-                            onSaveReminder(draft, at)
+                            onSaveReminder(draft, at, pinned)
                         }
-                        else -> onSave(draft)
+                        else -> onSave(draft, pinned)
                     }
                     draft = ""
+                    // v0.45.0: reset the pin toggle on
+                    // save so the next note starts
+                    // unpinned (the common case). A
+                    // user who wants the next note
+                    // pinned too re-checks the box
+                    // before saving.
+                    pinned = false
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                 },
                 enabled = enabled,
@@ -2171,7 +2288,15 @@ private fun HomeSurface(
      * to the full activity.
      */
     recentNotes: List<Note> = emptyList(),
-    onAddQuickNote: (String) -> Unit = {},
+    /**
+     * v0.20.4: the home-screen quick-notes
+     * affordance. v0.45.0: the second
+     * parameter is the pin state — a
+     * pinned note shows on the home card,
+     * an unpinned note only shows in the
+     * Notes tab.
+     */
+    onAddQuickNote: (String, Boolean) -> Unit = { _, _ -> },
     /**
      * v0.43.0: delete a note from the home card. Wired
      * to the × on each recent-note row. The full delete
@@ -2187,7 +2312,7 @@ private fun HomeSurface(
      * "no-deadline" task. The full save lives
      * in [org.mindanchor.launcher.LauncherViewModel.addTaskNote].
      */
-    onAddTaskNote: (String, Long?) -> Unit = { _, _ -> },
+    onAddTaskNote: (String, Long?, Boolean) -> Unit = { _, _, _ -> },
     /**
      * v0.44.0: save a REMINDER note. Wired to the
      * "Save as reminder" button on the home
@@ -2197,7 +2322,7 @@ private fun HomeSurface(
      * and alarm schedule live in
      * [org.mindanchor.launcher.LauncherViewModel.addReminderNote].
      */
-    onAddReminderNote: (String, Long) -> Unit = { _, _ -> },
+    onAddReminderNote: (String, Long, Boolean) -> Unit = { _, _, _ -> },
     /**
      * v0.44.0: mark a TASK note done. Wired to
      * the checkbox on each TASK row. The full
@@ -2205,6 +2330,17 @@ private fun HomeSurface(
      * [org.mindanchor.launcher.LauncherViewModel.markNoteDone].
      */
     onMarkNoteDone: (Long, Boolean) -> Unit = { _, _ -> },
+    /**
+     * v0.45.0: pin a note to the home card. Wired
+     * to the "pin to home" toggle on the
+     * QuickNotesCard input and on each row of the
+     * Notes tab. Pinned notes are the only notes
+     * shown on the home card; the Notes tab
+     * contains every note (pinned + unpinned).
+     * The full pin lives in
+     * [org.mindanchor.launcher.LauncherViewModel.pinNote].
+     */
+    onPinNote: (Long, Boolean) -> Unit = { _, _ -> },
     /**
      * v0.20.5: the wellness card — per-signal readings for
      * today against the person's own history. Null is
@@ -2459,6 +2595,30 @@ private fun HomeSurface(
             )
         }
 
+        // v0.45.0: top-right "Notes" button.
+        // Mirrors the v0.42.0 "Letters / notes /
+        // history" stack position — top end,
+        // status-bar padded. Routes to the new
+        // Notes tab. The button is a
+        // TextButton with the titleMedium
+        // label; the size mirrors the search
+        // and settings buttons at the bottom
+        // for visual consistency.
+        TextButton(
+            onClick = onOpenNotes,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(end = 8.dp, top = 4.dp)
+                .semantics { role = Role.Button },
+        ) {
+            Text(
+                text = stringResource(R.string.notes_button),
+                style = MaterialTheme.typography.titleMedium,
+                color = sky.textSecondary,
+            )
+        }
+
         val context = LocalContext.current
         // v0.43.0: the home surface is stripped. The
         // top-start "Open Support" button, the
@@ -2602,6 +2762,320 @@ private fun FlashOverlay(
             }
         }
     }
+}
+
+/**
+ * v0.45.0: the all-notes tab. Renders every
+ * note in the store, sorted by updatedAt
+ * desc, with the date + time + body + type
+ * chip + pin toggle + × delete button per
+ * row. The tab is a thin projection of
+ * [org.mindanchor.data.NotesPrefs] — no
+ * editing affordance, no group-by-day
+ * header, no search. The launcher is a
+ * launcher; the full note app is the
+ * existing [org.mindanchor.model.NoteActivity]
+ * and is reachable from a future
+ * "View all" affordance in the
+ * QuickNotesCard. For v0.45.0 the tab is
+ * the view-all surface.
+ *
+ * ## Why pinned notes float
+ *
+ * The list view is sorted with pinned notes
+ * first (sorted by updatedAt desc), then
+ * unpinned (sorted by updatedAt desc). The
+ * same ordering
+ * [org.mindanchor.model.NoteStore.sortedForList]
+ * uses for the NoteActivity — the user
+ * reads the list the same way in both
+ * surfaces.
+ *
+ * ## Why date + time on every row
+ *
+ * The user asked for "date and time also
+ * logged" on every note in the tab. The
+ * date+time is the [Note.updatedAt] in the
+ * user's local zone, formatted as
+ * "Aug 18, 14:32" (short date + short
+ * time). The label is on the second line
+ * of every row, below the body.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun NotesSurface(
+    allNotes: List<Note>,
+    onBack: () -> Unit,
+    onDeleteNote: (Long) -> Unit,
+    onPinNote: (Long, Boolean) -> Unit,
+    onMarkNoteDone: (Long, Boolean) -> Unit,
+) {
+    // v0.45.0: the title "Notes" and a back
+    // affordance at the top. The back
+    // affordance is a TextButton on the
+    // top-start; the title is centred.
+    // The header is in a row of its own
+    // outside the scroll, so a long
+    // notes list does not push the
+    // title off-screen.
+    CalmBackground { sky ->
+        NotesSurfaceBody(
+            sky = sky,
+            allNotes = allNotes,
+            onBack = onBack,
+            onDeleteNote = onDeleteNote,
+            onPinNote = onPinNote,
+            onMarkNoteDone = onMarkNoteDone,
+        )
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun NotesSurfaceBody(
+    sky: SkyContent,
+    allNotes: List<Note>,
+    onBack: () -> Unit,
+    onDeleteNote: (Long) -> Unit,
+    onPinNote: (Long, Boolean) -> Unit,
+    onMarkNoteDone: (Long, Boolean) -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .safeDrawingPadding(),
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(
+                    onClick = onBack,
+                    modifier = Modifier.semantics { role = Role.Button },
+                ) {
+                    Text(
+                        text = stringResource(R.string.notes_tab_back),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = sky.textSecondary,
+                    )
+                }
+                Text(
+                    text = stringResource(R.string.notes_tab_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = sky.textPrimary,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 8.dp),
+                )
+                Text(
+                    text = if (allNotes.isEmpty()) {
+                        stringResource(R.string.notes_tab_count_zero)
+                    } else {
+                        stringResource(R.string.notes_tab_count_n, allNotes.size)
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = sky.textSecondary,
+                )
+            }
+            if (allNotes.isEmpty()) {
+                // v0.45.0: empty state — same
+                // "quiet invitation" shape as
+                // the home card. The list is
+                // empty; the tab is open; the
+                // user has nowhere to go. A
+                // gentle "go back home and
+                // write something" is the
+                // right affordance.
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = stringResource(R.string.notes_tab_empty),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = sky.textSecondary,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            } else {
+                // v0.45.0: the sorted list. v0.45.0
+                // uses a plain Column (not a
+                // LazyColumn) because the user
+                // is unlikely to have more
+                // than a few hundred notes; the
+                // Compose recomposition cost of
+                // a Column of 200 rows is well
+                // under 16ms on a modern phone.
+                // A LazyColumn would not change
+                // the user experience and would
+                // add a key-stable for each row
+                // — a Column is the simpler
+                // choice. Future v0.46+ may
+                // promote to a LazyColumn if
+                // the field data shows a
+                // larger distribution.
+                val sorted = org.mindanchor.model.NoteStore.sortedForList(allNotes)
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 24.dp)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    sorted.forEach { note ->
+                        NotesTabRow(
+                            sky = sky,
+                            note = note,
+                            onDelete = onDeleteNote,
+                            onPin = onPinNote,
+                            onMarkDone = onMarkNoteDone,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * v0.45.0: a single row of the Notes tab.
+ * Body (max 2 lines ellipsized) + date +
+ * time subtitle + type chip + pin toggle +
+ * × delete button. The row is a Card-style
+ * outlined surface; the row's height is
+ * min 56dp so the tap target is generous
+ * even when the body is one line.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun NotesTabRow(
+    sky: SkyContent,
+    note: Note,
+    onDelete: (Long) -> Unit,
+    onPin: (Long, Boolean) -> Unit,
+    onMarkDone: (Long, Boolean) -> Unit,
+) {
+    val title = note.title.ifBlank { note.body.take(80) }
+    val whenText = notesTabDateTimeText(note)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // v0.45.0: the type-leading icon.
+        // Same shape as the home card:
+        // "T" for Task, "R" for Reminder,
+        // blank for Quick. Keeps the
+        // text-only aesthetic.
+        Box(
+            modifier = Modifier.size(40.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = when (note.type) {
+                    org.mindanchor.model.NoteType.REMINDER -> "R"
+                    org.mindanchor.model.NoteType.TASK -> "T"
+                    else -> ""
+                },
+                style = MaterialTheme.typography.titleMedium,
+                color = sky.textSecondary,
+            )
+        }
+        // v0.45.0: TASK notes show a
+        // checkbox; non-task rows skip it.
+        if (note.type == org.mindanchor.model.NoteType.TASK) {
+            Checkbox(
+                checked = note.done,
+                onCheckedChange = { onMarkDone(note.id, it) },
+            )
+        } else {
+            Spacer(Modifier.width(8.dp))
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    textDecoration = if (note.done) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
+                ),
+                color = if (note.done) sky.textSecondary else sky.textPrimary,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = whenText,
+                style = MaterialTheme.typography.bodySmall,
+                color = sky.textSecondary,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+        // v0.45.0: pin toggle. The pin
+        // affordance is a small text "📌"
+        // — no icon asset; the character
+        // is rendered as text. Tapping
+        // the pin toggles the pinned
+        // state on the note. A pinned
+        // note shows a sage-coloured
+        // filled pin; an unpinned note
+        // shows a dim outline. The
+        // toggle is bidirectional; the
+        // label and the visual state both
+        // reflect the current value.
+        TextButton(
+            onClick = { onPin(note.id, !note.pinned) },
+            modifier = Modifier
+                .heightIn(min = 40.dp)
+                .semantics {
+                    role = Role.Button
+                },
+        ) {
+            Text(
+                text = if (note.pinned) "📌" else "○",
+                style = MaterialTheme.typography.titleLarge,
+                color = if (note.pinned) sky.textPrimary else sky.textSecondary,
+            )
+        }
+        TextButton(
+            onClick = { onDelete(note.id) },
+            modifier = Modifier
+                .heightIn(min = 40.dp)
+                .semantics { role = Role.Button },
+        ) {
+            Text(
+                text = "×",
+                style = MaterialTheme.typography.titleLarge,
+                color = sky.textSecondary,
+            )
+        }
+    }
+}
+
+/**
+ * v0.45.0: format a note's [Note.updatedAt]
+ * for the Notes tab row subtitle. The
+ * user asked for "date and time also
+ * logged" — the format is
+ * "Aug 18, 14:32" (short date, comma,
+ * short time in 24h). The function is
+ * local to this file; the home card
+ * uses a different format
+ * ([noteTimeText]) because the home
+ * row is glance-sized and the tab row
+ * is a list, where a stable absolute
+ * date is more useful.
+ */
+private fun notesTabDateTimeText(note: Note): String {
+    val dateFormat = java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM)
+    val timeFormat = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)
+    val date = dateFormat.format(java.util.Date(note.updatedAt))
+    val time = timeFormat.format(java.util.Date(note.updatedAt))
+    return "$date · $time"
 }
 
 @OptIn(ExperimentalFoundationApi::class)
