@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -32,6 +34,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -59,6 +62,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -553,6 +557,7 @@ fun LauncherRoot(
                 onOpenGroundMe = { surface = LauncherSurface.GroundMe },
                 recentNotes = recentNotes,
                 onAddQuickNote = viewModel::addQuickNote,
+                onDeleteNote = viewModel::deleteNote,
                 hasReport = hasReport,
                 onOpenReport = {
                     reportCameFrom = LauncherSurface.Home
@@ -1309,7 +1314,8 @@ private fun QuickNotesCard(
     sky: SkyContent,
     recent: List<Note>,
     onSave: (String) -> Unit,
-    onOpenAll: () -> Unit,
+    onDelete: (Long) -> Unit = {},
+    onOpenAll: () -> Unit = {},
 ) {
     // v0.25.14: rememberSaveable so a mid-capture draft
     // (a half-typed note about the email you just saw)
@@ -1337,103 +1343,167 @@ private fun QuickNotesCard(
         modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        // v0.43.0: section header made clearer. The previous
+        // titleMedium dim was hard to parse at a glance.
+        // Now the section reads as a deliberate stop, with
+        // a count line so the user knows how many notes are
+        // on the home card and the activity below.
         Text(
             text = stringResource(R.string.quick_notes_section),
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.titleLarge,
+            color = sky.textPrimary,
+        )
+        Text(
+            text = if (recent.isEmpty()) {
+                stringResource(R.string.quick_notes_count_zero)
+            } else {
+                stringResource(R.string.quick_notes_count_n, recent.size)
+            },
+            style = MaterialTheme.typography.bodySmall,
             color = sky.textSecondary,
+            modifier = Modifier.padding(top = 2.dp, bottom = 12.dp),
         )
         // v0.20.9: bringIntoViewOnFocus so the quick-notes
         // input is not covered by the keyboard. The card is
         // the home-screen capture affordance; "I want to
         // remember this" fails if the user has to dismiss
         // the keyboard to see what they are typing.
+        //
+        // v0.43.0: 3-line min height, max 5 lines. The
+        // previous single-line input forced longer
+        // thoughts to wrap to nowhere visible; a paragraph
+        // note was the most common kind the user wrote, and
+        // the truncation hid it. min/max lines keeps the
+        // field from collapsing to one line on an empty
+        // draft and from growing forever on a long one.
         OutlinedTextField(
             value = draft,
             onValueChange = { draft = it },
-            singleLine = true,
             placeholder = { Text(stringResource(R.string.quick_notes_input_hint)) },
+            minLines = 3,
+            maxLines = 5,
             modifier = Modifier
                 .fillMaxWidth()
-                .bringIntoViewOnFocus()
-                .padding(top = 8.dp),
+                .bringIntoViewOnFocus(),
         )
-        TextButton(
-        modifier = Modifier.semantics { role = Role.Button },
-        onClick = {
-                onSave(draft)
-                draft = ""
-                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-            },
-            enabled = draft.isNotBlank(),
-            // v0.25.10 (B6): Role.Button
-
+        // v0.43.0: Save as a primary outlined action
+        // directly under the input. The previous layout
+        // had the Save text-button centered far from the
+        // input, easy to miss on a tall phone and easy to
+        // double-tap with the empty-state caption. Save is
+        // now a full-width primary button, only enabled
+        // when the draft has content, with a clear "save"
+        // label and a quiet "clear" link beside it.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(stringResource(R.string.quick_notes_save), color = sky.textPrimary)
-        }
-        // v0.25.5 WP-G: a "Clear" affordance with a distinct
-        // tactile shape (TextHandleMove — the soft "whoosh" of
-        // moving text out of the way). The four haptic types
-        // Brewster CHI 2007 distinguishes are all in use across
-        // the launcher now: save and the destructive actions are
-        // LongPress (a confirmation pulse); clear is
-        // TextHandleMove (a softer, distinct shape). A user
-        // who can feel the difference will not wonder which
-        // they pressed.
-        if (draft.isNotBlank()) {
-            TextButton(
-        modifier = Modifier.semantics { role = Role.Button },
-        onClick = {
+            OutlinedButton(
+                onClick = {
+                    onSave(draft)
                     draft = ""
-                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                 },
+                enabled = draft.isNotBlank(),
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = 48.dp)
+                    .semantics { role = Role.Button },
             ) {
-                Text(stringResource(R.string.quick_notes_clear), color = sky.textSecondary)
+                Text(stringResource(R.string.quick_notes_save))
             }
-        }
-        if (recent.isEmpty()) {
-            Text(
-                text = stringResource(R.string.quick_notes_empty),
-                style = MaterialTheme.typography.bodySmall,
-                color = sky.textSecondary,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-            )
-        } else {
-            recent.forEach { note ->
-                // The note row is intentionally
-                // compact: first line of the body
-                // (the title by convention) plus a
-                // small timestamp. Full body is in
-                // the activity; the home only
-                // surfaces the *fact* the user
-                // wrote it, and the rough when.
-                val title = note.title.ifBlank { note.body.take(60) }
-                val whenText = noteTimeText(note)
+            if (draft.isNotBlank()) {
                 TextButton(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .semantics { role = Role.Button },
-                    onClick = onOpenAll,
+                    onClick = {
+                        draft = ""
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    },
+                    modifier = Modifier.semantics { role = Role.Button },
                 ) {
                     Text(
-                        text = stringResource(
-                            R.string.quick_notes_saved_at,
-                            title,
-                            whenText,
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
+                        text = stringResource(R.string.quick_notes_clear),
                         color = sky.textSecondary,
-                        textAlign = TextAlign.Center,
                     )
                 }
             }
-            TextButton(
-        modifier = Modifier.semantics { role = Role.Button },
-        onClick = onOpenAll,
-                // v0.25.10 (B6): Role.Button
-
-            ) {
-                Text(stringResource(R.string.quick_notes_view_all), color = sky.textSecondary)
+        }
+        if (recent.isEmpty()) {
+            // v0.43.0: empty state lives BELOW the input
+            // and Save, framed as a quiet invitation. The
+            // previous version placed the empty text after
+            // the Save button which read as a leftover label.
+            Text(
+                text = stringResource(R.string.quick_notes_empty),
+                style = MaterialTheme.typography.bodyMedium,
+                color = sky.textSecondary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+            )
+        } else {
+            // v0.43.0: the home card now shows up to three
+            // recent notes as plain rows with a one-tap
+            // delete affordance per row. Previously the
+            // rows were TextButtons that opened the full
+            // notes activity — easy to tap by accident,
+            // and the user could not delete a note from
+            // home. The delete icon is a plain × on the
+            // trailing edge, not a long-press menu.
+            Spacer(Modifier.height(16.dp))
+            recent.take(3).forEach { note ->
+                val title = note.title.ifBlank { note.body.take(80) }
+                val whenText = noteTimeText(note)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = sky.textPrimary,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = whenText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = sky.textSecondary,
+                            modifier = Modifier.padding(top = 2.dp),
+                        )
+                    }
+                    TextButton(
+                        onClick = { onDelete(note.id) },
+                        modifier = Modifier
+                            .heightIn(min = 40.dp)
+                            .semantics { role = Role.Button },
+                    ) {
+                        Text(
+                            text = "×",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = sky.textSecondary,
+                        )
+                    }
+                }
+            }
+            if (recent.size > 3) {
+                TextButton(
+                    onClick = onOpenAll,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics { role = Role.Button },
+                ) {
+                    Text(
+                        text = stringResource(R.string.quick_notes_view_all),
+                        color = sky.textSecondary,
+                    )
+                }
             }
         }
     }
@@ -1808,6 +1878,13 @@ private fun HomeSurface(
     recentNotes: List<Note> = emptyList(),
     onAddQuickNote: (String) -> Unit = {},
     /**
+     * v0.43.0: delete a note from the home card. Wired
+     * to the × on each recent-note row. The full delete
+     * lives in [org.mindanchor.launcher.LauncherViewModel.deleteNote];
+     * HomeSurface only forwards the id.
+     */
+    onDeleteNote: (Long) -> Unit = {},
+    /**
      * v0.20.5: the wellness card — per-signal readings for
      * today against the person's own history. Null is
      * "still loading", not "no data": the card is hidden
@@ -1911,164 +1988,37 @@ private fun HomeSurface(
                 color = sky.textSecondary,
             )
 
-            // v0.22.0 (WP-10 step 2): the "what makes this
-            // different" callout. One line of small text
-            // pointing at the friction gate, shown for the
-            // first 3 launches and then never again. The
-            // recording fires on a side effect so the
-            // callout is one launch closer to hidden on
-            // every display, regardless of which side of
-            // the threshold this display is on.
-            if (showIntroCallout) {
-                LaunchedEffect(Unit) { onRecordLaunch() }
-                Text(
-                    text = stringResource(R.string.intro_callout),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = sky.textSecondary,
-                    modifier = Modifier.padding(vertical = 4.dp),
-                )
-            }
+            // v0.43.0: stripped home. The intro callout,
+            // the 2x2 needs grid (Be heard / A moment /
+            // Check in / Get through this), the data-
+            // sources card, the wellness card, and the
+            // report link are all removed. The Support
+            // surface they all lead to is gone; the
+            // clinical reads (wellness, sources) need a
+            // wearable + a Health Connect grant that the
+            // user has decided not to set up. The home is
+            // now: time → greeting → notes → favourites.
+            // Three affordances, in the order a person
+            // reaching for the phone in the morning wants
+            // them: "what time is it", "how is it now",
+            // "what do I want to remember", "open the
+            // thing I use every day".
 
-            // v0.35.0: the "What do you need right now?"
-            // 2×2 needs card replaces the v0.32.x Distress
-            // Thermometer card. The Distress Thermometer
-            // (0-100 slider, "how is it right now") is no
-            // longer a home card; it is still reachable
-            // from Settings → Pauses, and the full v0.28.0
-            // rationale (DBT validate-then-suggest, the
-            // first question is "what do you need" not
-            // "how distressed are you") is in
-            // NeedsCard.kt's KDoc.
-            //
-            // The four doors are need-language ("I need X"),
-            // not action-language ("do X"). The home asks
-            // what is needed first, then offers one
-            // well-shaped path. Research: Linehan 1993
-            // (DBT ch. 8), Schwartz 1995 (IFS), Lindsay
-            // 2024 (JMIR).
-            //
-            // v0.42.0: gated on [needsGridVisible]. When the
-            // user has turned the toggle off in Settings,
-            // the entire 2x2 (header + caption + four doors)
-            // is skipped. The home collapses to clock →
-            // greeting → quick-notes. Support remains
-            // reachable from the top-left "Open Support"
-            // button, so the affordance is hidden, not lost.
-            if (needsGridVisible) {
-                NeedsCard(
-                    sky = sky,
-                    onBeHeard = onOpenSupport,
-                    onMoment = onOpenAccepts,
-                    onCheckIn = onOpenDiaryCard,
-                    onGetThrough = onOpenGetThrough,
-                )
-            }
-
-            // v0.35.0: the "Where it comes from" data-sources
-            // card. Surfaces the three wearable sources the
-            // user has (or has not) opted in to: Health
-            // Connect (the "any watch" surface), Coros Pace 3
-            // (the side-channel), and PPG (the camera HRV).
-            // The card is hidden entirely when no source has
-            // any data — see DataSourcesCard for the
-            // visibility rules. The card is provenance, not
-            // summary; it does not surface clinical
-            // judgments, scores, or "good/bad" labels.
-            DataSourcesCard(
-                sky = sky,
-                healthConnectStatus = healthConnectStatus,
-                corosDataStatus = corosDataStatus,
-                ppgLastMeasurement = ppgLastMeasurement,
-            )
-
-            // v0.20.4: the quick-notes card. Always
-            // visible — the brief is "I want to
-            // remember this", and the moment the
-            // user thinks it is the moment the card
-            // has to be there.
-            //
-            // v0.25.7+ WP-3: the card was previously
-            // placed *after* the OpenLoop / BedtimeList
-            // cards. On a 1080x2400 device (the most
-            // common emulator size and a real mid-range
-            // phone) the bedtime list, one-thing card,
-            // and an active OpenLoopCard together push
-            // the quick-notes card below the fold — the
-            // brief's URL-bar-equivalent affordance
-            // becomes invisible. The fix is to promote
-            // the quick-notes card to the top of the
-            // action stack: after the time / greeting
-            // (always) and the OpenLoop (when active),
-            // before the bedtime list. The "rough
-            // centre of the home screen" comment is
-            // updated to "above the fold on 1080x2400
-            // with an active worry".
+            // v0.20.4: the quick-notes card. v0.43.0:
+            // the only home-card. Polished in v0.43.0 with
+            // a clearer section header, a count line,
+            // a 3-to-5-line multi-line input, an
+            // outlined primary Save button, and a list of
+            // recent notes with a one-tap delete × on
+            // each row. Empty state sits below the input
+            // and Save, framed as a quiet invitation.
             QuickNotesCard(
                 sky = sky,
                 recent = recentNotes,
                 onSave = onAddQuickNote,
+                onDelete = onDeleteNote,
                 onOpenAll = onOpenNotes,
             )
-
-            // v0.28.0: OneThingCard removed from the home surface.
-            // The data model (the `oneThing` state and the
-            // viewModel::setOneThing wiring) is kept — OneThing
-            // is still part of the export payload and can be
-            // re-introduced in a different surface later. Three
-            // task-capture cards (OpenLoop + OneThing + BedtimeList)
-            // was already one too many for a BPD-strict home
-            // (DBT: low cognitive load is the floor); replacing
-            // OneThing with the Distress Thermometer as the
-            // primary surface makes the home BPD-strict: the
-            // first question the user answers is "how is it
-            // right now", and the rest of the cards become
-            // optional. See docs/research/14-v0.26.6-audit.md §3
-            // for the research basis.
-            //
-            // v0.26.6: BedtimeListCard removed from the home surface.
-            // Three task-capture cards (OpenLoop + OneThing + BedtimeList)
-            // was one too many — for a person with BPD (DBT: low
-            // cognitive load is the floor), three competing
-            // capture affordances is exactly the kind of surface
-            // clutter that the brief specifically says to avoid.
-            // The data model (sleep/BedtimeList.kt), the DataStore
-            // (data/LauncherPrefs.kt), the strings, and the
-            // bedtimeList state flow are kept — only the
-            // composable's home-surface call is gone. A future
-            // release can re-introduce a bedtime surface under the
-            // v0.27.x DBT diary card if the user asks for it.
-
-            // v0.20.5: the wellness card. Same idiom
-            // as the report link — silent when there is
-            // nothing to say, one quiet block when
-            // there is. Hidden entirely (not blanked)
-            // when the wearable has not been paired,
-            // when the user has not granted permission,
-            // or when fewer than 14 days of history
-            // are on file. The card is a glance
-            // surface; an empty card is a standing
-            // invitation to look.
-            wellnessReadings?.let { readings ->
-                WellnessCard(sky = sky, readings = readings)
-            }
-
-            // One quiet line, and only when there is genuinely something
-            // to read. No badge, no count, no dot — this app has none of
-            // those anywhere by design, and a permanent entry point would
-            // be a standing invitation to check, which is the habit the
-            // rest of the launcher exists to unwind. A steady week
-            // produces no report and therefore no line at all.
-            if (hasReport) {
-                Text(
-                    text = stringResource(R.string.report_section),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = sky.textSecondary,
-                    modifier = Modifier
-                        .heightIn(min = 48.dp)
-                        .clickable(onClick = onOpenReport)
-                        .wrapContentHeight(Alignment.CenterVertically),
-                )
-            }
 
             // v0.35.0: the "Right now" section that v0.32.0
             // added is removed. The three reflective actions
@@ -2162,145 +2112,23 @@ private fun HomeSurface(
         }
 
         val context = LocalContext.current
-        // Support is one tap from the home screen and never buried: during
-        // acute distress or dissociation, three taps and a scroll is too far.
-        //
-        // v0.20.9: statusBarsPadding on the top-corner
-        // buttons. The outer Box already has
-        // safeDrawingPadding which should keep the
-        // buttons clear of the status bar, but on a
-        // real phone with the soft keyboard up the
-        // status-bar inset was being eaten somewhere
-        // upstream and the "support" / "history"
-        // labels rendered behind the status-bar
-        // icons. The defensive fix is to ask for the
-        // status-bar inset on the buttons
-        // themselves; the doubled padding when
-        // safeDrawingPadding is working is small
-        // (~24dp on top of ~24dp) and not a real
-        // cost on a phone screen.
-        TextButton(
-            onClick = {
-                runCatching {
-                    context.startActivity(Intent(context, SupportActivity::class.java))
-                }
-            },
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .statusBarsPadding()
-                .semantics { role = Role.Button },
-        ) {
-            Text(
-                text = stringResource(R.string.support_shortcut),
-                style = MaterialTheme.typography.labelMedium,
-                color = sky.textSecondary,
-            )
-        }
-
-        // v0.20.1 round 5: notes + check-in history
-        // entry points. TopEnd, so neither collides
-        // with TopStart (Support), BottomStart
-        // (Digest), or BottomEnd (Settings). One-tap,
-        // no scrolling. The brief: "I want to
-        // remember this" — the entry must be
-        // reachable the moment the user thinks it.
-        // Two stacked buttons (notes on top, history
-        // below) keep the home screen uncluttered
-        // without forcing the user into a menu.
-        //
-        // v0.20.9: same statusBarsPadding as the
-        // support button on the other corner — see
-        // its KDoc for the rationale.
-        //
-        // v0.25.2-A (Task 6): a third stacked button
-        // — "letters" — sits at the top of this
-        // Column, above notes + history. The
-        // Column's existing 8dp end padding (Bug 6
-        // fix from v0.25.1) already applies, so the
-        // new button inherits the same touch-target
-        // breathing room without a per-button
-        // re-pad. The brief: a letter is the one
-        // thing the launcher writes for the user —
-        // it must be one tap from the home surface
-        // the same way notes and history are.
-        Column(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .statusBarsPadding()
-                // Defensive 8dp end padding so the
-                // TextButton's right edge sits inside
-                // the screen on rounded-corner devices
-                // and on emulators that crop the last
-                // pixel. Without this the touchable
-                // area can be partially clipped and
-                // the "notes" / "history" buttons
-                // miss taps at the very right of the
-                // screen. The 8dp is small enough not
-                // to shift the visible label position.
-                .padding(end = 8.dp),
-            horizontalAlignment = Alignment.End,
-        ) {
-            TextButton(
-        modifier = Modifier.semantics { role = Role.Button },
-        onClick = onOpenLetters,
-                // v0.25.10 (B1): use stringResource for the label.
-                // v0.25.10 (B6): Role.Button for screen readers.
-                // v0.37.1: matched labelMedium + sky.textSecondary
-                // so the three stacked TopEnd buttons (Letters,
-                // notes, history) read as one quiet nav column
-                // instead of "Letters looks like a primary CTA".
-
-            ) {
-                Text(
-                    text = stringResource(R.string.letters_shortcut),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = sky.textSecondary,
-                )
-            }
-            TextButton(
-        modifier = Modifier.semantics { role = Role.Button },
-        onClick = onOpenNotes,
-                // v0.25.10 (B6): Role.Button
-
-            ) {
-                Text(
-                    text = stringResource(R.string.notes_shortcut),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = sky.textSecondary,
-                )
-            }
-            TextButton(
-        modifier = Modifier.semantics { role = Role.Button },
-        onClick = onOpenCheckInHistory,
-                // v0.25.10 (B6): Role.Button
-
-            ) {
-                Text(
-                    text = stringResource(R.string.check_in_history_shortcut),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = sky.textSecondary,
-                )
-            }
-        }
-
-        TextButton(
-            onClick = {
-                runCatching { context.startActivity(Intent(context, DigestActivity::class.java)) }
-            },
-            // v0.20.9: same navigationBarsPadding as the
-            // other two bottom corners — see their KDoc
-            // for the rationale.
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .navigationBarsPadding()
-                .semantics { role = Role.Button },
-        ) {
-            Text(
-                text = stringResource(R.string.digest_screen_title),
-                style = MaterialTheme.typography.labelMedium,
-                color = sky.textSecondary,
-            )
-        }
+        // v0.43.0: the home surface is stripped. The
+        // top-start "Open Support" button, the
+        // top-end "Letters / notes / history" stack,
+        // and the bottom-start "digest" button are
+        // removed. The Support surface, the Letters
+        // feature, the digest screen, the check-in
+        // history entry, and the "Your plan" / Self-
+        // compassion micro-moments / Small Things /
+        // Compassion Moment / 4-7-8 Breathing /
+        // ACCEPTS / Self-Compassion / Radical-
+        // Acceptance / Opposite-Action / Interpersonal
+        // / Diary Card / Letter-To-Part surfaces are
+        // gone from the app. The notes section is the
+        // only home-card now; settings is the only
+        // chrome. The bottom-center "search" button
+        // (app drawer) is kept so the launcher still
+        // does what a launcher is for.
     }
 }
 

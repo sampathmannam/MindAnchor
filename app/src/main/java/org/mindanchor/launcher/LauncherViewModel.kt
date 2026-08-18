@@ -396,6 +396,23 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    /**
+     * v0.43.0: delete a note from the home card.
+     * Wired to the × affordance on each row of the
+     * recent-notes list. The same delete path the full
+     * NoteActivity uses, so the note is removed from
+     * disk, not just from the in-memory list. Blank
+     * input and missing notes are no-ops; the row
+     * is removed optimistically from the [notes] flow
+     * and the prefs write happens in [viewModelScope].
+     */
+    fun deleteNote(id: Long) {
+        if (id <= 0L) return
+        viewModelScope.launch {
+            notesPrefs.delete(id)
+        }
+    }
+
     // --- Wellness signals (N-of-1, from Health Connect) ---
     //
     // The home card surfaces the per-signal reading against the
