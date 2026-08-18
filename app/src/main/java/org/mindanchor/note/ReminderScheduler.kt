@@ -11,13 +11,34 @@ import android.util.Log
  * v0.44.0: schedule and cancel per-note reminder
  * alarms.
  *
- * The launcher uses [AlarmManager.setExactAndAllowWhileIdle]
- * to fire a [ReminderReceiver] at the note's
+ * The launcher uses [AlarmManager.setAlarmClock] to
+ * fire a [ReminderReceiver] at the note's
  * [org.mindanchor.model.Note.reminderAt] time. The
  * alarm is the only thing that wakes the app — the
  * note is saved with `reminderAt` set, the scheduler
  * is told to schedule, and from that point on the
  * OS owns the alarm until the receiver fires.
+ *
+ * ## v0.45.1: migrated from `setExactAndAllowWhileIdle`
+ * to `setAlarmClock`
+ *
+ * The previous implementation used
+ * [AlarmManager.setExactAndAllowWhileIdle], which on
+ * Android 12+ is throttled by the system's
+ * `app_standby` bucket even when the `allow-while-idle`
+ * flag is set. An empirical repro on the v0.45.0
+ * FireTest reminder showed the alarm sitting
+ * `app_standby=-1h10m34s` past due with no sign of
+ * firing. `setAlarmClock` is the only API
+ * guaranteed to fire on the dot on Android 12+
+ * regardless of `app_standby` bucket or Doze mode.
+ *
+ * The cost is a small clock icon in the status bar
+ * for the duration of the pending alarm. For a
+ * mental-health launcher, "your reminder is pending"
+ * is a *positive* affordance — the user has made a
+ * promise to themselves, and the system is visibly
+ * holding them to it.
  *
  * ## Why AlarmManager and not a worker / coroutine
  *
@@ -35,14 +56,16 @@ import android.util.Log
  * ## Why exact
  *
  * The user's note is a "remind me at 7pm" — they
- * do not want a 15-minute window. `setExactAndAllowWhileIdle`
- * is the only [AlarmManager] method that fires on
- * the dot in Doze mode. The SCHEDULE_EXACT_ALARM
- * permission is not required on Android 13+ when
- * the app does not target SDK 34+, but the launcher
- * declares it anyway (declared in the manifest,
- * granted on install) so the user does not see a
- * "this reminder may be late" dialog.
+ * do not want a 15-minute window. `setAlarmClock` is
+ * the only [AlarmManager] method that fires on
+ * the dot in Doze mode on Android 12+ without being
+ * subject to the `app_standby` bucket. The
+ * SCHEDULE_EXACT_ALARM permission is not required on
+ * Android 13+ when the app does not target SDK 34+,
+ * but the launcher declares it anyway (declared in
+ * the manifest, granted on install) so the user
+ * does not see a "this reminder may be late"
+ * dialog.
  *
  * ## The PendingIntent identity
  *
@@ -103,6 +126,14 @@ object ReminderScheduler {
      * fire, and the right behaviour is to surface
      * "reminder time passed" on the row rather than
      * firing immediately.
+     *
+     * v0.45.1: uses [AlarmManager.setAlarmClock]
+     * instead of `setExactAndAllowWhileIdle` so
+     * the alarm is not throttled by the Android 12+
+     * `app_standby` bucket. The trade-off is a
+     * small clock icon in the status bar while the
+     * alarm is pending — accepted as a positive
+     * affordance for a mental-health surface.
      */
     fun schedule(context: Context, noteId: Long, atMillis: Long) {
         if (atMillis <= System.currentTimeMillis()) {
@@ -111,52 +142,61 @@ object ReminderScheduler {
         }
         val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val pi = pendingIntentFor(context, noteId)
+        val showIntent = Intent(context, org.mindanchor.HomeActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val showPi = PendingIntent.getActivity(
+            context,
+            noteId.toInt(),
+            showIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                // canScheduleExactAlarms() is true on a
-                // stock phone for the install-time
-                // permission. If the user has revoked
-                // the permission via Settings, the call
-                // throws SecurityException; the
-                // runCatching at the call site catches
-                // and the user gets a soft "set
-                // reminder" confirmation that the
-                // reminder may be late.
-                if (am.canScheduleExactAlarms()) {
-                    am.setExactAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
-                        atMillis,
-                        pi,
-                    )
-                } else {
-                    // Fall back to an inexact alarm.
-                    // The reminder will fire within a
-                    // few minutes of the requested time
-                    // — the launcher documents the
-                    // behaviour in the row label
-                    // ("reminder, may be late").
-                    am.setAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
-                        atMillis,
-                        pi,
-                    )
-                }
-            } else {
-                am.setExactAndAllowWhileIdle(
+            // v0.45.1: setAlarmClock is the only API
+            // that fires on the dot on Android 12+
+            // regardless of app_standby bucket.
+            // Unlike setExactAndAllowWhileIdle, it
+            // is NOT subject to the temporary
+            // allowlist restriction.
+            //
+            // The first argument is an
+            // [AlarmClockInfo] wrapping the trigger
+            // time and a "show" PendingIntent. The
+            // system uses the show-intent as the
+            // tap target for the clock icon it
+            // displays in the status bar while the
+            // alarm is pending. We point it at
+            // HomeActivity so tapping the clock
+            // returns the user to the launcher.
+            //
+            // The second argument is the operation
+            // PendingIntent — what the alarm
+            // actually fires when the time hits.
+            // That is the ReminderReceiver.
+            val info = AlarmManager.AlarmClockInfo(atMillis, showPi)
+            am.setAlarmClock(info, pi)
+            Log.i(TAG, "scheduled reminder (setAlarmClock) for noteId=$noteId at $atMillis")
+        } catch (e: SecurityException) {
+            // On a restricted device the user has
+            // revoked SCHEDULE_EXACT_ALARM. The
+            // v0.44.0 fallback was
+            // `setAndAllowWhileIdle` (inexact);
+            // v0.45.1 keeps the same fallback so
+            // an over-restrictive Settings
+            // configuration still surfaces a
+            // reminder, even if late.
+            Log.e(TAG, "schedule: SecurityException for noteId=$noteId; falling back to inexact", e)
+            try {
+                am.setAndAllowWhileIdle(
                     AlarmManager.RTC_WAKEUP,
                     atMillis,
                     pi,
                 )
+                Log.w(TAG, "schedule: fell back to inexact for noteId=$noteId")
+            } catch (e2: SecurityException) {
+                Log.e(TAG, "schedule: even inexact failed for noteId=$noteId", e2)
+                throw e2
             }
-            Log.i(TAG, "scheduled reminder for noteId=$noteId at $atMillis")
-        } catch (e: SecurityException) {
-            Log.e(TAG, "schedule: SecurityException for noteId=$noteId", e)
-            // Re-throw so the caller can decide. The
-            // caller in LauncherViewModel.saveReminder
-            // catches and surfaces a soft "reminder
-            // may be late" UI; the data layer is
-            // unaffected.
-            throw e
         }
     }
 
@@ -170,6 +210,21 @@ object ReminderScheduler {
         val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val pi = pendingIntentFor(context, noteId)
         am.cancel(pi)
+        // v0.45.1: setAlarmClock uses a separate
+        // show-intent PendingIntent (the clock-
+        // icon tap target). Cancel it too, or
+        // the status bar clock icon lingers
+        // after the reminder has been deleted.
+        val showIntent = Intent(context, org.mindanchor.HomeActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val showPi = PendingIntent.getActivity(
+            context,
+            noteId.toInt(),
+            showIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        am.cancel(showPi)
         Log.i(TAG, "cancelled reminder for noteId=$noteId")
     }
 

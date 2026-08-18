@@ -1500,34 +1500,47 @@ private fun QuickNotesCard(
     // distinction Brewster CHI 2007 names is preserved
     // by the gate's `type` parameter.
     val haptics = org.mindanchor.ui.LocalHapticFeedbackGate.current
-    // v0.44.0: the list of time options for
-    // Task and Reminder. The millis-from-now
-    // values are computed at render time
-    // (the user sees a label like "in 1
-    // hour" that is always relative to
-    // now, not to a saved "1 hour from
-    // save time"). Task shows "no due /
-    // in 1h / in 3h / in 1d / in 3d";
-    // Reminder shows "in 5m / in 15m /
-    // in 1h / in 3h".
-    val now = remember { System.currentTimeMillis() }
-    val taskOffsets = remember(now) {
-        listOf<Pair<String, Long?>>(
-            "no due" to null,
-            "in 1 hour" to (now + 60L * 60L * 1000L),
-            "in 3 hours" to (now + 3L * 60L * 60L * 1000L),
-            "tomorrow" to (now + 24L * 60L * 60L * 1000L),
-            "in 3 days" to (now + 3L * 24L * 60L * 60L * 1000L),
-        )
-    }
-    val reminderOffsets = remember(now) {
-        listOf(
-            "in 5 min" to (now + 5L * 60L * 1000L),
-            "in 15 min" to (now + 15L * 60L * 1000L),
-            "in 1 hour" to (now + 60L * 60L * 1000L),
-            "in 3 hours" to (now + 3L * 60L * 60L * 1000L),
-        )
-    }
+    // v0.45.1: bug fix for the "at past" reminder
+    // bug seen on the FireTest (the user typed a
+    // note, sat on the home screen for 9 minutes,
+    // tapped "in 5 min", and the reminder was set
+    // for 4 min in the past — ReminderScheduler
+    // then ignored it because atMillis < now).
+    //
+    // The previous code captured `now` once at
+    // composition time via `remember { System.currentTimeMillis() }`
+    // and built the offsets as absolute epoch
+    // millis. The labels ("in 5 min", "in 1
+    // hour", ...) are still relative to now at
+    // display time, but the absolute times were
+    // frozen at first composition. The fix: store
+    // the offsets as `Long?` millis-from-now
+    // deltas, and compute the absolute time at
+    // click time inside the onClick handler.
+    //
+    // The labels are still hardcoded; they read
+    // correctly no matter how long the user has
+    // been on the home screen, because they are
+    // *promises* ("in 5 min" means "5 minutes
+    // from when you tap Save"), not values.
+    //
+    // The list shape is preserved so the rest of
+    // the call site is unchanged. Task offsets
+    // have `null` for "no due" so the picker
+    // stays the same.
+    val taskOffsets: List<Pair<String, Long?>> = listOf(
+        "no due" to null,
+        "in 1 hour" to (60L * 60L * 1000L),
+        "in 3 hours" to (3L * 60L * 60L * 1000L),
+        "tomorrow" to (24L * 60L * 60L * 1000L),
+        "in 3 days" to (3L * 24L * 60L * 60L * 1000L),
+    )
+    val reminderOffsets: List<Pair<String, Long?>> = listOf(
+        "in 5 min" to (5L * 60L * 1000L),
+        "in 15 min" to (15L * 60L * 1000L),
+        "in 1 hour" to (60L * 60L * 1000L),
+        "in 3 hours" to (3L * 60L * 60L * 1000L),
+    )
     Column(
         modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -1542,11 +1555,21 @@ private fun QuickNotesCard(
             style = MaterialTheme.typography.titleLarge,
             color = sky.textPrimary,
         )
+        // v0.45.1: plural-aware note count. The
+        // string resource is an Android <plurals>
+        // element with separate "one" and "other"
+        // forms ("1 note on this phone" / "X notes
+        // on this phone") so the line reads
+        // naturally at every count.
         Text(
             text = if (recent.isEmpty()) {
                 stringResource(R.string.quick_notes_count_zero)
             } else {
-                stringResource(R.string.quick_notes_count_n, recent.size)
+                androidx.compose.ui.res.pluralStringResource(
+                    R.plurals.quick_notes_count_n,
+                    recent.size,
+                    recent.size,
+                )
             },
             style = MaterialTheme.typography.bodySmall,
             color = sky.textSecondary,
@@ -1710,20 +1733,39 @@ private fun QuickNotesCard(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // v0.45.1: the Save button is only enabled
+            // when the draft is non-blank. For
+            // Reminder, also check that the selected
+            // offset is positive (a 0 or negative
+            // delta would resolve to a past time).
+            // For Task, the first option is "no due"
+            // (null delta) which is always allowed.
             val (label, enabled) = when (kind) {
                 1 -> stringResource(R.string.quick_notes_save_task) to (draft.isNotBlank())
-                2 -> stringResource(R.string.quick_notes_save_reminder) to (draft.isNotBlank() && reminderOffsets[timeOffsetIndex.coerceIn(0, reminderOffsets.lastIndex)].second > System.currentTimeMillis())
+                2 -> stringResource(R.string.quick_notes_save_reminder) to (draft.isNotBlank() && (reminderOffsets.getOrNull(timeOffsetIndex)?.second ?: 0L) > 0L)
                 else -> stringResource(R.string.quick_notes_save) to (draft.isNotBlank())
             }
             OutlinedButton(
                 onClick = {
+                    // v0.45.1: capture `now` at click
+                    // time, not at composition time.
+                    // Each task/reminder save computes
+                    // its absolute fire time from the
+                    // delta in the offsets list. This
+                    // closes the "at past" bug where
+                    // ReminderScheduler would silently
+                    // ignore reminders set for a time
+                    // before the current moment.
+                    val nowMs = System.currentTimeMillis()
                     when (kind) {
                         1 -> {
-                            val due = taskOffsets[timeOffsetIndex.coerceIn(0, taskOffsets.lastIndex)].second
+                            val delta = taskOffsets.getOrNull(timeOffsetIndex)?.second
+                            val due = if (delta == null) null else nowMs + delta
                             onSaveTask(draft, due, pinned)
                         }
                         2 -> {
-                            val at = reminderOffsets[timeOffsetIndex.coerceIn(0, reminderOffsets.lastIndex)].second
+                            val delta = reminderOffsets.getOrNull(timeOffsetIndex)?.second ?: 0L
+                            val at = if (delta > 0L) nowMs + delta else nowMs
                             onSaveReminder(draft, at, pinned)
                         }
                         else -> onSave(draft, pinned)
@@ -1805,31 +1847,62 @@ private fun QuickNotesCard(
                             modifier = Modifier.semantics { role = Role.Checkbox },
                         )
                     } else {
-                        // v0.44.0: for non-task
-                        // rows, the leading icon
-                        // is a tiny "T" (Task) /
-                        // "R" (Reminder) / blank
-                        // (Quick) chip, so the
-                        // user can see the kind
-                        // at a glance. A real icon
-                        // would be an asset; a
-                        // character is good enough
-                        // for v0.44.0 and keeps
-                        // the home text-only.
+                        // v0.45.1: color-coded kind chip
+                        // for the leading icon on a
+                        // non-task row. A small
+                        // color-graded circle (sage for
+                        // Task, indigo for Reminder, no
+                        // chip for Quick) replaces the
+                        // previous "T" / "R" / blank
+                        // character chip. The colour
+                        // reads at a glance without
+                        // reading a letter.
+                        //
+                        // The colour is a Box with
+                        // background + 2-char label so
+                        // the type is still legible for
+                        // a screen-reader user. The label
+                        // keeps the home text-only — no
+                        // icon asset added in v0.45.1.
+                        val (chipBg, chipFg, chipLabel) = when (note.type) {
+                            org.mindanchor.model.NoteType.REMINDER -> Triple(
+                                androidx.compose.ui.graphics.Color(0xFFC7D2FE), // indigo-200
+                                androidx.compose.ui.graphics.Color(0xFF3730A3), // indigo-800
+                                "Re",
+                            )
+                            org.mindanchor.model.NoteType.TASK -> Triple(
+                                androidx.compose.ui.graphics.Color(0xFFB7C9A8), // sage-300
+                                androidx.compose.ui.graphics.Color(0xFF3F5233), // sage-800
+                                "Ta",
+                            )
+                            else -> Triple(
+                                androidx.compose.ui.graphics.Color.Transparent,
+                                sky.textSecondary,
+                                "",
+                            )
+                        }
                         Box(
                             modifier = Modifier
                                 .size(40.dp),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text(
-                                text = when (note.type) {
-                                    org.mindanchor.model.NoteType.REMINDER -> "R"
-                                    org.mindanchor.model.NoteType.TASK -> "T"
-                                    else -> ""
-                                },
-                                style = MaterialTheme.typography.titleMedium,
-                                color = sky.textSecondary,
-                            )
+                            if (chipLabel.isNotEmpty()) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .background(
+                                            color = chipBg,
+                                            shape = androidx.compose.foundation.shape.CircleShape,
+                                        ),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        text = chipLabel,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = chipFg,
+                                    )
+                                }
+                            }
                         }
                     }
                     Column(modifier = Modifier.weight(1f)) {

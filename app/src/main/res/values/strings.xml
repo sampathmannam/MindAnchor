@@ -707,9 +707,17 @@
     <string name="quick_notes_empty">Nothing yet. The first line you write lands here.</string>
     <string name="quick_notes_view_all">View all</string>
     <string name="quick_notes_saved_at">%1$s · %2$s</string>
-    <!-- v0.43.0: count line under the section header. -->
+    <!-- v0.43.0: count line under the section header.
+         v0.45.1: plural-aware. "1 note" / "X notes on
+         this phone". Uses the Android <plurals> form
+         so the launcher honours en-GB, en-US, and the
+         other plural categories the user might be
+         rendering in. -->
     <string name="quick_notes_count_zero">No notes yet</string>
-    <string name="quick_notes_count_n">%1$d notes on this phone</string>
+    <plurals name="quick_notes_count_n">
+        <item quantity="one">%1$d note on this phone</item>
+        <item quantity="other">%1$d notes on this phone</item>
+    </plurals>
     <!-- v0.44.0: kind picker + Task / Reminder save flow. -->
     <string name="note_kind_quick">Quick</string>
     <string name="note_kind_task">Task</string>
@@ -718,7 +726,16 @@
     <string name="quick_notes_input_hint_reminder">What should come back to you — the body is the reminder, the picker is when.</string>
     <string name="quick_notes_save_task">Save as task</string>
     <string name="quick_notes_save_reminder">Save reminder</string>
-    <string name="note_subtitle_at">at %1$s</string>
+    <!-- v0.45.1: the reminder subtitle is just the
+         time string — relative times already start
+         with "in" ("in 13 min"), absolute times
+         don't need a leading preposition either.
+         The previous "at %1$s" double-prepositioned
+         a relative time to "at in 13 min". The
+         companion `note_subtitle_due` keeps "due "
+         because "due" is a useful signpost for a
+         task. -->
+    <string name="note_subtitle_at">%1$s</string>
     <string name="note_subtitle_due">due %1$s</string>
     <!-- v0.44.0: the reminder flash surface. -->
     <string name="flash_title">Reminder fired</string>
