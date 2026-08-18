@@ -2167,7 +2167,22 @@ private fun QuickNotesCard(
             // icon for reminders, and the existing ×.
             Spacer(Modifier.height(16.dp))
             recent.take(3).forEach { note ->
-                val title = note.title.ifBlank { note.body.take(80) }
+                // v0.50.0: word-boundary
+                // truncation. The home card
+                // has a 2-line max; if the
+                // first-line body exceeds the
+                // available width, the second
+                // line shows an ellipsis.
+                // Pre-truncating at a word
+                // boundary (not mid-word) keeps
+                // the visible text readable:
+                // "Send a message to dad. Just
+                // a short one. The cricket
+                // score…" instead of
+                // "The cricket sc…".
+                val title = note.title.ifBlank {
+                    truncateAtWord(note.body, 80)
+                }
                 val whenText = noteTimeText(note)
                 Row(
                     modifier = Modifier
@@ -2247,13 +2262,31 @@ private fun QuickNotesCard(
                         }
                     }
                     Column(modifier = Modifier.weight(1f)) {
+                        // v0.50.0: single line on
+                        // the home card. The home
+                        // card is glance-sized —
+                        // 100% of the title is read
+                        // when the row is visible;
+                        // the second line was
+                        // adding height for the
+                        // same word count the
+                        // single line already
+                        // showed (the
+                        // pre-truncateAtWord above
+                        // cuts at a word
+                        // boundary, so the
+                        // single line is full
+                        // words, not mid-word).
+                        // The previous v0.45.1
+                        // `maxLines = 2` is
+                        // dropped.
                         Text(
                             text = title,
                             style = MaterialTheme.typography.bodyLarge.copy(
                                 textDecoration = if (note.done) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
                             ),
                             color = if (note.done) sky.textSecondary else sky.textPrimary,
-                            maxLines = 2,
+                            maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
                         // v0.44.0: due / reminder
@@ -3505,13 +3538,27 @@ private fun NotesTabRow(
     onPin: (Long, Boolean) -> Unit,
     onMarkDone: (Long, Boolean) -> Unit,
 ) {
-    val title = note.title.ifBlank { note.body.take(80) }
+    // v0.50.0: title truncates at the last
+    // whitespace before 80 chars (single line)
+    // so a multi-line body doesn't make a row
+    // taller than its neighbours. The home
+    // card already does this; consistency
+    // matters because the user scans the
+    // Notes tab looking for the same titles.
+    val title = note.title.ifBlank { truncateAtWord(note.body, 80) }
     val whenText = notesTabDateTimeText(note)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 56.dp)
-            .padding(vertical = 6.dp),
+            .heightIn(min = 52.dp)
+            // v0.50.0: vertical padding 6dp ->
+            // 4dp. The row was 180-200px tall
+            // for 100 notes; we need to fit more
+            // rows per screen without losing
+            // touch target size (pin/delete
+            // TextButton below is 36dp tall, the
+            // checkbox is 48dp Material default).
+            .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // v0.45.0: the type-leading icon.
@@ -3519,19 +3566,45 @@ private fun NotesTabRow(
         // "T" for Task, "R" for Reminder,
         // blank for Quick. Keeps the
         // text-only aesthetic.
-        Box(
-            modifier = Modifier.size(40.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = when (note.type) {
-                    org.mindanchor.model.NoteType.REMINDER -> "R"
-                    org.mindanchor.model.NoteType.TASK -> "T"
-                    else -> ""
-                },
-                style = MaterialTheme.typography.titleMedium,
-                color = sky.textSecondary,
-            )
+        //
+        // v0.50.0: the icon is now a coloured
+        // chip — sage (T) or indigo (R) on a
+        // 36dp rounded square background,
+        // matching the kind-picker chip on
+        // the home card. Quick notes leave
+        // the space empty. The chip pattern
+        // reinforces the colour language:
+        // sage == Task, indigo == Reminder,
+        // anywhere the user sees those colours
+        // they mean the same thing.
+        val (chipBg, chipFg, chipLabel) = when (note.type) {
+            org.mindanchor.model.NoteType.REMINDER ->
+                Triple(KindIndigoBg, KindIndigoFg, "R")
+            org.mindanchor.model.NoteType.TASK ->
+                Triple(KindSageBg, KindSageFg, "T")
+            else -> Triple(Color.Transparent, Color.Transparent, "")
+        }
+        if (chipLabel.isNotEmpty()) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .background(
+                        color = chipBg,
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = chipLabel,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = chipFg,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                )
+            }
+        } else {
+            // Quick note: keep the 36dp slot so
+            // titles align with Task/Reminder rows.
+            Spacer(Modifier.size(36.dp))
         }
         // v0.45.0: TASK notes show a
         // checkbox; non-task rows skip it.
@@ -3550,7 +3623,15 @@ private fun NotesTabRow(
                     textDecoration = if (note.done) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
                 ),
                 color = if (note.done) sky.textSecondary else sky.textPrimary,
-                maxLines = 2,
+                // v0.50.0: single line. The Notes
+                // tab is a list, not a feed; the
+                // user is scanning for "is this the
+                // one I want to open?" and a single
+                // line per row packs more rows on
+                // screen. The body is pre-truncated
+                // to 80 chars at the word boundary
+                // (see [truncateAtWord] call above).
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
@@ -3591,7 +3672,15 @@ private fun NotesTabRow(
         TextButton(
             onClick = { onPin(note.id, !note.pinned) },
             modifier = Modifier
-                .heightIn(min = 40.dp)
+                // v0.50.0: 40 -> 36dp. The pin
+                // glyph itself is 20dp, so the
+                // 36dp button is still a comfortable
+                // tap target (Material 3 minimum
+                // is 48dp with a 32dp visual; we
+                // accept 36dp because the row's
+                // checkbox provides the larger
+                // hit area for that column).
+                .heightIn(min = 36.dp)
                 .semantics {
                     role = Role.Button
                 },
@@ -3605,7 +3694,13 @@ private fun NotesTabRow(
         TextButton(
             onClick = { onDelete(note.id) },
             modifier = Modifier
-                .heightIn(min = 40.dp)
+                // v0.50.0: 40 -> 36dp. Same
+                // reasoning as the pin button:
+                // the "×" character is 24sp, so
+                // 36dp wraps it without padding
+                // pressure, and the row stays
+                // compact.
+                .heightIn(min = 36.dp)
                 .semantics { role = Role.Button },
         ) {
             Text(
@@ -3637,6 +3732,52 @@ private fun notesTabDateTimeText(note: Note): String {
     val date = dateFormat.format(java.util.Date(note.updatedAt))
     val time = timeFormat.format(java.util.Date(note.updatedAt))
     return "$date · $time"
+}
+
+/**
+ * v0.50.0: word-boundary truncation for note
+ * titles. The default Compose
+ * [androidx.compose.ui.text.style.TextOverflow.Ellipsis]
+ * truncates by character — a title like
+ * "Read the long email from Pradeep"
+ * becomes "Read the long email fr…"
+ * (mid-word), which reads awkwardly.
+ *
+ * The launcher instead finds the last
+ * whitespace at or before [maxChars] and
+ * cuts there, so a long title becomes
+ * "Read the long email…" — the user
+ * sees a complete word + an ellipsis, and
+ * the eye does not have to re-parse a
+ * mid-word break.
+ *
+ * The function is local to this file
+ * (used in two places: the Notes tab
+ * `body` line, the home card's
+ * `recent` row). The Notes tab pins
+ * the title to a single line; the home
+ * card keeps the existing `maxLines = 2`
+ * but uses this helper as a pre-pass so
+ * each line is word-bounded.
+ *
+ * Edge cases:
+ *  - input shorter than [maxChars]: returned
+ *    verbatim.
+ *  - no whitespace before [maxChars]: falls
+ *    back to the character cut, the same
+ *    way Material 3 does.
+ *  - empty input: returned verbatim.
+ */
+private fun truncateAtWord(text: String, maxChars: Int): String {
+    if (text.length <= maxChars) return text
+    if (maxChars <= 0) return "…"
+    val cut = text.substring(0, maxChars)
+    val lastSpace = cut.lastIndexOf(' ')
+    return if (lastSpace > 0) {
+        text.substring(0, lastSpace).trimEnd() + "…"
+    } else {
+        cut + "…"
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -3699,7 +3840,48 @@ private fun DrawerSurface(
                 // them by reading the hint; the
                 // "!" prefix is a search-engine
                 // convention the user already knows.
-                Text(stringResource(R.string.search_hint_v047))
+                //
+                // v0.50.0: the string from
+                // [R.string.search_hint_v047] is
+                // rendered with each "!" character
+                // wrapped in a [SpanStyle] that
+                // uses [KindSageFg] (the sage
+                // accent from the home card kind
+                // picker). The sage colour is the
+                // existing action accent on the
+                // launcher — the user has already
+                // learned it from the Task chip —
+                // so a "!" in sage reads as
+                // "actionable prefix", while the
+                // bang name in default text reads
+                // as a label. No more backticks:
+                // they were a code-block convention
+                // that does not survive a phone
+                // placeholder and the colour does
+                // the same job.
+                val hint = stringResource(R.string.search_hint_v047)
+                Text(
+                    text = androidx.compose.ui.text.buildAnnotatedString {
+                        var index = 0
+                        while (index < hint.length) {
+                            val bangAt = hint.indexOf('!', index)
+                            if (bangAt < 0) {
+                                append(hint.substring(index))
+                                break
+                            }
+                            append(hint.substring(index, bangAt))
+                            pushStyle(
+                                androidx.compose.ui.text.SpanStyle(
+                                    color = KindSageFg,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                                ),
+                            )
+                            append("!")
+                            pop()
+                            index = bangAt + 1
+                        }
+                    },
+                )
             },
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),

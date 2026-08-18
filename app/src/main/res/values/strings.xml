@@ -22,11 +22,22 @@
     <string name="search_hint">Type to find an app…</string>
     <!-- v0.47.0: drawer-bang hint. The AIO Launcher
          "bangs in search" pattern; the user types
-         `!ground`, `!note`, `!task`, `!settings`,
-         or `!mood` to navigate. The hint is the
-         first thing the user sees when the drawer
-         opens with no query. -->
-    <string name="search_hint_v047">Type an app, or `!ground` `!note` `!task` `!settings` `!mood`</string>
+         !ground, !note, !task, !settings, or !mood
+         to navigate. The hint is the first thing
+         the user sees when the drawer opens with
+         no query.
+
+         v0.50.0: the hint is now a comma-separated
+         list. The "!" prefix is highlighted in the
+         kind-sage accent colour so the eye catches
+         it as the actionable part of each token;
+         the backticks are gone because the
+         accent-colour prefix does the same job
+         visually. The string is rendered through
+         [androidx.compose.ui.text.buildAnnotatedString]
+         in HomeScreen.kt::DrawerSurface, with a
+         SpanStyle over each "!". -->
+    <string name="search_hint_v047">Type an app, or !ground, !note, !task, !settings, !mood</string>
     <!-- v0.47.0: 3 Good Things card. Three free-text
          rows the user fills in at any point during
          the day. The rows clear at the local

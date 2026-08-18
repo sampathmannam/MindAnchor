@@ -96,7 +96,19 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
      */
     val notes: StateFlow<List<Note>> =
         notesPrefs.notes
-            .map { state -> NoteStore.sortedForList(state.notes).take(QUICK_NOTES_RECENT_CAP) }
+            .map { state ->
+                // v0.50.0: the home card surfaces
+                // ACTIVE notes only. A TASK that the
+                // user has marked done is a closed
+                // loop — the launcher does not need
+                // to keep showing it on the home
+                // surface (the Notes tab still does).
+                // The cap is unchanged at
+                // [QUICK_NOTES_RECENT_CAP] = 3.
+                NoteStore.sortedForList(
+                    state.notes.filter { !it.done }
+                ).take(QUICK_NOTES_RECENT_CAP)
+            }
             .stateIn(
                 viewModelScope,
                 SharingStarted.WhileSubscribed(5_000),
