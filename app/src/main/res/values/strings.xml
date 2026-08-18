@@ -1071,6 +1071,31 @@
     <string name="accepts_sensations_body">Hold something cold, smell something strong, listen to one thing on purpose. A sensation in is louder than a thought on its own.</string>
     <string name="accepts_done">Done</string>
 
+    <!-- v0.38.0: 4-7-8 rhythmic breathing (Zaccaro et al. 2018
+         *Frontiers in Human Neuroscience* 12:353). Inhale 4s,
+         hold 7s, exhale 8s. The circle is the count; no number
+         is shown on screen. The citation lives in a quiet footer
+         so the research is honest about where the protocol
+         came from without cluttering the breathing surface. -->
+    <string name="breathing_title">4-7-8</string>
+    <string name="breathing_inhale">inhale</string>
+    <string name="breathing_hold">hold</string>
+    <string name="breathing_exhale">exhale</string>
+    <string name="breathing_done">Done</string>
+    <string name="breathing_citation">Zaccaro et al. 2018 — slow-paced breathing lowers state anxiety.</string>
+    <string name="breathing_support_button">4-7-8 breathing</string>
+    <string name="breathing_support_caption">A four-second inhale, a seven-second hold, an eight-second exhale. The circle is the count.</string>
+
+    <!-- v0.38.0: DBT PLEASE-mastery log (Linehan 1993 ch. 9).
+         One short line per day, however small. No streak, no
+         score, no chart. -->
+    <string name="receipts_title">Receipts</string>
+    <string name="receipts_caption">One small thing you did today, however small. A line, not a journal.</string>
+    <string name="receipts_input_hint">Walked to the corner. Ate breakfast. Replied to one message.</string>
+    <string name="receipts_save">Save</string>
+    <string name="receipts_empty">No receipts yet. The first small thing counts.</string>
+    <string name="receipts_support_button">Receipts</string>
+
     <!-- v0.28.0: DBT Diary Card (Linehan 1993 ch. 11; Dimeff et al.
          2011). Single daily prompt, 5 fields. The card is the
          gold standard for BPD mood tracking — replaces the ad-hoc

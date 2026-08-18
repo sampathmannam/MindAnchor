@@ -489,6 +489,12 @@
             android:name=".support.AcceptsActivity"
             android:exported="false" />
         <activity
+            android:name=".support.BreathingActivity"
+            android:exported="false" />
+        <activity
+            android:name=".support.ReceiptsActivity"
+            android:exported="false" />
+        <activity
             android:name=".support.DiaryCardActivity"
             android:exported="false" />
         <activity

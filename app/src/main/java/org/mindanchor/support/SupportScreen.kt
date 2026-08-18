@@ -261,6 +261,15 @@ fun SupportScreen(
             //  10. DBT Diary Card (new)
             //  11. Interpersonal skills = DEAR MAN / GIVE / FAST (v0.27.0)
             //
+            // v0.38.0 (audit #9 add): 4-7-8 breathing inserted at
+            // position 4 — between 5-4-3-2-1 (line 218) and
+            // Opposite Action (line 331). It is the most
+            // in-the-moment tool (no reading, no writing, no
+            // reflection; the breath IS the intervention) so it
+            // belongs at the top of the more-skills list.
+            // Research: Zaccaro et al. 2018 *Frontiers in Human
+            // Neuroscience* 12:353.
+            //
             // In-the-moment skills come first because a person in
             // crisis who has just scrolled past the DBT crisis
             // skills (STOP / TIPP / 5-4-3-2-1) is still in a
@@ -328,6 +337,31 @@ fun SupportScreen(
             // §2.5, §2.3, §3 (DBT Diary Card, Distress
             // Thermometer, Opposite Action are the highest-fit
             // remaining gaps for the target user).
+            //
+            // v0.38.0: 4-7-8 breathing (Zaccaro 2018) added
+            // FIRST in the more-skills list because it is the
+            // most in-the-moment tool — inhale-hold-exhale, no
+            // reading, no writing, no reflection. A user mid-
+            // crisis who has scrolled past the in-the-moment
+            // skills (STOP / TIPP / 5-4-3-2-1) is still in a
+            // distressed window; a single breath is the right
+            // next step before any reflective practice.
+            TextButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(
+                                context,
+                                org.mindanchor.support.BreathingActivity::class.java,
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .semantics { role = Role.Button },
+            ) { Text(stringResource(R.string.breathing_support_button)) }
             TextButton(
                 onClick = {
                     runCatching {
@@ -444,6 +478,29 @@ fun SupportScreen(
                     .heightIn(min = 48.dp)
                     .semantics { role = Role.Button },
             ) { Text(stringResource(R.string.support_diary_card_button)) }
+            // v0.38.0: Receipts (DBT PLEASE-mastery log,
+            // Linehan 1993 ch. 9) added between Diary Card
+            // and Interpersonal Skills. The audit positions
+            // receipts as a "what I did" practice that
+            // bridges "what I noticed" (Diary Card) and
+            // "what I did with another person" (DEAR MAN /
+            // GIVE / FAST).
+            TextButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(
+                                context,
+                                org.mindanchor.support.ReceiptsActivity::class.java,
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .semantics { role = Role.Button },
+            ) { Text(stringResource(R.string.receipts_support_button)) }
             TextButton(
                 onClick = {
                     runCatching {
