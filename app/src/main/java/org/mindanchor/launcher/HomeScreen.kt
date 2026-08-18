@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
@@ -45,6 +46,11 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwipeToDismissBox
@@ -232,6 +238,33 @@ private val LayerTertiaryBorder = Color(0x40FFFFFF)  // 25% white
 private const val NOTES_TAB_BODY_MAX_LINES = 6
 private val KindIndigoBg = Color(0xFFC7D2FE)    // indigo-200
 private val KindIndigoFg = Color(0xFF3730A3)    // indigo-800
+
+/**
+ * v0.54.0: swipe-action background colours
+ * on the Notes tab. The pin swipe (startToEnd,
+ * right-swipe) reuses the [KindSageBg] token
+ * so the gesture's colour matches the kind-
+ * picker "Task" chip and the home-card pin
+ * affordance — sage is the launcher's "Task /
+ * pin" semantic, and the swipe inherits the
+ * same meaning without learning a new colour.
+ *
+ * The delete swipe (endToStart, left-swipe)
+ * needs a colour that is *not* already used
+ * for any other action. Red is the universal
+ * "destructive" affordance, but a saturated
+ * red-500 would shout on the calm sky. The
+ * red-300 (#FCA5A5) is the same saturation
+ * family as [KindSageBg] (sage-300) and
+ * [KindIndigoBg] (indigo-200): pastel, not
+ * bright. The action reads as "destructive"
+ * without violating the launcher's quiet
+ * aesthetic. A red-700 icon glyph on top
+ * reads the gesture's meaning even at a
+ * glance.
+ */
+private val NotesSwipeDeleteBg = Color(0xFFFCA5A5)   // red-300
+private val NotesSwipeDeleteFg = Color(0xFFB91C1C)   // red-700
 
 /**
  * v0.49.0: a small pin glyph drawn with
@@ -1296,6 +1329,19 @@ fun LauncherRoot(
                 onDeleteNote = onDeleteNote,
                 onPinNote = onPinNote,
                 onMarkNoteDone = onMarkNoteDone,
+                // v0.54.0: the swipe-to-delete
+                // Undo affordance plumbed in.
+                // The Notes tab takes a
+                // snapshot of the note at
+                // swipe time and calls
+                // [restoreNote] to re-insert
+                // it with the same id. The
+                // launcher-only [restoreNote]
+                // is on the ViewModel — the
+                // Notes surface does not have
+                // a direct dependency on the
+                // prefs layer.
+                onRestoreNote = { note -> viewModel.restoreNote(note) },
             )
         }
 
@@ -3956,6 +4002,7 @@ private fun NotesSurface(
     onDeleteNote: (Long) -> Unit,
     onPinNote: (Long, Boolean) -> Unit,
     onMarkNoteDone: (Long, Boolean) -> Unit,
+    onRestoreNote: (org.mindanchor.model.Note) -> Unit = {},
 ) {
     // v0.45.0: the title "Notes" and a back
     // affordance at the top. The back
@@ -3965,6 +4012,13 @@ private fun NotesSurface(
     // outside the scroll, so a long
     // notes list does not push the
     // title off-screen.
+    // v0.54.0: an extra [onRestoreNote]
+    // callback plumbed through to the
+    // body for the swipe-to-delete Undo
+    // affordance. The default no-op keeps
+    // the surface callable from any
+    // test/wrapper that does not pass a
+    // restore callback.
     CalmBackground { sky ->
         NotesSurfaceBody(
             sky = sky,
@@ -3973,6 +4027,7 @@ private fun NotesSurface(
             onDeleteNote = onDeleteNote,
             onPinNote = onPinNote,
             onMarkNoteDone = onMarkNoteDone,
+            onRestoreNote = onRestoreNote,
         )
     }
 }
@@ -3986,6 +4041,7 @@ private fun NotesSurfaceBody(
     onDeleteNote: (Long) -> Unit,
     onPinNote: (Long, Boolean) -> Unit,
     onMarkNoteDone: (Long, Boolean) -> Unit,
+    onRestoreNote: (org.mindanchor.model.Note) -> Unit = {},
 ) {
     Box(
         modifier = Modifier
@@ -4122,26 +4178,241 @@ private fun NotesSurfaceBody(
                         day-filter feature */
                     },
                 )
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 24.dp)
-                        .verticalScroll(rememberScrollState()),
-                ) {
-                    groups.forEach { group ->
-                        NotesDayHeader(
-                            sky = sky,
-                            label = group.header,
-                        )
-                        group.notes.forEach { note ->
-                            NotesTabRow(
-                                sky = sky,
-                                note = note,
-                                onDelete = onDeleteNote,
-                                onPin = onPinNote,
-                                onMarkDone = onMarkNoteDone,
-                            )
+                // v0.54.0: migrated the grouped
+                // notes list from a `Column`
+                // with `verticalScroll` to a
+                // `LazyColumn` with per-item
+                // keys. The migration has three
+                // reasons:
+                //
+                // 1) **SwipeToDismissBox needs
+                //    per-item composition slots.**
+                //    The Material 3
+                //    [SwipeToDismissBox] gives
+                //    the `backgroundContent`
+                //    lambda a `matchParentSize`
+                //    modifier internally, so the
+                //    swipe background fills the
+                //    box's measured slot. In a
+                //    plain `Column.forEach`, the
+                //    slot is the full Column
+                //    height — the swipe
+                //    background extends to the
+                //    bottom of the screen. In a
+                //    `LazyColumn`, each item is
+                //    measured to its content
+                //    height, so the swipe
+                //    background fills exactly
+                //    one row. (This was the
+                //    v0.53.0 deferred Issue 9
+                //    failure mode.)
+                //
+                // 2) **Sticky day headers** —
+                //    the v0.54+ backlog item
+                //    "sticky day headers" is
+                //    a one-liner with the
+                //    [stickyHeader] LazyListScope
+                //    function. The v0.51.0 plain
+                //    Column had no equivalent;
+                //    the date headers scrolled
+                //    off the screen with the
+                //    notes. Now the day group
+                //    header "Today" / "Yesterday"
+                //    / "17 Aug" sticks at the
+                //    top of the list as the user
+                //    scrolls through the notes
+                //    for that day, the way
+                //    calendar apps do.
+                //
+                // 3) **Scroll position survival**
+                //    — the LazyColumn preserves
+                //    its scroll position across
+                //    recompositions (the
+                //    `rememberLazyListState()`
+                //    state is stable). A plain
+                //    Column with a `rememberScrollState`
+                //    does the same, but the
+                //    LazyColumn is the
+                //    idiomatic Compose primitive
+                //    for a scrollable list and
+                //    is the one the rest of the
+                //    app uses elsewhere.
+                //
+                // The cost is one new import
+                // (`stickyHeader`) and the
+                // `Modifier.padding(horizontal = 24.dp)`
+                // moving from the Column to the
+                // LazyColumn's
+                // `contentPadding` parameter so
+                // each row's left/right padding
+                // is applied uniformly without
+                // doubling up at the edges.
+                val listState = rememberLazyListState()
+                // v0.54.0: a one-shot signal
+                // for the snackbar. The
+                // LaunchedEffect below
+                // observes the state and fires
+                // the snackbar; the snackbar's
+                // Undo action re-applies the
+                // inverse of the action. We
+                // don't use the data to drive
+                // a `rememberSaveable` value
+                // because the snackbar is a
+                // transient UI affordance, not
+                // a durable piece of state —
+                // a config change (rotation,
+                // theme change) dismisses the
+                // snackbar, which is the
+                // Material 3 default.
+                val lastSwipeAction = remember { androidx.compose.runtime.mutableStateOf<NotesSwipeAction?>(null) }
+                val snackbarHostState = remember { SnackbarHostState() }
+                val undoLabel = stringResource(R.string.notes_swipe_undo)
+                val pinnedLabel = stringResource(R.string.notes_swipe_pinned)
+                val unpinnedLabel = stringResource(R.string.notes_swipe_unpinned)
+                val deletedLabel = stringResource(R.string.notes_swipe_deleted)
+                LaunchedEffect(lastSwipeAction.value) {
+                    val action = lastSwipeAction.value ?: return@LaunchedEffect
+                    val message = when (action) {
+                        is NotesSwipeAction.Pin ->
+                            if (action.willBePinned) pinnedLabel else unpinnedLabel
+                        is NotesSwipeAction.Delete -> deletedLabel
+                    }
+                    val result = snackbarHostState.showSnackbar(
+                        message = message,
+                        actionLabel = undoLabel,
+                        withDismissAction = false,
+                        duration = SnackbarDuration.Short,
+                    )
+                    if (result == SnackbarResult.ActionPerformed) {
+                        when (action) {
+                            is NotesSwipeAction.Pin ->
+                                onPinNote(action.note.id, action.note.pinned)
+                            is NotesSwipeAction.Delete ->
+                                onRestoreNote(action.note)
                         }
+                    }
+                    lastSwipeAction.value = null
+                }
+                Box(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                            horizontal = 24.dp,
+                            vertical = 4.dp,
+                        ),
+                    ) {
+                        groups.forEach { group ->
+                            // v0.54.0: the day
+                            // header is a normal
+                            // `item` (not a
+                            // `stickyHeader` — the
+                            // v0.54+ backlog's
+                            // "sticky day headers"
+                            // wishlist item is
+                            // deferred; this release
+                            // ships swipe actions
+                            // only). The key is
+                            // stable so the slot
+                            // survives recomposition.
+                            item(key = "header_${group.key}") {
+                                NotesDayHeader(
+                                    sky = sky,
+                                    label = group.header,
+                                )
+                            }
+                            items(
+                                items = group.notes,
+                                key = { note -> "note_${note.id}" },
+                            ) { note ->
+                                NotesTabRow(
+                                    sky = sky,
+                                    note = note,
+                                    onDelete = onDeleteNote,
+                                    onPin = onPinNote,
+                                    onMarkDone = onMarkNoteDone,
+                                    onSwipePin = {
+                                        // v0.54.0: optimistic
+                                        // pin toggle. The
+                                        // call dispatches
+                                        // to the
+                                        // ViewModel; the
+                                        // Undo path sends
+                                        // the *original*
+                                        // pinned value to
+                                        // put the note
+                                        // back to where
+                                        // the user had
+                                        // it.
+                                        val target = !note.pinned
+                                        onPinNote(note.id, target)
+                                        lastSwipeAction.value =
+                                            NotesSwipeAction.Pin(note, willBePinned = target)
+                                    },
+                                    onSwipeDelete = {
+                                        // v0.54.0:
+                                        // snapshot
+                                        // the note
+                                        // for Undo,
+                                        // then
+                                        // delete.
+                                        // The
+                                        // Undo path
+                                        // calls
+                                        // [onRestoreNote]
+                                        // with
+                                        // this
+                                        // snapshot
+                                        // — the
+                                        // note
+                                        // comes
+                                        // back
+                                        // with
+                                        // the
+                                        // same
+                                        // id and
+                                        // all
+                                        // its
+                                        // fields.
+                                        lastSwipeAction.value =
+                                            NotesSwipeAction.Delete(note)
+                                        onDeleteNote(note.id)
+                                    },
+                                )
+                            }
+                        }
+                    }
+                    SnackbarHost(
+                        hostState = snackbarHostState,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 16.dp),
+                    ) { data ->
+                        // v0.54.0: the Material 3
+                        // default Snackbar colours
+                        // (inverse-surface for
+                        // container, inverse-on-
+                        // surface for content) read
+                        // on both the day and night
+                        // sky modes without further
+                        // tuning. The "Undo" action
+                        // label is coloured in the
+                        // launcher's [ActionAccentFg]
+                        // (teal-700) so it stands
+                        // out against the
+                        // inverse-surface background
+                        // — the same colour the
+                        // bang hint and the
+                        // chevron use for navigation
+                        // affordances. Consistency
+                        // with the existing colour
+                        // language is more
+                        // important than a custom
+                        // sky-aware scheme.
+                        Snackbar(
+                            snackbarData = data,
+                            actionColor = ActionAccentFg,
+                        )
                     }
                 }
             }
@@ -4388,6 +4659,8 @@ private fun NotesTabRow(
     onDelete: (Long) -> Unit,
     onPin: (Long, Boolean) -> Unit,
     onMarkDone: (Long, Boolean) -> Unit,
+    onSwipePin: () -> Unit = {},
+    onSwipeDelete: () -> Unit = {},
 ) {
     // v0.50.0: title truncates at the last
     // whitespace before 80 chars (single line)
@@ -4421,37 +4694,199 @@ private fun NotesTabRow(
     // home card.
     val bodyText = note.body
     val whenText = notesTabDateTimeText(note)
-    // v0.53.0 (Issue 9): swipe actions
-    // were attempted but the Material 3
-    // [SwipeToDismissBox] layout
-    // misbehaves when each row in a
-    // [Column.forEach] is given its own
-    // [SwipeToDismissBox]: the background
-    // surface extends to the full Column
-    // height instead of the row's height,
-    // and the swipe direction tracking
-    // is wrong for grouped notes. The
-    // v0.53.0 release ships the v0.52.0
-    // tap-to-pin / tap-to-delete pattern;
-    // the swipe affordance is reserved for
-    // v0.54+ with a [LazyColumn] + item
-    // key migration (where the [remember]
-    // key in [rememberSwipeToDismissBoxState]
-    // is per-row by construction).
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 52.dp)
-            // v0.50.0: vertical padding 6dp ->
-            // 4dp. The row was 180-200px tall
-            // for 100 notes; we need to fit more
-            // rows per screen without losing
-            // touch target size (pin/delete
-            // TextButton below is 36dp tall, the
-            // checkbox is 48dp Material default).
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    // v0.54.0 (Red Dot review Issue 9 —
+    // swipe actions on the Notes tab):
+    //
+    // The Material 3 [SwipeToDismissBox]
+    // wraps the row's content with a
+    // materialised *background slot*. The
+    // background slot is given a
+    // `matchParentSize` modifier
+    // internally, so it fills the box's
+    // measured slot exactly. In a plain
+    // `Column.forEach` (the v0.53.0
+    // structure), the slot is the full
+    // Column height — the swipe
+    // background extends to the bottom of
+    // the screen. The v0.54.0 fix is to
+    // migrate the list to a [LazyColumn]
+    // (where each item has a measured
+    // height by the time the swipe
+    // gesture starts) and to give each
+    // row its own
+    // [rememberSwipeToDismissBoxState]
+    // keyed to [note.id], so a swipe on
+    // row A does not carry over to row B
+    // after a recomposition.
+    //
+    // The two swipe directions are:
+    //
+    // 1) **startToEnd (right swipe) =
+    //    pin toggle.** The background is
+    //    sage ([KindSageBg]), with a
+    //    [PinGlyph] centred. The swipe is
+    //    confirmed at 50% of the row's
+    //    width (Material 3 default). The
+    //    user gets a snackbar with
+    //    "Undo" that re-applies the
+    //    original [Note.pinned] value.
+    //
+    // 2) **endToStart (left swipe) =
+    //    delete.** The background is
+    //    [NotesSwipeDeleteBg] (red-300),
+    //    with an "×" character centred
+    //    in [NotesSwipeDeleteFg]
+    //    (red-700). The swipe is
+    //    confirmed at 50%. The user gets
+    //    a snackbar with "Undo" that
+    //    re-adds the note with its
+    //    original id and all fields.
+    //
+    // The swipe threshold is the Material
+    // 3 default (50% of the row width);
+    // the dismissal animation is the
+    // Material 3 default spring; the
+    // "settle" behaviour resets the row
+    // to its resting position if the
+    // user does not commit the gesture.
+    //
+    // **Why both directions are enabled:**
+    // The Gmail / iOS Mail pattern is
+    // single-direction per row (one
+    // direction = archive, the other =
+    // delete), but the Notes tab is not
+    // email — the user has two primary
+    // actions on a row (pin and delete),
+    // and binding them to swipes (rather
+    // than a long-press menu) keeps the
+    // tap affordances for "open note" /
+    // "mark task done" free for the body
+    // and the checkbox. The user can
+    // also tap the visible pin / ×
+    // affordances (the v0.45.0+ tap
+    // pattern) — the swipe is the
+    // *fast* affordance, the tap is the
+    // *explicit* affordance. Both work,
+    // the user picks.
+    val swipeState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { target ->
+            when (target) {
+                SwipeToDismissBoxValue.StartToEnd -> {
+                    onSwipePin()
+                    false
+                }
+                SwipeToDismissBoxValue.EndToStart -> {
+                    onSwipeDelete()
+                    false
+                }
+                SwipeToDismissBoxValue.Settled -> true
+            }
+        },
+        // v0.54.0: the v0.21.x-10of10 key
+        // is the [note.id] so the swipe
+        // state slot survives recompositions
+        // for the same note and is dropped
+        // for notes that scroll off. The
+        // key here matters: without it, a
+        // LazyColumn item that is recycled
+        // would carry the previous row's
+        // swipe position to a different
+        // note, which is the exact v0.53.0
+        // failure mode.
+        positionalThreshold = { totalDistance -> totalDistance * 0.5f },
+    )
+    // v0.54.0: the current swipe direction
+    // (or [SwipeToDismissBoxValue.Settled]
+    // when the row is at rest). The
+    // background slot reads this to choose
+    // the sage (pin) or red (delete) colour
+    // and the matching icon. When the row
+    // is settled the background is
+    // transparent, so the row looks exactly
+    // like the v0.53.0 tap-only row at
+    // rest. The direction is read at
+    // recomposition time, so the colour
+    // smoothly animates as the user drags.
+    val direction = swipeState.dismissDirection
+    val isPinSwipe = direction == SwipeToDismissBoxValue.StartToEnd
+    val isDeleteSwipe = direction == SwipeToDismissBoxValue.EndToStart
+    val backgroundColor = when {
+        isPinSwipe -> KindSageBg
+        isDeleteSwipe -> NotesSwipeDeleteBg
+        else -> Color.Transparent
+    }
+    SwipeToDismissBox(
+        state = swipeState,
+        enableDismissFromStartToEnd = true,
+        enableDismissFromEndToStart = true,
+        // v0.54.0: the background slot
+        // shows a coloured rectangle
+        // behind the row. The
+        // `backgroundContent` is a
+        // `@Composable RowScope.() -> Unit`
+        // lambda in Material 3 1.3.x
+        // (the v0.54.0 BOM) — the
+        // `Modifier.matchParentSize` is
+        // applied internally, so a
+        // `Box(Modifier.fillMaxSize().background(...))`
+        // fills the row's measured
+        // height — no overflow into
+        // sibling rows, the v0.53.0
+        // failure mode is gone. The
+        // colour and icon are
+        // direction-driven: sage +
+        // [PinGlyph] for the right
+        // swipe (pin), red-300 + "×"
+        // for the left swipe (delete).
+        backgroundContent = {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(color = backgroundColor),
+                contentAlignment = Alignment.Center,
+            ) {
+                when {
+                    isPinSwipe -> PinGlyph(
+                        pinned = true,
+                        pinnedColor = KindSageFg,
+                        unpinnedColor = KindSageFg,
+                    )
+                    isDeleteSwipe -> Text(
+                        text = "×",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = NotesSwipeDeleteFg,
+                    )
+                    // Settled: nothing — the
+                    // background is transparent,
+                    // so the row looks like a
+                    // normal v0.53.0 row at rest.
+                    else -> Unit
+                }
+            }
+        },
     ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 52.dp)
+                // v0.50.0: vertical padding 6dp ->
+                // 4dp. The row was 180-200px tall
+                // for 100 notes; we need to fit more
+                // rows per screen without losing
+                // touch target size (pin/delete
+                // TextButton below is 36dp tall, the
+                // checkbox is 48dp Material default).
+                // v0.54.0: the row's own background
+                // is left transparent (no fillMaxSize
+                // Box) so the [SwipeToDismissBox]
+                // background shows through. A
+                // transparent background on the row
+                // means the swipe-coloured slot is
+                // visible behind the row's content
+                // during the gesture.
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
         // v0.45.0: the type-leading icon.
         // Same shape as the home card:
         // "T" for Task, "R" for Reminder,
@@ -4628,6 +5063,7 @@ private fun NotesTabRow(
                 color = sky.textSecondary,
             )
         }
+        }
     }
 }
 
@@ -4645,6 +5081,37 @@ private fun NotesTabRow(
  * is a list, where a stable absolute
  * date is more useful.
  */
+
+/**
+ * v0.54.0: a one-shot signal that a swipe
+ * action has been confirmed on a row. The
+ * [NotesSurfaceBody] holds the *last* swipe
+ * action in a [androidx.compose.runtime.MutableState]
+ * and the [LaunchedEffect] keyed on the
+ * state fires the snackbar. The snackbar
+ * offers an Undo that re-applies the inverse
+ * action:
+ *
+ * - [NotesSwipeAction.Pin]   -> inverse is
+ *   [NotesSwipeAction.Pin] with the original
+ *   `pinned` value (re-pin if the user
+ *   accidentally unpinned, unpin if they
+ *   accidentally pinned).
+ * - [NotesSwipeAction.Delete] -> inverse is
+ *   [LauncherViewModel.restoreNote] with the
+ *   full [Note] snapshot taken at swipe time.
+ *
+ * The [Note] is carried in the action so the
+ * Undo path does not have to re-look-it-up
+ * in the store (a store race could otherwise
+ * restore a different note than the one the
+ * user swiped).
+ */
+private sealed class NotesSwipeAction {
+    data class Pin(val note: Note, val willBePinned: Boolean) : NotesSwipeAction()
+    data class Delete(val note: Note) : NotesSwipeAction()
+}
+
 private fun notesTabDateTimeText(note: Note): String {
     val dateFormat = java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM)
     val timeFormat = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)

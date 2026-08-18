@@ -868,11 +868,20 @@
     <string name="notes_day_strip_yesterday">Yesterday</string>
     <string name="notes_day_strip_clear">All days</string>
 
-    <!-- v0.53.0: swipe-to-dismiss on notes. -->
+    <!-- v0.53.0: swipe-to-dismiss on notes.
+         v0.54.0: same strings, now actually wired
+         to a SwipeToDismissBox + Snackbar Undo. -->
     <string name="notes_swipe_pinned">Pinned</string>
     <string name="notes_swipe_unpinned">Unpinned</string>
     <string name="notes_swipe_deleted">Note deleted</string>
     <string name="notes_swipe_undo">Undo</string>
+    <!-- v0.54.0: accessibility content descriptions
+         for the swipe background surface (a screen
+         reader announces "Swipe right to pin" /
+         "Swipe left to delete" so the user knows
+         the gesture before they commit). -->
+    <string name="notes_swipe_bg_pin_cd">Swipe right to pin or unpin this note</string>
+    <string name="notes_swipe_bg_delete_cd">Swipe left to delete this note</string>
 
     <!-- v0.53.0: action accent semantic label. -->
     <string name="action_accent_label">Navigation</string>

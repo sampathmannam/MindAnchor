@@ -571,6 +571,34 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     /**
+     * v0.54.0: re-insert a deleted note by
+     * id. Powers the "Undo" affordance on the
+     * Notes tab swipe-to-delete snackbar. The
+     * caller passes the full [Note] (snapshot
+     * taken at swipe time) so the restored note
+     * preserves its original id, body, createdAt,
+     * updatedAt, type, dueAt, reminderAt, done,
+     * and pinned values — the user gets back
+     * exactly what they deleted, in the right
+     * day group, with the right pin state.
+     *
+     * The same path is used for pin-toggle Undo
+     * (pass the snapshot, then [pinNote] restores
+     * the flag). For pin Undo the caller uses
+     * [pinNote] directly with the snapshot's
+     * pinned value; for delete Undo the caller
+     * uses this function.
+     *
+     * If the id already exists in the store (a
+     * race with another writer), the call is a
+     * no-op — the store does not duplicate ids.
+     */
+    fun restoreNote(note: org.mindanchor.model.Note) {
+        if (note.id <= 0L) return
+        viewModelScope.launch { notesPrefs.add(note) }
+    }
+
+    /**
      * v0.44.0: add a TASK note. A task is a note
      * with `type = NoteType.TASK` and an optional
      * `dueAt` epoch millis. A task with `done =
