@@ -1,7 +1,6 @@
 package org.mindanchor.ui
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -34,7 +33,37 @@ data class SkyContent(
  */
 @Composable
 fun CalmBackground(content: @Composable (SkyContent) -> Unit) {
-    val darkTheme = isSystemInDarkTheme()
+    // v0.53.0 (Red Dot review fix, Issue 1):
+    // the launcher's dark/light mode is now
+    // a function of the wall clock, not the
+    // system theme. A user who opens the
+    // launcher at 7am in a dark system theme
+    // would previously have seen the deep
+    // indigo "night" sky; v0.53.0 shows the
+    // dawn/cream sky because 7am IS dawn.
+    // The launcher follows the user's day,
+    // not the device's appearance setting.
+    //
+    // The previous v0.50.0 behaviour (use
+    // [isSystemInDarkTheme]) was the right
+    // default for a 2018 Android app. For a
+    // 2026 mental-health-first launcher, the
+    // wall clock is the right signal — a
+    // user in a dark room at noon should see
+    // noon colours, not 3am colours.
+    //
+    // The threshold is the same as
+    // [SkyMath]'s "evening" bucket: 18:00.
+    // Before 18:00 the sky is the light
+    // palette; after, the dark palette. The
+    // [SkyMath.palette] function takes a
+    // [darkTheme: Boolean] parameter and
+    // blends accordingly; the v0.53.0
+    // change is in *which* signal feeds the
+    // boolean, not in the palette math
+    // itself.
+    val now = rememberMinuteTick()
+    val darkTheme = now.hour >= 18 || now.hour < 6
     val context = LocalContext.current
     val appearance = remember(context) { AppearancePrefs(context) }
     // v0.25.17 BUG-004: lifecycle-aware collect. The
@@ -43,7 +72,6 @@ fun CalmBackground(content: @Composable (SkyContent) -> Unit) {
     // CalmBackground would keep recomposing the sky
     // on every appearance emission.
     val sceneSetting by appearance.scene.collectAsStateWithLifecycle(initialValue = null)
-    val now = rememberMinuteTick()
     val minuteOfDay = now.hour * 60 + now.minute
     val scene = sceneSetting?.let {
         NatureScene.resolve(it, LocalDate.now().toEpochDay())

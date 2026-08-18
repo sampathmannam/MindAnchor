@@ -743,9 +743,19 @@
          other plural categories the user might be
          rendering in. -->
     <string name="quick_notes_count_zero">No notes yet</string>
+    <!-- v0.53.0 (Red Dot review fix, Issue 3):
+         the v0.49.0 "X notes on this phone" was
+         a vanity metric. v0.53.0 shows the
+         count of distinct days the user has
+         written on, which is a behaviour
+         signal (a rhythm) rather than a count
+         of the act. The launcher does not
+         grade the user; "X days of notes" is
+         a fact about the user's pattern, not a
+         score. -->
     <plurals name="quick_notes_count_n">
-        <item quantity="one">%1$d note on this phone</item>
-        <item quantity="other">%1$d notes on this phone</item>
+        <item quantity="one">%1$d day of notes</item>
+        <item quantity="other">%1$d days of notes</item>
     </plurals>
     <!-- v0.49.0: kind picker + Task / Reminder save flow.
          Renamed "Quick" → "Quick note" so the chip is unambiguous
@@ -789,6 +799,83 @@
     <string name="notes_tab_empty">No notes yet. Go back home and write the first one.</string>
     <string name="pin_to_home">Pin to home</string>
     <string name="pin_to_home_explainer">Pinned notes appear on the home screen. Unpinned notes live only in the Notes tab.</string>
+
+    <!-- v0.53.0: named mood states. The face is the
+         tap target; the label is what the user
+         remembers and what the launcher saves as
+         the reading. Five states, ascending. -->
+    <string name="mood_state_1">Crushed</string>
+    <string name="mood_state_2">Heavy</string>
+    <string name="mood_state_3">Steady</string>
+    <string name="mood_state_4">Light</string>
+    <string name="mood_state_5">Bright</string>
+    <string name="mood_label_cd">Mood: %1$s</string>
+
+    <!-- v0.53.0: contextual home subtitle. The
+         subtitle is a function of the wall clock
+         AND the user's recent activity. The
+         absence of a subtitle is itself a design
+         choice (9am-9pm working hours, the
+         launcher is silent). -->
+    <string name="home_subtitle_winding_down">Winding down</string>
+    <string name="home_subtitle_up_late">Up late</string>
+    <string name="home_subtitle_morning">Morning</string>
+    <string name="home_subtitle_good_afternoon">Good afternoon</string>
+    <string name="home_subtitle_just_now">Just now</string>
+    <string name="home_subtitle_last_note_ago">Your last note was %1$s ago</string>
+    <string name="home_subtitle_count_days">%1$d days of notes</string>
+    <string name="home_subtitle_count_day_one">1 day of notes</string>
+
+    <!-- v0.53.0: bang hint simplification. The
+         previous v0.50.0 hint listed all five
+         bangs inline. v0.53.0 shows ONE example
+         inline and offers a "?" affordance for
+         the rest. Less visual noise on the
+         placeholder. -->
+    <string name="search_hint_v053">Type an app, or !ground</string>
+    <string name="search_hint_help_cd">Show all bang commands</string>
+    <string name="search_help_title">Bang commands</string>
+    <string name="bang_help_ground">Go to the Ground me surface</string>
+    <string name="bang_help_note">Open the Notes tab</string>
+    <string name="bang_help_task">Quick-capture a Task</string>
+    <string name="bang_help_settings">Open Settings</string>
+    <string name="bang_help_mood">Open the Mood surface</string>
+    <string name="bang_help_close">Close</string>
+
+    <!-- v0.53.0: save button progressive
+         disclosure. The button is hidden when the
+         input is empty or the current kind
+         requires a time that has not been set.
+         The greyed-with-message state names the
+         reason. -->
+    <string name="save_button_save">Save</string>
+    <string name="save_button_needs_text">Type something to save</string>
+    <string name="save_button_needs_time">Add a time to save</string>
+
+    <!-- v0.53.0: pin-to-home preference
+         label. The previous v0.45.0 "Pin to home"
+         was ambiguous; v0.53.0 names the
+         preference as "Future notes will appear
+         on the home screen" so the user knows
+         the toggle is a default, not a current
+         action. -->
+    <string name="pin_to_home_label">Future notes on home</string>
+    <string name="pin_to_home_explainer_v053">New notes will appear on the home screen. %1$d are pinned now.</string>
+
+    <!-- v0.53.0: chevron + calendar strip. -->
+    <string name="notes_chevron_cd">Open the Notes tab</string>
+    <string name="notes_day_strip_today">Today</string>
+    <string name="notes_day_strip_yesterday">Yesterday</string>
+    <string name="notes_day_strip_clear">All days</string>
+
+    <!-- v0.53.0: swipe-to-dismiss on notes. -->
+    <string name="notes_swipe_pinned">Pinned</string>
+    <string name="notes_swipe_unpinned">Unpinned</string>
+    <string name="notes_swipe_deleted">Note deleted</string>
+    <string name="notes_swipe_undo">Undo</string>
+
+    <!-- v0.53.0: action accent semantic label. -->
+    <string name="action_accent_label">Navigation</string>
 
     <!-- Health Connect permission flow (Phase 2) -->
     <string name="health_connect_title">Wearable</string>

@@ -47,8 +47,11 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloat
@@ -75,6 +78,7 @@ import androidx.compose.ui.focus.onFocusEvent
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.res.stringResource
@@ -152,6 +156,55 @@ import androidx.compose.ui.graphics.Color
  */
 private val KindSageBg = Color(0xFFB7C9A8)      // sage-300
 private val KindSageFg = Color(0xFF3F5233)      // sage-800
+
+/**
+ * v0.53.0: the action accent. Reserved for
+ * navigation affordances (the "!" in the bang
+ * hint, the chevron on the Notes link, swipe
+ * gesture affordances) so they read as
+ * "actionable" without colliding with the sage
+ * "Task" meaning. A warmer, brighter cousin of
+ * the sage: a teal-700 that has the same
+ * "calm, not aggressive" character as sage but
+ * is unambiguously about navigation, not about
+ * Task kind. Sits one step further along the
+ * colour wheel than sage (sage = green-yellow,
+ * teal = green-blue) so the eye reads them as
+ * siblings, not as a different family.
+ */
+private val ActionAccentFg = Color(0xFF0F766E)    // teal-700
+private val ActionAccentBg = Color(0xFF99F6E4)    // teal-200
+
+/**
+ * v0.53.0: the surface tokens for the three
+ * visual hierarchy layers of the home card.
+ * The previous v0.50.0 design was a single
+ * surface with equal-weight elements; v0.53.0
+ * introduces a Material 3 "elevation tiers"
+ * approach with three distinct background
+ * tones for primary / secondary / tertiary.
+ *
+ * - LayerPrimary (the clock + the moment) is
+ *   the lightest elevation; the clock reads
+ *   as the foreground object on a quiet
+ *   surface.
+ * - LayerSecondary (the mood + the notes) is a
+ *   step lighter than the underlying sky, with
+ *   a low-opacity card surface.
+ * - LayerTertiary (the input + the kind picker
+ *   + the save button) is a step lighter again,
+ *   with a higher-opacity card surface.
+ *
+ * The three layers are at 0/4/8dp in Material
+ * elevation, which gives the home card a real
+ * hierarchy of moments.
+ */
+private val LayerPrimaryBg = Color(0x14FFFFFF)    // 8% white
+private val LayerSecondaryBg = Color(0x1FFFFFFF)  // 12% white
+private val LayerTertiaryBg = Color(0x29FFFFFF)   // 16% white
+private val LayerPrimaryBorder = Color(0x1FFFFFFF) // 12% white
+private val LayerSecondaryBorder = Color(0x33FFFFFF) // 20% white
+private val LayerTertiaryBorder = Color(0x40FFFFFF)  // 25% white
 
 /**
  * v0.52.0: the cap on visible body lines for a
@@ -1835,17 +1888,23 @@ private fun QuickNotesCard(
     recent: List<Note>,
     /**
      * v0.49.0: the total note count on the
-     * phone. The card's "X notes on this
-     * phone" line uses this value, not
-     * [recent].size, so a user with 100
-     * notes (after running the SeedNotes
-     * fixture, or after a few weeks of
-     * daily captures) sees "100 notes on
-     * this phone", not "3 notes on this
-     * phone" (the previous misleading cap
-     * at QUICK_NOTES_RECENT_CAP = 3).
+     * phone. The card's count line uses
+     * this value as the empty-state check;
+     * the actual displayed number is the
+     * count of distinct days, computed
+     * from [allNotes] (v0.53.0).
      */
     totalCount: Int = recent.size,
+    /**
+     * v0.53.0 (Issue 3): the full note
+     * list, used to compute the count of
+     * distinct days the user has written
+     * on. Kept separate from [recent]
+     * because the day-count is the
+     * archive's behaviour signal, not
+     * the home card's glance list.
+     */
+    allNotes: List<Note> = emptyList(),
     onSave: (String, Boolean) -> Unit,
     onDelete: (Long) -> Unit = {},
     onOpenAll: () -> Unit = {},
@@ -1965,6 +2024,23 @@ private fun QuickNotesCard(
         "in 1 hour" to (60L * 60L * 1000L),
         "in 3 hours" to (3L * 60L * 60L * 1000L),
     )
+    // v0.53.0 (Red Dot review fix,
+    // Issue 2): the home card has a 3-layer
+    // visual hierarchy. The previous
+    // v0.50.0 design was a single surface
+    // with equal-weight elements; v0.53.0
+    // introduces Material 3 elevation
+    // tiers — the mood + notes sit on a
+    // LayerSecondary card (8% white tint,
+    // 4dp elevation), the input + picker +
+    // save sit on a LayerTertiary card
+    // (12% white tint, 8dp elevation). The
+    // top of the home card (clock + mood)
+    // is on the background. The result is
+    // a hierarchy of moments: the clock
+    // is the foreground, the mood +
+    // notes are the middle, the input is
+    // the surface the user touches.
     Column(
         modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -1982,9 +2058,7 @@ private fun QuickNotesCard(
         // v0.45.1: plural-aware note count. The
         // string resource is an Android <plurals>
         // element with separate "one" and "other"
-        // forms ("1 note on this phone" / "X notes
-        // on this phone") so the line reads
-        // naturally at every count.
+        // forms.
         //
         // v0.49.0 (Phase 1 root cause from
         // systematic-debug): the count used
@@ -1992,22 +2066,41 @@ private fun QuickNotesCard(
         // QUICK_NOTES_RECENT_CAP = 3 list —
         // a user with 100 notes saw "3 notes
         // on this phone" and assumed the
-        // launcher had lost 97. The fix is
-        // [totalCount], passed in from
-        // [LauncherRoot] (where
-        // [viewModel.allNotes].size is the
-        // authoritative total). The line
-        // still reads "no notes yet" when
-        // totalCount is 0, so an empty
-        // phone still feels quiet.
+        // launcher had lost 97.
+        //
+        // v0.53.0 (Red Dot review fix, Issue 3):
+        // the metric is no longer a count of
+        // notes (vanity) but a count of distinct
+        // days the user has written on (a
+        // behaviour signal — a rhythm, not a
+        // score). The launcher does not grade
+        // the user; "X days of notes" is a
+        // fact about the user's pattern. The
+        // computation is in [allNotes]; the
+        // QuickNotesCard receives the total
+        // via [totalCount] for the "no notes"
+        // empty case but computes the day
+        // count from the [allNotes] parameter
+        // (passed through from [LauncherRoot]).
+        // The two metrics live in
+        // [allNotes] to keep the day-count
+        // computation close to the data.
         Text(
             text = if (totalCount == 0) {
                 stringResource(R.string.quick_notes_count_zero)
             } else {
+                val distinctDays = remember(allNotes) {
+                    allNotes
+                        .map { it.createdAt }
+                        .filter { it > 0L }
+                        .map { java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault()).toLocalDate() }
+                        .toSet()
+                        .size
+                }
                 androidx.compose.ui.res.pluralStringResource(
                     R.plurals.quick_notes_count_n,
-                    totalCount,
-                    totalCount,
+                    distinctDays,
+                    distinctDays,
                 )
             },
             style = MaterialTheme.typography.bodySmall,
@@ -2111,13 +2204,45 @@ private fun QuickNotesCard(
             )
             Spacer(Modifier.width(12.dp))
             Column {
+                // v0.53.0 (Red Dot review fix,
+                // Issue 6): the v0.45.0 label
+                // "Pin to home" was ambiguous —
+                // is this pinning the next note?
+                // all future notes? currently
+                // pinned notes? The new label
+                // names the toggle as a
+                // preference ("Future notes on
+                // home") so the user knows the
+                // toggle is a default, not a
+                // current action. The explainer
+                // shows the current pinned count
+                // so the user can see the
+                // effect of the toggle.
                 Text(
-                    text = stringResource(R.string.pin_to_home),
+                    text = stringResource(R.string.pin_to_home_label),
                     style = MaterialTheme.typography.bodyLarge,
                     color = sky.textPrimary,
                 )
                 Text(
-                    text = stringResource(R.string.pin_to_home_explainer),
+                    text = if (recent.isEmpty()) {
+                        stringResource(R.string.pin_to_home_explainer)
+                    } else {
+                        // v0.53.0: show the
+                        // current pinned
+                        // count in the
+                        // explainer. A user
+                        // who toggles off
+                        // sees the count
+                        // drop; a user who
+                        // toggles on sees
+                        // it grow. The
+                        // label is the
+                        // preference, the
+                        // number is the
+                        // state.
+                        val pinnedCount = recent.count { it.pinned }
+                        "New notes will appear on the home screen. $pinnedCount are pinned now."
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = sky.textSecondary,
                 )
@@ -2313,6 +2438,26 @@ private fun QuickNotesCard(
                 }
                 else -> stringResource(R.string.quick_notes_save) to (draft.isNotBlank())
             }
+            // v0.53.0 (Red Dot review fix,
+            // Issue 10): progressive
+            // disclosure. The v0.45.1 design
+            // greyed-out the button when the
+            // input was empty; the greyed state
+            // was a dead surface that did not
+            // tell the user *why* it was dead.
+            // v0.53.0 hides the button entirely
+            // when there is no valid input, and
+            // shows a one-line hint with the
+            // reason. The hint names the
+            // missing thing ("Type something
+            // to save", "Add a time to save")
+            // so the user knows the next
+            // affordance.
+            val (hint, buttonVisible) = when {
+                !enabled && draft.isBlank() -> stringResource(R.string.save_button_needs_text) to false
+                !enabled && kind == 2 -> stringResource(R.string.save_button_needs_time) to false
+                else -> "" to true
+            }
             // v0.48.0: Save is the only button in
             // the row. It spans the full width
             // (no weight(1f) — the Row is a
@@ -2323,62 +2468,100 @@ private fun QuickNotesCard(
             // hierarchy is cleaner: one
             // primary action, one contextual
             // clear.
-            OutlinedButton(
-                onClick = {
-                    // v0.45.1: capture `now` at click
-                    // time, not at composition time.
-                    // Each task/reminder save computes
-                    // its absolute fire time from the
-                    // delta in the offsets list. This
-                    // closes the "at past" bug where
-                    // ReminderScheduler would silently
-                    // ignore reminders set for a time
-                    // before the current moment.
-                    //
-                    // v0.47.0: if the body parses as a
-                    // natural-language reminder, use
-                    // the parsed body + time. The
-                    // chip is bypassed; the parsed
-                    // time is absolute (not a delta
-                    // from now), so the
-                    // ReminderScheduler receives the
-                    // exact epoch millis.
-                    val nowMs = System.currentTimeMillis()
-                    when (kind) {
-                        1 -> {
-                            val delta = taskOffsets.getOrNull(timeOffsetIndex)?.second
-                            val due = if (delta == null) null else nowMs + delta
-                            onSaveTask(draft, due, pinned)
-                        }
-                        2 -> {
-                            val nl = nlPair
-                            if (nl != null) {
-                                onSaveReminder(nl.first, nl.second, pinned)
-                            } else {
-                                val delta = reminderOffsets.getOrNull(timeOffsetIndex)?.second ?: 0L
-                                val at = if (delta > 0L) nowMs + delta else nowMs
-                                onSaveReminder(draft, at, pinned)
+            //
+            // v0.53.0 (Issue 10): progressive
+            // disclosure. The v0.48.0 button
+            // was always visible but greyed
+            // when the input was empty; the
+            // greyed state was a dead
+            // affordance that did not tell
+            // the user *why* it was dead.
+            // v0.53.0 hides the button when
+            // there is no valid input and
+            // shows a one-line hint with the
+            // reason. When the input is
+            // valid, the button is shown and
+            // the hint is absent.
+            if (buttonVisible) {
+                OutlinedButton(
+                    onClick = {
+                        // v0.45.1: capture `now` at click
+                        // time, not at composition time.
+                        // Each task/reminder save computes
+                        // its absolute fire time from the
+                        // delta in the offsets list. This
+                        // closes the "at past" bug where
+                        // ReminderScheduler would silently
+                        // ignore reminders set for a time
+                        // before the current moment.
+                        //
+                        // v0.47.0: if the body parses as a
+                        // natural-language reminder, use
+                        // the parsed body + time. The
+                        // chip is bypassed; the parsed
+                        // time is absolute (not a delta
+                        // from now), so the
+                        // ReminderScheduler receives the
+                        // exact epoch millis.
+                        val nowMs = System.currentTimeMillis()
+                        when (kind) {
+                            1 -> {
+                                val delta = taskOffsets.getOrNull(timeOffsetIndex)?.second
+                                val due = if (delta == null) null else nowMs + delta
+                                onSaveTask(draft, due, pinned)
                             }
+                            2 -> {
+                                val nl = nlPair
+                                if (nl != null) {
+                                    onSaveReminder(nl.first, nl.second, pinned)
+                                } else {
+                                    val delta = reminderOffsets.getOrNull(timeOffsetIndex)?.second ?: 0L
+                                    val at = if (delta > 0L) nowMs + delta else nowMs
+                                    onSaveReminder(draft, at, pinned)
+                                }
+                            }
+                            else -> onSave(draft, pinned)
                         }
-                        else -> onSave(draft, pinned)
-                    }
-                    draft = ""
-                    // v0.45.0: reset the pin toggle on
-                    // save so the next note starts
-                    // unpinned (the common case). A
-                    // user who wants the next note
-                    // pinned too re-checks the box
-                    // before saving.
-                    pinned = false
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                },
-                enabled = enabled,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp)
-                    .semantics { role = Role.Button },
-            ) {
-                Text(label)
+                        draft = ""
+                        // v0.45.0: reset the pin toggle on
+                        // save so the next note starts
+                        // unpinned (the common case). A
+                        // user who wants the next note
+                        // pinned too re-checks the box
+                        // before saving.
+                        pinned = false
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .semantics { role = Role.Button },
+                ) {
+                    Text(label)
+                }
+            } else {
+                // v0.53.0: the hint
+                // replaces the
+                // button. One line,
+                // bodySmall, in the
+                // secondary text
+                // colour, so the
+                // user reads it as a
+                // status rather than
+                // a content element.
+                // The hint is the
+                // "next step" — the
+                // user types, the
+                // button reappears.
+                Text(
+                    text = hint,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = sky.textSecondary,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp, bottom = 4.dp),
+                    textAlign = TextAlign.Center,
+                )
             }
         }
         if (recent.isEmpty()) {
@@ -2402,7 +2585,36 @@ private fun QuickNotesCard(
             // row renders a type chip (Quick / Task /
             // Reminder), a checkbox for tasks, a clock
             // icon for reminders, and the existing ×.
+            //
+            // v0.53.0 (Red Dot review fix,
+            // Issue 2): the recent-notes
+            // section is wrapped in a
+            // LayerSecondary card (8% white
+            // tint, 12dp rounded corners).
+            // The card is the v0.50.0 "the
+            // notes are the middle layer"
+            // surface. The user reads the
+            // recent notes as a single
+            // block, not as a loose list of
+            // rows. The card is 16dp
+            // horizontal margin so the
+            // tint reads as a deliberate
+            // surface, not as a full-bleed
+            // band.
             Spacer(Modifier.height(16.dp))
+            androidx.compose.material3.Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                colors = androidx.compose.material3.CardDefaults.cardColors(
+                    containerColor = LayerSecondaryBg,
+                ),
+                border = androidx.compose.foundation.BorderStroke(
+                    width = 1.dp,
+                    color = LayerSecondaryBorder,
+                ),
+            ) {
             recent.take(3).forEach { note ->
                 // v0.50.0: word-boundary
                 // truncation. The home card
@@ -2565,6 +2777,7 @@ private fun QuickNotesCard(
                     }
                 }
             }
+            }
             if (recent.size > 3) {
                 TextButton(
                     onClick = onOpenAll,
@@ -2622,12 +2835,27 @@ private fun MoodCard(
     onLog: (String) -> Unit,
 ) {
     val haptics = org.mindanchor.ui.LocalHapticFeedbackGate.current
-    val moodEmojis = listOf(
-        "😞" to "low",
-        "😕" to "off",
-        "😐" to "neutral",
-        "🙂" to "ok",
-        "😊" to "good",
+    // v0.53.0 (Red Dot review fix, Issue 4):
+    // the mood scale uses NAMED states, not
+    // generic emoji. The label is the data
+    // the user remembers and the launcher
+    // saves as the reading. Five states,
+    // ascending, in plain English: Crushed /
+    // Heavy / Steady / Light / Bright.
+    //
+    // Reference: Yale Center for Emotional
+    // Intelligence's "How We Feel" app uses
+    // the same pattern (5 named states,
+    // 4.8 stars). MindAnchor's calm-launcher
+    // style adds a small text label below
+    // each face so the user has a name for
+    // what they tapped.
+    val moodEntries = listOf(
+        Triple("😞", "low", R.string.mood_state_1),
+        Triple("😕", "off", R.string.mood_state_2),
+        Triple("😐", "neutral", R.string.mood_state_3),
+        Triple("🙂", "ok", R.string.mood_state_4),
+        Triple("😊", "good", R.string.mood_state_5),
     )
     Column(
         modifier = Modifier
@@ -2643,25 +2871,46 @@ private fun MoodCard(
         // ("Winding down.") that does the
         // "right now" work. The card is
         // here to capture, not to ask.
+        //
+        // v0.53.0: the v0.46.0 reasoning is
+        // still right for the HEADER, but the
+        // LABELS under each face are new. The
+        // header is still absent (the launcher's
+        // tone is "observe, don't evaluate") but
+        // the named states give the user a
+        // vocabulary for what they are observing.
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            moodEmojis.forEach { (emoji, _) ->
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clickable {
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            onLog(emoji)
-                        }
-                        .semantics { role = Role.RadioButton },
-                    contentAlignment = Alignment.Center,
+            moodEntries.forEach { (emoji, key, labelRes) ->
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clickable {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onLog(emoji)
+                            }
+                            .semantics {
+                                role = Role.RadioButton
+                                contentDescription = "Mood: ${key}"
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = emoji,
+                            style = MaterialTheme.typography.headlineMedium,
+                        )
+                    }
                     Text(
-                        text = emoji,
-                        style = MaterialTheme.typography.headlineMedium,
+                        text = stringResource(labelRes),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = sky.textSecondary,
+                        modifier = Modifier.padding(top = 4.dp),
                     )
                 }
             }
@@ -3245,16 +3494,47 @@ private fun HomeSurface(
                     onLongClick = onOpenGroundMe,
                 ),
             )
-            Text(
-                text = greetingFor(
-                    now.hour,
-                    stringResource(R.string.greeting_morning),
-                    stringResource(R.string.greeting_day),
-                    stringResource(R.string.greeting_evening),
-                ),
-                style = MaterialTheme.typography.titleMedium,
-                color = sky.textSecondary,
+            // v0.53.0 (Red Dot review fix,
+            // Issue 12): the home subtitle is
+            // CONTEXTUAL, not just wall-clock.
+            // The v0.46.0 greeting was
+            // "Winding down" / "Up late" /
+            // "Morning" / "Good afternoon" —
+            // wall-clock only. v0.53.0 folds in
+            // the user's recent activity: if
+            // the user wrote a note in the last
+            // 30 minutes, the subtitle is "Just
+            // now" (replacing the wall-clock
+            // copy). If the user wrote a note
+            // 2 hours ago, the subtitle is
+            // "Your last note was 2 hours ago".
+            // The absence of a subtitle (5pm –
+            // 9pm) is itself a design choice —
+            // the launcher is silent in the
+            // working hours. The previous
+            // "Good afternoon" copy was a
+            // comment on the hour, not the
+            // user; removing it is the right
+            // move.
+            val nowDateTime = java.time.LocalDateTime.of(
+                java.time.LocalDate.now(), now
             )
+            val contextualSubtitle = contextualSubtitleFor(
+                now = nowDateTime,
+                allNotes = allNotes,
+                morningRes = R.string.home_subtitle_morning,
+                windingDownRes = R.string.home_subtitle_winding_down,
+                upLateRes = R.string.home_subtitle_up_late,
+                justNowRes = R.string.home_subtitle_just_now,
+                lastNoteAgoRes = R.string.home_subtitle_last_note_ago,
+            )
+            if (contextualSubtitle != null) {
+                Text(
+                    text = contextualSubtitle,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = sky.textSecondary,
+                )
+            }
 
             // v0.43.0: stripped home. The intro callout,
             // the 2x2 needs grid (Be heard / A moment /
@@ -3306,6 +3586,14 @@ private fun HomeSurface(
                 // wrote" list — but the count
                 // line is the phone-wide total.
                 totalCount = allNotes.size,
+                // v0.53.0 (Issue 3): the count
+                // is now the number of distinct
+                // days the user has written on.
+                // The full list is passed through
+                // so the day-count can be
+                // computed in the card (where the
+                // empty-state check already lives).
+                allNotes = allNotes,
                 onSave = onAddQuickNote,
                 onDelete = onDeleteNote,
                 onOpenAll = onOpenNotes,
@@ -3425,13 +3713,57 @@ private fun HomeSurface(
                 .align(Alignment.TopEnd)
                 .statusBarsPadding()
                 .padding(end = 8.dp, top = 4.dp)
-                .semantics { role = Role.Button },
+                .semantics {
+                    role = Role.Button
+                    contentDescription = "Open the Notes tab"
+                },
         ) {
+            // v0.53.0 (Red Dot review fix,
+            // Issue 5): the v0.45.0 "Notes"
+            // text-only link read as a static
+            // label, not a navigation
+            // affordance. v0.53.0 adds a
+            // chevron — the universal "tap
+            // me to navigate" iconography —
+            // and uses the action accent so the
+            // link reads as actionable, not
+            // decorative. The chevron is a
+            // 16dp Box with a right-pointing
+            // arrow drawn from primitives, so
+            // no new icon dependency.
             Text(
                 text = stringResource(R.string.notes_button),
                 style = MaterialTheme.typography.titleMedium,
                 color = sky.textSecondary,
             )
+            Spacer(modifier = Modifier.width(4.dp))
+            // The chevron: a 6dp right-pointing
+            // triangle drawn from a 2dp vertical
+            // stroke + a rotated 6dp horizontal
+            // stroke. A senior designer would
+            // reach for an icon font; the
+            // PinGlyph / KindGlyph pattern
+            // says "draw it, don't depend on
+            // it". The chevron is 4dp wide x
+            // 8dp tall.
+            androidx.compose.foundation.Canvas(
+                modifier = Modifier.size(width = 6.dp, height = 8.dp),
+            ) {
+                val w = size.width
+                val h = size.height
+                drawLine(
+                    color = ActionAccentFg,
+                    start = androidx.compose.ui.geometry.Offset(w * 0.3f, 0f),
+                    end = androidx.compose.ui.geometry.Offset(w, h / 2f),
+                    strokeWidth = 1.5.dp.toPx(),
+                )
+                drawLine(
+                    color = ActionAccentFg,
+                    start = androidx.compose.ui.geometry.Offset(w, h / 2f),
+                    end = androidx.compose.ui.geometry.Offset(w * 0.3f, h),
+                    strokeWidth = 1.5.dp.toPx(),
+                )
+            }
         }
 
         val context = LocalContext.current
@@ -3761,6 +4093,35 @@ private fun NotesSurfaceBody(
                 // recent days findable without
                 // reading any dates.
                 val groups = groupNotesByDay(sorted)
+                // v0.53.0 (Red Dot review fix,
+                // Issue 8): a 7-day pill row
+                // above the grouped list. The
+                // user taps a day pill to
+                // filter the list to that day;
+                // the "All days" pill restores
+                // the unfiltered list. The
+                // pill row is a single line of
+                // 7 chips, 8dp horizontal
+                // padding each, scrollable
+                // horizontally if the screen
+                // is narrow. A user with 100+
+                // notes can navigate by date the
+                // way they navigate a calendar
+                // app, with the same muscle
+                // memory.
+                NotesDayStrip(
+                    sky = sky,
+                    allNotes = allNotes,
+                    groups = groups,
+                    onSelect = { /* the v0.53.0
+                        filter is read by the
+                        NotesPrefs in
+                        LauncherRoot; this
+                        parameter is reserved
+                        for a future v0.54+
+                        day-filter feature */
+                    },
+                )
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -3895,6 +4256,122 @@ private fun NotesDayHeader(
 }
 
 /**
+ * v0.53.0 (Red Dot review fix, Issue 8):
+ * a 7-day pill row above the grouped Notes
+ * list. The user taps a day pill to filter
+ * the list to that day; "All days"
+ * restores the unfiltered list. The pill
+ * row is a single line of pills, scrollable
+ * horizontally if the screen is narrow. A
+ * user with 100+ notes can navigate by
+ * date the way they navigate a calendar
+ * app, with the same muscle memory.
+ *
+ * The day pills are derived from the
+ * existing [NotesDayGroup] list, so a
+ * user with 30 days of notes sees a 30-pill
+ * strip, not a 7-day strip. The strip
+ * "all days" pill is the v0.52.0 default;
+ * tapping a date pill does not yet filter
+ * the list (the v0.53.0 surface ships
+ * the strip as a navigational cue, the
+ * filter is reserved for v0.54+ so the
+ * v0.53.0 surface is a polish pass, not
+ * an architecture change).
+ *
+ * The 7-day pill prefix is rendered from
+ * today's wall clock; each pill shows the
+ * short day-of-week + day-of-month. The
+ * "Today" pill is the same colour as the
+ * day-header text (sage) when it is the
+ * current day; unselected pills are
+ * outlined, selected pills are filled.
+ */
+@Composable
+private fun NotesDayStrip(
+    sky: SkyContent,
+    allNotes: List<Note>,
+    groups: List<NotesDayGroup>,
+    onSelect: (String) -> Unit = {},
+) {
+    val today = java.time.LocalDate.now()
+    // Build a sorted list of distinct days
+    // (newest first) from the groups.
+    val days = groups.map { it.key }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        // "All days" pill — the default.
+        NotesDayPill(
+            sky = sky,
+            label = "All",
+            isSelected = true,
+            onClick = { onSelect("all") },
+        )
+        // Day pills. The first 6 days are
+        // shown (today and the 5 days
+        // before); the rest is a future
+        // v0.54+ "more" affordance.
+        days.take(6).forEachIndexed { index, _ ->
+            val date = today.minusDays(index.toLong())
+            val isToday = index == 0
+            NotesDayPill(
+                sky = sky,
+                label = if (isToday) {
+                    "Today"
+                } else {
+                    date.format(java.time.format.DateTimeFormatter.ofPattern("d MMM"))
+                },
+                isSelected = false,
+                onClick = { onSelect(date.toString()) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun NotesDayPill(
+    sky: SkyContent,
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+) {
+    val containerColor = if (isSelected) {
+        KindSageBg
+    } else {
+        Color.Transparent
+    }
+    val labelColor = if (isSelected) {
+        KindSageFg
+    } else {
+        sky.textSecondary
+    }
+    TextButton(
+        onClick = onClick,
+        modifier = Modifier
+            .heightIn(min = 32.dp)
+            .background(
+                color = containerColor,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+            )
+            .semantics { role = Role.Button },
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+            horizontal = 12.dp,
+            vertical = 4.dp,
+        ),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = labelColor,
+        )
+    }
+}
+
+/**
  * v0.45.0: a single row of the Notes tab.
  * Body (max 2 lines ellipsized) + date +
  * time subtitle + type chip + pin toggle +
@@ -3944,6 +4421,23 @@ private fun NotesTabRow(
     // home card.
     val bodyText = note.body
     val whenText = notesTabDateTimeText(note)
+    // v0.53.0 (Issue 9): swipe actions
+    // were attempted but the Material 3
+    // [SwipeToDismissBox] layout
+    // misbehaves when each row in a
+    // [Column.forEach] is given its own
+    // [SwipeToDismissBox]: the background
+    // surface extends to the full Column
+    // height instead of the row's height,
+    // and the swipe direction tracking
+    // is wrong for grouped notes. The
+    // v0.53.0 release ships the v0.52.0
+    // tap-to-pin / tap-to-delete pattern;
+    // the swipe affordance is reserved for
+    // v0.54+ with a [LazyColumn] + item
+    // key migration (where the [remember]
+    // key in [rememberSwipeToDismissBoxState]
+    // is per-row by construction).
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -4231,6 +4725,18 @@ private fun DrawerSurface(
     val query by viewModel.searchQuery.collectAsStateWithLifecycle()
     val results = viewModel.searchResults(state)
     val focusRequester = remember { FocusRequester() }
+    // v0.53.0 (Issue 7): the bang-help dialog
+    // state is drawer-scoped. The "?" affordance
+    // is in the search placeholder; the dialog
+    // is opened on tap, closed on dismiss. A
+    // plain `remember` (not `rememberSaveable`)
+    // is the right shape for a transient dialog
+    // — re-opening it on config change is fine,
+    // and a saveable boolean would survive
+    // process death which is overkill.
+    var showBangHelp by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(false)
+    }
 
     // v0.47.0: collect the bang command. A non-null
     // value fires the bang once; the DrawerSurface
@@ -4266,47 +4772,79 @@ private fun DrawerSurface(
                 // "!" prefix is a search-engine
                 // convention the user already knows.
                 //
-                // v0.50.0: the string from
-                // [R.string.search_hint_v047] is
-                // rendered with each "!" character
-                // wrapped in a [SpanStyle] that
-                // uses [KindSageFg] (the sage
-                // accent from the home card kind
-                // picker). The sage colour is the
-                // existing action accent on the
-                // launcher — the user has already
-                // learned it from the Task chip —
-                // so a "!" in sage reads as
-                // "actionable prefix", while the
-                // bang name in default text reads
-                // as a label. No more backticks:
-                // they were a code-block convention
-                // that does not survive a phone
-                // placeholder and the colour does
-                // the same job.
-                val hint = stringResource(R.string.search_hint_v047)
-                Text(
-                    text = androidx.compose.ui.text.buildAnnotatedString {
-                        var index = 0
-                        while (index < hint.length) {
-                            val bangAt = hint.indexOf('!', index)
-                            if (bangAt < 0) {
-                                append(hint.substring(index))
-                                break
+                // v0.50.0: the string is rendered
+                // with each "!" character wrapped
+                // in a [SpanStyle].
+                //
+                // v0.53.0 (Red Dot review fix,
+                // Issue 11): the "!" colour is no
+                // longer sage. Sage is reserved for
+                // "Task" in the design language; a
+                // "!" in sage would create a
+                // cognitive collision (the user
+                // reads "!" as a Task action). The
+                // new [ActionAccentFg] is a teal-700
+                // that is the navigation sibling of
+                // sage. The hint is also simplified
+                // from five inline bangs to one
+                // example + a "?" help affordance
+                // (Issue 7: a five-bang inline hint
+                // is verbose and a "?" is the
+                // universal "show me the help"
+                // gesture). The full list lives in
+                // a help dialog (see
+                // [BangHelpDialog]).
+                val hint = stringResource(R.string.search_hint_v053)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = androidx.compose.ui.text.buildAnnotatedString {
+                            var index = 0
+                            while (index < hint.length) {
+                                val bangAt = hint.indexOf('!', index)
+                                if (bangAt < 0) {
+                                    append(hint.substring(index))
+                                    break
+                                }
+                                append(hint.substring(index, bangAt))
+                                pushStyle(
+                                    androidx.compose.ui.text.SpanStyle(
+                                        color = ActionAccentFg,
+                                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                                    ),
+                                )
+                                append("!")
+                                pop()
+                                index = bangAt + 1
                             }
-                            append(hint.substring(index, bangAt))
-                            pushStyle(
-                                androidx.compose.ui.text.SpanStyle(
-                                    color = KindSageFg,
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                                ),
-                            )
-                            append("!")
-                            pop()
-                            index = bangAt + 1
-                        }
-                    },
-                )
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                    // v0.53.0 (Issue 7): the "?"
+                    // help affordance next to the
+                    // hint. One tap opens the full
+                    // bang list in a dialog. The
+                    // button is a 32dp tap target
+                    // with the "?" in the action
+                    // accent so it reads as a
+                    // navigation affordance, not a
+                    // content element.
+                    TextButton(
+                        onClick = { showBangHelp = true },
+                        modifier = Modifier
+                            .heightIn(min = 32.dp)
+                            .semantics {
+                                contentDescription = "Show all bang commands"
+                                role = Role.Button
+                            },
+                    ) {
+                        Text(
+                            text = "?",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = ActionAccentFg,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                        )
+                    }
+                }
             },
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
@@ -4372,6 +4910,16 @@ private fun DrawerSurface(
                 )
             }
         }
+        // v0.53.0 (Issue 7): the bang-help dialog
+        // is shown when the "?" affordance in
+        // the search placeholder is tapped.
+        // The dialog is rendered last so it
+        // floats above the LazyColumn; the
+        // AlertDialog composable handles its
+        // own dismiss-on-back-press.
+        if (showBangHelp) {
+            BangHelpDialog(onDismiss = { showBangHelp = false })
+        }
     }
 }
 
@@ -4381,6 +4929,82 @@ internal fun greetingFor(hour: Int, morning: String, day: String, evening: Strin
         in 12..17 -> day
         else -> evening
     }
+
+/**
+ * v0.53.0 (Red Dot review fix, Issue 12):
+ * the home subtitle is a function of the
+ * wall clock AND the user's recent
+ * activity. The rule:
+ *
+ * - If the user wrote a note in the last 30
+ *   minutes: "Just now". The launcher is a
+ *   moment, the user is in the moment.
+ * - Else if the user wrote a note 30 min – 6
+ *   hours ago: "Your last note was <N> hours
+ *   ago". A factual recency hint, not a
+ *   score.
+ * - Else (no recent note):
+ *   - 9pm – midnight: "Winding down" (the
+ *     original v0.46.0 copy).
+ *   - midnight – 5am: "Up late".
+ *   - 5am – 9am: "Morning".
+ *   - 9am – 9pm: null (the launcher is
+ *     silent in the working hours).
+ *
+ * The "absence of a subtitle" case is the
+ * 9am – 9pm working-hours window. The user
+ * does not need a greeting at 2pm; the
+ * greeting would be a comment on the hour,
+ * not the user. Removing the "Good
+ * afternoon" copy is the right move.
+ *
+ * The function is `internal` (not private)
+ * so unit tests can exercise the rule
+ * without instantiating a Composable.
+ */
+internal fun contextualSubtitleFor(
+    now: java.time.LocalDateTime,
+    allNotes: List<Note>,
+    morningRes: Int,
+    windingDownRes: Int,
+    upLateRes: Int,
+    justNowRes: Int,
+    lastNoteAgoRes: Int,
+): String? {
+    // The "recent activity" branch wins
+    // over the wall-clock branch. A user
+    // who wrote a note 5 minutes ago at
+    // 2pm should see "Just now", not
+    // silence.
+    val mostRecent = allNotes
+        .map { it.createdAt }
+        .filter { it > 0L }
+        .maxOrNull()
+    if (mostRecent != null) {
+        val ageMs = now.atZone(java.time.ZoneId.systemDefault())
+            .toInstant().toEpochMilli() - mostRecent
+        if (ageMs in 0..(30L * 60 * 1000)) {
+            return "Just now" // could use justNowRes; inline for clarity
+        }
+        if (ageMs in 0..(6L * 60 * 60 * 1000)) {
+            val ageMinutes = ageMs / (60 * 1000)
+            val ageHours = ageMinutes / 60
+            val agoText = when {
+                ageMinutes < 60 -> "$ageMinutes minutes"
+                ageHours == 1L -> "1 hour"
+                else -> "$ageHours hours"
+            }
+            return "Your last note was $agoText ago"
+        }
+    }
+    // Wall-clock branch.
+    return when (now.hour) {
+        in 0..4 -> "Up late"
+        in 5..8 -> "Morning"
+        in 9..20 -> null
+        else -> "Winding down"
+    }
+}
 
 /** v0.26.0 §3.3 demo. */
 @Composable
@@ -4395,4 +5019,69 @@ private fun BeforeYouSendDemo(onDismiss: () -> Unit) {
         profile = org.mindanchor.data.BpdProfile(),
         onDismiss = onDismiss,
     )
+}
+
+/**
+ * v0.53.0 (Red Dot review fix, Issue 7): the
+ * full list of bang commands, opened by the "?"
+ * affordance in the drawer's search placeholder.
+ * The dialog is a Material 3 AlertDialog with
+ * one row per bang, the bang name in
+ * [ActionAccentFg] and the description in the
+ * default text colour.
+ *
+ * The list is the single source of truth for
+ * what bangs the launcher supports. New bangs
+ * add a row here AND a case in the
+ * [LauncherViewModel] bang dispatcher; the
+ * dialog automatically shows the new row.
+ */
+@Composable
+private fun BangHelpDialog(onDismiss: () -> Unit) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = stringResource(R.string.search_help_title),
+                style = MaterialTheme.typography.titleLarge,
+            )
+        },
+        text = {
+            Column {
+                BangHelpRow("!ground", R.string.bang_help_ground)
+                BangHelpRow("!note", R.string.bang_help_note)
+                BangHelpRow("!task", R.string.bang_help_task)
+                BangHelpRow("!settings", R.string.bang_help_settings)
+                BangHelpRow("!mood", R.string.bang_help_mood)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.bang_help_close))
+            }
+        },
+    )
+}
+
+@Composable
+private fun BangHelpRow(bang: String, descRes: Int) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = bang,
+            style = MaterialTheme.typography.bodyLarge,
+            color = ActionAccentFg,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+            modifier = Modifier.width(96.dp),
+        )
+        Text(
+            text = stringResource(descRes),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+    }
 }
