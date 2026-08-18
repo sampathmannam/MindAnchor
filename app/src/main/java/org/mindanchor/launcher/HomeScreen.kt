@@ -852,7 +852,17 @@ fun LauncherRoot(
         // home card and the "View all" affordance.
         LauncherSurface.Notes -> Surface(modifier = Modifier.fillMaxSize()) {
             NotesSurface(
-                allNotes = recentNotes,
+                // v0.48.0: use the uncapped
+                // allNotes flow for the Notes
+                // tab. The previous code passed
+                // recentNotes (capped at 3),
+                // which silently hid everything
+                // past the 3 most recent. The
+                // home card still uses
+                // recentNotes (the "3 most
+                // recent" behaviour is the
+                // v0.43.0 design).
+                allNotes = viewModel.allNotes.collectAsStateWithLifecycle().value,
                 onBack = { surface = LauncherSurface.Home },
                 onDeleteNote = onDeleteNote,
                 onPinNote = onPinNote,
@@ -1723,6 +1733,20 @@ private fun QuickNotesCard(
         // the truncation hid it. min/max lines keeps the
         // field from collapsing to one line on an empty
         // draft and from growing forever on a long one.
+        //
+        // v0.48.0: the trailing icon is an `×` that
+        // appears only when the draft is non-blank. The
+        // v0.45.0-v0.45.1 design had a separate
+        // OutlinedButton (Save, wide) + TextButton
+        // (Clear, narrow) row. The Clear was visually
+        // loud (same row as the primary action) and the
+        // user asked for it to be less prominent. The
+        // `×` inside the input is the standard
+        // "clear this field" affordance in Compose
+        // TextField and matches the AIO Launcher /
+        // Todoist pattern: a single primary action
+        // (Save) below the input, a contextual clear
+        // inside the input.
         OutlinedTextField(
             value = draft,
             onValueChange = { draft = it },
@@ -1737,6 +1761,28 @@ private fun QuickNotesCard(
             },
             minLines = 3,
             maxLines = 5,
+            // v0.48.0: trailing `×` icon for
+            // clear. Visible only when the draft
+            // is non-blank. The icon is a
+            // pass-through clickable that wipes
+            // the draft.
+            trailingIcon = if (draft.isNotBlank()) {
+                {
+                    TextButton(
+                        onClick = {
+                            draft = ""
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        },
+                        modifier = Modifier.semantics { role = Role.Button },
+                    ) {
+                        Text(
+                            text = "×",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = sky.textSecondary,
+                        )
+                    }
+                }
+            } else null,
             modifier = Modifier
                 .fillMaxWidth()
                 .bringIntoViewOnFocus(),
@@ -1787,6 +1833,16 @@ private fun QuickNotesCard(
                 }
                 else -> stringResource(R.string.quick_notes_save) to (draft.isNotBlank())
             }
+            // v0.48.0: Save is the only button in
+            // the row. It spans the full width
+            // (no weight(1f) — the Row is a
+            // single-child Row). Clear is a
+            // contextual `×` inside the input
+            // field (trailing icon). The row
+            // is shorter and the visual
+            // hierarchy is cleaner: one
+            // primary action, one contextual
+            // clear.
             OutlinedButton(
                 onClick = {
                     // v0.45.1: capture `now` at click
@@ -1838,25 +1894,11 @@ private fun QuickNotesCard(
                 },
                 enabled = enabled,
                 modifier = Modifier
-                    .weight(1f)
+                    .fillMaxWidth()
                     .heightIn(min = 48.dp)
                     .semantics { role = Role.Button },
             ) {
                 Text(label)
-            }
-            if (draft.isNotBlank()) {
-                TextButton(
-                    onClick = {
-                        draft = ""
-                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    },
-                    modifier = Modifier.semantics { role = Role.Button },
-                ) {
-                    Text(
-                        text = stringResource(R.string.quick_notes_clear),
-                        color = sky.textSecondary,
-                    )
-                }
             }
         }
         if (recent.isEmpty()) {

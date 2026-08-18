@@ -159,6 +159,19 @@ object ReminderScheduler {
             // is NOT subject to the temporary
             // allowlist restriction.
             //
+            // v0.48.0: gate on canScheduleExactAlarms().
+            // setAlarmClock() throws SecurityException
+            // when the app does not hold
+            // SCHEDULE_EXACT_ALARM (or USE_EXACT_ALARM
+            // on Android 13+). A user who has revoked
+            // the permission via Settings, or an
+            // emulator that has not granted it, would
+            // otherwise see every reminder fail. The
+            // fallback to setAndAllowWhileIdle (an
+            // inexact alarm) preserves the reminder
+            // for late delivery, the same v0.44.0
+            // contract.
+            //
             // The first argument is an
             // [AlarmClockInfo] wrapping the trigger
             // time and a "show" PendingIntent. The
@@ -173,6 +186,15 @@ object ReminderScheduler {
             // PendingIntent — what the alarm
             // actually fires when the time hits.
             // That is the ReminderReceiver.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !am.canScheduleExactAlarms()) {
+                Log.w(TAG, "schedule: cannot schedule exact alarms; falling back to inexact for noteId=$noteId")
+                am.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    atMillis,
+                    pi,
+                )
+                return
+            }
             val info = AlarmManager.AlarmClockInfo(atMillis, showPi)
             am.setAlarmClock(info, pi)
             Log.i(TAG, "scheduled reminder (setAlarmClock) for noteId=$noteId at $atMillis")

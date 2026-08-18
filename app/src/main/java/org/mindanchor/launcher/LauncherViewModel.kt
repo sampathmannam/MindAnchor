@@ -104,6 +104,44 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             )
 
     /**
+     * v0.48.0: the uncapped notes flow for the
+     * Notes tab. The home card uses the
+     * `notes` flow above, which is capped at
+     * QUICK_NOTES_RECENT_CAP = 3 to keep the
+     * "what you just wrote" list short. The
+     * Notes tab is the "all notes" surface
+     * and must NOT be capped — a user with
+     * 100 notes (e.g. after running the
+     * SeedNotes fixture, or after a week of
+     * daily gratitude + tasks) must see all
+     * 100 rows.
+     *
+     * Phase 1 (systematic-debug) root cause
+     * investigation: the previous Notes tab
+     * read from `notes` and was silently
+     * capped to 3 — the user opened the tab
+     * expecting "everything I wrote" and saw
+     * only the 3 most recent. The fix is
+     * structural: a separate uncapped flow.
+     * Sorting uses the same [NoteStore.sortedForList]
+     * contract as the home card so the order
+     * (pinned-first, then updatedAt desc) is
+     * consistent across both surfaces.
+     *
+     * The cap on `notes` is unchanged — the
+     * home card's "3 most recent" behaviour
+     * is the v0.43.0 design and stays.
+     */
+    val allNotes: StateFlow<List<Note>> =
+        notesPrefs.notes
+            .map { state -> NoteStore.sortedForList(state.notes) }
+            .stateIn(
+                viewModelScope,
+                SharingStarted.WhileSubscribed(5_000),
+                emptyList(),
+            )
+
+    /**
      * v0.25.7+ WP-3: the id generator moved to
      * [NotesPrefs.nextNoteId]. The home card and the
      * full [org.mindanchor.model.NoteActivity] now
