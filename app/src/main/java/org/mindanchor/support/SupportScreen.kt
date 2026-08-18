@@ -42,11 +42,14 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import org.mindanchor.R
 import org.mindanchor.data.db.CrisisContact
 import org.mindanchor.data.db.SafetyPlan
+import org.mindanchor.ui.theme.SoftContent
 
 /**
  * Support: crisis contacts, a safety plan, and a few skills — one tap from
@@ -219,7 +222,15 @@ fun SupportScreen(
             ).forEach { (title, body, caution) ->
                 Text(
                     text = stringResource(title),
-                    style = MaterialTheme.typography.bodyLarge,
+                    // v0.39.0: serif voice. Lora Medium at 18sp is
+                    // the action word — DBT STOP, TIPP, 5-4-3-2-1 —
+                    // the register that tells the reader "do this
+                    // now." The body that follows is the explanation
+                    // and stays in Inter (system).
+                    style = SoftContent.copy(
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 18.sp,
+                    ),
                     modifier = Modifier.padding(top = 12.dp),
                 )
                 Text(

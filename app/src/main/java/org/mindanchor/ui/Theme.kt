@@ -4,15 +4,12 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
-import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import org.mindanchor.ui.theme.CalmTypography
 
 /**
  * Calm design language (docs/research/06).
@@ -74,36 +71,12 @@ private val CalmShapes = Shapes(
 
 /**
  * Light weights and generous line height. Reading ease is linked to
- * positive affect via processing fluency (Reber et al. 2004); we cannot
- * bundle a downloadable rounded face without a proprietary dependency, so
- * we soften the system face with weight, spacing and leading instead.
+ * positive affect via processing fluency (Reber et al. 2004); v0.39.0
+ * replaces the inlined device-default typography with [CalmTypography]
+ * from `ui.theme.Type` — Inter (humanist sans) is the system voice,
+ * Lora (warm serif) is reserved for soft-content call sites via
+ * `SoftContent` and `BreathLabel`.
  */
-private val CalmTypography = Typography().run {
-    copy(
-        displayLarge = displayLarge.copy(
-            fontWeight = FontWeight.Light,
-            letterSpacing = 2.sp,
-        ),
-        displayMedium = displayMedium.copy(fontWeight = FontWeight.Light),
-        headlineSmall = headlineSmall.copy(
-            fontWeight = FontWeight.Normal,
-            lineHeight = 36.sp,
-        ),
-        titleLarge = titleLarge.copy(fontWeight = FontWeight.Normal),
-        titleMedium = titleMedium.copy(
-            fontWeight = FontWeight.Normal,
-            letterSpacing = 0.4.sp,
-        ),
-        bodyLarge = bodyLarge.copy(lineHeight = 26.sp),
-        bodyMedium = bodyMedium.copy(lineHeight = 24.sp),
-        bodySmall = bodySmall.copy(lineHeight = 20.sp),
-        labelMedium = TextStyle(
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Normal,
-            letterSpacing = 0.6.sp,
-        ),
-    )
-}
 
 /**
  * The whole app follows the sky, not the system switch.

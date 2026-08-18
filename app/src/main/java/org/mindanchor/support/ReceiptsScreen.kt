@@ -33,6 +33,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import org.mindanchor.R
+import org.mindanchor.ui.theme.SoftContent
 import java.time.LocalDate
 
 /**
@@ -133,7 +134,11 @@ fun ReceiptsScreen(onDone: () -> Unit) {
                             )
                             Text(
                                 text = receipt.text,
-                                style = MaterialTheme.typography.bodyLarge,
+                                // v0.39.0: serif voice. Lora at 17sp /
+                                // 26sp leading — the receipt line is the
+                                // intimate content; the date label above
+                                // it stays sans as the system marker.
+                                style = SoftContent,
                                 color = MaterialTheme.colorScheme.onSurface,
                             )
                         }

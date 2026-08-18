@@ -46,6 +46,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import org.mindanchor.R
 import org.mindanchor.reader.ReadingSize
 import org.mindanchor.ui.Spacing
+import org.mindanchor.ui.theme.CalmSerif
 
 /**
  * The letter surface, dispatched between an inbox list and a single
@@ -886,8 +887,13 @@ private fun LetterReaderDeleteDialog(
  */
 internal fun readerTitleStyle(typography: Typography, size: ReadingSize): TextStyle =
     typography.headlineMedium.copy(
+        // v0.39.0: serif voice. Lora at the same size scale, light
+        // weight, with serif-appropriate leading so the long
+        // letter title does not crowd.
+        fontFamily = CalmSerif,
         fontSize = (size.sp * 1.75f).sp,
         fontWeight = FontWeight.Light,
+        lineHeight = (size.sp * 2.1f).sp,
     )
 
 /**
@@ -902,8 +908,11 @@ internal fun readerTitleStyle(typography: Typography, size: ReadingSize): TextSt
  */
 internal fun readerBodyStyle(typography: Typography, size: ReadingSize): TextStyle =
     typography.bodyLarge.copy(
+        // v0.39.0: serif voice. Lora at the size toggle's exact sp
+        // count — the user chose the sp, the face honours it.
+        fontFamily = CalmSerif,
         fontSize = size.sp.sp,
-        lineHeight = (size.sp * 1.45f).sp,
+        lineHeight = (size.sp * 1.5f).sp,
     )
 
 /**

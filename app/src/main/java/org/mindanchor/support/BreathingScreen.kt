@@ -38,11 +38,10 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import org.mindanchor.R
+import org.mindanchor.ui.theme.BreathLabel
 
 /**
  * v0.38.0: 4-7-8 breathing surface. The visual is a single
@@ -204,10 +203,14 @@ fun BreathingScreen(onDone: () -> Unit) {
                         BreathPhase.HOLD -> stringResource(R.string.breathing_hold)
                         BreathPhase.EXHALE -> stringResource(R.string.breathing_exhale)
                     },
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Light,
+                    // v0.39.0: serif voice. Lora at 22sp / Light / 4sp
+                    // tracking — wider than the default so the letters
+                    // hold their shape against the radial gradient.
+                    // This is the only label on the surface; if it does
+                    // not feel intimate, the whole screen reads as a
+                    // UI screen instead of a place.
+                    style = BreathLabel,
                     color = Color(0xFF2B2B2B),
-                    letterSpacing = 2.sp,
                 )
             }
             Column(
