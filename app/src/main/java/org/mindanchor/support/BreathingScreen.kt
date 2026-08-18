@@ -1,6 +1,8 @@
 @file:Suppress("MagicNumber", "MaxLineLength")
 package org.mindanchor.support
 
+import android.media.AudioManager
+import android.media.ToneGenerator
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -21,6 +23,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -39,8 +43,10 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 import org.mindanchor.R
+import org.mindanchor.data.AppearancePrefs
 import org.mindanchor.ui.theme.BreathLabel
 
 /**
@@ -107,6 +113,28 @@ fun BreathingScreen(onDone: () -> Unit) {
     )
 
     val haptics = LocalHapticFeedback.current
+    // v0.40.0: opt-in soft tone at every phase transition.
+    // TONE_PROP_PROMPT is the system prompt tone — a single
+    // 200 ms soft cue, the same one Android uses for keyboard
+    // clicks. It is not a notification sound and not a ringtone;
+    // a user who has notifications on silent will still hear it
+    // because we play through STREAM_NOTIFICATION, but a user
+    // who has notification volume at zero will hear nothing —
+    // which is the right outcome, because they have already
+    // asked for silence. The generator is created once and
+    // released on dispose; the runCatching handles devices
+    // where STREAM_NOTIFICATION is unavailable (rare).
+    val context = LocalContext.current
+    val appearancePrefs = remember { AppearancePrefs(context) }
+    val breathToneEnabled by appearancePrefs.breathToneEnabled
+        .collectAsStateWithLifecycle(initialValue = false)
+    val toneGenerator = remember {
+        runCatching { ToneGenerator(AudioManager.STREAM_NOTIFICATION, 30) }.getOrNull()
+    }
+    DisposableEffect(Unit) {
+        onDispose { toneGenerator?.release() }
+    }
+
     // v0.38.0: soft haptic on each phase transition. LongPress
     // is a single confirmation pulse; not a "tick" pattern,
     // which would compete with the breath. The user feels the
@@ -123,8 +151,16 @@ fun BreathingScreen(onDone: () -> Unit) {
     // returning a frame from before the navigation
     // completed), not a state machine bug. The Log.d
     // statements are removed here.
+    //
+    // v0.40.0: read [breathToneEnabled] at execution time. The
+    // effect is keyed on [phase] only, so a setting change does
+    // not re-fire it; the next phase transition reads the
+    // current value and either plays the tone or stays silent.
     LaunchedEffect(phase) {
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        if (breathToneEnabled) {
+            toneGenerator?.startTone(ToneGenerator.TONE_PROP_PROMPT, 200)
+        }
         when (phase) {
             BreathPhase.INHALE -> delay(4_000)
             BreathPhase.HOLD -> delay(7_000)

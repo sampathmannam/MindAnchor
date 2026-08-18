@@ -26,8 +26,8 @@ android {
         applicationId = "org.mindanchor"
         minSdk = 33
         targetSdk = 35
-        versionCode = 70
-        versionName = "0.39.0"
+        versionCode = 71
+        versionName = "0.40.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every

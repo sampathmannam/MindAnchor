@@ -133,6 +133,9 @@
     <string name="scene_water">Water</string>
     <string name="scene_forest">Forest</string>
     <string name="scene_off">Just the sky</string>
+    <!-- v0.40.0: opt-in soft tone at every 4-7-8 phase transition. Off by default. -->
+    <string name="breath_tone_label">A soft tone on each phase</string>
+    <string name="breath_tone_explainer">Off by default. When on, a short quiet chime marks the moment the breath changes — a single soft cue, never a metronome. Safe to leave off.</string>
 
     <string name="small_things_section">Small things that help</string>
     <string name="small_things_explainer">If you write down a few small things that help you, one of them is offered — beside the app, never instead of it — at the moment you reach for something else. Only your words, never ours. Nothing is offered on a fourth reach in ten minutes, or during your quiet hours: those are not moments to be asked whether you have tried going for a walk.</string>

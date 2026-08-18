@@ -1,6 +1,7 @@
 package org.mindanchor.data
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -14,6 +15,15 @@ private val Context.dataStore by preferencesDataStore(name = "appearance")
 class AppearancePrefs(private val context: Context) {
 
     private val sceneKey = stringPreferencesKey("nature_scene")
+    // v0.40.0: an opt-in soft tone at every 4-7-8 phase transition.
+    // Off by default — sound is the kind of thing a person with
+    // hyperacusis or in a quiet room has to ask for, never have
+    // thrust on them. The Breathing surface still pulses a haptic
+    // on every phase change regardless (gated by the system
+    // haptics toggle through [org.mindanchor.ui.HapticFeedbackGate]),
+    // so the visual rhythm of the breath circle is unchanged for
+    // anyone who leaves the sound off.
+    private val breathToneKey = booleanPreferencesKey("breath_tone_enabled")
 
     /** Defaults to a scene that changes daily. */
     val scene: Flow<NatureScene> = context.dataStore.data.map { prefs ->
@@ -22,5 +32,14 @@ class AppearancePrefs(private val context: Context) {
 
     suspend fun setScene(scene: NatureScene) {
         context.dataStore.edit { it[sceneKey] = scene.name }
+    }
+
+    /** v0.40.0: the 4-7-8 phase tone, off by default. */
+    val breathToneEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[breathToneKey] ?: false
+    }
+
+    suspend fun setBreathToneEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[breathToneKey] = enabled }
     }
 }

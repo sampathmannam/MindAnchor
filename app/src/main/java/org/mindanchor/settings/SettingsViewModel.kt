@@ -401,6 +401,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { appearancePrefs.setScene(scene) }
     }
 
+    // v0.40.0: opt-in soft tone at every 4-7-8 phase transition.
+    val breathToneEnabled = appearancePrefs.breathToneEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setBreathToneEnabled(enabled: Boolean) {
+        viewModelScope.launch { appearancePrefs.setBreathToneEnabled(enabled) }
+    }
+
     // --- Check-ins (EMA) ---
 
     private val momentStore = org.mindanchor.model.MomentStore(application)

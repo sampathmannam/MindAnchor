@@ -1279,6 +1279,39 @@ fun SettingsScreen(
                     )
                 }
             }
+
+            // v0.40.0: opt-in soft tone for the 4-7-8 breathing
+            // surface. Off by default — sound is the kind of thing
+            // a person with hyperacusis or in a quiet room has to
+            // ask for, never have thrust on them. The haptic pulse
+            // at every phase change still fires (gated by the
+            // system haptics toggle), so the breath rhythm is
+            // unchanged for anyone who leaves the sound off.
+            val breathToneEnabled by viewModel.breathToneEnabled.collectAsStateWithLifecycle()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .toggleable(
+                        value = breathToneEnabled,
+                        role = Role.Switch,
+                    ) { viewModel.setBreathToneEnabled(!breathToneEnabled) }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Switch(checked = breathToneEnabled, onCheckedChange = null)
+                Text(
+                    text = stringResource(R.string.breath_tone_label),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
+            Text(
+                text = stringResource(R.string.breath_tone_explainer),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
         }
 
         if (group == SettingsGroup.PAUSES) {
