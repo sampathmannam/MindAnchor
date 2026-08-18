@@ -1,45 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    The dusk end of the sky the home screen draws, plus the ridge that sits
-    under it, so the icon on the app grid and the screen behind the clock
-    read as the same place. The first version was a flat gradient, which
-    was calm but said nothing about the app.
+    v0.41.0: warm cream paper.
 
-    The ridge is deliberately low and very close in tone to the sky above
-    it. It is there to give the icon a horizon, not to be looked at — at
-    48dp it reads as a slight weighting toward the bottom rather than as a
-    hill, which is the intent. Anything with more contrast would compete
-    with the anchor sitting on top of it.
+    The previous background was a dusk-sky gradient (navy at the
+    top, slate at the bottom) with a low ridge. It was coherent
+    with the home shell's late-night rendering, but at 48dp on the
+    app grid it read as "a dark app" — exactly the first-impression
+    the BDP-safe design language is trying to avoid. A user
+    installing MindAnchor in distress is already in the dark; the
+    icon should not be.
 
-    Everything here bleeds past the safe zone on purpose: the background
-    layer is what gets masked and parallaxed, so it must have no edges of
-    its own.
+    The new background is a single warm cream (#FAF6EE), the same
+    paper the v0.38.0 breathing surface draws. There is no gradient,
+    no ridge, no chrome — the foreground mark is the entire picture.
+    The icon now reads as "a quiet place" the moment the eye lands
+    on the app grid, which is the design intent.
+
+    Everything here bleeds past the safe zone on purpose: the
+    background layer is what gets masked and parallaxed by the
+    launcher, so it must have no edges of its own.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Sky. -->
-    <path android:pathData="M0,0h108v108h-108z">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:startX="54"
-                android:startY="0"
-                android:endX="54"
-                android:endY="108"
-                android:type="linear">
-                <item android:offset="0" android:color="#16202C" />
-                <item android:offset="0.5" android:color="#26333F" />
-                <item android:offset="1" android:color="#3A4653" />
-            </gradient>
-        </aapt:attr>
-    </path>
-
-    <!-- Ridge. One unbroken curve, no peaks, nothing jagged. -->
+    <!-- Warm cream paper. One path, no gradient. -->
     <path
-        android:fillColor="#434F5C"
-        android:pathData="M0,86 C 22,74 42,80 60,86 C 76,91 92,89 108,84 L 108,108 L 0,108 Z" />
+        android:fillColor="#FAF6EE"
+        android:pathData="M0,0h108v108h-108z" />
 </vector>

@@ -1,30 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    An anchor, drawn rather than exported, so the project carries no binary
-    assets and the icon stays reviewable as text.
+    v0.41.0: the MindAnchor mark.
 
-    Geometry notes, because an adaptive icon is easy to get subtly wrong
-    and impossible to check by reading:
+    The previous foreground was a literal anchor on a dusk-sky gradient.
+    Anchors are easy marks to over-reach for in apps with "anchor" in
+    the name; the result is usually a clip-art silhouette. A Red Dot
+    2025 jury reads the difference between a literal symbol and an
+    abstract mark. The new foreground is a single circle with a small
+    inner dot, drawn in sage on a warm cream paper background.
 
-    The canvas is 108x108dp but only the central 66dp circle is guaranteed
-    visible — every launcher masks the rest and some crop hard. Everything
-    here sits inside a radius of 32 from the centre at (54,54), stroke
-    width included, so nothing lands on the edge of the safe circle. The
-    ring was the tight one: at radius 8.5 its outer edge reached 34, one
-    unit outside, so it is 8 and sits slightly lower.
+    The mark is the same one the v0.38.0 breathing surface draws: a
+    breath circle with a point of stillness at its centre. The
+    launcher icon and the breathing surface are now the same
+    picture. The app grid and the screen behind the breath are the
+    same room.
 
-    Strokes are 7 units, double the first version's 3.5. That worked out
-    at roughly 1.5dp once a launcher draws the icon at 48dp — thin enough
-    to look faint and to break apart under a themed-icon tint. The ring is
-    5 so its hole stays open; at 6.5 the hole closed to about three units
-    and the whole thing read as a solid dot rather than a ring.
+    Geometry notes, because an adaptive icon is easy to get subtly
+    wrong and impossible to check by reading:
 
-    The arms sweep down and then turn up at the ends. An earlier version
-    ran them nearly horizontal, which made the mark read as a cup rather
-    than an anchor — the upturned ends are what make the silhouette
-    legible at small sizes.
+    The canvas is 108x108dp but only the central 66dp is guaranteed
+    visible — every launcher masks the rest and some crop hard. The
+    circle at radius 28 sits well inside that, with stroke 6 (one
+    unit past the ring sits at radius 31, still inside). The inner
+    dot is radius 6, drawn filled in the same sage so the eye reads
+    "circle with a point of stillness" rather than "ring with a hole."
 
-    Round caps and no sharp points throughout, in keeping with an app that
+    The previous 5/7 unit stroke was the right call for the literal
+    anchor; the new foreground is a single circle, which wants a
+    slightly heavier stroke (6) to read as deliberate at 48dp. Too
+    thin and the circle looks like a wire; too thick and it looks
+    like a wheel. 6 is the diameter/9 ratio that holds at 48, 72,
+    and 108dp.
+
+    Round line caps, no sharp points, in keeping with an app that
     avoids anything that reads as an alarm.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
@@ -33,38 +41,18 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- The ring at the crown. -->
+    <!-- The breath circle. Stroke only; the interior is the
+         warm cream paper from the background layer showing through. -->
     <path
-        android:strokeColor="#F4F1E9"
-        android:strokeWidth="5"
+        android:strokeColor="#57726A"
+        android:strokeWidth="6"
         android:fillColor="@android:color/transparent"
-        android:pathData="M 54 32.5 m -8 0 a 8 8 0 1 0 16 0 a 8 8 0 1 0 -16 0" />
+        android:pathData="M 54 26 A 28 28 0 1 1 54 82 A 28 28 0 1 1 54 26 Z" />
 
-    <!-- The shank, from inside the ring down to the crown. -->
+    <!-- The point of stillness at the centre. Filled in the
+         same sage so the eye reads it as part of the mark, not
+         as a separate element. -->
     <path
-        android:strokeColor="#F4F1E9"
-        android:strokeWidth="7"
-        android:strokeLineCap="round"
-        android:pathData="M 54 40.5 L 54 75" />
-
-    <!-- The stock, across. -->
-    <path
-        android:strokeColor="#F4F1E9"
-        android:strokeWidth="7"
-        android:strokeLineCap="round"
-        android:pathData="M 38 49 L 70 49" />
-
-    <!-- The arms: down, out, and up at the tips. -->
-    <path
-        android:strokeColor="#F4F1E9"
-        android:strokeWidth="7"
-        android:strokeLineCap="round"
-        android:fillColor="@android:color/transparent"
-        android:pathData="M 54 75 C 43 74 33 69 30 55" />
-    <path
-        android:strokeColor="#F4F1E9"
-        android:strokeWidth="7"
-        android:strokeLineCap="round"
-        android:fillColor="@android:color/transparent"
-        android:pathData="M 54 75 C 65 74 75 69 78 55" />
+        android:fillColor="#57726A"
+        android:pathData="M 54 48 A 6 6 0 1 1 54 60 A 6 6 0 1 1 54 48 Z" />
 </vector>
