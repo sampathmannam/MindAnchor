@@ -409,6 +409,17 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { appearancePrefs.setBreathToneEnabled(enabled) }
     }
 
+    // v0.42.0: the 2x2 needs grid on the home surface. On by default.
+    // Default reads as `true` so a first-launch home that has not
+    // yet written the preference still shows the four doors — the
+    // current behaviour is the safer migration.
+    val needsGridVisible = appearancePrefs.needsGridVisible
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    fun setNeedsGridVisible(visible: Boolean) {
+        viewModelScope.launch { appearancePrefs.setNeedsGridVisible(visible) }
+    }
+
     // --- Check-ins (EMA) ---
 
     private val momentStore = org.mindanchor.model.MomentStore(application)

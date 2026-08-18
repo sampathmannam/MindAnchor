@@ -24,6 +24,15 @@ class AppearancePrefs(private val context: Context) {
     // so the visual rhythm of the breath circle is unchanged for
     // anyone who leaves the sound off.
     private val breathToneKey = booleanPreferencesKey("breath_tone_enabled")
+    // v0.42.0: toggle for the "What do you need right now?" 2x2
+    // grid on the home surface. Default true (current behaviour).
+    // When false, the home shows only the clock, greeting, and
+    // quick-notes card — a one-purpose launcher for the user who
+    // never opens Support from home and uses MindAnchor as a
+    // notes-first phone. The "Open Support" top-left button and
+    // the support hub inside Settings still work; only the
+    // 2x2 doors on the home are removed.
+    private val needsGridKey = booleanPreferencesKey("home_needs_grid_visible")
 
     /** Defaults to a scene that changes daily. */
     val scene: Flow<NatureScene> = context.dataStore.data.map { prefs ->
@@ -41,5 +50,14 @@ class AppearancePrefs(private val context: Context) {
 
     suspend fun setBreathToneEnabled(enabled: Boolean) {
         context.dataStore.edit { it[breathToneKey] = enabled }
+    }
+
+    /** v0.42.0: the 2x2 needs grid on the home surface. On by default. */
+    val needsGridVisible: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[needsGridKey] ?: true
+    }
+
+    suspend fun setNeedsGridVisible(visible: Boolean) {
+        context.dataStore.edit { it[needsGridKey] = visible }
     }
 }

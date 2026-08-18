@@ -282,6 +282,14 @@ fun LauncherRoot(
     val ctx = LocalContext.current
     val bpdProfilePrefs = remember { org.mindanchor.data.BpdProfilePrefs(ctx.applicationContext) }
     val bpdProfile by bpdProfilePrefs.profile.collectAsStateWithLifecycle(initialValue = org.mindanchor.data.BpdProfile())
+    // v0.42.0: the 2x2 needs grid on the home surface is gated
+    // by a preference (Settings → Home screen → Show needs
+    // grid). Default `true` so first-launch users see the same
+    // home they had in v0.41.0; existing users who already
+    // configured the setting get the value they wrote.
+    val appearancePrefs = remember { org.mindanchor.data.AppearancePrefs(ctx.applicationContext) }
+    val needsGridVisible by appearancePrefs.needsGridVisible
+        .collectAsStateWithLifecycle(initialValue = true)
     // v0.26.5: the onStayUp callback writes `okAtNight = true`
     // to the BpdProfile DataStore; the flow re-emits, isTwoAmWindow
     // recomputes to false, and the shell disappears on the next
@@ -511,6 +519,13 @@ fun LauncherRoot(
             HomeSurface(
                 sky = sky,
                 favorites = state.favorites,
+                // v0.42.0: hide the 2x2 needs grid when the user
+                // has turned it off in Settings. The four doors
+                // collapse to nothing; the time, greeting, and
+                // quick-notes card remain. Support is still
+                // reachable from the top-left "Open Support"
+                // button and from Settings.
+                needsGridVisible = needsGridVisible,
                 onOpenDrawer = { surface = LauncherSurface.Drawer },
                 onOpenSettings = { surface = LauncherSurface.Settings },
                 onLaunch = ::attemptLaunch,
@@ -1633,6 +1648,15 @@ private fun formatWellnessValue(signal: WellnessSignal, value: Double): String =
 private fun HomeSurface(
     sky: SkyContent,
     favorites: List<DisplayApp>,
+    /**
+     * v0.42.0: the 2x2 needs grid ("What do you need right now?")
+     * is hidden when this is false. Default `true` keeps the
+     * v0.35.0 / v0.40.1 / v0.41.0 home intact for callers that
+     * do not pass the parameter (e.g. previews, the launcher
+     * tests that pre-date the toggle). The LauncherRoot reads
+     * the value from AppearancePrefs.needsGridVisible.
+     */
+    needsGridVisible: Boolean = true,
     onOpenDrawer: () -> Unit,
     onOpenSettings: () -> Unit,
     onLaunch: (DisplayApp) -> Unit,
@@ -1922,13 +1946,23 @@ private fun HomeSurface(
             // well-shaped path. Research: Linehan 1993
             // (DBT ch. 8), Schwartz 1995 (IFS), Lindsay
             // 2024 (JMIR).
-            NeedsCard(
-                sky = sky,
-                onBeHeard = onOpenSupport,
-                onMoment = onOpenAccepts,
-                onCheckIn = onOpenDiaryCard,
-                onGetThrough = onOpenGetThrough,
-            )
+            //
+            // v0.42.0: gated on [needsGridVisible]. When the
+            // user has turned the toggle off in Settings,
+            // the entire 2x2 (header + caption + four doors)
+            // is skipped. The home collapses to clock →
+            // greeting → quick-notes. Support remains
+            // reachable from the top-left "Open Support"
+            // button, so the affordance is hidden, not lost.
+            if (needsGridVisible) {
+                NeedsCard(
+                    sky = sky,
+                    onBeHeard = onOpenSupport,
+                    onMoment = onOpenAccepts,
+                    onCheckIn = onOpenDiaryCard,
+                    onGetThrough = onOpenGetThrough,
+                )
+            }
 
             // v0.35.0: the "Where it comes from" data-sources
             // card. Surfaces the three wearable sources the

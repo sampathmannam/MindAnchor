@@ -1312,6 +1312,40 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 8.dp),
             )
+
+            // v0.42.0: the 2x2 needs grid on the home surface.
+            // On by default — the four doors are how most users
+            // get to Support and the diary card. Turning it off
+            // hides the doors and leaves only the clock, greeting,
+            // and quick-notes card on the home. The "Open Support"
+            // top-left and the Settings → Support hub are
+            // unchanged, so the support surface itself is never
+            // lost — only the home cards that lead to it.
+            val needsGridVisible by viewModel.needsGridVisible.collectAsStateWithLifecycle()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .toggleable(
+                        value = needsGridVisible,
+                        role = Role.Switch,
+                    ) { viewModel.setNeedsGridVisible(!needsGridVisible) }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Switch(checked = needsGridVisible, onCheckedChange = null)
+                Text(
+                    text = stringResource(R.string.needs_grid_label),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
+            Text(
+                text = stringResource(R.string.needs_grid_explainer),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
         }
 
         if (group == SettingsGroup.PAUSES) {

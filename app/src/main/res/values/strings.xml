@@ -136,6 +136,9 @@
     <!-- v0.40.0: opt-in soft tone at every 4-7-8 phase transition. Off by default. -->
     <string name="breath_tone_label">A soft tone on each phase</string>
     <string name="breath_tone_explainer">Off by default. When on, a short quiet chime marks the moment the breath changes — a single soft cue, never a metronome. Safe to leave off.</string>
+    <!-- v0.42.0: hide the 2x2 needs grid on the home surface. On by default. -->
+    <string name="needs_grid_label">Show needs grid</string>
+    <string name="needs_grid_explainer">The four doors on home — "Be heard", "A moment", "Check in", "Get through this". Turn off to leave only the clock and the notes section. Support is still reachable from the top-left button.</string>
 
     <string name="small_things_section">Small things that help</string>
     <string name="small_things_explainer">If you write down a few small things that help you, one of them is offered — beside the app, never instead of it — at the moment you reach for something else. Only your words, never ours. Nothing is offered on a fourth reach in ten minutes, or during your quiet hours: those are not moments to be asked whether you have tried going for a walk.</string>
