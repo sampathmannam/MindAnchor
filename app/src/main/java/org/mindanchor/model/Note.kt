@@ -79,22 +79,58 @@ data class Note(
     /**
      * The kind of note this is. Set by the on-device
      * classifier (v0.25.0) on save; re-classified on
-     * body edit. Null when:
+     * body edit. v0.44.0: the user can also set this
+     * explicitly when creating a note via the home
+     * quick-notes card (Quick / Task / Reminder). Null
+     * when:
      *  - the model is not on the phone (no Phi-4 mini
      *    installed),
      *  - the note was saved before v0.25.0 and the
      *    one-time background pass hasn't reached it,
+     *  - the user chose "Quick" (the default — Quick
+     *    notes are typed as NoteType.GENERAL so the
+     *    chip-on-the-row UI is the same for both
+     *    classifier and user paths),
      *  - the classifier failed for this note (rare;
      *    covered by a finding test).
-     *
-     * The launcher is type-less by design: this field
-     * is set by the LLM, never by the user. The chip
-     * on the row reflects whatever value is here; a
-     * null value means "no chip" (the model is not
-     * available, or the note is still being
-     * classified).
      */
     val type: NoteType? = null,
+    /**
+     * v0.44.0: an optional due time for a TASK note,
+     * in epoch milliseconds. When non-null, the
+     * launcher surfaces "due <time>" on the row and
+     * the home card. The reminder system does NOT
+     * fire on `dueAt` — `reminderAt` is the only
+     * thing that fires. A task with `dueAt` and no
+     * `reminderAt` is "soft": the user sees the due
+     * time on the row but the launcher does not
+     * notify. The user picks the due time via a
+     * date-time picker; if they don't pick one, the
+     * task is a "no-deadline" task.
+     */
+    val dueAt: Long? = null,
+    /**
+     * v0.44.0: an optional reminder time, in epoch
+     * milliseconds. When non-null, the launcher
+     * schedules an AlarmManager alarm at that time
+     * that fires the [org.mindanchor.note.ReminderReceiver],
+     * which posts a notification and triggers a
+     * full-screen flash on HomeActivity. A note with
+     * `reminderAt` is implicitly a REMINDER-type
+     * note (the type chip on the row reads REMINDER
+     * even if the classifier was unavailable at
+     * save time).
+     */
+    val reminderAt: Long? = null,
+    /**
+     * v0.44.0: whether the user has marked this TASK
+     * done. The checkbox on the row toggles it;
+     * a done task renders with strikethrough text
+     * and a dimmed body. `done` is only meaningful
+     * for TASK notes; other kinds ignore it (and
+     * the codec never sets it on a non-TASK).
+     */
+    val done: Boolean = false,
 ) {
     /**
      * The first line of the body, with leading and
@@ -118,12 +154,24 @@ data class Note(
         body = body.trim().take(MAX_BODY),
         createdAt = createdAt.coerceAtLeast(0L),
         updatedAt = updatedAt.coerceAtLeast(createdAt),
+        // v0.44.0: dueAt / reminderAt must be in the
+        // future at sanitise time. A past value is
+        // suspicious — the user is editing a note
+        // whose deadline has already passed. We keep
+        // it (don't reset to null) because the
+        // user may be writing a reflective note
+        // about a past deadline; the UI surfaces the
+        // "past" state explicitly. The sanitise step
+        // only rejects negative or zero values,
+        // which are clearly corrupt.
+        dueAt = if ((dueAt ?: 0L) > 0L) dueAt else null,
+        reminderAt = if ((reminderAt ?: 0L) > 0L) reminderAt else null,
     )
 
     /**
      * The note as a single text line for storage.
      * The format is
-     * `id\tpinned\tcreatedAt\tupdatedAt\ttype\tbase64(body)`
+     * `id\tpinned\tcreatedAt\tupdatedAt\ttype\tdueAt\treminderAt\tdone\tbase64(body)`
      * — tab-separated, body *base64-encoded* so the body
      * can contain tabs, newlines, and any other character
      * without breaking the line-delimited format.
@@ -152,10 +200,25 @@ data class Note(
      * The migration is one-way: a v0.24.0 line that
      * is later edited and re-classified is written in
      * the v0.25.0 shape on the next save.
+     *
+     * ## v0.44.0 wire format change
+     *
+     * The v0.44.0 format inserts three more fields —
+     * `dueAt`, `reminderAt`, `done` — between the
+     * `type` and the body, for a total of 9 fields.
+     * The codec is backward-compatible: a 6-field
+     * line is decoded with all three new fields at
+     * their defaults (null / null / false), and the
+     * next save writes a 9-field line. A 9-field
+     * line from a future v0.45+ write round-trips
+     * identically. The user-facing semantic is the
+     * same as v0.43.0 for any note that was a
+     * "plain quick note" — type GENERAL or null,
+     * no due time, no reminder, not done.
      */
     fun encode(): String {
         val s = sanitised()
-        val prefix = "${s.id}\t${if (s.pinned) "1" else "0"}\t${s.createdAt}\t${s.updatedAt}\t${s.type?.name ?: ""}"
+        val prefix = "${s.id}\t${if (s.pinned) "1" else "0"}\t${s.createdAt}\t${s.updatedAt}\t${s.type?.name ?: ""}\t${s.dueAt ?: ""}\t${s.reminderAt ?: ""}\t${if (s.done) "1" else "0"}"
         val bodyB64 = java.util.Base64.getEncoder()
             .encodeToString(s.body.toByteArray(Charsets.UTF_8))
         return "$prefix\t$bodyB64"
@@ -173,14 +236,17 @@ data class Note(
          * [NoteType] name). The caller is expected to
          * skip nulls — the codec is *dumb*.
          *
-         * Accepts both the v0.24.0 wire format
-         * (5 tab-separated fields, no `type`) and the
-         * v0.25.0 format (6 fields, with `type`). A 5-field
-         * line is decoded with `type = null`; a 6-field
-         * line with an empty `type` slot is also
-         * `type = null`; a 6-field line with an
-         * unrecognised `type` is rejected (the line is
-         * treated as corrupt and skipped).
+         * Accepts the v0.24.0 wire format (5 fields,
+         * no `type`), the v0.25.0 format (6 fields, with
+         * `type`), and the v0.44.0 format (9 fields,
+         * with `type` + `dueAt` + `reminderAt` + `done`).
+         * A 5-field line decodes with `type = null`,
+         * `dueAt = null`, `reminderAt = null`,
+         * `done = false`. A 6-field line is the same
+         * except `type` may be set. A 9-field line may
+         * have any of the new fields set; an empty
+         * `dueAt` / `reminderAt` slot is null; a "1"
+         * `done` slot is true.
          */
         fun decodeLine(line: String): Note? {
             if (line.isEmpty()) return null
@@ -198,6 +264,32 @@ data class Note(
             } else {
                 decodeTypeName(parsed.typeToken) ?: return null
             }
+            // v0.44.0: dueAt and reminderAt are
+            // nullable epoch millis. An empty slot
+            // is null; a non-empty slot is parsed as
+            // a long and rejected on parse failure.
+            // The "is this a long-or-empty" contract
+            // is what makes the v0.25.0 6-field line
+            // round-trip safely into a 9-field value
+            // with both new fields null.
+            val dueAtValue = if (parsed.dueAtToken.isEmpty()) {
+                null
+            } else {
+                parsed.dueAtToken.toLongOrNull() ?: return null
+            }
+            val reminderAtValue = if (parsed.reminderAtToken.isEmpty()) {
+                null
+            } else {
+                parsed.reminderAtToken.toLongOrNull() ?: return null
+            }
+            val doneBool = when (parsed.done) {
+                "1" -> true
+                "0" -> false
+                // A 6-field line has no `done` slot;
+                // parseFields fills the slot with "0"
+                // so we never see "" here.
+                else -> return null
+            }
             val body = decodeBody(parsed.bodyB64) ?: return null
             if (body.length > MAX_BODY) return null
             return Note(
@@ -207,36 +299,62 @@ data class Note(
                 updatedAt = updatedLong,
                 pinned = pinnedBool,
                 type = typeValue,
+                dueAt = dueAtValue,
+                reminderAt = reminderAtValue,
+                done = doneBool,
             )
         }
 
         /**
-         * Split [line] on tabs and return the six
-         * string fields. Returns null if the line has
-         * the wrong number of fields (anything other
-         * than v0.24.0's 5 or v0.25.0's 6).
+         * Split [line] on tabs and return the 9 string
+         * fields of the v0.44.0 wire format. Returns
+         * null if the line has the wrong number of
+         * fields (anything other than v0.24.0's 5,
+         * v0.25.0's 6, or v0.44.0's 9).
+         *
+         * A 5-field line fills the type/dueAt/
+         * reminderAt/done slots with the empty
+         * string / "0" defaults so the field
+         * destructuring is uniform.
          */
-        private fun parseFields(line: String): V250Fields? {
+        private fun parseFields(line: String): V440Fields? {
             // The body is base64-encoded; the base64
             // alphabet has no tab character, so the
             // tab count is a reliable field separator.
             val parts = line.split('\t')
             return when (parts.size) {
-                V240_FIELD_COUNT -> V250Fields(
+                V240_FIELD_COUNT -> V440Fields(
                     id = parts[0],
                     pinned = parts[1],
                     createdAt = parts[2],
                     updatedAt = parts[3],
                     typeToken = "",
+                    dueAtToken = "",
+                    reminderAtToken = "",
+                    done = "0",
                     bodyB64 = parts[4],
                 )
-                V250_FIELD_COUNT -> V250Fields(
+                V250_FIELD_COUNT -> V440Fields(
                     id = parts[0],
                     pinned = parts[1],
                     createdAt = parts[2],
                     updatedAt = parts[3],
                     typeToken = parts[4],
+                    dueAtToken = "",
+                    reminderAtToken = "",
+                    done = "0",
                     bodyB64 = parts[5],
+                )
+                V440_FIELD_COUNT -> V440Fields(
+                    id = parts[0],
+                    pinned = parts[1],
+                    createdAt = parts[2],
+                    updatedAt = parts[3],
+                    typeToken = parts[4],
+                    dueAtToken = parts[5],
+                    reminderAtToken = parts[6],
+                    done = parts[7],
+                    bodyB64 = parts[8],
                 )
                 else -> null
             }
@@ -281,32 +399,44 @@ data class Note(
         }
 
         /**
-         * The six string fields of a v0.25.0 line,
+         * The nine string fields of a v0.44.0 line,
          * named for the on-disk order. The constructor
          * is private — fields are unboxed, not trusted.
          */
-        private data class V250Fields(
+        private data class V440Fields(
             val id: String,
             val pinned: String,
             val createdAt: String,
             val updatedAt: String,
             val typeToken: String,
+            val dueAtToken: String,
+            val reminderAtToken: String,
+            val done: String,
             val bodyB64: String,
         )
 
-        // The v0.24.0 and v0.25.0 wire-format field
-        // counts. The codec accepts both: 5 fields
-        // decodes as a v0.24.0 line with no type, 6
-        // as a v0.25.0 line. Anything else is corrupt.
-        // A user who downgrades from v0.25.0 to
-        // v0.24.0 will see all their typed notes lose
-        // the type slot on next edit; the body is
-        // still intact. A user who upgrades from
-        // v0.24.0 to v0.25.0 sees every old note
-        // start with `type = null` until the one-time
-        // upgrade pass classifies it.
+        // The wire-format field counts the codec
+        // accepts:
+        //   5 → v0.24.0, no `type`
+        //   6 → v0.25.0, with `type`
+        //   9 → v0.44.0, with `type` + `dueAt` +
+        //        `reminderAt` + `done`
+        // A 5-field line decodes as a v0.24.0 line
+        // (type/dueAt/reminderAt=null, done=false).
+        // A 6-field line decodes as a v0.25.0 line
+        // (dueAt/reminderAt=null, done=false). A
+        // 9-field line is the current shape. Anything
+        // else is corrupt and is silently dropped.
+        // A user who downgrades from v0.44.0 to
+        // v0.25.0 will see all their tasks and
+        // reminders lose the new fields on next
+        // edit; the body is still intact. A user who
+        // upgrades from v0.25.0 to v0.44.0 sees
+        // every old note start with the new fields
+        // at their defaults.
         const val V240_FIELD_COUNT = 5
         const val V250_FIELD_COUNT = 6
+        const val V440_FIELD_COUNT = 9
     }
 }
 
@@ -512,4 +642,56 @@ data class NotesState(
         if (notes.none { it.type != null }) return this
         return copy(notes = notes.map { it.copy(type = null) })
     }
+
+    /**
+     * v0.44.0: set the [Note.done] flag on the
+     * note with the matching [id]. Pure function.
+     * A no-op if the id is not in the store, or if
+     * the flag already matches [done].
+     */
+    fun setDone(id: Long, done: Boolean): NotesState {
+        val match = notes.firstOrNull { it.id == id } ?: return this
+        if (match.done == done) return this
+        return copy(notes = notes.map { if (it.id == id) it.copy(done = done, updatedAt = System.currentTimeMillis()) else it })
+    }
+
+    /**
+     * v0.44.0: set the [Note.dueAt] field on the
+     * note with the matching [id]. Pass `null` to
+     * clear the due time. Pure function.
+     */
+    fun setDueAt(id: Long, dueAt: Long?): NotesState {
+        val match = notes.firstOrNull { it.id == id } ?: return this
+        if (match.dueAt == dueAt) return this
+        return copy(notes = notes.map { if (it.id == id) it.copy(dueAt = dueAt, updatedAt = System.currentTimeMillis()) else it })
+    }
+
+    /**
+     * v0.44.0: set the [Note.reminderAt] field
+     * on the note with the matching [id]. Pass
+     * `null` to clear the reminder. Pure function.
+     * The caller is responsible for also calling
+     * [org.mindanchor.data.NotesPrefs.setReminderAt]
+     * (which schedules the AlarmManager alarm) —
+     * the data layer is dumb and does not know
+     * about the scheduler.
+     */
+    fun setReminderAt(id: Long, reminderAt: Long?): NotesState {
+        val match = notes.firstOrNull { it.id == id } ?: return this
+        if (match.reminderAt == reminderAt) return this
+        return copy(notes = notes.map { if (it.id == id) it.copy(reminderAt = reminderAt, updatedAt = System.currentTimeMillis()) else it })
+    }
+
+    /**
+     * v0.44.0: every note with `reminderAt` in
+     * the future, sorted by reminderAt ascending
+     * (the next reminder first). Pure function.
+     * Used by the home card to surface "your
+     * next reminder is at <time>" without
+     * scraping the full list.
+     */
+    fun upcomingReminders(now: Long = System.currentTimeMillis()): List<Note> =
+        notes
+            .filter { (it.reminderAt ?: 0L) > now }
+            .sortedBy { it.reminderAt ?: Long.MAX_VALUE }
 }

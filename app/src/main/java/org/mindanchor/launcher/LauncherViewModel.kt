@@ -410,7 +410,105 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         if (id <= 0L) return
         viewModelScope.launch {
             notesPrefs.delete(id)
+            // v0.44.0: cancelling a note also
+            // cancels any pending reminder alarm.
+            // The note is gone; the alarm is
+            // dangling. The scheduler's
+            // `PendingIntent.FLAG_UPDATE_CURRENT`
+            // means a future schedule for the same
+            // id would re-create the alarm — there
+            // isn't a future schedule because the
+            // note is deleted, so the cancel is the
+            // last step.
+            org.mindanchor.note.ReminderScheduler.cancel(getApplication(), id)
         }
+    }
+
+    /**
+     * v0.44.0: add a TASK note. A task is a note
+     * with `type = NoteType.TASK` and an optional
+     * `dueAt` epoch millis. A task with `done =
+     * false` shows the body, the type chip, and a
+     * checkbox; toggling the checkbox calls
+     * [markNoteDone] with `done = true`.
+     *
+     * Blank input is a no-op (the same
+     * trim-and-discard rule as [addQuickNote]).
+     * The reminder scheduler is NOT called for a
+     * task — tasks do not fire alarms. The user
+     * sees the due time on the row.
+     */
+    fun addTaskNote(body: String, dueAt: Long?) {
+        val trimmed = body.trim().take(Note.MAX_BODY)
+        if (trimmed.isEmpty()) return
+        val now = System.currentTimeMillis()
+        val note = Note(
+            id = nextNoteId(),
+            body = trimmed,
+            createdAt = now,
+            updatedAt = now,
+            type = org.mindanchor.model.NoteType.TASK,
+            dueAt = dueAt,
+            done = false,
+        )
+        viewModelScope.launch { notesPrefs.add(note) }
+    }
+
+    /**
+     * v0.44.0: add a REMINDER note. A reminder is a
+     * note with `type = NoteType.REMINDER` and a
+     * non-null `reminderAt` epoch millis. The
+     * ReminderScheduler is told to schedule the
+     * alarm at the same time. The note write and
+     * the alarm schedule are both best-effort:
+     * a scheduler SecurityException (the user has
+     * revoked SCHEDULE_EXACT_ALARM via Settings) is
+     * logged but does not roll back the note. The
+     * note's `reminderAt` is set; the row label
+     * reads "reminder, may be late" if the exact
+     * alarm was rejected.
+     *
+     * Blank input OR a null `reminderAt` is a
+     * no-op. A reminder without a time is not a
+     * reminder.
+     */
+    fun addReminderNote(body: String, reminderAt: Long?) {
+        val trimmed = body.trim().take(Note.MAX_BODY)
+        if (trimmed.isEmpty()) return
+        val at = reminderAt ?: return
+        val now = System.currentTimeMillis()
+        val note = Note(
+            id = nextNoteId(),
+            body = trimmed,
+            createdAt = now,
+            updatedAt = now,
+            type = org.mindanchor.model.NoteType.REMINDER,
+            reminderAt = at,
+        )
+        viewModelScope.launch {
+            notesPrefs.add(note)
+            try {
+                org.mindanchor.note.ReminderScheduler.schedule(getApplication(), note.id, at)
+            } catch (e: SecurityException) {
+                android.util.Log.w(
+                    "LauncherViewModel",
+                    "addReminderNote: alarm not scheduled for noteId=${note.id}",
+                    e,
+                )
+            }
+        }
+    }
+
+    /**
+     * v0.44.0: toggle a note's `done` flag.
+     * Wired to the checkbox on a TASK row. A no-op
+     * if the id is not in the store. The toggle
+     * is one-way: there is no separate `markUndone`
+     * because the same checkbox toggles the value.
+     */
+    fun markNoteDone(id: Long, done: Boolean) {
+        if (id <= 0L) return
+        viewModelScope.launch { notesPrefs.setDone(id, done) }
     }
 
     // --- Wellness signals (N-of-1, from Health Connect) ---

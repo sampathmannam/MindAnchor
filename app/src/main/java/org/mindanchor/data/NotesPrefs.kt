@@ -182,6 +182,55 @@ class NotesPrefs(private val context: Context) {
         }
     }
 
+    /**
+     * v0.44.0: set the [org.mindanchor.model.Note.done]
+     * flag on the note with the matching id. A no-op
+     * if the id is not in the store. Pure pass-through
+     * to the data layer's [NotesState.setDone].
+     */
+    suspend fun setDone(id: Long, done: Boolean) {
+        context.notesDataStore.edit { prefs ->
+            val current = SealedCodecs.decodeNotes(prefs[notesKey].orEmpty())
+            val next = current.setDone(id, done)
+            if (next === current) return@edit // id not found
+            prefs[notesKey] = SealedCodecs.encodeNotes(next)
+        }
+    }
+
+    /**
+     * v0.44.0: set the [org.mindanchor.model.Note.dueAt]
+     * field on the note with the matching id. Pass
+     * `null` to clear. A no-op if the id is not in
+     * the store.
+     */
+    suspend fun setDueAt(id: Long, dueAt: Long?) {
+        context.notesDataStore.edit { prefs ->
+            val current = SealedCodecs.decodeNotes(prefs[notesKey].orEmpty())
+            val next = current.setDueAt(id, dueAt)
+            if (next === current) return@edit // id not found
+            prefs[notesKey] = SealedCodecs.encodeNotes(next)
+        }
+    }
+
+    /**
+     * v0.44.0: set the [org.mindanchor.model.Note.reminderAt]
+     * field on the note with the matching id. Pass
+     * `null` to clear. A no-op if the id is not in
+     * the store. The caller is responsible for
+     * scheduling or cancelling the corresponding
+     * alarm via [org.mindanchor.note.ReminderScheduler]
+     * — the data layer does not know about the
+     * scheduler.
+     */
+    suspend fun setReminderAt(id: Long, reminderAt: Long?) {
+        context.notesDataStore.edit { prefs ->
+            val current = SealedCodecs.decodeNotes(prefs[notesKey].orEmpty())
+            val next = current.setReminderAt(id, reminderAt)
+            if (next === current) return@edit // id not found
+            prefs[notesKey] = SealedCodecs.encodeNotes(next)
+        }
+    }
+
     companion object {
         /**
          * The DataStore key. Held on the companion so

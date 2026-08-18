@@ -710,6 +710,24 @@
     <!-- v0.43.0: count line under the section header. -->
     <string name="quick_notes_count_zero">No notes yet</string>
     <string name="quick_notes_count_n">%1$d notes on this phone</string>
+    <!-- v0.44.0: kind picker + Task / Reminder save flow. -->
+    <string name="note_kind_quick">Quick</string>
+    <string name="note_kind_task">Task</string>
+    <string name="note_kind_reminder">Reminder</string>
+    <string name="quick_notes_input_hint_task">What needs doing — the body is the task, the picker is the deadline.</string>
+    <string name="quick_notes_input_hint_reminder">What should come back to you — the body is the reminder, the picker is when.</string>
+    <string name="quick_notes_save_task">Save as task</string>
+    <string name="quick_notes_save_reminder">Save reminder</string>
+    <string name="note_subtitle_at">at %1$s</string>
+    <string name="note_subtitle_due">due %1$s</string>
+    <!-- v0.44.0: the reminder flash surface. -->
+    <string name="flash_title">Reminder fired</string>
+    <string name="flash_loading">Loading…</string>
+    <string name="flash_dismiss">Dismiss</string>
+    <!-- v0.44.0: the reminder notification. -->
+    <string name="reminder_notification_title">Reminder</string>
+    <string name="reminder_channel_name">Reminders</string>
+    <string name="reminder_channel_description">Alarms you set on a note — they fire at the time you picked.</string>
 
     <!-- Health Connect permission flow (Phase 2) -->
     <string name="health_connect_title">Wearable</string>

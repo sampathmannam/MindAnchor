@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
@@ -31,19 +33,29 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -51,6 +63,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusEvent
@@ -261,6 +274,24 @@ fun LauncherRoot(
      * the same navigation.
      */
     onLetterDateConsumed: () -> Unit = {},
+    /**
+     * v0.44.0: the active flash event. `null` means
+     * no flash is active. When non-null, the home
+     * surface shows a full-screen pulsing tint and
+     * the body of the reminder note. The home
+     * surface calls [onFlashConsumed] when the user
+     * taps to dismiss, or when the 5-second
+     * auto-clear fires.
+     */
+    flashEvent: org.mindanchor.note.FlashSignal.FlashEvent? = null,
+    /**
+     * v0.44.0: invoked after the launcher has
+     * applied a [flashEvent]. HomeActivity uses
+     * this to clear the FlashSignal singleton so
+     * a configuration change does not re-trigger
+     * the same flash.
+     */
+    onFlashConsumed: () -> Unit = {},
 ) {
     // v0.25.14: collectAsStateWithLifecycle on all 7 LauncherRoot flows so the
     // collector stops when the screen is STOPPED. With collectAsState, a
@@ -558,6 +589,17 @@ fun LauncherRoot(
                 recentNotes = recentNotes,
                 onAddQuickNote = viewModel::addQuickNote,
                 onDeleteNote = viewModel::deleteNote,
+                // v0.44.0: forward the new
+                // task / reminder / done
+                // operations from the home card
+                // to the ViewModel. The VM
+                // owns the ReminderScheduler
+                // wiring; the card owns the
+                // type picker and the time
+                // picker.
+                onAddTaskNote = { body, dueAt -> viewModel.addTaskNote(body, dueAt) },
+                onAddReminderNote = { body, reminderAt -> viewModel.addReminderNote(body, reminderAt) },
+                onMarkNoteDone = { id, done -> viewModel.markNoteDone(id, done) },
                 hasReport = hasReport,
                 onOpenReport = {
                     reportCameFrom = LauncherSurface.Home
@@ -671,6 +713,16 @@ fun LauncherRoot(
                 wellnessReadings = wellnessReadings,
                 showIntroCallout = showIntroCallout,
                 onRecordLaunch = viewModel::recordHomeLaunch,
+                // v0.44.0: forward the flash event
+                // from HomeActivity so the home
+                // surface can show a full-screen
+                // pulsing tint when a reminder
+                // fires. The dismiss callback
+                // clears the FlashSignal so the
+                // same flash is not re-played on
+                // a config change.
+                flashEvent = flashEvent,
+                onFlashConsumed = onFlashConsumed,
             )
         }
             }
@@ -1316,12 +1368,52 @@ private fun QuickNotesCard(
     onSave: (String) -> Unit,
     onDelete: (Long) -> Unit = {},
     onOpenAll: () -> Unit = {},
+    /**
+     * v0.44.0: save a TASK note. The second
+     * parameter is the optional due time
+     * (epoch millis) — `null` means
+     * "no deadline". The card surfaces a
+     * quick "no due / in 1h / in 3h / in
+     * 1d / in 3d" picker; the selected
+     * value is forwarded here.
+     */
+    onSaveTask: (String, Long?) -> Unit = { _, _ -> },
+    /**
+     * v0.44.0: save a REMINDER note. The
+     * second parameter is the reminder
+     * time (epoch millis) — required. A
+     * reminder without a time is a no-op
+     * (the picker only shows "now" or
+     * future offsets). The card surfaces
+     * a quick "in 5m / in 15m / in 1h /
+     * in 3h" picker; the selected value
+     * is forwarded here.
+     */
+    onSaveReminder: (String, Long) -> Unit = { _, _ -> },
+    /**
+     * v0.44.0: mark a TASK note done. The
+     * second parameter is the new `done`
+     * value. Wired to the checkbox on a
+     * TASK row.
+     */
+    onMarkDone: (Long, Boolean) -> Unit = { _, _ -> },
 ) {
     // v0.25.14: rememberSaveable so a mid-capture draft
     // (a half-typed note about the email you just saw)
     // survives a config change or process death. The
     // String is auto-Saveable; no custom Saver needed.
     var draft by rememberSaveable { mutableStateOf("") }
+    // v0.44.0: the kind picker state. The default is
+    // QUICK — the most common case. Tapping a
+    // chip flips the state and the save button
+    // becomes "Save as <kind>". The picker is a row
+    // of three FilterChips above the input.
+    var kind by rememberSaveable { mutableStateOf(0) } // 0=Quick, 1=Task, 2=Reminder
+    // v0.44.0: the time offset for Task and Reminder.
+    // Indexes into a known list of millis-from-now
+    // values. -1 means "no due time" (only for Task).
+    // 0 means "in 5 min", 1 means "in 15 min", etc.
+    var timeOffsetIndex by rememberSaveable { mutableStateOf(0) }
     // A small haptic tick on save, so the user feels
     // the capture even if the note disappears under
     // the keyboard or the screen is dim. LongPress is
@@ -1339,6 +1431,34 @@ private fun QuickNotesCard(
     // distinction Brewster CHI 2007 names is preserved
     // by the gate's `type` parameter.
     val haptics = org.mindanchor.ui.LocalHapticFeedbackGate.current
+    // v0.44.0: the list of time options for
+    // Task and Reminder. The millis-from-now
+    // values are computed at render time
+    // (the user sees a label like "in 1
+    // hour" that is always relative to
+    // now, not to a saved "1 hour from
+    // save time"). Task shows "no due /
+    // in 1h / in 3h / in 1d / in 3d";
+    // Reminder shows "in 5m / in 15m /
+    // in 1h / in 3h".
+    val now = remember { System.currentTimeMillis() }
+    val taskOffsets = remember(now) {
+        listOf<Pair<String, Long?>>(
+            "no due" to null,
+            "in 1 hour" to (now + 60L * 60L * 1000L),
+            "in 3 hours" to (now + 3L * 60L * 60L * 1000L),
+            "tomorrow" to (now + 24L * 60L * 60L * 1000L),
+            "in 3 days" to (now + 3L * 24L * 60L * 60L * 1000L),
+        )
+    }
+    val reminderOffsets = remember(now) {
+        listOf(
+            "in 5 min" to (now + 5L * 60L * 1000L),
+            "in 15 min" to (now + 15L * 60L * 1000L),
+            "in 1 hour" to (now + 60L * 60L * 1000L),
+            "in 3 hours" to (now + 3L * 60L * 60L * 1000L),
+        )
+    }
     Column(
         modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -1363,6 +1483,76 @@ private fun QuickNotesCard(
             color = sky.textSecondary,
             modifier = Modifier.padding(top = 2.dp, bottom = 12.dp),
         )
+        // v0.44.0: the kind picker. Three
+        // FilterChips: Quick / Task / Reminder.
+        // The default is Quick (index 0). The
+        // picker is below the count line, above
+        // the input, so the user knows which
+        // kind the next save will create.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+        ) {
+            FilterChip(
+                selected = kind == 0,
+                onClick = { kind = 0; haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove) },
+                label = { Text(stringResource(R.string.note_kind_quick)) },
+                modifier = Modifier.semantics { role = Role.RadioButton },
+            )
+            FilterChip(
+                selected = kind == 1,
+                onClick = { kind = 1; haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove) },
+                label = { Text(stringResource(R.string.note_kind_task)) },
+                modifier = Modifier.semantics { role = Role.RadioButton },
+            )
+            FilterChip(
+                selected = kind == 2,
+                onClick = { kind = 2; haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove) },
+                label = { Text(stringResource(R.string.note_kind_reminder)) },
+                modifier = Modifier.semantics { role = Role.RadioButton },
+            )
+        }
+        // v0.44.0: the time picker for Task and
+        // Reminder. Hidden when kind == Quick.
+        // For Task, the first option is "no due"
+        // (null) so the user can save a no-deadline
+        // task. For Reminder, all options are
+        // concrete times in the future.
+        if (kind == 1) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+            ) {
+                taskOffsets.forEachIndexed { idx, (label, _) ->
+                    FilterChip(
+                        selected = timeOffsetIndex == idx,
+                        onClick = { timeOffsetIndex = idx; haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove) },
+                        label = { Text(label) },
+                        modifier = Modifier.semantics { role = Role.RadioButton },
+                    )
+                }
+            }
+        } else if (kind == 2) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+            ) {
+                reminderOffsets.forEachIndexed { idx, (label, _) ->
+                    FilterChip(
+                        selected = timeOffsetIndex == idx,
+                        onClick = { timeOffsetIndex = idx; haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove) },
+                        label = { Text(label) },
+                        modifier = Modifier.semantics { role = Role.RadioButton },
+                    )
+                }
+            }
+        }
         // v0.20.9: bringIntoViewOnFocus so the quick-notes
         // input is not covered by the keyboard. The card is
         // the home-screen capture affordance; "I want to
@@ -1379,7 +1569,15 @@ private fun QuickNotesCard(
         OutlinedTextField(
             value = draft,
             onValueChange = { draft = it },
-            placeholder = { Text(stringResource(R.string.quick_notes_input_hint)) },
+            placeholder = {
+                Text(
+                    text = when (kind) {
+                        1 -> stringResource(R.string.quick_notes_input_hint_task)
+                        2 -> stringResource(R.string.quick_notes_input_hint_reminder)
+                        else -> stringResource(R.string.quick_notes_input_hint)
+                    },
+                )
+            },
             minLines = 3,
             maxLines = 5,
             modifier = Modifier
@@ -1387,13 +1585,14 @@ private fun QuickNotesCard(
                 .bringIntoViewOnFocus(),
         )
         // v0.43.0: Save as a primary outlined action
-        // directly under the input. The previous layout
-        // had the Save text-button centered far from the
-        // input, easy to miss on a tall phone and easy to
-        // double-tap with the empty-state caption. Save is
-        // now a full-width primary button, only enabled
-        // when the draft has content, with a clear "save"
-        // label and a quiet "clear" link beside it.
+        // directly under the input. v0.44.0: the
+        // button label is "Save as Quick" / "Save as
+        // task" / "Save reminder" depending on the
+        // selected kind. The save callback varies by
+        // kind: Quick calls onSave, Task calls
+        // onSaveTask with the selected due time,
+        // Reminder calls onSaveReminder with the
+        // selected reminder time.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1401,19 +1600,34 @@ private fun QuickNotesCard(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            val (label, enabled) = when (kind) {
+                1 -> stringResource(R.string.quick_notes_save_task) to (draft.isNotBlank())
+                2 -> stringResource(R.string.quick_notes_save_reminder) to (draft.isNotBlank() && reminderOffsets[timeOffsetIndex.coerceIn(0, reminderOffsets.lastIndex)].second > System.currentTimeMillis())
+                else -> stringResource(R.string.quick_notes_save) to (draft.isNotBlank())
+            }
             OutlinedButton(
                 onClick = {
-                    onSave(draft)
+                    when (kind) {
+                        1 -> {
+                            val due = taskOffsets[timeOffsetIndex.coerceIn(0, taskOffsets.lastIndex)].second
+                            onSaveTask(draft, due)
+                        }
+                        2 -> {
+                            val at = reminderOffsets[timeOffsetIndex.coerceIn(0, reminderOffsets.lastIndex)].second
+                            onSaveReminder(draft, at)
+                        }
+                        else -> onSave(draft)
+                    }
                     draft = ""
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                 },
-                enabled = draft.isNotBlank(),
+                enabled = enabled,
                 modifier = Modifier
                     .weight(1f)
                     .heightIn(min = 48.dp)
                     .semantics { role = Role.Button },
             ) {
-                Text(stringResource(R.string.quick_notes_save))
+                Text(label)
             }
             if (draft.isNotBlank()) {
                 TextButton(
@@ -1447,12 +1661,10 @@ private fun QuickNotesCard(
         } else {
             // v0.43.0: the home card now shows up to three
             // recent notes as plain rows with a one-tap
-            // delete affordance per row. Previously the
-            // rows were TextButtons that opened the full
-            // notes activity — easy to tap by accident,
-            // and the user could not delete a note from
-            // home. The delete icon is a plain × on the
-            // trailing edge, not a long-press menu.
+            // delete affordance per row. v0.44.0: each
+            // row renders a type chip (Quick / Task /
+            // Reminder), a checkbox for tasks, a clock
+            // icon for reminders, and the existing ×.
             Spacer(Modifier.height(16.dp))
             recent.take(3).forEach { note ->
                 val title = note.title.ifBlank { note.body.take(80) }
@@ -1463,16 +1675,76 @@ private fun QuickNotesCard(
                         .padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    // v0.44.0: task checkbox.
+                    // Shown only for TASK-type
+                    // notes. Tapping the checkbox
+                    // toggles `done`. The note
+                    // body gets a strikethrough
+                    // when done is true.
+                    if (note.type == org.mindanchor.model.NoteType.TASK) {
+                        Checkbox(
+                            checked = note.done,
+                            onCheckedChange = { onMarkDone(note.id, it) },
+                            modifier = Modifier.semantics { role = Role.Checkbox },
+                        )
+                    } else {
+                        // v0.44.0: for non-task
+                        // rows, the leading icon
+                        // is a tiny "T" (Task) /
+                        // "R" (Reminder) / blank
+                        // (Quick) chip, so the
+                        // user can see the kind
+                        // at a glance. A real icon
+                        // would be an asset; a
+                        // character is good enough
+                        // for v0.44.0 and keeps
+                        // the home text-only.
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = when (note.type) {
+                                    org.mindanchor.model.NoteType.REMINDER -> "R"
+                                    org.mindanchor.model.NoteType.TASK -> "T"
+                                    else -> ""
+                                },
+                                style = MaterialTheme.typography.titleMedium,
+                                color = sky.textSecondary,
+                            )
+                        }
+                    }
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = title,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = sky.textPrimary,
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                textDecoration = if (note.done) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
+                            ),
+                            color = if (note.done) sky.textSecondary else sky.textPrimary,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
+                        // v0.44.0: due / reminder
+                        // time on the row when the
+                        // note has one. A TASK
+                        // shows "due <time>"; a
+                        // REMINDER shows "at
+                        // <time>"; a QUICK shows
+                        // the timestamp.
+                        val sub = when {
+                            note.reminderAt != null -> stringResource(
+                                R.string.note_subtitle_at,
+                                reminderTimeText(note.reminderAt!!),
+                            )
+                            note.dueAt != null -> stringResource(
+                                R.string.note_subtitle_due,
+                                reminderTimeText(note.dueAt!!),
+                            )
+                            else -> whenText
+                        }
                         Text(
-                            text = whenText,
+                            text = sub,
                             style = MaterialTheme.typography.bodySmall,
                             color = sky.textSecondary,
                             modifier = Modifier.padding(top = 2.dp),
@@ -1540,6 +1812,29 @@ private fun noteTimeText(note: Note): String {
         return "yesterday $time"
     }
     return DateFormat.getDateInstance(DateFormat.SHORT).format(Date(note.createdAt))
+}
+
+/**
+ * v0.44.0: format a future epoch-millis time
+ * for the note row's subtitle. The label is
+ * always relative to now: "in 5 min", "in 3
+ * hours", "tomorrow 14:00", or the absolute
+ * date if it is more than a week out. The
+ * function is local to this file because the
+ * rule is display-only and no other surface
+ * needs the same compaction.
+ */
+private fun reminderTimeText(atMillis: Long): String {
+    val now = System.currentTimeMillis()
+    val deltaMs = atMillis - now
+    val absDeltaMin = kotlin.math.abs(deltaMs) / 60_000L
+    return when {
+        deltaMs < 0 -> "past"
+        absDeltaMin < 60 -> "in $absDeltaMin min"
+        absDeltaMin < 24 * 60 -> "in ${absDeltaMin / 60} hours"
+        absDeltaMin < 7 * 24 * 60 -> "in ${absDeltaMin / (24 * 60)} days"
+        else -> DateFormat.getDateInstance(DateFormat.SHORT).format(Date(atMillis))
+    }
 }
 
 /**
@@ -1885,6 +2180,32 @@ private fun HomeSurface(
      */
     onDeleteNote: (Long) -> Unit = {},
     /**
+     * v0.44.0: save a TASK note. Wired to the
+     * "Save as task" button on the home card. The
+     * second parameter is the optional due time
+     * (epoch millis) — pass `null` for a
+     * "no-deadline" task. The full save lives
+     * in [org.mindanchor.launcher.LauncherViewModel.addTaskNote].
+     */
+    onAddTaskNote: (String, Long?) -> Unit = { _, _ -> },
+    /**
+     * v0.44.0: save a REMINDER note. Wired to the
+     * "Save as reminder" button on the home
+     * card. The second parameter is the reminder
+     * time (epoch millis) — required. A reminder
+     * without a time is a no-op. The full save
+     * and alarm schedule live in
+     * [org.mindanchor.launcher.LauncherViewModel.addReminderNote].
+     */
+    onAddReminderNote: (String, Long) -> Unit = { _, _ -> },
+    /**
+     * v0.44.0: mark a TASK note done. Wired to
+     * the checkbox on each TASK row. The full
+     * toggle lives in
+     * [org.mindanchor.launcher.LauncherViewModel.markNoteDone].
+     */
+    onMarkNoteDone: (Long, Boolean) -> Unit = { _, _ -> },
+    /**
      * v0.20.5: the wellness card — per-signal readings for
      * today against the person's own history. Null is
      * "still loading", not "no data": the card is hidden
@@ -1905,6 +2226,25 @@ private fun HomeSurface(
      */
     showIntroCallout: Boolean = false,
     onRecordLaunch: () -> Unit = {},
+    /**
+     * v0.44.0: the active reminder flash event.
+     * `null` means no flash. When non-null, the
+     * home surface renders a full-screen pulsing
+     * overlay with the note body and a "dismiss"
+     * affordance. The surface calls
+     * [onFlashConsumed] when the user taps to
+     * dismiss or when the 5-second auto-clear
+     * fires.
+     */
+    flashEvent: org.mindanchor.note.FlashSignal.FlashEvent? = null,
+    /**
+     * v0.44.0: invoked after the home surface has
+     * shown the flash. The caller (LauncherRoot)
+     * forwards this to HomeActivity which clears
+     * the FlashSignal singleton. A no-op when the
+     * user has not yet dismissed the flash.
+     */
+    onFlashConsumed: () -> Unit = {},
 ) {
     val now = rememberMinuteTick()
     val clockFormat = rememberClockFormat()
@@ -2018,6 +2358,14 @@ private fun HomeSurface(
                 onSave = onAddQuickNote,
                 onDelete = onDeleteNote,
                 onOpenAll = onOpenNotes,
+                // v0.44.0: the new operations
+                // for tasks and reminders. The
+                // card owns the type picker; the
+                // save buttons forward to the
+                // right VM method.
+                onSaveTask = onAddTaskNote,
+                onSaveReminder = onAddReminderNote,
+                onMarkDone = onMarkNoteDone,
             )
 
             // v0.35.0: the "Right now" section that v0.32.0
@@ -2129,6 +2477,130 @@ private fun HomeSurface(
         // chrome. The bottom-center "search" button
         // (app drawer) is kept so the launcher still
         // does what a launcher is for.
+
+        // v0.44.0: full-screen reminder flash.
+        // When the alarm fires, the receiver
+        // writes to FlashSignal; LauncherRoot
+        // collects the flow and passes the
+        // current event to HomeSurface. The
+        // flash is a Box layered above the home
+        // content (an Overlay via the parent
+        // Box's `matchParentSize`), with a
+        // pulsing alpha animation (0.35 → 0.7
+        // → 0.35) and a centred card showing
+        // the reminder body. Tapping the flash
+        // dismisses; a 5-second auto-clear
+        // dismisses too.
+        if (flashEvent != null) {
+            FlashOverlay(
+                sky = sky,
+                event = flashEvent,
+                onDismiss = onFlashConsumed,
+            )
+        }
+    }
+}
+
+/**
+ * v0.44.0: the full-screen reminder flash
+ * surface. Renders a pulsing tint over the
+ * home, with a centred card showing the
+ * reminder body and a "dismiss" affordance.
+ * The user can tap anywhere on the overlay
+ * to dismiss; a 5-second auto-clear also
+ * dismisses.
+ */
+@Composable
+private fun FlashOverlay(
+    sky: SkyContent,
+    event: org.mindanchor.note.FlashSignal.FlashEvent,
+    onDismiss: () -> Unit,
+) {
+    // The body is read synchronously from the
+    // DataStore via the receiver; the home
+    // surface does not need to re-read. We
+    // surface the event id on the card so the
+    // user sees which reminder fired. The
+    // full body is on the notification; on the
+    // home, the title is "Reminder fired" and
+    // the body is the event id formatted for
+    // legibility (the user will read the body
+    // when they tap-through to the activity).
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val notesPrefs = remember(ctx) { org.mindanchor.data.NotesPrefs(ctx.applicationContext) }
+    val body by produceState<String?>(initialValue = null, event.eventId) {
+        value = try {
+            kotlinx.coroutines.withTimeoutOrNull(2_000) {
+                notesPrefs.notes.first().byId(event.eventId)?.body
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+    // 5-second auto-dismiss. LaunchedEffect on
+    // event.eventId so a re-fire restarts the
+    // timer.
+    LaunchedEffect(event.eventId) {
+        kotlinx.coroutines.delay(5_000)
+        onDismiss()
+    }
+    // Pulsing alpha. animateFloat from
+    // 0.35 → 0.7 → 0.35 with a 1.2s
+    // RepeatMode.Reverse cycle. The pulse
+    // is the "reminder is firing" affordance
+    // — the user's eye is drawn to the
+    // overlay without the screen being
+    // alarm-coloured.
+    val infinite = rememberInfiniteTransition(label = "flash-pulse")
+    val alpha by infinite.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 0.7f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1_200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "flash-alpha",
+    )
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(sky.textPrimary.copy(alpha = alpha))
+            .clickable(
+                role = Role.Button,
+                onClickLabel = "Dismiss reminder",
+                onClick = onDismiss,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Surface(
+            modifier = Modifier
+                .padding(32.dp)
+                .fillMaxWidth(),
+            color = MaterialTheme.colorScheme.surface,
+            shape = MaterialTheme.shapes.large,
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text = stringResource(R.string.flash_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = sky.textPrimary,
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = body ?: stringResource(R.string.flash_loading),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = sky.textSecondary,
+                )
+                Spacer(Modifier.height(16.dp))
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.flash_dismiss))
+                }
+            }
+        }
     }
 }
 

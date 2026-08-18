@@ -707,6 +707,23 @@
             android:name=".report.ReportAlarmReceiver"
             android:exported="false" />
 
+        <!--
+            v0.44.0: the per-note reminder receiver. AlarmManager fires
+            this when a note's reminderAt hits; the receiver reads the
+            note body from the DataStore, posts a system notification,
+            and writes to FlashSignal so the foreground HomeActivity
+            can show a full-screen flash. The intent filter is
+            internal-only (exported=false, custom action) so the
+            receiver cannot be fired by an unrelated broadcast.
+        -->
+        <receiver
+            android:name=".note.ReminderReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="org.mindanchor.action.FIRE_REMINDER" />
+            </intent-filter>
+        </receiver>
+
         <receiver
             android:name=".notifications.BootReceiver"
             android:exported="false">

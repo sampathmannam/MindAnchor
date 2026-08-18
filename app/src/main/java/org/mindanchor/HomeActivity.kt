@@ -59,6 +59,33 @@ class HomeActivity : ComponentActivity() {
      */
     private val letterDateSignal = MutableStateFlow<LocalDate?>(null)
 
+    /**
+     * v0.44.0: the flash signal from a fired
+     * reminder. When the [ReminderReceiver] fires, it
+     * writes the note id to
+     * [org.mindanchor.note.FlashSignal]. The launcher
+     * root collects the flow and shows a full-screen
+     * flash. We also read the EXTRA_FLASH_NOTE_ID
+     * from the launching intent — when the user taps
+     * the reminder notification, the activity is
+     * started (or resumed) with the extra, and we
+     * propagate it into the flash signal so the
+     * flash plays.
+     */
+    private val flashSignal get() = org.mindanchor.note.FlashSignal.event
+
+    companion object {
+        /**
+         * v0.44.0: the Intent extra that
+         * [org.mindanchor.note.ReminderReceiver] puts on
+         * the notification's content intent. When the
+         * user taps the notification, HomeActivity
+         * reads the extra and forwards the note id to
+         * the flash signal.
+         */
+        const val EXTRA_FLASH_NOTE_ID = "org.mindanchor.extra.FLASH_NOTE_ID"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -118,6 +145,12 @@ class HomeActivity : ComponentActivity() {
         // itself in onCreate); we just read the extra and push it into
         // the flow before the launcher root composes for the first time.
         handleLetterIntent(intent)
+        // v0.44.0: a cold launch from the reminder
+        // notification's content intent also carries
+        // the note id. Forward to the flash signal
+        // so the home surface plays the flash on
+        // first composition.
+        handleFlashIntent(intent)
         setContent {
             MindAnchorTheme {
                 // v0.25.16 BUG-013: wrap the entire launcher tree
@@ -202,10 +235,22 @@ class HomeActivity : ComponentActivity() {
                                 // launcher.
                                 startActivity(wizardIntent)
                             } else {
+                                // v0.44.0: collect the flash signal
+                                // so the home surface can show a
+                                // full-screen flash when a reminder
+                                // fires. The flow is read in
+                                // collectAsStateWithLifecycle so a
+                                // backgrounded activity does not
+                                // collect on every emission (BUG-004
+                                // pattern). The activity is
+                                // foreground when the flash plays.
+                                val flashEvent by flashSignal.collectAsStateWithLifecycle()
                                 LauncherRoot(
                                     goHomeSignal = goHome,
                                     letterDateSignal = letterDate,
                                     onLetterDateConsumed = ::consumeLetterDate,
+                                    flashEvent = flashEvent,
+                                    onFlashConsumed = ::consumeFlash,
                                 )
                             }
                         }
@@ -213,6 +258,18 @@ class HomeActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * v0.44.0: mark the current flash event as
+     * consumed. Called from the home surface when
+     * the user taps the flash to dismiss it, or
+     * from a `LaunchedEffect` after a 5-second
+     * auto-clear. Without this, a configuration
+     * change would re-trigger the same flash.
+     */
+    private fun consumeFlash() {
+        org.mindanchor.note.FlashSignal.consume()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -225,6 +282,12 @@ class HomeActivity : ComponentActivity() {
         // as the cold-launch path; the launcher root will navigate
         // to the reader for the new date.
         handleLetterIntent(intent)
+        // v0.44.0: the notification's content intent
+        // carries EXTRA_FLASH_NOTE_ID for the fired
+        // reminder. Forward the id to the flash
+        // signal so the launcher root shows the
+        // flash on the next composition.
+        handleFlashIntent(intent)
     }
 
     /**
@@ -250,6 +313,29 @@ class HomeActivity : ComponentActivity() {
      */
     private fun consumeLetterDate() {
         letterDateSignal.value = null
+    }
+
+    /**
+     * v0.44.0: read the [EXTRA_FLASH_NOTE_ID] extra from the
+     * launching / `onNewIntent` intent and forward it to
+     * [org.mindanchor.note.FlashSignal] so the launcher root shows
+     * the flash. Called from both `onCreate` (cold launch from
+     * the notification's content intent) and `onNewIntent`
+     * (singleTask — second tap on the notification while the
+     * activity is foreground). No-op when the extra is missing or
+     * unparseable — any of those is an intent the launcher should
+     * not act on.
+     */
+    private fun handleFlashIntent(intent: Intent?) {
+        if (intent == null) return
+        val noteId = intent.getLongExtra(EXTRA_FLASH_NOTE_ID, -1L)
+        if (noteId <= 0L) return
+        org.mindanchor.note.FlashSignal.fire(noteId)
+        // Clear the extra so a config change does not
+        // re-trigger the same flash. The notification's
+        // content intent is single-fire; the flash
+        // signal is the runtime path.
+        intent.removeExtra(EXTRA_FLASH_NOTE_ID)
     }
 
     /**
