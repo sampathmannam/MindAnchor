@@ -774,6 +774,25 @@ fun LauncherRoot(
                 state = state,
                 onLaunch = ::attemptLaunch,
                 onLongPress = { actionsFor = it },
+                // v0.47.0: map the bang to a launcher
+                // surface. Tasks and Mood route to
+                // Home (the home surface owns the
+                // mood card and the task picker).
+                // GroundMe, Notes, Settings route
+                // to their own surfaces.
+                onBang = { cmd ->
+                    when (cmd) {
+                        org.mindanchor.launcher.LauncherViewModel.BangCommand.GroundMe ->
+                            surface = LauncherSurface.GroundMe
+                        org.mindanchor.launcher.LauncherViewModel.BangCommand.Notes ->
+                            surface = LauncherSurface.Notes
+                        org.mindanchor.launcher.LauncherViewModel.BangCommand.Settings ->
+                            surface = LauncherSurface.Settings
+                        org.mindanchor.launcher.LauncherViewModel.BangCommand.Tasks,
+                        org.mindanchor.launcher.LauncherViewModel.BangCommand.Mood ->
+                            surface = LauncherSurface.Home
+                    }
+                },
             )
         }
 
@@ -1745,9 +1764,27 @@ private fun QuickNotesCard(
             // delta would resolve to a past time).
             // For Task, the first option is "no due"
             // (null delta) which is always allowed.
+            //
+            // v0.47.0: when the draft contains a
+            // parseable natural-language phrase
+            // ("in 2 hours", "tomorrow at 7pm",
+            // "monday morning"), the [Whenever]
+            // parser extracts the body and the
+            // reminder time. The chip is bypassed;
+            // the parsed time wins. The Save
+            // button is enabled when the draft
+            // contains a parseable phrase OR the
+            // chip is valid.
+            val nlPair: Pair<String, Long>? = if (kind == 2) {
+                org.mindanchor.note.Whenever.extractFrom(draft)
+            } else null
             val (label, enabled) = when (kind) {
                 1 -> stringResource(R.string.quick_notes_save_task) to (draft.isNotBlank())
-                2 -> stringResource(R.string.quick_notes_save_reminder) to (draft.isNotBlank() && (reminderOffsets.getOrNull(timeOffsetIndex)?.second ?: 0L) > 0L)
+                2 -> {
+                    val chipValid = (reminderOffsets.getOrNull(timeOffsetIndex)?.second ?: 0L) > 0L
+                    stringResource(R.string.quick_notes_save_reminder) to
+                        (draft.isNotBlank() && (nlPair != null || chipValid))
+                }
                 else -> stringResource(R.string.quick_notes_save) to (draft.isNotBlank())
             }
             OutlinedButton(
@@ -1761,6 +1798,15 @@ private fun QuickNotesCard(
                     // ReminderScheduler would silently
                     // ignore reminders set for a time
                     // before the current moment.
+                    //
+                    // v0.47.0: if the body parses as a
+                    // natural-language reminder, use
+                    // the parsed body + time. The
+                    // chip is bypassed; the parsed
+                    // time is absolute (not a delta
+                    // from now), so the
+                    // ReminderScheduler receives the
+                    // exact epoch millis.
                     val nowMs = System.currentTimeMillis()
                     when (kind) {
                         1 -> {
@@ -1769,9 +1815,14 @@ private fun QuickNotesCard(
                             onSaveTask(draft, due, pinned)
                         }
                         2 -> {
-                            val delta = reminderOffsets.getOrNull(timeOffsetIndex)?.second ?: 0L
-                            val at = if (delta > 0L) nowMs + delta else nowMs
-                            onSaveReminder(draft, at, pinned)
+                            val nl = nlPair
+                            if (nl != null) {
+                                onSaveReminder(nl.first, nl.second, pinned)
+                            } else {
+                                val delta = reminderOffsets.getOrNull(timeOffsetIndex)?.second ?: 0L
+                                val at = if (delta > 0L) nowMs + delta else nowMs
+                                onSaveReminder(draft, at, pinned)
+                            }
                         }
                         else -> onSave(draft, pinned)
                     }
@@ -3276,6 +3327,16 @@ private fun DrawerSurface(
     state: LauncherUiState,
     onLaunch: (DisplayApp) -> Unit,
     onLongPress: (DisplayApp) -> Unit,
+    /**
+     * v0.47.0: the drawer-bang dispatcher. The
+     * DrawerSurface is the only place that knows
+     * the launcher's navigation graph; the
+     * ViewModel emits a [BangCommand], the
+     * Drawer maps it to a [LauncherSurface], the
+     * launcher navigates, and the search field
+     * clears via [viewModel.consumeBang].
+     */
+    onBang: (LauncherViewModel.BangCommand) -> Unit,
 ) {
     // v0.25.17 BUG-004: lifecycle-aware collect. The
     // search query is held in the ViewModel; the
@@ -3285,6 +3346,20 @@ private fun DrawerSurface(
     val query by viewModel.searchQuery.collectAsStateWithLifecycle()
     val results = viewModel.searchResults(state)
     val focusRequester = remember { FocusRequester() }
+
+    // v0.47.0: collect the bang command. A non-null
+    // value fires the bang once; the DrawerSurface
+    // calls [viewModel.consumeBang] to clear the
+    // query so the same bang does not re-fire on
+    // the next recomposition.
+    val bang by viewModel.bangCommand.collectAsStateWithLifecycle(initialValue = null)
+    LaunchedEffect(bang) {
+        val current = bang
+        if (current != null) {
+            onBang(current)
+            viewModel.consumeBang()
+        }
+    }
 
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
@@ -3299,7 +3374,14 @@ private fun DrawerSurface(
             value = query,
             onValueChange = viewModel::onQueryChange,
             modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
-            placeholder = { Text(stringResource(R.string.search_hint)) },
+            placeholder = {
+                // v0.47.0: the placeholder hints at
+                // the bangs. The user discovers
+                // them by reading the hint; the
+                // "!" prefix is a search-engine
+                // convention the user already knows.
+                Text(stringResource(R.string.search_hint_v047))
+            },
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
             keyboardActions = KeyboardActions(
@@ -3308,6 +3390,47 @@ private fun DrawerSurface(
         )
 
         LazyColumn(modifier = Modifier.fillMaxSize().padding(top = 8.dp)) {
+            // v0.47.0: when a bang is active (the
+            // query starts with `!`), show the
+            // matching BangCommand card above the
+            // app list. The card is a single tap
+            // confirmation -- it makes the bang
+            // visible, and the Enter key on the
+            // soft keyboard (the ImeAction.Go) does
+            // NOT fire the bang (the user has to
+            // pick the card). This avoids the
+            // common "I typed `!note` to search for
+            // a notes app and got navigated away"
+            // surprise.
+            val activeBang = bang
+            if (activeBang != null) {
+                items(listOf(activeBang), key = { it.name }) { cmd ->
+                    val (label, target) = when (cmd) {
+                        org.mindanchor.launcher.LauncherViewModel.BangCommand.GroundMe ->
+                            "Go to Ground me" to cmd
+                        org.mindanchor.launcher.LauncherViewModel.BangCommand.Notes ->
+                            "Go to Notes" to cmd
+                        org.mindanchor.launcher.LauncherViewModel.BangCommand.Tasks ->
+                            "Go to Tasks" to cmd
+                        org.mindanchor.launcher.LauncherViewModel.BangCommand.Settings ->
+                            "Go to Settings" to cmd
+                        org.mindanchor.launcher.LauncherViewModel.BangCommand.Mood ->
+                            "Log a mood" to cmd
+                    }
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .combinedClickable(
+                                onClick = { onBang(target) },
+                                onLongClick = {},
+                            )
+                            .padding(vertical = 12.dp),
+                    )
+                }
+            }
             items(results, key = { it.component }) { app ->
                 Text(
                     text = app.label,

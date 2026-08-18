@@ -20,6 +20,24 @@
 
     <string name="open_drawer">search</string>
     <string name="search_hint">Type to find an app…</string>
+    <!-- v0.47.0: drawer-bang hint. The AIO Launcher
+         "bangs in search" pattern; the user types
+         `!ground`, `!note`, `!task`, `!settings`,
+         or `!mood` to navigate. The hint is the
+         first thing the user sees when the drawer
+         opens with no query. -->
+    <string name="search_hint_v047">Type an app, or `!ground` `!note` `!task` `!settings` `!mood`</string>
+    <!-- v0.47.0: 3 Good Things card. Three free-text
+         rows the user fills in at any point during
+         the day. The rows clear at the local
+         midnight so the next day starts fresh. No
+         streak, no comparison, no "you missed a
+         day" badge — the BPD-safe posture. -->
+    <string name="gratitude_card_title">3 good things</string>
+    <string name="gratitude_row_one">1. ___</string>
+    <string name="gratitude_row_two">2. ___</string>
+    <string name="gratitude_row_three">3. ___</string>
+    <string name="gratitude_hint">What was good today, in your own words. The card clears at midnight.</string>
     <string name="settings">settings</string>
     <string name="settings_group_quiet">Quiet</string>
     <string name="settings_group_quiet_desc">Batching, quiet hours, and colour.</string>

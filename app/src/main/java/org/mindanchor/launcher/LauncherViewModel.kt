@@ -22,6 +22,8 @@ import org.mindanchor.friction.OpenLoop
 import org.mindanchor.friction.PerAppSessionLength
 import org.mindanchor.model.Note
 import org.mindanchor.model.NoteStore
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import org.mindanchor.reader.ReaderPrefs
 import org.mindanchor.reader.ReadingSize
 import org.mindanchor.sleep.BedtimeList
@@ -155,6 +157,60 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     val searchQuery: StateFlow<String> = query.asStateFlow()
 
     /**
+     * v0.47.0: the drawer-search bang command.
+     *
+     * Bangs are `!ground`, `!note`, `!task`,
+     * `!settings`, `!mood`. Typing a bang at the
+     * start of the query emits the corresponding
+     * [BangCommand] on [bangCommand] (and the
+     * DrawerSurface consumes it, navigates, and
+     * clears the search). Anything that does NOT
+     * start with a bang stays on the null branch
+     * and the drawer shows the usual app list.
+     *
+     * The AIO Launcher "bangs in search" pattern is
+     * the most distinctive drawer affordance in
+     * the minimalist launcher category. It is
+     * cheap to ship — one regex on the query,
+     * one StateFlow — and the user can navigate
+     * to a non-app surface in the same text box
+     * they use to launch apps. The drawer does
+     * not need a separate "go to settings" button.
+     *
+     * The bang is detected on a complete word, not
+     * a substring. Typing `!grounded` does not
+     * fire the bang (the user is probably
+     * searching for an app named "grounded").
+     * The match is the entire query equal to
+     * "!ground" or the entire query starting with
+     * "!ground " (the rest is a parameter, not
+     * used by v0.47.0).
+     */
+    val bangCommand: kotlinx.coroutines.flow.Flow<BangCommand?> =
+        query.map { parseBang(it) }
+            .distinctUntilChanged()
+
+    /**
+     * v0.47.0: the bang parser. The regex is
+     * intentionally tight: the bang is the WHOLE
+     * query or the bang followed by a space
+     * (followed by anything the surface ignores).
+     * A substring match would over-fire on app
+     * names that start with a `!` (rare but real).
+     */
+    private fun parseBang(text: String): BangCommand? {
+        val t = text.trim()
+        return when {
+            t == "!ground" || t.startsWith("!ground ") -> BangCommand.GroundMe
+            t == "!note" || t.startsWith("!note ") -> BangCommand.Notes
+            t == "!task" || t.startsWith("!task ") -> BangCommand.Tasks
+            t == "!settings" || t.startsWith("!settings ") -> BangCommand.Settings
+            t == "!mood" || t.startsWith("!mood ") -> BangCommand.Mood
+            else -> null
+        }
+    }
+
+    /**
      * The two friction lists as one flow. combine() only has typed
      * overloads up to five sources, and this is the sixth.
      */
@@ -263,6 +319,45 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun onQueryChange(value: String) {
         query.value = value
+    }
+
+    /**
+     * v0.47.0: the drawer-bang command. Emitted
+     * by the bang parser; consumed by
+     * [DrawerSurface] which navigates to the
+     * matching surface and clears the search.
+     *
+     * The enum is kept in the ViewModel (not the
+     * Composable) so the DrawerSurface can
+     * dispatch via the surface-state enum without
+     * coupling to the Launcher's internal
+     * navigation. The Drawer maps each bang to
+     * the corresponding LauncherSurface; the
+     * ViewModel does not know about the launcher's
+     * navigation graph.
+     */
+    enum class BangCommand {
+        /** v0.26.0 §3.5: the GroundMe sub-surface. */
+        GroundMe,
+        /** v0.45.0: the Notes tab (all-notes view). */
+        Notes,
+        /** v0.44.0: the Tasks chip + reminder picker. */
+        Tasks,
+        /** v0.25.15: the Settings sub-surface. */
+        Settings,
+        /** v0.46.0: the Mood Card on the home surface. */
+        Mood,
+    }
+
+    /**
+     * v0.47.0: acknowledge a bang has been
+     * consumed. The DrawerSurface calls this
+     * after navigating, so the search field
+     * clears and the same bang does not re-fire
+     * on the next composition.
+     */
+    fun consumeBang() {
+        query.value = ""
     }
 
     fun searchResults(state: LauncherUiState): List<DisplayApp> =
