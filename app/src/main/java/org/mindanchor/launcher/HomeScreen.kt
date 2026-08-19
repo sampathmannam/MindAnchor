@@ -2210,41 +2210,69 @@ private fun QuickNotesCard(
         // the row chip for a Quick note is
         // already neutral, so the picker
         // matches by staying neutral too.
+        //
+        // v0.57.0: the unselected chip text
+        // is now `onSurface` (was
+        // `onSurfaceVariant`) so the three
+        // options are equally readable when
+        // none is selected. The pre-v0.57.0
+        // design used M3's default which
+        // defaults to `onSurfaceVariant` —
+        // readable in dark mode but dim on
+        // the pale teal-200 day sky. The
+        // selected Quick-note chip now uses
+        // a neutral `surface` tint with
+        // `onSurface` text so it reads as a
+        // selected state without the
+        // high-contrast dark fill that made
+        // it hard to read on the v0.55.0
+        // home (visible in
+        // `v055-home-with-4-notes.png`).
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         ) {
+            val unselectedLabel = sky.textPrimary
             FilterChip(
                 selected = kind == 0,
                 onClick = { kind = 0; haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove) },
                 label = { Text(stringResource(R.string.note_kind_quick)) },
                 modifier = Modifier.semantics { role = Role.RadioButton },
+                colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = androidx.compose.ui.graphics.Color(0xFFE0E7EE),
+                    selectedLabelColor = sky.textPrimary,
+                    containerColor = androidx.compose.ui.graphics.Color.Transparent,
+                    labelColor = unselectedLabel,
+                ),
+                border = androidx.compose.material3.FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = kind == 0,
+                    borderColor = sky.textSecondary.copy(alpha = 0.4f),
+                    selectedBorderColor = sky.textPrimary,
+                    borderWidth = 1.dp,
+                    selectedBorderWidth = 1.5.dp,
+                ),
             )
             FilterChip(
                 selected = kind == 1,
                 onClick = { kind = 1; haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove) },
                 label = { Text(stringResource(R.string.note_kind_task)) },
-                modifier = Modifier
-                    .semantics { role = Role.RadioButton }
-                    // v0.49.0: sage when selected so
-                    // the picker chip matches the
-                    // sage row chip on the Notes
-                    // tab. The unselected state
-                    // keeps Material 3's default
-                    // outline so a user can see
-                    // three options at a glance.
-                    .let { m ->
-                        if (kind == 1) {
-                            m
-                        } else {
-                            m
-                        }
-                    },
+                modifier = Modifier.semantics { role = Role.RadioButton },
                 colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
                     selectedContainerColor = KindTealBg,
                     selectedLabelColor = KindTealFg,
+                    containerColor = androidx.compose.ui.graphics.Color.Transparent,
+                    labelColor = unselectedLabel,
+                ),
+                border = androidx.compose.material3.FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = kind == 1,
+                    borderColor = sky.textSecondary.copy(alpha = 0.4f),
+                    selectedBorderColor = KindTealFg,
+                    borderWidth = 1.dp,
+                    selectedBorderWidth = 1.5.dp,
                 ),
             )
             FilterChip(
@@ -2255,6 +2283,16 @@ private fun QuickNotesCard(
                 colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
                     selectedContainerColor = KindIndigoBg,
                     selectedLabelColor = KindIndigoFg,
+                    containerColor = androidx.compose.ui.graphics.Color.Transparent,
+                    labelColor = unselectedLabel,
+                ),
+                border = androidx.compose.material3.FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = kind == 2,
+                    borderColor = sky.textSecondary.copy(alpha = 0.4f),
+                    selectedBorderColor = KindIndigoFg,
+                    borderWidth = 1.dp,
+                    selectedBorderWidth = 1.5.dp,
                 ),
             )
         }
@@ -3013,13 +3051,27 @@ private fun MoodCard(
         // tone is "observe, don't evaluate") but
         // the named states give the user a
         // vocabulary for what they are observing.
+        // v0.57.0: each emoji column gets
+        // `weight(1f)` so the 5 columns share
+        // the row width equally on every
+        // device, and the label uses
+        // `maxLines = 1, overflow = Ellipsis`
+        // so a long label like "Crushed"
+        // never gets clipped at the screen
+        // edge — the previous SpaceEvenly +
+        // unconstrained Column let the
+        // first label render partially
+        // off-screen on 1080dp / 360dp-wide
+        // devices (visible in the v0.55.0
+        // `v055-settings.png` screenshot
+        // where "Crushed" showed as "Crush").
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             moodEntries.forEach { (emoji, key, labelRes) ->
                 Column(
+                    modifier = Modifier.weight(1f),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Box(
@@ -3055,8 +3107,18 @@ private fun MoodCard(
                         // primary content" — a face
                         // name sits below a face, not
                         // in a dense table.
+                        // v0.57.0: maxLines = 1 +
+                        // Ellipsis so a long label
+                        // ("Crushed" is the longest
+                        // of the five) renders as
+                        // "Cru…" on the narrowest
+                        // device instead of clipping
+                        // the leading characters at
+                        // the screen edge.
                         style = MaterialTheme.typography.labelMedium,
                         color = sky.textSecondary,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         modifier = Modifier.padding(top = 4.dp),
                     )
                 }
@@ -3810,6 +3872,21 @@ private fun HomeSurface(
         // fix mirrors the statusBarsPadding added to
         // the top corners: ask for the nav-bar inset
         // on the buttons themselves.
+        //
+        // v0.57.0: the "search" and "settings" buttons
+        // get a small leading glyph (`⌕` and `⚙`) so
+        // the navigation chrome reads as two distinct
+        // affordances, not as two pieces of plain
+        // text. The pre-v0.57.0 design was text-only
+        // (`search` and `settings` in labelMedium)
+        // and the user could not tell at a glance
+        // which one opened the app drawer and which
+        // one opened settings — both labels were
+        // equally dim against the pale teal-200 day
+        // sky. The glyphs are Unicode so the
+        // launcher keeps its "no icon dependency"
+        // philosophy; the labels stay so a
+        // text-reader still hears the affordance.
         TextButton(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -3817,6 +3894,12 @@ private fun HomeSurface(
                 .semantics { role = Role.Button },
             onClick = onOpenDrawer,
         ) {
+            Text(
+                text = "⌕",
+                style = MaterialTheme.typography.titleMedium,
+                color = ActionAccentFg,
+            )
+            Spacer(Modifier.width(6.dp))
             Text(
                 text = stringResource(R.string.open_drawer),
                 style = MaterialTheme.typography.titleMedium,
@@ -3838,6 +3921,12 @@ private fun HomeSurface(
                 .padding(end = 8.dp)
                 .semantics { role = Role.Button },
         ) {
+            Text(
+                text = "⚙",
+                style = MaterialTheme.typography.titleMedium,
+                color = ActionAccentFg,
+            )
+            Spacer(Modifier.width(4.dp))
             Text(
                 text = stringResource(R.string.settings),
                 style = MaterialTheme.typography.labelMedium,
@@ -4161,6 +4250,30 @@ private fun NotesSurfaceBody(
                     onClick = onBack,
                     modifier = Modifier.semantics { role = Role.Button },
                 ) {
+                    // v0.57.0: a small back chevron
+                    // (`←`) on the leading edge of
+                    // the Back button. The pre-v0.57.0
+                    // design was text-only ("Back")
+                    // which read as a static label
+                    // rather than a navigation
+                    // affordance. The chevron is a
+                    // 4dp-wide × 10dp-tall arrow
+                    // drawn from a 2dp vertical
+                    // stroke and a rotated 6dp
+                    // horizontal stroke — same
+                    // "draw it, don't depend on it"
+                    // pattern as the v0.53.0 Notes
+                    // chevron on the home tab. The
+                    // text label stays so the
+                    // affordance is reachable by
+                    // both icon-readers and
+                    // text-readers.
+                    Text(
+                        text = "←",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = ActionAccentFg,
+                    )
+                    Spacer(Modifier.width(2.dp))
                     Text(
                         text = stringResource(R.string.notes_tab_back),
                         style = MaterialTheme.typography.titleMedium,
