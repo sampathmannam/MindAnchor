@@ -826,14 +826,15 @@ fun LauncherRoot(
     val ctx = LocalContext.current
     val bpdProfilePrefs = remember { org.mindanchor.data.BpdProfilePrefs(ctx.applicationContext) }
     val bpdProfile by bpdProfilePrefs.profile.collectAsStateWithLifecycle(initialValue = org.mindanchor.data.BpdProfile())
-    // v0.42.0: the 2x2 needs grid on the home surface is gated
-    // by a preference (Settings → Home screen → Show needs
-    // grid). Default `true` so first-launch users see the same
-    // home they had in v0.41.0; existing users who already
-    // configured the setting get the value they wrote.
-    val appearancePrefs = remember { org.mindanchor.data.AppearancePrefs(ctx.applicationContext) }
-    val needsGridVisible by appearancePrefs.needsGridVisible
-        .collectAsStateWithLifecycle(initialValue = true)
+    // v0.62.1: the [needsGridVisible] read
+    // was removed because the v0.43.0 home
+    // strip deleted the needs grid it gated
+    // and the Settings toggle is removed. The
+    // preference is still kept on disk in
+    // [AppearancePrefs] for backward compat
+    // with users who flipped it before the
+    // strip. Re-introduce the read when the
+    // grid returns to home.
     // v0.26.5: the onStayUp callback writes `okAtNight = true`
     // to the BpdProfile DataStore; the flow re-emits, isTwoAmWindow
     // recomputes to false, and the shell disappears on the next
@@ -1074,13 +1075,18 @@ fun LauncherRoot(
                 sky = sky,
                 favorites = state.favorites,
                 allNotes = allNotes,
-                // v0.42.0: hide the 2x2 needs grid when the user
-                // has turned it off in Settings. The four doors
-                // collapse to nothing; the time, greeting, and
-                // quick-notes card remain. Support is still
-                // reachable from the top-left "Open Support"
-                // button and from Settings.
-                needsGridVisible = needsGridVisible,
+                // v0.62.1: the [needsGridVisible]
+                // parameter was removed from
+                // [HomeSurface] because the v0.43.0
+                // home strip deleted the actual
+                // needs grid it gated. The
+                // preference stays in
+                // [AppearancePrefs.needsGridVisible]
+                // for backward compat with users
+                // who flipped it in an earlier
+                // build, and the Settings toggle
+                // is removed. Re-introduce the
+                // parameter when the grid returns.
                 onOpenDrawer = { surface = LauncherSurface.Drawer },
                 onOpenSettings = { surface = LauncherSurface.Settings },
                 // v0.45.0: top-right "Notes"
@@ -3698,15 +3704,6 @@ private fun HomeSurface(
      * count line reads from the total.
      */
     allNotes: List<Note> = emptyList(),
-    /**
-     * v0.42.0: the 2x2 needs grid ("What do you need right now?")
-     * is hidden when this is false. Default `true` keeps the
-     * v0.35.0 / v0.40.1 / v0.41.0 home intact for callers that
-     * do not pass the parameter (e.g. previews, the launcher
-     * tests that pre-date the toggle). The LauncherRoot reads
-     * the value from AppearancePrefs.needsGridVisible.
-     */
-    needsGridVisible: Boolean = true,
     onOpenDrawer: () -> Unit,
     onOpenSettings: () -> Unit,
     onLaunch: (DisplayApp) -> Unit,

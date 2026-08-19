@@ -1314,39 +1314,25 @@ fun SettingsScreen(
                 modifier = Modifier.padding(bottom = 8.dp),
             )
 
-            // v0.42.0: the 2x2 needs grid on the home surface.
-            // On by default — the four doors are how most users
-            // get to Support and the diary card. Turning it off
-            // hides the doors and leaves only the clock, greeting,
-            // and quick-notes card on the home. The "Open Support"
-            // top-left and the Settings → Support hub are
-            // unchanged, so the support surface itself is never
-            // lost — only the home cards that lead to it.
-            val needsGridVisible by viewModel.needsGridVisible.collectAsStateWithLifecycle()
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp)
-                    .toggleable(
-                        value = needsGridVisible,
-                        role = Role.Switch,
-                    ) { viewModel.setNeedsGridVisible(!needsGridVisible) }
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Switch(checked = needsGridVisible, onCheckedChange = null)
-                Text(
-                    text = stringResource(R.string.needs_grid_label),
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(start = 8.dp),
-                )
-            }
-            Text(
-                text = stringResource(R.string.needs_grid_explainer),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 8.dp),
-            )
+            // v0.62.1: the 2x2 needs grid toggle was
+            // removed here because the v0.43.0 home
+            // strip removed the actual needs grid
+            // (Be heard / A moment / Check in /
+            // Get through this) from the home
+            // surface. The toggle was orphaned: it
+            // read the value, the launcher wrote it
+            // back, but no card read it. A user
+            // tapping the toggle would see the
+            // switch flip and nothing change. The
+            // [needsGridVisible] preference stays
+            // in [AppearancePrefs] for backward
+            // compat (a v0.62.0 user who turned
+            // the grid off and upgrades to
+            // v0.62.1 still has their saved
+            // value), but the toggle is no longer
+            // surfaced in Settings. Re-introduce
+            // the toggle when the needs grid
+            // returns to home.
         }
 
         if (group == SettingsGroup.PAUSES) {
