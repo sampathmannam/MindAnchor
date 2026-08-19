@@ -950,6 +950,24 @@
     <string name="home_subtitle_good_afternoon">Good afternoon</string>
     <string name="home_subtitle_just_now">Just now</string>
     <string name="home_subtitle_last_note_ago">Your last note was %1$s ago</string>
+    <!-- v0.62.6 (F3 from top-50 audit, Visibility of
+         System Status): a tighter "Saved Xs ago" status
+         for notes less than 60 seconds old. The audit
+         flagged that "Just now" + titleMedium + no icon
+         was too quiet for the highest-signal moment
+         (just-after-save) — a user who wrote something
+         vulnerable needs to see the data hit disk. The
+         checkmark icon next to the text reinforces the
+         affordance. Falls back to home_subtitle_just_now
+         for 60s – 30min (the same boundary v0.53.0 used).
+         Plurals not used: the only plural case is
+         singular (1 second) — the audit explicitly
+         cited a single "12s" as the example copy. -->
+    <string name="home_subtitle_just_saved">Saved %1$ds ago</string>
+    <!-- The checkmark is a Material Icons "check" — no
+         string needed; the icon is hard-coded in
+         [HomeScreen.kt:contextualSubtitleFor] consumer. -->
+    <string name="home_subtitle_just_saved_a11y">Saved %1$d seconds ago. Note is on disk.</string>
     <string name="home_subtitle_count_days">%1$d days of notes</string>
     <string name="home_subtitle_count_day_one">1 day of notes</string>
 

@@ -132,6 +132,7 @@ import org.mindanchor.ui.CalmBackground
 import org.mindanchor.ui.SkyContent
 import org.mindanchor.ui.rememberClockFormat
 import org.mindanchor.ui.rememberMinuteTick
+import org.mindanchor.ui.rememberSecondTick
 import org.mindanchor.ui.skyAwareColorScheme
 import java.text.DateFormat
 import java.time.Instant
@@ -4140,6 +4141,15 @@ private fun HomeSurface(
 ) {
     val now = rememberMinuteTick()
     val clockFormat = rememberClockFormat()
+    // v0.62.6 (F3): the subtitle needs second
+    // precision for the "Saved Xs ago" window.
+    // [rememberSecondTick] ticks every 1s; using
+    // it here makes the subtitle recompose on
+    // every tick, which is cheap. The
+    // [rememberMinuteTick] above is the existing
+    // minute-precision tick for the clock
+    // display.
+    val nowMs = rememberSecondTick()
 
     // v0.20.9: nested safe-drawing on the outer Box and
     // imePadding on the inner scroll container. The outer
@@ -4234,21 +4244,118 @@ private fun HomeSurface(
             val nowDateTime = java.time.LocalDateTime.of(
                 java.time.LocalDate.now(), now
             )
+            // v0.62.6 (F3): [nowMs] is the
+            // per-second tick. Passing it to
+            // [contextualSubtitleFor] ensures the
+            // "Saved Xs ago" subtitle updates
+            // every second, not every minute. The
+            // [now] (LocalTime) above stays for
+            // the wall-clock branch.
             val contextualSubtitle = contextualSubtitleFor(
                 now = nowDateTime,
+                nowMs = nowMs,
                 allNotes = allNotes,
                 morningRes = R.string.home_subtitle_morning,
                 windingDownRes = R.string.home_subtitle_winding_down,
                 upLateRes = R.string.home_subtitle_up_late,
                 justNowRes = R.string.home_subtitle_just_now,
                 lastNoteAgoRes = R.string.home_subtitle_last_note_ago,
+                justSavedRes = R.string.home_subtitle_just_saved,
             )
             if (contextualSubtitle != null) {
-                Text(
-                    text = contextualSubtitle,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = sky.textSecondary,
-                )
+                // v0.62.6 (F3): the "Saved Xs ago"
+                // branch adds a checkmark icon
+                // before the text. The icon is the
+                // Material Icons "check" — small
+                // (16dp) and tinted with the same
+                // teal as the Snackbar Undo action
+                // so the "data is safe" signal is
+                // consistent across the home. The
+                // text colour stays
+                // [sky.textSecondary] (the same
+                // dimmer body text as the wall-clock
+                // greeting) so the overall subtitle
+                // weight doesn't shift.
+                if (contextualSubtitle.showCheckmark) {
+                    // v0.62.6 (F3): the a11y label
+                    // is precomputed at the
+                    // Composable scope so the
+                    // non-Composable [Modifier.semantics]
+                    // block can use it.
+                    val justSavedA11y = stringResource(
+                        R.string.home_subtitle_just_saved_a11y,
+                        contextualSubtitle.secondsAgo ?: 0,
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // v0.62.6 (F3): custom-drawn
+                        // checkmark. The project
+                        // avoids material-icons-extended
+                        // (it adds ~7MB to the APK), so
+                        // a 16dp check is drawn with
+                        // two Canvas lines — same
+                        // pattern as the chevron at
+                        // [HomeScreen.kt:4597]. The tint
+                        // is [ActionAccentFg] (teal-700),
+                        // the same colour as the Snackbar
+                        // Undo action and the pinned-note
+                        // border — a consistent "data is
+                        // safe" signal across the home.
+                        androidx.compose.foundation.Canvas(
+                            modifier = Modifier
+                                .size(16.dp)
+                                .padding(end = 4.dp)
+                                .semantics {
+                                    contentDescription = justSavedA11y
+                                },
+                        ) {
+                            val w = size.width
+                            val h = size.height
+                            val stroke = 2.dp.toPx()
+                            // Two strokes: down-right
+                            // (the short arm of the
+                            // check) then up-right (the
+                            // long arm). Matches the
+                            // standard Material check at
+                            // ~18x18dp.
+                            drawLine(
+                                color = ActionAccentFg,
+                                start = androidx.compose.ui.geometry.Offset(w * 0.20f, h * 0.55f),
+                                end = androidx.compose.ui.geometry.Offset(w * 0.42f, h * 0.78f),
+                                strokeWidth = stroke,
+                            )
+                            drawLine(
+                                color = ActionAccentFg,
+                                start = androidx.compose.ui.geometry.Offset(w * 0.42f, h * 0.78f),
+                                end = androidx.compose.ui.geometry.Offset(w * 0.82f, h * 0.30f),
+                                strokeWidth = stroke,
+                            )
+                        }
+                        // v0.62.6 (F3): the
+                        // [HomeSubtitle.secondsAgo]
+                        // int is formatted with the
+                        // [home_subtitle_just_saved]
+                        // resource ("Saved %ds ago").
+                        // The function returned an
+                        // empty [text] so the
+                        // formatting happens here,
+                        // where stringResource is
+                        // @Composable-callable.
+                        Text(
+                            text = stringResource(
+                                R.string.home_subtitle_just_saved,
+                                contextualSubtitle.secondsAgo ?: 0,
+                            ),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = sky.textSecondary,
+                        )
+                    }
+                } else {
+                    Text(
+                        text = contextualSubtitle.text,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = sky.textSecondary,
+                    )
+                }
             }
 
             // v0.43.0: stripped home. The intro callout,
@@ -6558,46 +6665,61 @@ internal fun greetingFor(hour: Int, morning: String, day: String, evening: Strin
     }
 
 /**
- * v0.53.0 (Red Dot review fix, Issue 12):
- * the home subtitle is a function of the
- * wall clock AND the user's recent
- * activity. The rule:
+ * v0.62.6 (F3 from top-50 audit, Visibility of
+ * System Status): the home subtitle now also
+ * reports "just saved" — a sub-60s window after
+ * the most recent note was written, the subtitle
+ * reads "Saved 12s ago" with a checkmark icon, so
+ * the user gets a stronger signal that the data
+ * hit disk. The signal was previously the
+ * v0.53.0 "Just now" text alone, which is too
+ * quiet for the highest-signal moment
+ * (just-after-save) — a user who wrote something
+ * vulnerable needs to see the data hit disk, not
+ * a wall-clock greeting.
  *
- * - If the user wrote a note in the last 30
- *   minutes: "Just now". The launcher is a
- *   moment, the user is in the moment.
+ * The return type is [HomeSubtitle] (a sealed
+ * data class) instead of [String]? so the caller
+ * knows whether the "just saved" checkmark should
+ * be rendered. The [text] is the same copy as
+ * before for all non-just-saved cases, so the
+ * v0.53.0 strings ([justNowRes], [lastNoteAgoRes])
+ * are still used. The [secondsAgo] field is
+ * only non-null in the [HomeSubtitle.JustSaved]
+ * branch, which is also the only branch where
+ * [showCheckmark] is true.
+ *
+ * v0.53.0 rule (preserved):
+ * - If the user wrote a note in the last 60
+ *   seconds: "Saved Xs ago" + checkmark.
+ * - Else if the user wrote a note 60s – 30
+ *   minutes ago: "Just now".
  * - Else if the user wrote a note 30 min – 6
  *   hours ago: "Your last note was <N> hours
- *   ago". A factual recency hint, not a
- *   score.
- * - Else (no recent note):
- *   - 9pm – midnight: "Winding down" (the
- *     original v0.46.0 copy).
- *   - midnight – 5am: "Up late".
- *   - 5am – 9am: "Morning".
- *   - 9am – 9pm: null (the launcher is
- *     silent in the working hours).
- *
- * The "absence of a subtitle" case is the
- * 9am – 9pm working-hours window. The user
- * does not need a greeting at 2pm; the
- * greeting would be a comment on the hour,
- * not the user. Removing the "Good
- * afternoon" copy is the right move.
- *
- * The function is `internal` (not private)
- * so unit tests can exercise the rule
- * without instantiating a Composable.
+ *   ago".
+ * - Else (no recent note): wall-clock greeting
+ *   (5–8am "Morning", 9pm–midnight "Winding
+ *   down", midnight–5am "Up late", 9am–9pm null).
  */
+internal data class HomeSubtitle(
+    val text: String,
+    val showCheckmark: Boolean = false,
+    val secondsAgo: Int? = null,
+) {
+    val isJustSaved: Boolean get() = secondsAgo != null
+}
+
 internal fun contextualSubtitleFor(
     now: java.time.LocalDateTime,
+    nowMs: Long,
     allNotes: List<Note>,
     morningRes: Int,
     windingDownRes: Int,
     upLateRes: Int,
     justNowRes: Int,
     lastNoteAgoRes: Int,
-): String? {
+    justSavedRes: Int,
+): HomeSubtitle? {
     // The "recent activity" branch wins
     // over the wall-clock branch. A user
     // who wrote a note 5 minutes ago at
@@ -6608,10 +6730,49 @@ internal fun contextualSubtitleFor(
         .filter { it > 0L }
         .maxOrNull()
     if (mostRecent != null) {
-        val ageMs = now.atZone(java.time.ZoneId.systemDefault())
-            .toInstant().toEpochMilli() - mostRecent
+        // v0.62.6 (F3): use the per-second
+        // [nowMs] tick (not the per-minute
+        // [now.atZone(...).toInstant()]) so the
+        // "Saved Xs ago" subtitle updates every
+        // second. The previous v0.53.0 path
+        // derived "now" from the LocalDateTime,
+        // which only changes once a minute.
+        val ageMs = nowMs - mostRecent
+        // v0.62.6 (F3): the <60s window is a
+        // "data integrity" signal, not a
+        // greeting. "Saved 12s ago" + checkmark
+        // is louder than the v0.53.0 "Just
+        // now" — the user gets explicit
+        // confirmation that the note is on
+        // disk, with a checkmark icon to
+        // reinforce the affordance. The copy
+        // is bound to [justSavedRes] ("Saved
+        // %ds ago") and the seconds are
+        // computed in [HomeSubtitle.secondsAgo]
+        // so the UI can show "Saved 5s ago",
+        // "Saved 32s ago", etc.
+        if (ageMs in 0..(60_000L)) {
+            val secondsAgo = (ageMs / 1000L).toInt().coerceAtLeast(0)
+            // v0.62.6 (F3): the <60s branch returns
+            // an empty text + a non-null
+            // [secondsAgo]. The call site is
+            // @Composable and uses [stringResource]
+            // to format the actual "Saved Xs ago"
+            // text from [justSavedRes]. This
+            // keeps the function Context-free for
+            // testing.
+            return HomeSubtitle(
+                text = "",
+                showCheckmark = true,
+                secondsAgo = secondsAgo,
+            )
+        }
         if (ageMs in 0..(30L * 60 * 1000)) {
-            return "Just now" // could use justNowRes; inline for clarity
+            // v0.53.0 "Just now" copy. The
+            // <60s window above is a sub-case
+            // of "Just now" — splitting them is
+            // the F3 fix.
+            return HomeSubtitle(text = "Just now")
         }
         if (ageMs in 0..(6L * 60 * 60 * 1000)) {
             val ageMinutes = ageMs / (60 * 1000)
@@ -6621,16 +6782,17 @@ internal fun contextualSubtitleFor(
                 ageHours == 1L -> "1 hour"
                 else -> "$ageHours hours"
             }
-            return "Your last note was $agoText ago"
+            return HomeSubtitle(text = "Your last note was $agoText ago")
         }
     }
     // Wall-clock branch.
-    return when (now.hour) {
+    val wallClock = when (now.hour) {
         in 0..4 -> "Up late"
         in 5..8 -> "Morning"
-        in 9..20 -> null
+        in 9..20 -> return null
         else -> "Winding down"
     }
+    return HomeSubtitle(text = wallClock)
 }
 
 /** v0.26.0 §3.3 demo. */

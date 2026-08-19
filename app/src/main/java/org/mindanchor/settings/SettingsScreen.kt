@@ -40,6 +40,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
@@ -1540,7 +1541,26 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = onOpenPpg) {
+            // v0.62.6 (F4 from top-50 audit, Affordances
+            // and Signifiers): the v0.45.0 [TextButton]
+            // was a small green link inside a paragraph
+            // of bodyMedium — the user had no visual
+            // signal that this was the primary action
+            // of the section (could read as a section
+            // heading, a sub-link, or decorative). The
+            // [OutlinedButton] with a top padding
+            // promotes the action to a clearly tappable
+            // button without competing with the
+            // section's primary CTAs (Save / Cancel) for
+            // visual weight. Same pattern at the "Grant
+            // usage access" CTA below (F4 in the
+            // sleep-rhythm section).
+            OutlinedButton(
+                modifier = Modifier
+                    .semantics { role = Role.Button }
+                    .padding(top = 8.dp),
+                onClick = onOpenPpg,
+            ) {
                 Text(stringResource(R.string.ppg_start))
             }
         }
@@ -1555,9 +1575,17 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                TextButton(
-        modifier = Modifier.semantics { role = Role.Button },
-        onClick = {
+                // v0.62.6 (F4): promoted to
+                // [OutlinedButton] — same reasoning as
+                // the "Take a reading" CTA above. The
+                // small-text [TextButton] inside a
+                // bodySmall paragraph was a primary
+                // action hidden in prose.
+                OutlinedButton(
+                    modifier = Modifier
+                        .semantics { role = Role.Button }
+                        .padding(top = 8.dp),
+                    onClick = {
                         runCatching { activityLauncher.launch(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) }
                         viewModel.refreshSleep()
                     },
