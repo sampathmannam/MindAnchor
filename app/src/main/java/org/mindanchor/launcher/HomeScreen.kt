@@ -6255,7 +6255,15 @@ private fun BangHelpDialog(onDismiss: () -> Unit) {
         },
         text = {
             Column {
+                // v0.61.0: clinical-variant bangs
+                // (added in v0.60.0) are now in the
+                // help dialog too. !ground stays
+                // first because it is the broader
+                // entry point; !panic and !breathe
+                // are the focused clinical shortcuts.
                 BangHelpRow("!ground", R.string.bang_help_ground)
+                BangHelpRow("!panic", R.string.bang_help_panic)
+                BangHelpRow("!breathe", R.string.bang_help_breathe)
                 BangHelpRow("!note", R.string.bang_help_note)
                 BangHelpRow("!task", R.string.bang_help_task)
                 BangHelpRow("!settings", R.string.bang_help_settings)

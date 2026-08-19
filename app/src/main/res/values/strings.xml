@@ -874,10 +874,16 @@
          so the new user sees the human
          affordance first and the bang
          affordance second. -->
-    <string name="search_hint_v058">What do you want to open? (or !ground, !note, !task)</string>
+    <!-- v0.61.0: added !panic and !breathe to the
+         hint copy so the user knows the new
+         clinical-variant bangs exist without
+         having to tap the help dialog. -->
+    <string name="search_hint_v058">What do you want to open? (or !ground, !panic, !breathe, !note, !task)</string>
     <string name="search_hint_help_cd">Show all bang commands</string>
     <string name="search_help_title">Bang commands</string>
     <string name="bang_help_ground">Go to the Ground me surface</string>
+    <string name="bang_help_panic">Rate how acute it is right now</string>
+    <string name="bang_help_breathe">Start the paced-breathing screen</string>
     <string name="bang_help_note">Open the Notes tab</string>
     <string name="bang_help_task">Quick-capture a Task</string>
     <string name="bang_help_settings">Open Settings</string>
