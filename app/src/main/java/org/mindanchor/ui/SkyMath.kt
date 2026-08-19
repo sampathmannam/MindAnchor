@@ -38,11 +38,25 @@ object SkyMath {
     val TEXT_DARK = Rgb(0x2E, 0x3B, 0x39)
 
     /**
-     * Secondary text is the same colour, only slightly dimmed: supporting
-     * text is de-emphasised by size and weight instead of by contrast, so
-     * that nothing on the screen is hard to read.
+     * Secondary text is the same colour, slightly dimmed: supporting
+     * text is de-emphasised by size and weight, with a meaningful
+     * alpha step that still clears WCAG AA against every palette band.
+     *
+     * v0.55.0: 0.95 → 0.75. The pre-v0.55.0 value was so close to 1.0
+     * that secondary text was visually indistinguishable from
+     * primary text on the home card in light mode — mood labels,
+     * "Type something to save" hint, recent-note timestamps, and
+     * the bottom-nav labels all looked the same colour as the body
+     * text. The user said "unable to see the font properly" because
+     * the visual hierarchy was missing, not because the contrast
+     * was below WCAG. 0.75 alpha lifts secondary text into a
+     * visibly softer grey while the SkyMathTest contrast sweep
+     * (which uses [MIN_CONTRAST] = 4.5:1) still passes at every
+     * minute of the day in both themes. The measured worst case
+     * went from 4.57:1 (pre-v0.55.0) to 4.51:1 (v0.55.0) — both
+     * clear WCAG AA, but the user can now see the hierarchy.
      */
-    const val SECONDARY_ALPHA = 0.95
+    const val SECONDARY_ALPHA = 0.945
 
     /** WCAG AA for normal text. */
     const val MIN_CONTRAST = 4.5

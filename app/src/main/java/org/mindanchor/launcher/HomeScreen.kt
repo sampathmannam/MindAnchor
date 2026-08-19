@@ -2601,7 +2601,18 @@ private fun QuickNotesCard(
                 // button reappears.
                 Text(
                     text = hint,
-                    style = MaterialTheme.typography.bodySmall,
+                    // v0.55.0: bumped from bodySmall
+                    // (12sp) to bodyMedium (14sp).
+                    // The pre-v0.55.0 hint was the
+                    // smallest M3 body size, which
+                    // on the home card in light mode
+                    // looked like a placeholder, not
+                    // an instruction. bodyMedium
+                    // matches the body text of the
+                    // input field itself, so the
+                    // hint and the input read as
+                    // the same scale.
+                    style = MaterialTheme.typography.bodyMedium,
                     color = sky.textSecondary,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -2804,23 +2815,40 @@ private fun QuickNotesCard(
                         }
                         Text(
                             text = sub,
-                            style = MaterialTheme.typography.bodySmall,
+                            // v0.55.0: bumped from
+                            // bodySmall (12sp) to
+                            // bodyMedium (14sp). The
+                            // pre-v0.55.0 timestamp was
+                            // the smallest M3 body size,
+                            // which on the home card in
+                            // light mode looked like a
+                            // sub-label, not a glanceable
+                            // time. bodyMedium matches the
+                            // recent-note title and reads
+                            // as a single scale.
+                            style = MaterialTheme.typography.bodyMedium,
                             color = sky.textSecondary,
                             modifier = Modifier.padding(top = 2.dp),
                         )
                     }
-                    TextButton(
-                        onClick = { onDelete(note.id) },
-                        modifier = Modifier
-                            .heightIn(min = 40.dp)
-                            .semantics { role = Role.Button },
-                    ) {
-                        Text(
-                            text = "×",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = sky.textSecondary,
-                        )
-                    }
+                    // v0.55.0: removed the × delete
+                    // button from the home card
+                    // recent-note rows. The user
+                    // explicitly asked for a
+                    // clutter-free home screen and
+                    // wants to manage pin/delete
+                    // from the Notes tab instead.
+                    // The v0.45.0+ tap-to-delete
+                    // affordance still exists on
+                    // the Notes tab rows; the home
+                    // card is now read-only. The
+                    // [onDelete] callback is
+                    // retained in the function
+                    // signature for backward
+                    // compatibility with any
+                    // wrapper callers but is no
+                    // longer called from this
+                    // composable.
                 }
             }
             }
@@ -2954,7 +2982,20 @@ private fun MoodCard(
                     }
                     Text(
                         text = stringResource(labelRes),
-                        style = MaterialTheme.typography.labelSmall,
+                        // v0.55.0: bumped from labelSmall
+                        // (11sp) to labelMedium (12sp) +
+                        // Medium weight. The pre-v0.55.0
+                        // typography was the smallest
+                        // Material 3 size, which on the
+                        // home card in light mode looked
+                        // too dim to read against the
+                        // pale sky. labelMedium is the
+                        // M3 standard for "supporting
+                        // text on the same line as
+                        // primary content" — a face
+                        // name sits below a face, not
+                        // in a dense table.
+                        style = MaterialTheme.typography.labelMedium,
                         color = sky.textSecondary,
                         modifier = Modifier.padding(top = 4.dp),
                     )
