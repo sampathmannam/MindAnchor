@@ -465,7 +465,36 @@ private fun BpdProfileCheckbox(checked: Boolean, labelRes: Int, onToggle: (Boole
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Checkbox(checked = checked, onCheckedChange = null)
+        // v0.62.3: explicit Checkbox colors. The
+        // pre-v0.62.3 default Checkbox used
+        // `onSurfaceVariant` for the unchecked
+        // border and the tick, which on the
+        // v0.56.0 dark sky rendered as a
+        // near-invisible dim gray — a real bug
+        // flagged in the v0.62.2 top-50 audit
+        // (Phase 1, finding #9). The new colors
+        // pin the unchecked border to
+        // `onSurface.copy(alpha = 0.85f)` (the
+        // 0.6f first pass was still too dim on
+        // the dark sky; 0.85f reads as a clear
+        // outline without overpowering the
+        // section text). The checked color is
+        // teal-700 (the launcher's [ActionAccentFg]
+        // in HomeScreen.kt; the literal is
+        // inlined here because ActionAccentFg
+        // is file-private to HomeScreen.kt and
+        // a small duplication is cheaper than
+        // promoting the constant to a shared
+        // theme file for one use site).
+        Checkbox(
+            checked = checked,
+            onCheckedChange = null,
+            colors = androidx.compose.material3.CheckboxDefaults.colors(
+                checkedColor = androidx.compose.ui.graphics.Color(0xFF0F766E),
+                uncheckedColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+                checkmarkColor = androidx.compose.material3.MaterialTheme.colorScheme.surface,
+            ),
+        )
         Text(stringResource(labelRes), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(start = 8.dp))
     }
 }

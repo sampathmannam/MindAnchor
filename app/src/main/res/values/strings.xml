@@ -909,7 +909,17 @@
          will start ignoring. The "?" is
          a *valid* response, not a missing
          one. -->
-    <string name="mood_state_skip">Not now</string>
+    <!-- v0.62.3: "Not now" → "Skip" for the 6th "?"
+         refusal-to-answer face. The other 5 labels
+         are single words (Crushed/Heavy/Steady/Light/
+         Bright); "Not now" is a two-word phrase that
+         breaks the rhythm. "Skip" is one word and
+         matches the Wrzus & Neubauer 2023 EMA
+         "free to skip" terminology cited above. The
+         screen-reader copy is unchanged
+         (content-desc still says "Skip this
+         check-in"). -->
+    <string name="mood_state_skip">Skip</string>
     <string name="mood_label_cd">Mood: %1$s</string>
 
     <!-- v0.53.0: contextual home subtitle. The
