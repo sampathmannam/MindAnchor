@@ -3046,6 +3046,26 @@ private fun MoodCard(
         Triple("😐", "neutral", R.string.mood_state_3),
         Triple("🙂", "ok", R.string.mood_state_4),
         Triple("😊", "good", R.string.mood_state_5),
+        // v0.59.0: a 6th "skip" option. The
+        // 5-emoji scale is a 1-5 rating; this
+        // is a *refusal-to-answer* affordance.
+        // The mental-health EMA methodology
+        // (Wrzus & Neubauer 2023) cites "free
+        // to skip" as the single most
+        // important protocol property — a
+        // check-in the user feels forced to
+        // complete is a check-in the user
+        // will start ignoring. The "?" is a
+        // valid response, not a missing one.
+        // The key is "skip" so the long-press
+        // rating mapper falls through to
+        // the default 3 (neutral) which the
+        // annotate dialog never opens for
+        // this row — the "?" tap is a no-op
+        // that closes the loop with a
+        // deliberate "I'm here, I'm just not
+        // tracking this one" gesture.
+        Triple("?", "skip", R.string.mood_state_skip),
     )
     Column(
         modifier = Modifier
@@ -3094,7 +3114,7 @@ private fun MoodCard(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(48.dp)
+                            .size(if (key == "skip") 40.dp else 48.dp)
                             // v0.58.0: combinedClickable
                             // so the same 48dp target
                             // supports both the
@@ -3118,33 +3138,99 @@ private fun MoodCard(
                             // acknowledge even on
                             // fast / sloppy
                             // presses).
-                            .combinedClickable(
-                                onClick = {
-                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    onLog(emoji)
-                                },
-                                onLongClick = {
-                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    val rating = when (key) {
-                                        "low" -> 1
-                                        "off" -> 2
-                                        "neutral" -> 3
-                                        "ok" -> 4
-                                        "good" -> 5
-                                        else -> 3
+                            // v0.59.0: the "skip"
+                            // (6th) option uses
+                            // a smaller 40dp box
+                            // (the rating emojis
+                            // are 48dp) and a
+                            // simpler clickable
+                            // (no long-press, no
+                            // annotate dialog) —
+                            // a "skip" is a
+                            // single tap, not a
+                            // reflection.
+                            .then(
+                                if (key == "skip") {
+                                    Modifier.clickable {
+                                        haptics.performHapticFeedback(
+                                            HapticFeedbackType.LongPress,
+                                        )
+                                        // "skip" is a no-op
+                                        // on the launcher
+                                        // data layer — the
+                                        // user is opting
+                                        // out, not logging
+                                        // a 0 rating. The
+                                        // tap fires the
+                                        // haptic so the
+                                        // user feels the
+                                        // "ack" but does
+                                        // not write a
+                                        // [Note] or a
+                                        // [CheckIn].
                                     }
-                                    onLongPress(emoji, rating)
+                                } else {
+                                    Modifier.combinedClickable(
+                                        onClick = {
+                                            haptics.performHapticFeedback(
+                                                HapticFeedbackType.LongPress,
+                                            )
+                                            onLog(emoji)
+                                        },
+                                        onLongClick = {
+                                            haptics.performHapticFeedback(
+                                                HapticFeedbackType.LongPress,
+                                            )
+                                            val rating = when (key) {
+                                                "low" -> 1
+                                                "off" -> 2
+                                                "neutral" -> 3
+                                                "ok" -> 4
+                                                "good" -> 5
+                                                else -> 3
+                                            }
+                                            onLongPress(emoji, rating)
+                                        },
+                                    )
                                 },
                             )
                             .semantics {
                                 role = Role.RadioButton
-                                contentDescription = "Mood: ${key}. Long press to add a note."
+                                contentDescription = if (key == "skip") {
+                                    "Skip this check-in"
+                                } else {
+                                    "Mood: ${key}. Long press to add a note."
+                                }
                             },
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
                             text = emoji,
-                            style = MaterialTheme.typography.headlineMedium,
+                            style = if (key == "skip") {
+                                MaterialTheme.typography.headlineSmall
+                            } else {
+                                MaterialTheme.typography.headlineMedium
+                            },
+                            // v0.59.0: the "?" is
+                            // rendered in
+                            // `textSecondary` so
+                            // it reads as a
+                            // secondary
+                            // affordance (the
+                            // user does not see
+                            // it as a 0 on the
+                            // scale, they see
+                            // it as "I can
+                            // opt out"). The
+                            // 5 rating emojis
+                            // stay in
+                            // `textPrimary` (the
+                            // default).
+                            color = if (key == "skip") {
+                                sky.textSecondary
+                            } else {
+                                androidx.compose.ui.graphics.Color.Unspecified
+                            },
                         )
                     }
                     Text(

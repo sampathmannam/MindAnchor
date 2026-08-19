@@ -823,6 +823,21 @@
     <string name="mood_state_3">Steady</string>
     <string name="mood_state_4">Light</string>
     <string name="mood_state_5">Bright</string>
+    <!-- v0.59.0: a 6th mood option, the
+         "I don't know / don't ask" face.
+         The 5-emoji scale is a 1-5 rating;
+         this is a refusal-to-answer
+         option. The mental-health EMA
+         methodology (Wrzus & Neubauer
+         2023) cites "free to skip" as
+         the single most important
+         protocol property — a check-in
+         that the user feels forced to
+         complete is a check-in the user
+         will start ignoring. The "?" is
+         a *valid* response, not a missing
+         one. -->
+    <string name="mood_state_skip">Not now</string>
     <string name="mood_label_cd">Mood: %1$s</string>
 
     <!-- v0.53.0: contextual home subtitle. The
