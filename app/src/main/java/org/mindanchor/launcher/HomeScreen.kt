@@ -2089,6 +2089,21 @@ private fun QuickNotesCard(
     // pinned, the user opts in to pinning the
     // ones they want quick access to.
     var pinned by rememberSaveable { mutableStateOf(false) }
+    // v0.62.5 (F2 from top-50 audit, User
+    // Control / Error Recovery): the toggle is a
+    // binary preference the user can flip by
+    // accident and not notice — especially
+    // because the v0.62.2 explainer now says
+    // "is already pinned" when the toggle is OFF
+    // (the user might think the toggle does
+    // nothing). The fix is the same pattern as
+    // F1 (× delete): a Material 3 Snackbar with
+    // an "Undo" action that flips the toggle
+    // back. The [pendingPinChange] carries the
+    // *new* value to the [LaunchedEffect]; on
+    // Undo, the toggle reverts to the inverse.
+    val pendingPinChange = remember { androidx.compose.runtime.mutableStateOf<Boolean?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
     // v0.44.0: the time offset for Task and Reminder.
     // Indexes into a known list of millis-from-now
     // values. -1 means "no due time" (only for Task).
@@ -2111,6 +2126,46 @@ private fun QuickNotesCard(
     // distinction Brewster CHI 2007 names is preserved
     // by the gate's `type` parameter.
     val haptics = org.mindanchor.ui.LocalHapticFeedbackGate.current
+    // v0.62.5 (F2 Undo LaunchedEffect): when the
+    // Switch fires onCheckedChange, the onClick
+    // sets [pendingPinChange.value] to the new
+    // value. The key on this LaunchedEffect is
+    // that value, so a change re-fires the
+    // effect. The Snackbar message is
+    // state-dependent: ON says "appear on home
+    // screen", OFF says "stay in Notes tab" —
+    // matches the explainer copy in the toggle
+    // row. On ActionPerformed, the local
+    // [pinned] state reverts to the inverse.
+    // The [SnackbarResult.Dismissed] branch is
+    // a no-op (the change stays). After the
+    // Snackbar resolves, [pendingPinChange]
+    // resets to null so a same-value re-tap
+    // would re-fire (defensive — usually the
+    // Switch only fires on a real change).
+    val pinUndoLabel = stringResource(R.string.notes_swipe_undo)
+    // v0.62.5: precompute the two Snackbar
+    // messages outside the LaunchedEffect —
+    // stringResource is @Composable and can't
+    // be called inside a non-Composable
+    // LaunchedEffect lambda.
+    val pinUndoOnMessage = stringResource(R.string.pin_to_home_undo_on)
+    val pinUndoOffMessage = stringResource(R.string.pin_to_home_undo_off)
+    LaunchedEffect(pendingPinChange.value) {
+        val newValue = pendingPinChange.value ?: return@LaunchedEffect
+        val message = if (newValue) pinUndoOnMessage else pinUndoOffMessage
+        val result = snackbarHostState.showSnackbar(
+            message = message,
+            actionLabel = pinUndoLabel,
+            withDismissAction = false,
+            duration = SnackbarDuration.Short,
+        )
+        if (result == SnackbarResult.ActionPerformed) {
+            pinned = !newValue
+            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        }
+        pendingPinChange.value = null
+    }
     // v0.45.1: bug fix for the "at past" reminder
     // bug seen on the FireTest (the user typed a
     // note, sat on the home screen for 9 minutes,
@@ -2169,6 +2224,16 @@ private fun QuickNotesCard(
     // is the foreground, the mood +
     // notes are the middle, the input is
     // the surface the user touches.
+    //
+    // v0.62.5 (F2 Undo): the outer wrapper
+    // is a Box so the [SnackbarHost] can sit
+    // at BottomCenter on top of the Column
+    // without affecting the Column's layout.
+    // The Column keeps its fillMaxWidth +
+    // padding(top = 24.dp) so the visual
+    // position of the card is unchanged from
+    // v0.62.0.
+    Box(modifier = Modifier.fillMaxWidth()) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -2490,6 +2555,16 @@ private fun QuickNotesCard(
             Switch(
                 checked = pinned,
                 onCheckedChange = {
+                    // v0.62.5 (F2 Undo): dispatch the
+                    // new value to the LaunchedEffect
+                    // which fires a Snackbar with an
+                    // Undo action. The local [pinned]
+                    // state is updated eagerly (the
+                    // Switch needs to reflect the new
+                    // state immediately); the Undo
+                    // branch in the LaunchedEffect
+                    // reverts it.
+                    pendingPinChange.value = it
                     pinned = it
                     haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 },
@@ -3095,6 +3170,29 @@ private fun QuickNotesCard(
                 }
             }
         }
+    }
+    // v0.62.5 (F2 Undo): the SnackbarHost is
+    // a sibling of the Column inside the outer
+    // Box. align(BottomCenter) places it at
+    // the bottom of the Box (the bottom of
+    // the home card); padding(bottom = 16.dp)
+    // keeps it 16dp above the bottom edge so
+    // it doesn't crowd the system nav bar.
+    // The Snackbar uses the same teal action
+    // color as the Notes tab Snackbar
+    // (ActionAccentFg, a file-private token
+    // in this file).
+    SnackbarHost(
+        hostState = snackbarHostState,
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .padding(bottom = 16.dp),
+    ) { data ->
+        Snackbar(
+            snackbarData = data,
+            actionColor = ActionAccentFg,
+        )
+    }
     }
 }
 

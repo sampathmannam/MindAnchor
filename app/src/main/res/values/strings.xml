@@ -806,6 +806,22 @@
         <item quantity="other">New notes will stay in the Notes tab. %1$d are already pinned.</item>
     </plurals>
     <string name="pin_to_home_explainer_on_empty">New notes will appear on the home screen.</string>
+    <!-- v0.62.5 (F2 from top-50 audit, User Control / Error
+         Recovery): the toggle on the home card flips a binary
+         preference the user can change by accident and not notice —
+         the v0.62.2 explainer already says "is already pinned" when
+         OFF, which can read as the toggle doing nothing. The fix is
+         a Material 3 Snackbar with an Undo action that flips the
+         toggle back. The two strings here are the Snackbar messages;
+         the action label reuses the existing notes_swipe_undo
+         ("Undo") so the affordance reads the same as the Notes tab
+         delete Undo. The "appear on home" copy mirrors the
+         [pin_to_home_explainer_v053_n] plural; the "stay in Notes
+         tab" copy mirrors the [pin_to_home_explainer_off_n] plural,
+         so the Undo Snackbar reads as a stronger version of the
+         explainer already visible inline. -->
+    <string name="pin_to_home_undo_on">New notes will appear on the home screen.</string>
+    <string name="pin_to_home_undo_off">New notes will stay in the Notes tab.</string>
     <!-- v0.49.0: kind picker + Task / Reminder save flow.
          Renamed "Quick" → "Quick note" so the chip is unambiguous
          (a user reading just the chip label knows it's a note, not
