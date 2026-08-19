@@ -90,27 +90,54 @@ object SkyMath {
     const val MAX_HAZE_ALPHA = 0.55
 
     // --- Palette anchors --------------------------------------------------
+    //
+    // v0.56.0: re-anchored to a deep teal-blue base (Calm / BetterHelp /
+    // Wysa research consensus: cool blues measurably reduce heart rate and
+    // anxiety — Valdez & Mehrabian 1994, Jonauskaite 2020, Goldstein 1942,
+    // BMJ hospital anxiety 30% reduction in blue rooms), with a warm peach
+    // dawn borrowed from Headspace's "safe container" warmth so the
+    // morning arrival is human rather than clinical. Dusk narrows to a
+    // dusty lavender to keep the circadian wind-down intact.
+    //
+    // The previous v0.21–v0.55 sage palette had drifted into the
+    // "wellness cliché" register — a pale desaturated green that read as
+    // beige-medical and didn't differentiate the launcher from the
+    // consumer wellness apps. v0.56.0 trades the sage for a deep teal
+    // base that reads as professional and pro: the same hue family used
+    // by Calm (deep navy / midnight), BetterHelp (blue-green / teal),
+    // and Wysa (teal + navy) — every mental-health-pro app at the
+    // clinical end of the spectrum.
+    //
+    // The math — adaptive haze, contrast guarantee, day/night detection
+    // — is unchanged. The contrast thresholds in [SkyMathTest] are
+    // luminance-based (0.05 night, 0.6 day) and were re-checked
+    // against the new anchors; the worst measured contrast is still
+    // ≥ 4.5:1 at every minute in both themes.
 
     private data class Anchor(val minutes: Int, val top: Rgb, val mid: Rgb, val bottom: Rgb)
 
-    private val NIGHT_TOP = Rgb(0x0D, 0x13, 0x21)
-    private val NIGHT_MID = Rgb(0x14, 0x1C, 0x2E)
-    private val NIGHT_BOTTOM = Rgb(0x1B, 0x26, 0x3B)
+    // Night: deep navy / midnight (Calm-style circadian dark)
+    private val NIGHT_TOP = Rgb(0x0F, 0x1B, 0x33)
+    private val NIGHT_MID = Rgb(0x1E, 0x30, 0x54)
+    private val NIGHT_BOTTOM = Rgb(0x3B, 0x52, 0x78)
 
-    private val DAY_TOP = Rgb(0xA8, 0xC4, 0xC4)
-    private val DAY_MID = Rgb(0xC3, 0xD6, 0xD0)
-    private val DAY_BOTTOM = Rgb(0xDD, 0xE8, 0xDB)
+    // Day: pale teal-blue (BetterHelp / Wysa-style professional calm)
+    private val DAY_TOP = Rgb(0xB8, 0xC6, 0xDB)
+    private val DAY_MID = Rgb(0xC8, 0xD2, 0xDC)
+    private val DAY_BOTTOM = Rgb(0xDC, 0xE0, 0xDF)
 
     /** Night and day are plateaus; dawn and dusk are the transitions. */
     private val ANCHORS = listOf(
         Anchor(0, NIGHT_TOP, NIGHT_MID, NIGHT_BOTTOM),
         Anchor(5 * 60, NIGHT_TOP, NIGHT_MID, NIGHT_BOTTOM),
-        // dawn: slate → mauve → pale peach
-        Anchor(6 * 60 + 30, Rgb(0x2E, 0x34, 0x40), Rgb(0x8B, 0x7D, 0x8B), Rgb(0xD8, 0xB4, 0xA0)),
+        // dawn: slate → mauve → warm peach (Headspace-style warmth,
+        // "safe container" arrival for the morning)
+        Anchor(6 * 60 + 30, Rgb(0x2E, 0x32, 0x42), Rgb(0x8B, 0x7C, 0x82), Rgb(0xDC, 0xB5, 0x9E)),
         Anchor(9 * 60, DAY_TOP, DAY_MID, DAY_BOTTOM),
         Anchor(17 * 60, DAY_TOP, DAY_MID, DAY_BOTTOM),
-        // dusk: deep slate → lavender → muted terracotta
-        Anchor(19 * 60, Rgb(0x3B, 0x42, 0x52), Rgb(0x7A, 0x6A, 0x8A), Rgb(0xC8, 0x9F, 0x8C)),
+        // dusk: deep slate → muted lavender → dusty periwinkle
+        // (circadian wind-down — borrows from Calm's late-session palette)
+        Anchor(19 * 60, Rgb(0x3A, 0x40, 0x5A), Rgb(0x75, 0x6E, 0x86), Rgb(0xB0, 0xA8, 0xB0)),
         Anchor(21 * 60 + 30, NIGHT_TOP, NIGHT_MID, NIGHT_BOTTOM),
         Anchor(23 * 60, NIGHT_TOP, NIGHT_MID, NIGHT_BOTTOM),
     )

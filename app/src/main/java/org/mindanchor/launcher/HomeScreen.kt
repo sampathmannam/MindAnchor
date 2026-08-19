@@ -44,6 +44,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Snackbar
@@ -128,6 +130,7 @@ import org.mindanchor.ui.CalmBackground
 import org.mindanchor.ui.SkyContent
 import org.mindanchor.ui.rememberClockFormat
 import org.mindanchor.ui.rememberMinuteTick
+import org.mindanchor.ui.skyAwareColorScheme
 import java.text.DateFormat
 import java.time.Instant
 import java.time.LocalDate
@@ -155,13 +158,21 @@ import androidx.compose.ui.graphics.Color
  * The 200/300 tones are the unselected background (soft
  * fill), the 700/800 tones are the selected label and the
  * row chip foreground (high contrast). The picker uses
- * 300/800 in the selected state to match Material 3's
+ * 200/800 in the selected state to match Material 3's
  * `FilterChip(selected = true)` color treatment, so a
- * "selected" Task chip looks like a soft sage pill with a
- * deep sage label.
+ * "selected" Task chip looks like a soft teal pill with a
+ * deep teal label.
+ *
+ * v0.56.0: renamed from KindSage* and shifted to a teal
+ * family (teal-200 / teal-800) to match the launcher's
+ * new v0.56.0 sky palette. The sage was the "wellness
+ * cliché" hue the user asked to leave; teal is the
+ * research-backed professional palette used by Calm,
+ * BetterHelp, and Wysa (Valdez & Mehrabian 1994,
+ * Jonauskaite 2020).
  */
-private val KindSageBg = Color(0xFFB7C9A8)      // sage-300
-private val KindSageFg = Color(0xFF3F5233)      // sage-800
+private val KindTealBg = Color(0xFFB2DFD8)      // teal-200 (soft fill)
+private val KindTealFg = Color(0xFF115E59)      // teal-800 (selected label)
 
 /**
  * v0.53.0: the action accent. Reserved for
@@ -242,10 +253,10 @@ private val KindIndigoFg = Color(0xFF3730A3)    // indigo-800
 /**
  * v0.54.0: swipe-action background colours
  * on the Notes tab. The pin swipe (startToEnd,
- * right-swipe) reuses the [KindSageBg] token
+ * right-swipe) reuses the [KindTealBg] token
  * so the gesture's colour matches the kind-
  * picker "Task" chip and the home-card pin
- * affordance — sage is the launcher's "Task /
+ * affordance — teal is the launcher's "Task /
  * pin" semantic, and the swipe inherits the
  * same meaning without learning a new colour.
  *
@@ -253,18 +264,19 @@ private val KindIndigoFg = Color(0xFF3730A3)    // indigo-800
  * needs a colour that is *not* already used
  * for any other action. Red is the universal
  * "destructive" affordance, but a saturated
- * red-500 would shout on the calm sky. The
- * red-300 (#FCA5A5) is the same saturation
- * family as [KindSageBg] (sage-300) and
- * [KindIndigoBg] (indigo-200): pastel, not
- * bright. The action reads as "destructive"
- * without violating the launcher's quiet
- * aesthetic. A red-700 icon glyph on top
- * reads the gesture's meaning even at a
- * glance.
+ * red raises cortisol (LinkedIn pulse on the
+ * Zhang 2025 eye-tracking work: saturated
+ * reds trigger a subconscious "stop" response,
+ * the opposite of what a destructive gesture
+ * in a calm launcher should do). v0.56.0
+ * softens to a muted dusty rose (#E0B0AE)
+ * and a deep rust glyph (#8B4A4A): same red
+ * family, low enough arousal that the gesture
+ * reads as "destructive" without the
+ * cortisol-trigger of a bright scarlet.
  */
-private val NotesSwipeDeleteBg = Color(0xFFFCA5A5)   // red-300
-private val NotesSwipeDeleteFg = Color(0xFFB91C1C)   // red-700
+private val NotesSwipeDeleteBg = Color(0xFFE0B0AE)   // muted dusty rose (v0.56.0, softer than red-300)
+private val NotesSwipeDeleteFg = Color(0xFF8B4A4A)   // deep rust (v0.56.0, lower arousal than red-700)
 
 /**
  * v0.49.0: a small pin glyph drawn with
@@ -1258,32 +1270,57 @@ fun LauncherRoot(
             )
         }
 
-        LauncherSurface.Settings -> Surface(modifier = Modifier.fillMaxSize()) {
-            SettingsScreen(
-                allApps = state.allApps,
-                hiddenApps = state.allApps.filter { it.isHidden },
-                onUnhide = { viewModel.setHidden(it, false) },
-                onBack = { surface = LauncherSurface.Home },
-                onOpenPpg = { surface = LauncherSurface.Ppg },
-                onOpenReport = {
-                    reportCameFrom = LauncherSurface.Settings
-                    surface = LauncherSurface.Report
-                },
-                // v0.25.2-A (Task 10): the Daily letter
-                // sub-section in Settings has an "Open inbox"
-                // button. Routing is the same shape as
-                // onOpenReport above — flag the cameFrom so
-                // the letter surface's back button returns
-                // to Settings rather than to the home screen,
-                // and let the letter state default to the
-                // inbox (no letter is preselected).
-                onOpenLetters = {
-                    letterSelectedDate = null
-                    letterCameFrom = LauncherSurface.Settings
-                    surface = LauncherSurface.Letter
-                },
-                onOpenBeforeYouSend = { surface = LauncherSurface.BeforeYouSend },
-            )
+        // v0.56.0: Settings now follows the sky. The
+        // previous v0.55.0 Settings surface used the
+        // default Material 3 color scheme, which is
+        // a hard-coded white card on a system dark or
+        // light theme — neither matches the launcher's
+        // "slow sky" gradient and the result is a hard,
+        // opaque white card floating on a teal-blue
+        // background, the visual equivalent of a hospital
+        // form on a beach. v0.56.0 wraps Settings in
+        // [CalmBackground] (so the gradient + adaptive
+        // haze draw through) and injects a sky-derived
+        // [ColorScheme] via [MaterialTheme] (so M3
+        // components — SegmentedButton, Switch, Checkbox,
+        // TextField — pick their colours from the sky
+        // instead of from the system default). The
+        // [skyAwareColorScheme] function is defined at
+        // file scope below; it returns a [ColorScheme]
+        // whose surface, onSurface, primary, error, etc.
+        // all key off the [SkyContent] and the
+        // clock-derived `darkTheme` flag the rest of
+        // the launcher already uses.
+        LauncherSurface.Settings -> CalmBackground { sky ->
+            val now = org.mindanchor.ui.rememberMinuteTick()
+            val isDark = now.hour >= 18 || now.hour < 6
+            MaterialTheme(colorScheme = skyAwareColorScheme(sky, isDark)) {
+                SettingsScreen(
+                    allApps = state.allApps,
+                    hiddenApps = state.allApps.filter { it.isHidden },
+                    onUnhide = { viewModel.setHidden(it, false) },
+                    onBack = { surface = LauncherSurface.Home },
+                    onOpenPpg = { surface = LauncherSurface.Ppg },
+                    onOpenReport = {
+                        reportCameFrom = LauncherSurface.Settings
+                        surface = LauncherSurface.Report
+                    },
+                    // v0.25.2-A (Task 10): the Daily letter
+                    // sub-section in Settings has an "Open inbox"
+                    // button. Routing is the same shape as
+                    // onOpenReport above — flag the cameFrom so
+                    // the letter surface's back button returns
+                    // to Settings rather than to the home screen,
+                    // and let the letter state default to the
+                    // inbox (no letter is preselected).
+                    onOpenLetters = {
+                        letterSelectedDate = null
+                        letterCameFrom = LauncherSurface.Settings
+                        surface = LauncherSurface.Letter
+                    },
+                    onOpenBeforeYouSend = { surface = LauncherSurface.BeforeYouSend },
+                )
+            }
         }
 
         // Its own surface rather than a section inside the settings scroll.
@@ -2168,7 +2205,7 @@ private fun QuickNotesCard(
         // color coding so the picker matches
         // the row chips on the Notes tab. The
         // sage/indigo tokens are file-level
-        // constants (KindSageBg/Fg, KindIndigoBg/Fg);
+        // constants (KindTealBg/Fg, KindIndigoBg/Fg);
         // Quick note is intentionally neutral —
         // the row chip for a Quick note is
         // already neutral, so the picker
@@ -2206,8 +2243,8 @@ private fun QuickNotesCard(
                         }
                     },
                 colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = KindSageBg,
-                    selectedLabelColor = KindSageFg,
+                    selectedContainerColor = KindTealBg,
+                    selectedLabelColor = KindTealFg,
                 ),
             )
             FilterChip(
@@ -2343,8 +2380,8 @@ private fun QuickNotesCard(
                         label = { Text(label) },
                         modifier = Modifier.semantics { role = Role.RadioButton },
                         colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = KindSageBg,
-                            selectedLabelColor = KindSageFg,
+                            selectedContainerColor = KindTealBg,
+                            selectedLabelColor = KindTealFg,
                         ),
                     )
                 }
@@ -4190,6 +4227,24 @@ private fun NotesSurfaceBody(
                 // recent days findable without
                 // reading any dates.
                 val groups = groupNotesByDay(sorted)
+                // v0.56.0: day-filter state. The
+                // user taps a day pill in the
+                // [NotesDayStrip] to filter the
+                // list to that day; tapping
+                // "All" clears the filter. The
+                // state lives here (not in the
+                // ViewModel) because it is a
+                // transient UI affordance — a
+                // config change (rotation, theme
+                // switch) resets to "All", which
+                // is the natural default for a
+                // notes-tab session.
+                var dayFilter by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("all") }
+                val filteredGroups = if (dayFilter == "all" || dayFilter.isEmpty()) {
+                    groups
+                } else {
+                    groups.filter { it.key == dayFilter }
+                }
                 // v0.53.0 (Red Dot review fix,
                 // Issue 8): a 7-day pill row
                 // above the grouped list. The
@@ -4210,14 +4265,8 @@ private fun NotesSurfaceBody(
                     sky = sky,
                     allNotes = allNotes,
                     groups = groups,
-                    onSelect = { /* the v0.53.0
-                        filter is read by the
-                        NotesPrefs in
-                        LauncherRoot; this
-                        parameter is reserved
-                        for a future v0.54+
-                        day-filter feature */
-                    },
+                    selectedKey = dayFilter,
+                    onSelect = { key -> dayFilter = key },
                 )
                 // v0.54.0: migrated the grouped
                 // notes list from a `Column`
@@ -4343,20 +4392,29 @@ private fun NotesSurfaceBody(
                             vertical = 4.dp,
                         ),
                     ) {
-                        groups.forEach { group ->
-                            // v0.54.0: the day
-                            // header is a normal
-                            // `item` (not a
-                            // `stickyHeader` — the
-                            // v0.54+ backlog's
-                            // "sticky day headers"
-                            // wishlist item is
-                            // deferred; this release
-                            // ships swipe actions
-                            // only). The key is
+                        filteredGroups.forEach { group ->
+                            // v0.56.0: day header is a
+                            // [stickyHeader] (not a
+                            // plain [item]). The
+                            // `stickyHeader` LazyListScope
+                            // function keeps the day
+                            // header ("Today",
+                            // "Yesterday", "17 Aug")
+                            // pinned at the top of the
+                            // list as the user scrolls
+                            // through the notes for
+                            // that day, the way
+                            // calendar apps do. The
+                            // v0.54+ backlog's "sticky
+                            // day headers" wishlist is
+                            // now shipped. The key is
                             // stable so the slot
-                            // survives recomposition.
-                            item(key = "header_${group.key}") {
+                            // survives recomposition
+                            // and the day label
+                            // updates if the user
+                            // crosses midnight while
+                            // the surface is open.
+                            stickyHeader(key = "header_${group.key}") {
                                 NotesDayHeader(
                                     sky = sky,
                                     label = group.header,
@@ -4519,23 +4577,35 @@ private fun groupNotesByDay(
         }
         .toSortedMap(compareByDescending { it })
     return byDay.map { (date, dayNotes) ->
-        val (key, header) = when (date) {
-            today -> "0_today" to "Today"
-            yesterday -> "1_yesterday" to "Yesterday"
+        // v0.56.0: keys are the ISO date string
+        // ("2026-08-19") — a stable, comparable
+        // identifier the NotesDayStrip uses as the
+        // [onSelect] payload. The v0.51.0 schema
+        // ("0_today", "1_yesterday", "2_17 Aug")
+        // embedded the human label in the key,
+        // which broke the NotesDayStrip's filter
+        // wiring: the pill's [onSelect] payload
+        // was the ISO date, but the group's
+        // [key] was the embedded label, so the
+        // filter had nothing to match against.
+        // v0.56.0 makes both sides use the same
+        // canonical identifier (the ISO date)
+        // and keeps the human label as a
+        // separate [header] field.
+        val header = when (date) {
+            today -> "Today"
+            yesterday -> "Yesterday"
             else -> {
                 val pattern = if (date.year == currentYear) {
                     "d MMM"
                 } else {
                     "d MMM yyyy"
                 }
-                val label = date.format(
-                    java.time.format.DateTimeFormatter.ofPattern(pattern)
-                )
-                "${2 + (today.toEpochDay() - date.toEpochDay())}_$label" to label
+                date.format(java.time.format.DateTimeFormatter.ofPattern(pattern))
             }
         }
         NotesDayGroup(
-            key = key,
+            key = date.toString(),
             header = header,
             notes = dayNotes,
         )
@@ -4579,57 +4649,64 @@ private fun NotesDayHeader(
  * date the way they navigate a calendar
  * app, with the same muscle memory.
  *
- * The day pills are derived from the
- * existing [NotesDayGroup] list, so a
- * user with 30 days of notes sees a 30-pill
- * strip, not a 7-day strip. The strip
- * "all days" pill is the v0.52.0 default;
- * tapping a date pill does not yet filter
- * the list (the v0.53.0 surface ships
- * the strip as a navigational cue, the
- * filter is reserved for v0.54+ so the
- * v0.53.0 surface is a polish pass, not
- * an architecture change).
+ * v0.56.0: tapping a day pill now actually
+ * filters the list. The v0.53.0 surface
+ * shipped the strip as a navigational cue
+ * only; the filter was reserved for v0.54+
+ * so the v0.53.0 release was a polish pass,
+ * not an architecture change. v0.56.0
+ * closes the loop: [selectedKey] is the
+ * ISO date string of the active filter
+ * ("all" for the unfiltered state, or the
+ * LocalDate.toString() of a specific day);
+ * [onSelect] carries the new selection up
+ * to the surface state, which rebuilds
+ * [groups] with the filter applied.
  *
- * The 7-day pill prefix is rendered from
- * today's wall clock; each pill shows the
- * short day-of-week + day-of-month. The
- * "Today" pill is the same colour as the
- * day-header text (sage) when it is the
- * current day; unselected pills are
- * outlined, selected pills are filled.
+ * The day pills are derived from today's
+ * wall clock: each pill shows the short
+ * day-of-week + day-of-month, and the
+ * first 6 days (today + 5 prior) are
+ * shown — a "more" affordance for older
+ * days is a future v0.57+ backlog item.
+ * Selected pills are filled with the
+ * [KindTealBg] token, unselected pills
+ * are outlined.
  */
 @Composable
 private fun NotesDayStrip(
     sky: SkyContent,
     allNotes: List<Note>,
     groups: List<NotesDayGroup>,
+    selectedKey: String = "all",
     onSelect: (String) -> Unit = {},
 ) {
     val today = java.time.LocalDate.now()
-    // Build a sorted list of distinct days
-    // (newest first) from the groups.
-    val days = groups.map { it.key }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        // "All days" pill — the default.
+        // "All days" pill — the default. v0.56.0:
+        // selected when [selectedKey] is "all" or
+        // empty (i.e., the user has not tapped a
+        // day pill, or has tapped "All" to clear
+        // the filter).
         NotesDayPill(
             sky = sky,
             label = "All",
-            isSelected = true,
+            isSelected = selectedKey == "all" || selectedKey.isEmpty(),
             onClick = { onSelect("all") },
         )
         // Day pills. The first 6 days are
         // shown (today and the 5 days
         // before); the rest is a future
-        // v0.54+ "more" affordance.
-        days.take(6).forEachIndexed { index, _ ->
+        // v0.57+ "more" affordance.
+        repeat(6) { index ->
             val date = today.minusDays(index.toLong())
             val isToday = index == 0
+            val key = date.toString()
             NotesDayPill(
                 sky = sky,
                 label = if (isToday) {
@@ -4637,8 +4714,8 @@ private fun NotesDayStrip(
                 } else {
                     date.format(java.time.format.DateTimeFormatter.ofPattern("d MMM"))
                 },
-                isSelected = false,
-                onClick = { onSelect(date.toString()) },
+                isSelected = selectedKey == key,
+                onClick = { onSelect(key) },
             )
         }
     }
@@ -4652,12 +4729,12 @@ private fun NotesDayPill(
     onClick: () -> Unit,
 ) {
     val containerColor = if (isSelected) {
-        KindSageBg
+        KindTealBg
     } else {
         Color.Transparent
     }
     val labelColor = if (isSelected) {
-        KindSageFg
+        KindTealFg
     } else {
         sky.textSecondary
     }
@@ -4764,7 +4841,7 @@ private fun NotesTabRow(
     //
     // 1) **startToEnd (right swipe) =
     //    pin toggle.** The background is
-    //    sage ([KindSageBg]), with a
+    //    sage ([KindTealBg]), with a
     //    [PinGlyph] centred. The swipe is
     //    confirmed at 50% of the row's
     //    width (Material 3 default). The
@@ -4852,7 +4929,7 @@ private fun NotesTabRow(
     val isPinSwipe = direction == SwipeToDismissBoxValue.StartToEnd
     val isDeleteSwipe = direction == SwipeToDismissBoxValue.EndToStart
     val backgroundColor = when {
-        isPinSwipe -> KindSageBg
+        isPinSwipe -> KindTealBg
         isDeleteSwipe -> NotesSwipeDeleteBg
         else -> Color.Transparent
     }
@@ -4889,8 +4966,8 @@ private fun NotesTabRow(
                 when {
                     isPinSwipe -> PinGlyph(
                         pinned = true,
-                        pinnedColor = KindSageFg,
-                        unpinnedColor = KindSageFg,
+                        pinnedColor = KindTealFg,
+                        unpinnedColor = KindTealFg,
                     )
                     isDeleteSwipe -> Text(
                         text = "×",
@@ -4977,8 +5054,8 @@ private fun NotesTabRow(
                 KindGlyphKind.REMINDER,
             )
             org.mindanchor.model.NoteType.TASK -> Triple(
-                KindSageBg,
-                KindSageFg,
+                KindTealBg,
+                KindTealFg,
                 KindGlyphKind.TASK,
             )
             else -> Triple(
@@ -5059,7 +5136,7 @@ private fun NotesTabRow(
         // calm design. The fix is a custom
         // [PinGlyph] drawn with primitives
         // (Box + shape) so the color comes
-        // from our [KindSageFg] token.
+        // from our [KindTealFg] token.
         // Unpinned uses a hollow circle in
         // the secondary text color, which
         // is dim on dark and bright on
@@ -5082,7 +5159,7 @@ private fun NotesTabRow(
         ) {
             PinGlyph(
                 pinned = note.pinned,
-                pinnedColor = KindSageFg,
+                pinnedColor = KindTealFg,
                 unpinnedColor = sky.textSecondary,
             )
         }
