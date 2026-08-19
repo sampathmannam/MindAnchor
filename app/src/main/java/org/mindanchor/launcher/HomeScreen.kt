@@ -33,6 +33,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -590,6 +591,16 @@ private enum class LauncherSurface {
     Letter,
     // v0.26.0
     GroundMe,
+    // v0.60.0: clinical-variant surfaces. !panic
+    // opens the Distress Thermometer; !breathe
+    // opens the paced-breathing screen. Both
+    // skip the GroundMe picker because a user
+    // in mid-panic should not have to choose
+    // between "breathe" / "cold water" / "name
+    // 5 things" first — the bang already named
+    // the next action.
+    Panic,
+    Breathing,
     BeforeYouSend,
     // v0.35.0: the "Get through this" sub-menu. A
     // sibling of the home, the settings, and the
@@ -1261,11 +1272,17 @@ fun LauncherRoot(
                 // Home (the home surface owns the
                 // mood card and the task picker).
                 // GroundMe, Notes, Settings route
-                // to their own surfaces.
+                // to their own surfaces. v0.60.0:
+                // Panic → DistressThermometerScreen,
+                // Breathing → BreathingScreen.
                 onBang = { cmd ->
                     when (cmd) {
                         org.mindanchor.launcher.LauncherViewModel.BangCommand.GroundMe ->
                             surface = LauncherSurface.GroundMe
+                        org.mindanchor.launcher.LauncherViewModel.BangCommand.Panic ->
+                            surface = LauncherSurface.Panic
+                        org.mindanchor.launcher.LauncherViewModel.BangCommand.Breathing ->
+                            surface = LauncherSurface.Breathing
                         org.mindanchor.launcher.LauncherViewModel.BangCommand.Notes ->
                             surface = LauncherSurface.Notes
                         org.mindanchor.launcher.LauncherViewModel.BangCommand.Settings ->
@@ -1558,6 +1575,20 @@ fun LauncherRoot(
         // v0.26.0 §3.2
         LauncherSurface.GroundMe -> GroundMeScreen(
             onClose = { surface = LauncherSurface.Home },
+        )
+        // v0.60.0: clinical-variant surfaces. Both
+        // delegate to the existing screens; the
+        // bang is a shortcut, the screens are the
+        // destination. The Distress Thermometer
+        // already has its own Done / Support
+        // buttons; Breathing has its own auto-
+        // dismiss after 10 cycles. We just
+        // navigate to Home on close.
+        LauncherSurface.Panic -> org.mindanchor.support.DistressThermometerScreen(
+            onDone = { surface = LauncherSurface.Home },
+        )
+        LauncherSurface.Breathing -> org.mindanchor.support.BreathingScreen(
+            onDone = { surface = LauncherSurface.Home },
         )
         // v0.26.0 §3.3
         LauncherSurface.BeforeYouSend -> BeforeYouSendDemo(
@@ -5200,8 +5231,15 @@ private fun NotesDayHeader(
  * wall clock: each pill shows the short
  * day-of-week + day-of-month, and the
  * first 6 days (today + 5 prior) are
- * shown — a "more" affordance for older
- * days is a future v0.57+ backlog item.
+ * always shown. v0.60.0: any older day
+ * that has at least one note in [groups]
+ * is appended as an extra pill, and the
+ * whole row is horizontally scrollable
+ * so a 30+ day user can find the day
+ * they want without the launcher having
+ * to render all 30 pills at once. The
+ * strip is the navigation affordance;
+ * the list below it is the data.
  * Selected pills are filled with the
  * [KindTealBg] token, unselected pills
  * are outlined.
@@ -5215,9 +5253,32 @@ private fun NotesDayStrip(
     onSelect: (String) -> Unit = {},
 ) {
     val today = java.time.LocalDate.now()
+    // v0.60.0: 6 most-recent days are
+    // always shown (today + 5 prior), to
+    // match the v0.56.0 design and the
+    // original 7-day power-user muscle
+    // memory. Anything older is appended
+    // *if* [groups] has notes for that
+    // day. The cutoff is the ISO date
+    // string of "5 days ago"; group keys
+    // are also ISO date strings (the
+    // comparison is lexicographic, which
+    // is correct for ISO 8601).
+    val cutoffKey = today.minusDays(5).toString()
+    // v0.60.0: only the days with notes —
+    // a user with 7 days of activity in
+    // a year does not need 358 empty
+    // pills. The groups list is already
+    // sorted newest-first, so iterating
+    // it in order gives us the right
+    // visual order (newest on the left
+    // of the older section).
+    val olderDays = groups.filter { it.key < cutoffKey }
+    val scrollState = androidx.compose.foundation.rememberScrollState()
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .horizontalScroll(scrollState)
             .padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -5232,10 +5293,10 @@ private fun NotesDayStrip(
             isSelected = selectedKey == "all" || selectedKey.isEmpty(),
             onClick = { onSelect("all") },
         )
-        // Day pills. The first 6 days are
-        // shown (today and the 5 days
-        // before); the rest is a future
-        // v0.57+ "more" affordance.
+        // The 6 most-recent days (today +
+        // 5 prior), always visible. The
+        // "Today" / date labels match the
+        // v0.56.0 wording exactly.
         repeat(6) { index ->
             val date = today.minusDays(index.toLong())
             val isToday = index == 0
@@ -5249,6 +5310,25 @@ private fun NotesDayStrip(
                 },
                 isSelected = selectedKey == key,
                 onClick = { onSelect(key) },
+            )
+        }
+        // v0.60.0: any day older than
+        // "5 days ago" that has at least
+        // one note in [allNotes] gets its
+        // own pill. The pill label is
+        // [NotesDayGroup.header] — the same
+        // string the list section uses
+        // ("Today", "Yesterday", "17 Aug",
+        // "17 Aug 2025"). This way a user
+        // tapping "17 Aug" sees the same
+        // label in the strip and in the
+        // list header.
+        olderDays.forEach { group ->
+            NotesDayPill(
+                sky = sky,
+                label = group.header,
+                isSelected = selectedKey == group.key,
+                onClick = { onSelect(group.key) },
             )
         }
     }
@@ -5990,6 +6070,15 @@ private fun DrawerSurface(
                     val (label, target) = when (cmd) {
                         org.mindanchor.launcher.LauncherViewModel.BangCommand.GroundMe ->
                             "Go to Ground me" to cmd
+                        // v0.60.0: clinical-variant labels.
+                        // The copy matches the bang's
+                        // clinical intent: !panic is a
+                        // "rate how acute", !breathe is
+                        // a "start breathing now".
+                        org.mindanchor.launcher.LauncherViewModel.BangCommand.Panic ->
+                            "Rate how acute it is" to cmd
+                        org.mindanchor.launcher.LauncherViewModel.BangCommand.Breathing ->
+                            "Start breathing now" to cmd
                         org.mindanchor.launcher.LauncherViewModel.BangCommand.Notes ->
                             "Go to Notes" to cmd
                         org.mindanchor.launcher.LauncherViewModel.BangCommand.Tasks ->

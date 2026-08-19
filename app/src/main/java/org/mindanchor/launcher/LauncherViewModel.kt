@@ -260,6 +260,19 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val t = text.trim()
         return when {
             t == "!ground" || t.startsWith("!ground ") -> BangCommand.GroundMe
+            // v0.60.0: clinical-variant bangs. !panic
+            // opens the Distress Thermometer (a
+            // 0-100 self-rating of how acute the
+            // feeling is), !breathe opens the
+            // paced-breathing screen. They mirror
+            // !ground but skip the picker — a user
+            // who is mid-panic does not want to
+            // choose between "breathe", "cold
+            // water", and "name 5 things" first;
+            // they want the right next action
+            // right now.
+            t == "!panic" || t.startsWith("!panic ") -> BangCommand.Panic
+            t == "!breathe" || t.startsWith("!breathe ") -> BangCommand.Breathing
             t == "!note" || t.startsWith("!note ") -> BangCommand.Notes
             t == "!task" || t.startsWith("!task ") -> BangCommand.Tasks
             t == "!settings" || t.startsWith("!settings ") -> BangCommand.Settings
@@ -397,6 +410,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     enum class BangCommand {
         /** v0.26.0 §3.5: the GroundMe sub-surface. */
         GroundMe,
+        /** v0.60.0: the Distress Thermometer (acute
+         *  self-rating). Skips the GroundMe picker
+         *  for a user in mid-panic. */
+        Panic,
+        /** v0.60.0: the paced-breathing screen.
+         *  Skips the GroundMe picker. */
+        Breathing,
         /** v0.45.0: the Notes tab (all-notes view). */
         Notes,
         /** v0.44.0: the Tasks chip + reminder picker. */
