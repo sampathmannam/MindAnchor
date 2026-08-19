@@ -73,6 +73,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -1111,6 +1112,13 @@ fun LauncherRoot(
                 // note store write; the card
                 // owns the emoji row.
                 onAddMoodLog = { emoji -> viewModel.addMoodLog(emoji) },
+                // v0.58.0: long-press mood →
+                // annotate. The HomeSurface is
+                // single-state for the dialog so
+                // the wiring goes through here.
+                onAddMoodLogWithReflection = { emoji, reflection ->
+                    viewModel.addMoodLogWithReflection(emoji, reflection)
+                },
                 onDeleteNote = onDeleteNote,
                 // v0.44.0: forward the new
                 // task / reminder / done
@@ -3001,10 +3009,20 @@ private fun QuickNotesCard(
  * chosen emoji are affect-first, not
  * diagnostic-first.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MoodCard(
     sky: SkyContent,
     onLog: (String) -> Unit,
+    // v0.58.0: long-press the emoji to open
+    // the annotate dialog. The 2-arg shape
+    // (emoji, rating) lets the caller map
+    // the visual emoji to a WHO-5-style
+    // 1-5 rating without re-deriving the
+    // mapping. The mapping lives in this
+    // file (the [MoodCard] moodEntries
+    // list is the source of truth).
+    onLongPress: (String, Int) -> Unit = { _, _ -> },
 ) {
     val haptics = org.mindanchor.ui.LocalHapticFeedbackGate.current
     // v0.53.0 (Red Dot review fix, Issue 4):
@@ -3077,13 +3095,50 @@ private fun MoodCard(
                     Box(
                         modifier = Modifier
                             .size(48.dp)
-                            .clickable {
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                onLog(emoji)
-                            }
+                            // v0.58.0: combinedClickable
+                            // so the same 48dp target
+                            // supports both the
+                            // 1-tap "log mood" path
+                            // (the v0.46.0 design) and
+                            // the long-press
+                            // "log mood + open
+                            // annotate dialog" path.
+                            // The tap is the *fast*
+                            // affordance, the long
+                            // press is the *deeper*
+                            // one — both work, the
+                            // user picks. The haptic
+                            // fires on the tap; the
+                            // long-press haptic is
+                            // fired by the [Box] via
+                            // [combinedClickable]
+                            // before the lambda
+                            // (so the user always
+                            // feels the long-press
+                            // acknowledge even on
+                            // fast / sloppy
+                            // presses).
+                            .combinedClickable(
+                                onClick = {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onLog(emoji)
+                                },
+                                onLongClick = {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    val rating = when (key) {
+                                        "low" -> 1
+                                        "off" -> 2
+                                        "neutral" -> 3
+                                        "ok" -> 4
+                                        "good" -> 5
+                                        else -> 3
+                                    }
+                                    onLongPress(emoji, rating)
+                                },
+                            )
                             .semantics {
                                 role = Role.RadioButton
-                                contentDescription = "Mood: ${key}"
+                                contentDescription = "Mood: ${key}. Long press to add a note."
                             },
                         contentAlignment = Alignment.Center,
                     ) {
@@ -3125,6 +3180,119 @@ private fun MoodCard(
             }
         }
     }
+}
+
+/**
+ * Format a note's timestamp for the home card.
+ *
+ * The list view uses the absolute date+time; the
+ * home card needs something a person can read at
+ * a glance (where the line is small). Today vs.
+ * yesterday vs. earlier is the right shape: a
+ * note from 2pm today reads "14:00", a note from
+ * yesterday reads "yesterday 22:13", a note from
+ */
+
+/**
+ * v0.58.0: the long-press mood → annotate
+ * dialog. The dialog opens when the user
+ * long-presses a mood emoji on the home
+ * card. The copy is the same "observe, don't
+ * evaluate" tone as the rest of the launcher
+ * — a question the user can answer in their
+ * own words, not a form the user has to
+ * fill out. The reflection is optional; the
+ * Save button works on an empty field
+ * (the user may want the check-in's
+ * *timestamp* without words, the EMA
+ * methodology still accepts the rating
+ * on its own).
+ */
+@Composable
+private fun MoodAnnotateDialog(
+    sky: SkyContent,
+    emoji: String,
+    rating: Int,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit,
+) {
+    var reflection by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+    val haptics = org.mindanchor.ui.LocalHapticFeedbackGate.current
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = sky.textPrimary,
+        titleContentColor = sky.textPrimary.let { _ -> androidx.compose.ui.graphics.Color.White },
+        textContentColor = sky.textPrimary.let { _ -> androidx.compose.ui.graphics.Color.White },
+        title = {
+            androidx.compose.foundation.layout.Row(
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                androidx.compose.material3.Text(
+                    text = emoji,
+                    style = MaterialTheme.typography.headlineMedium,
+                )
+                androidx.compose.foundation.layout.Spacer(Modifier.width(12.dp))
+                androidx.compose.material3.Text(
+                    text = stringResource(R.string.mood_annotate_title),
+                    style = MaterialTheme.typography.titleLarge,
+                )
+            }
+        },
+        text = {
+            androidx.compose.material3.OutlinedTextField(
+                value = reflection,
+                onValueChange = { reflection = it.take(org.mindanchor.model.CheckIn.MAX_REFLECTION) },
+                placeholder = {
+                    androidx.compose.material3.Text(
+                        text = stringResource(R.string.mood_annotate_hint),
+                        color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.6f),
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 2,
+                maxLines = 4,
+                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = androidx.compose.ui.graphics.Color.White,
+                    unfocusedBorderColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.4f),
+                    focusedTextColor = androidx.compose.ui.graphics.Color.White,
+                    unfocusedTextColor = androidx.compose.ui.graphics.Color.White,
+                    cursorColor = androidx.compose.ui.graphics.Color.White,
+                ),
+            )
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(
+                onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onSave(reflection)
+                },
+                modifier = Modifier.semantics { role = Role.Button },
+            ) {
+                androidx.compose.material3.Text(
+                    text = stringResource(R.string.mood_annotate_save),
+                    color = androidx.compose.ui.graphics.Color.White,
+                )
+            }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(
+                onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    // "Skip" saves the rating with an
+                    // empty reflection — the EMA
+                    // methodology still accepts the
+                    // rating on its own.
+                    onSave("")
+                },
+                modifier = Modifier.semantics { role = Role.Button },
+            ) {
+                androidx.compose.material3.Text(
+                    text = stringResource(R.string.mood_annotate_skip),
+                    color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.7f),
+                )
+            }
+        },
+    )
 }
 
 /**
@@ -3273,6 +3441,27 @@ private fun WellnessLine(sky: SkyContent, reading: WellnessReading) {
     val directionText = stringResource(wellnessDirectionRes(reading.direction))
     val medianText = reading.baseline.median?.let { formatWellnessValue(reading.signal, it) }
         ?: stringResource(R.string.wellness_baseline_building)
+    // v0.58.0: the direction glyph is a
+    // single Unicode arrow that varies with
+    // the band. The pre-v0.58.0 home card
+    // showed the band as plain text only;
+    // the user wanted the MUCH_ABOVE and
+    // MUCH_BELOW bands to be visually
+    // distinct from the softer ABOVE / BELOW
+    // bands. Single arrows for the ±1
+    // bands, double arrows for the ±2
+    // bands, a horizontal arrow for the AT
+    // band, a dash for the NO_DATA band.
+    // The glyphs are Unicode so no icon
+    // dependency.
+    val directionGlyph = when (reading.direction) {
+        WellnessDirection.MUCH_ABOVE -> "⤴"
+        WellnessDirection.ABOVE -> "↑"
+        WellnessDirection.AT -> "→"
+        WellnessDirection.BELOW -> "↓"
+        WellnessDirection.MUCH_BELOW -> "⤵"
+        WellnessDirection.NO_DATA -> "·"
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -3292,7 +3481,15 @@ private fun WellnessLine(sky: SkyContent, reading: WellnessReading) {
             color = sky.textPrimary,
         )
         Text(
-            text = "  $directionText",
+            // v0.58.0: the line is now
+            // "  ↑ above your usual" with a
+            // leading glyph + the band label.
+            // The pre-v0.58.0 line was just
+            // "  above your usual" with no
+            // glyph — the user could not tell
+            // the MUCH_ABOVE band from the
+            // ABOVE band at a glance.
+            text = "  $directionGlyph $directionText",
             style = MaterialTheme.typography.bodySmall,
             color = sky.textSecondary,
         )
@@ -3332,6 +3529,7 @@ private fun wellnessDirectionRes(direction: WellnessDirection): Int = when (dire
     WellnessDirection.ABOVE -> R.string.wellness_dir_above
     WellnessDirection.MUCH_ABOVE -> R.string.wellness_dir_much_above
     WellnessDirection.BELOW -> R.string.wellness_dir_below
+    WellnessDirection.MUCH_BELOW -> R.string.wellness_dir_much_below
 }
 
 /**
@@ -3547,6 +3745,16 @@ private fun HomeSurface(
      * one tap instead of one activity.
      */
     onAddMoodLog: (String) -> Unit = {},
+    /**
+     * v0.58.0: long-press mood → annotate.
+     * The 2-arg shape is (emoji, reflection);
+     * the [HomeSurface] holds the dialog state
+     * and forwards the saved reflection to the
+     * [LauncherViewModel] which writes both a
+     * [Note] (for the home / Notes tab) and a
+     * [CheckIn] (for the history view).
+     */
+    onAddMoodLogWithReflection: (String, String) -> Unit = { _, _ -> },
     /**
      * v0.43.0: delete a note from the home card. Wired
      * to the × on each recent-note row. The full delete
@@ -3782,7 +3990,36 @@ private fun HomeSurface(
             // reminder. The card stays small (one
             // row of 5 emoji) so the home does not
             // become a dashboard.
-            MoodCard(sky = sky, onLog = onAddMoodLog)
+            // v0.58.0: the MoodCard now also takes
+            // a long-press callback that opens the
+            // annotate dialog. The HomeSurface
+            // thread is single-state for the
+            // dialog: when a long-press fires, the
+            // `annotateMood` state holds the picked
+            // emoji and the dialog reads + writes
+            // through it. The dialog state is
+            // local to HomeSurface so the rest of
+            // the launcher cannot leak it.
+            var annotateMood by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<Pair<String, Int>?>(null) }
+            MoodCard(
+                sky = sky,
+                onLog = onAddMoodLog,
+                onLongPress = { emoji, rating ->
+                    annotateMood = emoji to rating
+                },
+            )
+            annotateMood?.let { (emoji, rating) ->
+                MoodAnnotateDialog(
+                    sky = sky,
+                    emoji = emoji,
+                    rating = rating,
+                    onDismiss = { annotateMood = null },
+                    onSave = { reflection ->
+                        onAddMoodLogWithReflection(emoji, reflection)
+                        annotateMood = null
+                    },
+                )
+            }
 
             QuickNotesCard(
                 sky = sky,
@@ -4496,6 +4733,52 @@ private fun NotesSurfaceBody(
                 val pinnedLabel = stringResource(R.string.notes_swipe_pinned)
                 val unpinnedLabel = stringResource(R.string.notes_swipe_unpinned)
                 val deletedLabel = stringResource(R.string.notes_swipe_deleted)
+                // v0.58.0: haptics + audio cues for the
+                // swipe actions. The pre-v0.58.0
+                // swipes were silent (visual only);
+                // the swipe could complete without
+                // the user feeling anything other than
+                // the row's position change. The
+                // haptics gate is the system-aware
+                // [HapticFeedbackGate] so the user's
+                // global haptics toggle is respected.
+                // The audio cue is gated by
+                // [AppearancePrefs.swipeToneEnabled]
+                // — off by default, opt-in (the same
+                // opt-in pattern as the breath tone,
+                // to keep a person with hyperacusis
+                // or in a quiet room from being
+                // thrust on).
+                val haptics = org.mindanchor.ui.LocalHapticFeedbackGate.current
+                val swipeCtx = LocalContext.current
+                val swipeToneEnabled by org.mindanchor.data.AppearancePrefs(swipeCtx.applicationContext)
+                    .swipeToneEnabled.collectAsStateWithLifecycle(initialValue = false)
+                val toneGenerator = remember {
+                    runCatching {
+                        android.media.ToneGenerator(
+                            android.media.AudioManager.STREAM_NOTIFICATION,
+                            40,
+                        )
+                    }.getOrNull()
+                }
+                DisposableEffect(Unit) {
+                    onDispose {
+                        runCatching { toneGenerator?.release() }
+                    }
+                }
+                fun playSwipeTone(isPin: Boolean) {
+                    if (!swipeToneEnabled) return
+                    // TONE_PROP_ACK is a positive
+                    // ascending tone; TONE_PROP_NACK
+                    // is a negative descending tone.
+                    // The two are system sounds so
+                    // no audio assets need to ship.
+                    toneGenerator?.startTone(
+                        if (isPin) android.media.ToneGenerator.TONE_PROP_ACK
+                        else android.media.ToneGenerator.TONE_PROP_NACK,
+                        120,
+                    )
+                }
                 LaunchedEffect(lastSwipeAction.value) {
                     val action = lastSwipeAction.value ?: return@LaunchedEffect
                     val message = when (action) {
@@ -4567,6 +4850,23 @@ private fun NotesSurfaceBody(
                                     onPin = onPinNote,
                                     onMarkDone = onMarkNoteDone,
                                     onSwipePin = {
+                                        // v0.58.0: fire the
+                                        // haptic + audio
+                                        // cue on the
+                                        // *successful* swipe
+                                        // (not on the
+                                        // unconfirmed drag).
+                                        // HapticFeedbackType
+                                        // .LongPress reads as
+                                        // a "this happened"
+                                        // pulse — the
+                                        // standard Compose
+                                        // affordance for
+                                        // "action completed".
+                                        haptics.performHapticFeedback(
+                                            androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress,
+                                        )
+                                        playSwipeTone(isPin = true)
                                         // v0.54.0: optimistic
                                         // pin toggle. The
                                         // call dispatches
@@ -4585,6 +4885,17 @@ private fun NotesSurfaceBody(
                                             NotesSwipeAction.Pin(note, willBePinned = target)
                                     },
                                     onSwipeDelete = {
+                                        // v0.58.0: fire the
+                                        // haptic + audio
+                                        // cue on the
+                                        // *successful* delete
+                                        // swipe. Same
+                                        // pattern as the
+                                        // pin swipe above.
+                                        haptics.performHapticFeedback(
+                                            androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress,
+                                        )
+                                        playSwipeTone(isPin = false)
                                         // v0.54.0:
                                         // snapshot
                                         // the note
@@ -5515,7 +5826,7 @@ private fun DrawerSurface(
                 // gesture). The full list lives in
                 // a help dialog (see
                 // [BangHelpDialog]).
-                val hint = stringResource(R.string.search_hint_v053)
+                val hint = stringResource(R.string.search_hint_v058)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = androidx.compose.ui.text.buildAnnotatedString {

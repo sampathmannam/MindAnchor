@@ -765,6 +765,20 @@
          "Reminder" stays singular — the picker creates one reminder
          at a time, plural is misleading. -->
     <string name="note_kind_quick">Quick note</string>
+    <!-- v0.58.0: long-press mood → annotate
+         dialog. The dialog is opt-in: the
+         1-tap mood log (the v0.46.0
+         design) is still the default
+         affordance. The copy is the
+         same "observe, don't evaluate"
+         tone as the rest of the
+         launcher — a question the user
+         can answer in their own words,
+         not a form to fill out. -->
+    <string name="mood_annotate_title">What made it that way?</string>
+    <string name="mood_annotate_hint">A line, a sentence, or skip.</string>
+    <string name="mood_annotate_save">Save</string>
+    <string name="mood_annotate_skip">Skip</string>
     <string name="note_kind_task">Task</string>
     <string name="note_kind_reminder">Reminder</string>
     <string name="quick_notes_input_hint_task">What needs doing — the body is the task, the picker is the deadline.</string>
@@ -832,7 +846,20 @@
          inline and offers a "?" affordance for
          the rest. Less visual noise on the
          placeholder. -->
-    <string name="search_hint_v053">Type an app, or !ground</string>
+    <!-- v0.58.0: the search field placeholder.
+         The pre-v0.58.0 copy was "Type an app,
+         or !ground" — a v0.53.0 prompt that
+         worked for a power user but read as
+         "command-line input" to a new user.
+         The v0.58.0 copy uses the launcher's
+         "what do you want to open?" tone
+         (warm, low-pressure) and keeps the
+         bang affordance as a parenthetical
+         rather than the primary affordance,
+         so the new user sees the human
+         affordance first and the bang
+         affordance second. -->
+    <string name="search_hint_v058">What do you want to open? (or !ground, !note, !task)</string>
     <string name="search_hint_help_cd">Show all bang commands</string>
     <string name="search_help_title">Bang commands</string>
     <string name="bang_help_ground">Go to the Ground me surface</string>
@@ -986,6 +1013,7 @@
     <string name="wellness_dir_above">above your usual</string>
     <string name="wellness_dir_much_above">much above your usual</string>
     <string name="wellness_dir_below">below your usual</string>
+    <string name="wellness_dir_much_below">much below your usual</string>
     <string name="wellness_dir_no_data">—</string>
     <string name="wellness_vs_usual">vs your usual: %1$s</string>
     <string name="wellness_baseline_building">still building a picture</string>
@@ -1001,6 +1029,7 @@
     <string name="wellness_settings_band_above">%1$s — above your usual</string>
     <string name="wellness_settings_band_much_above">%1$s — much above your usual</string>
     <string name="wellness_settings_band_below">%1$s — below your usual</string>
+    <string name="wellness_settings_band_much_below">%1$s — much below your usual</string>
     <string name="wellness_settings_band_no_data">%1$s — no reading today</string>
     <string name="wellness_settings_z_score">robust z-score: %1$.2f</string>
     <string name="wellness_settings_baseline_label">your usual</string>

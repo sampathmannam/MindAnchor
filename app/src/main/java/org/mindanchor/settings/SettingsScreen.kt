@@ -290,6 +290,7 @@ private fun wellnessSettingsBandRes(
     org.mindanchor.vitals.WellnessDirection.ABOVE -> R.string.wellness_settings_band_above
     org.mindanchor.vitals.WellnessDirection.MUCH_ABOVE -> R.string.wellness_settings_band_much_above
     org.mindanchor.vitals.WellnessDirection.BELOW -> R.string.wellness_settings_band_below
+    org.mindanchor.vitals.WellnessDirection.MUCH_BELOW -> R.string.wellness_settings_band_much_below
 }
 
 /**

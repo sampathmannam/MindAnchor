@@ -39,7 +39,7 @@ class SimulationReportTest {
         for (pr in reports) {
             for (signal in WellnessSignal.ORDERED) {
                 val s = pr.summaries[signal]!!
-                val parts = listOf(s.atCount, s.aboveCount, s.muchAboveCount, s.belowCount, s.noDataCount)
+                val parts = listOf(s.atCount, s.aboveCount, s.muchAboveCount, s.belowCount, s.muchBelowCount, s.noDataCount)
                 val total = parts.sum()
                 check(total == 14) {
                     "${pr.persona.id} $signal: counts sum to $total, expected 14"

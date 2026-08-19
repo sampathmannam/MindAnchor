@@ -83,6 +83,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
      * NPE that crashed that activity once.
      */
     private val notesPrefs = NotesPrefs(application)
+    // v0.58.0: the long-press mood → annotate
+    // path stores a [CheckIn] alongside the
+    // mood Note. The two writes are
+    // independent (the Note for the home /
+    // Notes tab, the CheckIn for the
+    // history view) so the launcher keeps
+    // them in their own DataStore.
+    private val checkInPrefs = org.mindanchor.data.CheckInPrefs(application)
 
     /**
      * The most recent notes, newest first, capped
@@ -709,6 +717,72 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             type = org.mindanchor.model.NoteType.GENERAL,
         )
         viewModelScope.launch { notesPrefs.add(note) }
+    }
+
+    /**
+     * v0.58.0: long-press mood → annotate. The
+     * v0.46.0 1-tap mood log is the floor — it
+     * writes a one-row note with the emoji as the
+     * body. The 56-app competitor survey
+     * (Daylio, Bearable, Moodflow, Wysa, How We
+     * Feel) showed the 1-tap emoji is the most-
+     * replicated interaction in the mental-health
+     * category, but the same survey showed that
+     * the 5-emoji scale *with* an optional
+     * reflection is the version that the serious
+     * mental-health journals (Linehan DBT diary
+     * card, Pennebaker expressive-writing protocol,
+     * Wrzus & Neubauer EMA methodology) cite as
+     * the data that drives outcome improvement.
+     *
+     * The launcher splits the difference: the
+     * default 1-tap path is the v0.46.0 design
+     * (fast, no friction), and the long-press path
+     * adds an *optional* 1-3 sentence reflection.
+     * The mood emoji maps to a WHO-5-style
+     * 1-5 rating (😞→1, 😕→2, 😐→3, 🙂→4, 😊→5);
+     * the reflection is stored on the [CheckIn]
+     * and is the *only* piece of free text the
+     * launcher asks for. The launcher never
+     * summarises, never stores a mood tag, never
+     * feeds the text into a model.
+     *
+     * A blank emoji is a no-op. A blank
+     * reflection is allowed (the user may want
+     * the check-in's *timestamp* without words —
+     * the EMA methodology still accepts the
+     * rating on its own). The reflection is
+     * truncated to [CheckIn.MAX_REFLECTION]
+     * (1000 chars) before save.
+     */
+    fun addMoodLogWithReflection(emoji: String, reflection: String) {
+        if (emoji.isEmpty()) return
+        val now = System.currentTimeMillis()
+        val note = Note(
+            id = nextNoteId(),
+            body = emoji,
+            createdAt = now,
+            updatedAt = now,
+            type = org.mindanchor.model.NoteType.GENERAL,
+        )
+        val rating = when (emoji) {
+            "😞" -> 1
+            "😕" -> 2
+            "😐" -> 3
+            "🙂" -> 4
+            "😊" -> 5
+            else -> 3
+        }
+        val safeReflection = reflection.take(org.mindanchor.model.CheckIn.MAX_REFLECTION)
+        val checkIn = org.mindanchor.model.CheckIn(
+            rating = rating,
+            reflection = safeReflection,
+            atMillis = now,
+        )
+        viewModelScope.launch {
+            notesPrefs.add(note)
+            checkInPrefs.add(checkIn)
+        }
     }
 
     /**

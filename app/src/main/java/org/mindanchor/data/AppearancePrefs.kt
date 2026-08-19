@@ -24,6 +24,22 @@ class AppearancePrefs(private val context: Context) {
     // so the visual rhythm of the breath circle is unchanged for
     // anyone who leaves the sound off.
     private val breathToneKey = booleanPreferencesKey("breath_tone_enabled")
+    // v0.58.0: an opt-in soft tone on the Notes tab
+    // swipe actions. The pre-v0.58.0 swipes were
+    // silent (visual only) — the v0.58.0 pass adds
+    // a haptic on every successful swipe (gated by
+    // the system haptics toggle through
+    // [HapticFeedbackGate]) and an opt-in audio
+    // cue. The audio cue is off by default for the
+    // same reason as the breath tone: hyperacusis
+    // and quiet rooms. When the user enables the
+    // swipe tone, a pin swipe fires
+    // [ToneGenerator.TONE_PROP_ACK] (a positive
+    // ascending tone) and a delete swipe fires
+    // [ToneGenerator.TONE_PROP_NACK] (a negative
+    // descending tone). The two are system sounds,
+    // so no audio assets need to ship.
+    private val swipeToneKey = booleanPreferencesKey("swipe_tone_enabled")
     // v0.42.0: toggle for the "What do you need right now?" 2x2
     // grid on the home surface. Default true (current behaviour).
     // When false, the home shows only the clock, greeting, and
@@ -50,6 +66,20 @@ class AppearancePrefs(private val context: Context) {
 
     suspend fun setBreathToneEnabled(enabled: Boolean) {
         context.dataStore.edit { it[breathToneKey] = enabled }
+    }
+
+    /**
+     * v0.58.0: the Notes tab swipe tone, off by default.
+     * Same opt-in pattern as [breathToneEnabled] — the
+     * launcher never thrusts sound on a person with
+     * hyperacusis or in a quiet room.
+     */
+    val swipeToneEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[swipeToneKey] ?: false
+    }
+
+    suspend fun setSwipeToneEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[swipeToneKey] = enabled }
     }
 
     /** v0.42.0: the 2x2 needs grid on the home surface. On by default. */

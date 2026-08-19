@@ -34,9 +34,19 @@ object SimulationReport {
         val muchAboveCount: Int,
         val belowCount: Int,
         val noDataCount: Int,
+        // v0.58.0: the new MUCH_BELOW band.
+        // See [WellnessDirection] KDoc for
+        // the design rationale. The
+        // [SignalSummary] carries the
+        // per-band count so the report
+        // print shows the symmetric "way
+        // above" / "way below" outliers
+        // when a persona's days include
+        // them.
+        val muchBelowCount: Int = 0,
         val baselineMedian: Double?,
     ) {
-        val total: Int get() = atCount + aboveCount + muchAboveCount + belowCount + noDataCount
+        val total: Int get() = atCount + aboveCount + muchAboveCount + belowCount + muchBelowCount + noDataCount
     }
 
     data class PersonaReport(
@@ -64,6 +74,18 @@ object SimulationReport {
                     muchAboveCount = readings.count { it.direction == WellnessDirection.MUCH_ABOVE },
                     belowCount = readings.count { it.direction == WellnessDirection.BELOW },
                     noDataCount = readings.count { it.direction == WellnessDirection.NO_DATA },
+                    // v0.58.0: count the new
+                    // MUCH_BELOW band. Most
+                    // personas will have
+                    // [muchBelowCount = 0]
+                    // because the persona
+                    // distributions are
+                    // symmetric around the
+                    // median; the depression
+                    // and insomnia personas
+                    // can land in MUCH_BELOW
+                    // for sleep / HRV.
+                    muchBelowCount = readings.count { it.direction == WellnessDirection.MUCH_BELOW },
                     baselineMedian = if (medians.isEmpty()) null else medians.average(),
                 )
             }
@@ -109,6 +131,7 @@ object SimulationReport {
                         "median=$median  " +
                         "AT=${s.atCount}  ABOVE=${s.aboveCount}  " +
                         "MUCH_ABOVE=${s.muchAboveCount}  BELOW=${s.belowCount}  " +
+                        "MUCH_BELOW=${s.muchBelowCount}  " +
                         "NO_DATA=${s.noDataCount}",
                 )
             }

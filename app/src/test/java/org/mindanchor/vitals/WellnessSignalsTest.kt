@@ -200,10 +200,24 @@ class WellnessSignalsTest {
 
     @Test
     fun `values more than one MAD below the median are BELOW`() {
-        // The asymmetry is deliberate: a single BELOW band, three
-        // ABOVE bands — see WellnessDirection's KDoc.
+        // v0.58.0: the v0.21.0 design had a
+        // single BELOW band (asymmetric: 1
+        // BELOW band, 3 ABOVE bands). The
+        // v0.58.0 pass adds a MUCH_BELOW
+        // band so the "way more than just a
+        // little below my usual" case is
+        // visually distinct. -1.01 is still
+        // BELOW; -2.01 is now MUCH_BELOW.
         assertEquals(WellnessDirection.BELOW, WellnessDirection.bandFor(-1.01, hasToday = true))
-        assertEquals(WellnessDirection.BELOW, WellnessDirection.bandFor(-5.0, hasToday = true))
+    }
+
+    @Test
+    fun `values more than two MADs below the median are MUCH_BELOW`() {
+        // v0.58.0: the new MUCH_BELOW band.
+        // See [WellnessDirection] KDoc for
+        // the design rationale.
+        assertEquals(WellnessDirection.MUCH_BELOW, WellnessDirection.bandFor(-2.01, hasToday = true))
+        assertEquals(WellnessDirection.MUCH_BELOW, WellnessDirection.bandFor(-5.0, hasToday = true))
     }
 
     // --- end-to-end reading ---

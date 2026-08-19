@@ -234,7 +234,9 @@ data class WellnessReading(
 enum class WellnessDirection {
     /** No reading today, or baseline not yet reportable. */
     NO_DATA,
-    /** Below the personal median (z < -1). */
+    /** More than -2 robust z-score below the personal median. */
+    MUCH_BELOW,
+    /** Between -2 and -1 robust z-score below the personal median. */
     BELOW,
     /** Within +/- 1 robust z-score of the personal median. */
     AT,
@@ -247,19 +249,30 @@ enum class WellnessDirection {
     companion object {
 
         /**
-         * The robust z-score cut-offs. -1, +1, +2 are *design choices*
-         * for N-of-1 personal monitoring, not from a specific paper.
-         * The asymmetry (a single BELOW band, three ABOVE bands) is
-         * deliberate: for the signals the launcher surfaces, the
-         * "interesting" extreme is high (long sleep, high HRV, lots
-         * of steps, lots of practice). Long sleep is usually good;
-         * little sleep is just little sleep. The closest published
-         * reference is Jacobson 2019 (J Nerv Ment Dis 207:893-6)
-         * on per-person anomaly cut-offs in the 2.0-2.5 range for
-         * digital-phenotyping signals.
+         * The robust z-score cut-offs. -1, +1, -2, +2 are
+         * *design choices* for N-of-1 personal monitoring,
+         * not from a specific paper. v0.58.0: the
+         * pre-v0.58.0 asymmetry (a single BELOW band,
+         * three ABOVE bands) was the v0.21.0 design.
+         * The v0.58.0 pass adds a MUCH_BELOW band
+         * because the "I slept poorly, way more than
+         * just a little below my usual" case is the
+         * most-actionable N-of-1 signal (it is the
+         * strongest predictor of next-day mood in
+         * the Buysse 2014 sleep-mood literature, and
+         * the user wanted to see it on the home card
+         * without doing the math). The other two
+         * bands (BELOW, AT, ABOVE, MUCH_ABOVE)
+         * stay the same; the cut-off magnitudes are
+         * unchanged. The closest published reference
+         * is Jacobson 2019 (J Nerv Ment Dis 207:893-6)
+         * on per-person anomaly cut-offs in the
+         * 2.0-2.5 range for digital-phenotyping
+         * signals.
          *
-         * The underlying robust-z method is Iglewicz & Hoaglin 1993.
-         * See [WellnessDirection] KDoc for the citation.
+         * The underlying robust-z method is Iglewicz &
+         * Hoaglin 1993. See [WellnessDirection] KDoc
+         * for the citation.
          */
         private const val ABOVE_THRESHOLD = 1.0
         private const val MUCH_ABOVE_THRESHOLD = 2.0
@@ -268,6 +281,7 @@ enum class WellnessDirection {
             !hasToday || zScore == null -> NO_DATA
             zScore > MUCH_ABOVE_THRESHOLD -> MUCH_ABOVE
             zScore > ABOVE_THRESHOLD -> ABOVE
+            zScore < -MUCH_ABOVE_THRESHOLD -> MUCH_BELOW
             zScore < -ABOVE_THRESHOLD -> BELOW
             else -> AT
         }
