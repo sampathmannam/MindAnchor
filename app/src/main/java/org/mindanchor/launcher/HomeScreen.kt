@@ -5193,6 +5193,36 @@ private fun NotesSurfaceBody(
                                             NotesSwipeAction.Delete(note)
                                         onDeleteNote(note.id)
                                     },
+                                    // v0.62.4: the visible ×
+                                    // button on the row gets
+                                    // the same Undo snackbar
+                                    // as the swipe. v0.45.0
+                                    // added the × button but
+                                    // forgot to wire the
+                                    // Undo — the delete was
+                                    // permanent on a single
+                                    // tap, a real User-Control
+                                    // (#3) violation. The fix
+                                    // dispatches the same
+                                    // [NotesSwipeAction.Delete]
+                                    // the swipe uses; the
+                                    // [LaunchedEffect] in the
+                                    // parent body fires the
+                                    // Snackbar with Undo.
+                                    // The visible haptic is
+                                    // lighter (TextHandleMove,
+                                    // not LongPress) because
+                                    // the × is a direct tap,
+                                    // not a deliberate gesture.
+                                    onXClickDelete = {
+                                        haptics.performHapticFeedback(
+                                            androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove,
+                                        )
+                                        playSwipeTone(isPin = false)
+                                        lastSwipeAction.value =
+                                            NotesSwipeAction.Delete(note)
+                                        onDeleteNote(note.id)
+                                    },
                                 )
                             }
                         }
@@ -5596,6 +5626,14 @@ private fun NotesTabRow(
     onMarkDone: (Long, Boolean) -> Unit,
     onSwipePin: () -> Unit = {},
     onSwipeDelete: () -> Unit = {},
+    // v0.62.4: the visible × button's
+    // delete handler. The default
+    // (empty) keeps the row callable
+    // in tests / previews; production
+    // wires this to the Snackbar Undo
+    // path so × has the same recovery
+    // affordance as a left-swipe.
+    onXClickDelete: () -> Unit = {},
 ) {
     // v0.50.0: title truncates at the last
     // whitespace before 80 chars (single line)
@@ -6003,7 +6041,17 @@ private fun NotesTabRow(
             )
         }
         TextButton(
-            onClick = { onDelete(note.id) },
+            // v0.62.4: the × onClick now goes
+            // through `onXClickDelete` so the
+            // Snackbar Undo fires (the
+            // [onDelete] parameter is now
+            // only used by the swipe path,
+            // not the ×). The [onXClickDelete]
+            // default is `{}` so the row
+            // stays callable in tests; the
+            // production call site wires
+            // it to the Snackbar action.
+            onClick = { onXClickDelete() },
             modifier = Modifier
                 // v0.50.0: 40 -> 36dp. Same
                 // reasoning as the pin button:
