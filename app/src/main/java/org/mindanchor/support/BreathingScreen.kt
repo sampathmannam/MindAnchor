@@ -55,9 +55,9 @@ import org.mindanchor.ui.theme.BreathLabel
  * No counter, no streak, no timer — only the breath.
  *
  * Phase state machine:
- *   INHALE → 4 seconds, scale 0.3 → 1.0, color teal
+ *   INHALE → 4 seconds, scale 0.3 → 1.0, color soft teal
  *   HOLD   → 7 seconds, scale 1.0, color deep blue
- *   EXHALE → 8 seconds, scale 1.0 → 0.3, color sage
+ *   EXHALE → 8 seconds, scale 1.0 → 0.3, color soft periwinkle
  *
  * Total cycle: 19 seconds. Repeats indefinitely until the
  * user dismisses.
@@ -95,9 +95,19 @@ fun BreathingScreen(onDone: () -> Unit) {
         label = "breath-scale",
     )
     val targetColor = when (phase) {
-        BreathPhase.INHALE -> Color(0xFF7A9E9F) // soft teal
-        BreathPhase.HOLD -> Color(0xFF3D5A6C) // deep blue
-        BreathPhase.EXHALE -> Color(0xFF8FA68E) // sage
+        BreathPhase.INHALE -> Color(0xFF7A9E9F) // soft teal (matches v0.56.0 palette)
+        BreathPhase.HOLD -> Color(0xFF3D5A6C) // deep blue (holds through)
+        // v0.56.0: was sage (#8FA68E) to read as
+        // "exhale = release". The v0.56.0 palette
+        // dropped sage as the "wellness cliche" hue,
+        // so the exhale color shifts to a soft
+        // periwinkle that matches the new dusk
+        // anchor (#756E86) at low saturation. The
+        // periwinkle reads as "cooling" and
+        // "releasing" the same way the sage did,
+        // without dragging the launcher back into
+        // the sage-cliche register.
+        BreathPhase.EXHALE -> Color(0xFF9DB1C7) // soft periwinkle
     }
     val circleColor by animateColorAsState(
         targetValue = targetColor,

@@ -2763,15 +2763,38 @@ private fun QuickNotesCard(
                         // a screen-reader user. The label
                         // keeps the home text-only — no
                         // icon asset added in v0.45.1.
+                        // v0.56.0: the row's kind
+                        // chip uses the file-scope
+                        // [KindTealBg] / [KindTealFg]
+                        // (and [KindIndigoBg] /
+                        // [KindIndigoFg]) tokens instead
+                        // of the previous hard-coded sage
+                        // hex. The rename from
+                        // KindSage* to KindTeal* in
+                        // v0.56.0 left this row behind
+                        // with a stale sage-300 / sage-800
+                        // literal; the home card kind
+                        // picker, the swipe-pin
+                        // background, the swipe-pin
+                        // glyph, and the home card pin
+                        // all already use the teal
+                        // tokens, so the row's kind chip
+                        // has to match — otherwise a
+                        // Task note on the Notes tab
+                        // would render a sage pill while
+                        // the same Task note on the home
+                        // card renders a teal pill, a
+                        // visual inconsistency the user
+                        // would notice immediately.
                         val (chipBg, chipFg, chipLabel) = when (note.type) {
                             org.mindanchor.model.NoteType.REMINDER -> Triple(
-                                androidx.compose.ui.graphics.Color(0xFFC7D2FE), // indigo-200
-                                androidx.compose.ui.graphics.Color(0xFF3730A3), // indigo-800
+                                KindIndigoBg,
+                                KindIndigoFg,
                                 "Re",
                             )
                             org.mindanchor.model.NoteType.TASK -> Triple(
-                                androidx.compose.ui.graphics.Color(0xFFB7C9A8), // sage-300
-                                androidx.compose.ui.graphics.Color(0xFF3F5233), // sage-800
+                                KindTealBg,
+                                KindTealFg,
                                 "Ta",
                             )
                             else -> Triple(
