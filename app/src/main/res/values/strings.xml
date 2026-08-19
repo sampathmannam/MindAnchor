@@ -757,6 +757,20 @@
         <item quantity="one">%1$d day of notes</item>
         <item quantity="other">%1$d days of notes</item>
     </plurals>
+    <!-- v0.62.0: pin-to-home explainer. v0.53.0
+         hard-coded "$count are pinned now" which
+         was wrong for count==1 ("1 are pinned
+         now"). The fix is a quantity string: "is"
+         for one, "are" for everything else. The
+         two cases are also the only ones
+         English needs — "0 are" is correct
+         (zero is plural), and the toggle is
+         on/off so a user almost never sees
+         count > ~10. -->
+    <plurals name="pin_to_home_explainer_v053_n">
+        <item quantity="one">New notes will appear on the home screen. %1$d is pinned now.</item>
+        <item quantity="other">New notes will appear on the home screen. %1$d are pinned now.</item>
+    </plurals>
     <!-- v0.49.0: kind picker + Task / Reminder save flow.
          Renamed "Quick" → "Quick note" so the chip is unambiguous
          (a user reading just the chip label knows it's a note, not
@@ -811,6 +825,29 @@
     <string name="notes_tab_count_zero">no notes</string>
     <string name="notes_tab_count_n">%1$d notes</string>
     <string name="notes_tab_empty">No notes yet. Go back home and write the first one.</string>
+    <!-- v0.62.0: empty state for the
+         day-filter view in the Notes tab.
+         Tapping a day pill with no notes
+         (e.g. "15 Aug" for a day the user
+         didn't write on) used to render a
+         blank list — visually identical to
+         a broken surface. The fix is two
+         strings so the copy reads naturally
+         in every case:
+         - [notes_day_empty_today] when the
+           user tapped "Today" — "No notes
+           today" reads better than "No notes
+           from Today".
+         - [notes_day_empty_dated] when the
+           user tapped a non-today day —
+           "No notes from 18 Aug" pairs with
+           the "18 Aug" pill the user
+           actually tapped, so the empty
+           state reads as confirmation the
+           filter worked, not as a broken
+           surface. -->
+    <string name="notes_day_empty_today">No notes today.</string>
+    <string name="notes_day_empty_dated">No notes from %1$s.</string>
     <string name="pin_to_home">Pin to home</string>
     <string name="pin_to_home_explainer">Pinned notes appear on the home screen. Unpinned notes live only in the Notes tab.</string>
 

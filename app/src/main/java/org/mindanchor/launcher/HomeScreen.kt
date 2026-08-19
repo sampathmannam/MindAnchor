@@ -2401,7 +2401,21 @@ private fun QuickNotesCard(
                         // number is the
                         // state.
                         val pinnedCount = recent.count { it.pinned }
-                        "New notes will appear on the home screen. $pinnedCount are pinned now."
+                        // v0.62.0: use quantity string
+                        // so the verb agrees with the
+                        // count. The v0.53.0 hard-coded
+                        // "are" was wrong for count==1
+                        // ("1 are pinned now" — the
+                        // classic singular/plural bug
+                        // a hard-coded count produces).
+                        // [pin_to_home_explainer_v053_n]
+                        // has "is" for one, "are" for
+                        // everything else.
+                        androidx.compose.ui.res.pluralStringResource(
+                            R.plurals.pin_to_home_explainer_v053_n,
+                            pinnedCount,
+                            pinnedCount,
+                        )
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = sky.textSecondary,
@@ -4928,6 +4942,75 @@ private fun NotesSurfaceBody(
                             vertical = 4.dp,
                         ),
                     ) {
+                        // v0.62.0: empty state for the
+                        // day-filter view. Without this
+                        // the LazyColumn rendered nothing
+                        // when the user tapped a day pill
+                        // with no notes — visually
+                        // identical to a broken surface.
+                        // The condition is "day-filter
+                        // active AND no groups matched",
+                        // which means the user *did*
+                        // tap a pill and that pill's day
+                        // has zero notes. The
+                        // [notes_day_empty] string is
+                        // filled with the same human
+                        // label the day pill uses
+                        // (Today / Yesterday / 17 Aug /
+                        // 17 Aug 2025), so the user
+                        // reads the same word in the
+                        // pill and in the message.
+                        if (filteredGroups.isEmpty() &&
+                            dayFilter != "all" &&
+                            dayFilter.isNotEmpty()
+                        ) {
+                            // v0.62.0: two messages, one
+                            // for today and one for any
+                            // other day. "No notes today"
+                            // is grammatical; "No notes
+                            // from Today" would not be.
+                            // For non-today days the day
+                            // pill shows a date ("18 Aug",
+                            // "17 Aug 2025"), so the
+                            // message includes the same
+                            // label. [formatDayKeyForEmptyState]
+                            // mirrors the pill's label
+                            // exactly so the user reads
+                            // the same word in both
+                            // places. The stringResource
+                            // calls live INSIDE the [item]
+                            // lambda because that lambda is
+                            // @Composable, while the
+                            // surrounding LazyListScope
+                            // [if] is not.
+                            val zone = java.time.ZoneId.systemDefault()
+                            val today = java.time.LocalDate.now(zone)
+                            val isTodayFilter = dayFilter == today.toString()
+                            val dayLabel = if (isTodayFilter) {
+                                ""
+                            } else {
+                                formatDayKeyForEmptyState(dayFilter, zone)
+                            }
+                            item(key = "day_empty_$dayFilter") {
+                                val emptyText = if (isTodayFilter) {
+                                    stringResource(R.string.notes_day_empty_today)
+                                } else {
+                                    stringResource(
+                                        R.string.notes_day_empty_dated,
+                                        dayLabel,
+                                    )
+                                }
+                                Text(
+                                    text = emptyText,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = sky.textSecondary,
+                                    modifier = Modifier.padding(
+                                        horizontal = 24.dp,
+                                        vertical = 16.dp,
+                                    ),
+                                )
+                            }
+                        }
                         filteredGroups.forEach { group ->
                             // v0.56.0: day header is a
                             // [stickyHeader] (not a
@@ -5174,6 +5257,44 @@ private fun groupNotesByDay(
             notes = dayNotes,
         )
     }
+}
+
+/**
+ * v0.62.0: format an ISO date key
+ * ("2026-08-15") as the same human label
+ * the [NotesDayStrip] pill shows for the
+ * day ("18 Aug" / "17 Aug 2025" / etc.).
+ * The day pill uses [DateTimeFormatter]
+ * with "d MMM" for the current year and
+ * "d MMM yyyy" for older years — it does
+ * NOT collapse to "Today" / "Yesterday"
+ * the way [groupNotesByDay]'s list header
+ * does. The empty state message uses the
+ * pill's label so the user reads the same
+ * word in the pill they tapped and in the
+ * message — "No notes from 18 Aug" pairs
+ * with the "18 Aug" pill, not the "Yesterday"
+ * header the list would show if there were
+ * notes. Initial v0.62.0 used the
+ * groupNotesByDay formatter; the "No notes
+ * from Yesterday" copy read as awkward
+ * English and as inconsistent with the
+ * pill label, so the formatter now matches
+ * the pill.
+ */
+private fun formatDayKeyForEmptyState(
+    key: String,
+    zone: java.time.ZoneId,
+): String {
+    val date = runCatching { java.time.LocalDate.parse(key) }
+        .getOrElse { return key }
+    val today = java.time.LocalDate.now(zone)
+    val pattern = if (date.year == today.year) {
+        "d MMM"
+    } else {
+        "d MMM yyyy"
+    }
+    return date.format(java.time.format.DateTimeFormatter.ofPattern(pattern))
 }
 
 /**
@@ -6015,6 +6136,24 @@ private fun DrawerSurface(
                                 index = bangAt + 1
                             }
                         },
+                        // v0.62.0: bodySmall keeps the
+                        // hint on one line on a 1264px
+                        // screen. v0.58.0 introduced
+                        // "(or !ground, !panic, !breathe,
+                        // !note, !task)" — five bangs
+                        // with a "What do you want to
+                        // open?" prefix — and the default
+                        // body style wrapped after the
+                        // first "!" so "ground" landed on
+                        // the next line, splitting the
+                        // bang token. bodySmall is the
+                        // smallest readable size for
+                        // placeholder copy; the hint
+                        // still parses because the "!"s
+                        // stay accent-coloured and the
+                        // BangHelpDialog behind the "?"
+                        // holds the full list.
+                        style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.weight(1f),
                     )
                     // v0.53.0 (Issue 7): the "?"
