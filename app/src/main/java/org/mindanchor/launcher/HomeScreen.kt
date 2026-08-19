@@ -2285,9 +2285,18 @@ private fun QuickNotesCard(
                 onClick = { kind = 0; haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove) },
                 label = { Text(stringResource(R.string.note_kind_quick)) },
                 modifier = Modifier.semantics { role = Role.RadioButton },
+                // v0.62.2: was `selectedLabelColor = sky.textPrimary` which
+                // rendered light-cream text on a light container — the
+                // "Quick note" label disappeared. The home is in dark
+                // mode (textPrimary = #EDE8DE cream); pairing it with a
+                // light fill (0xFFE0E7EE) gives near-zero contrast. Fix:
+                // use a DARK teal-700 label color (sibling of
+                // KindTealFg used by Task) so the chip reads as "selected,
+                // neutral kind" with WCAG-passing contrast on either
+                // home theme.
                 colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
                     selectedContainerColor = androidx.compose.ui.graphics.Color(0xFFE0E7EE),
-                    selectedLabelColor = sky.textPrimary,
+                    selectedLabelColor = KindTealFg,
                     containerColor = androidx.compose.ui.graphics.Color.Transparent,
                     labelColor = unselectedLabel,
                 ),
@@ -2295,7 +2304,7 @@ private fun QuickNotesCard(
                     enabled = true,
                     selected = kind == 0,
                     borderColor = sky.textSecondary.copy(alpha = 0.4f),
-                    selectedBorderColor = sky.textPrimary,
+                    selectedBorderColor = KindTealFg,
                     borderWidth = 1.dp,
                     selectedBorderWidth = 1.5.dp,
                 ),
@@ -2360,16 +2369,26 @@ private fun QuickNotesCard(
                 .padding(bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Switch(
-                checked = pinned,
-                onCheckedChange = {
-                    pinned = it
-                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                },
-                modifier = Modifier.semantics { role = Role.Switch },
-            )
-            Spacer(Modifier.width(12.dp))
-            Column {
+            // v0.62.2: Row order swapped.
+            // v0.45.0 placed the Switch on the
+            // LEFT and the label/explainer on
+            // the RIGHT (the "label is the
+            // affordance, the switch is the
+            // state" pattern). It is the
+            // opposite of the rest of the
+            // launcher — Settings → Sources
+            // ("Ask me how I am"), Settings →
+            // Quiet (Notification batching),
+            // and the rest of the app use the
+            // Material 3 standard: label on the
+            // LEFT, switch on the RIGHT. A user
+            // tapping on the right side of the
+            // row to find the toggle would miss
+            // it. New order: Column(label) →
+            // Spacer → Switch.
+            Column(
+                modifier = Modifier.weight(1f),
+            ) {
                 // v0.53.0 (Red Dot review fix,
                 // Issue 6): the v0.45.0 label
                 // "Pin to home" was ambiguous —
@@ -2384,6 +2403,21 @@ private fun QuickNotesCard(
                 // shows the current pinned count
                 // so the user can see the
                 // effect of the toggle.
+                //
+                // v0.62.2: explainer changes
+                // based on toggle state. v0.53.0
+                // (and v0.62.0) always said
+                // "New notes will appear on the
+                // home screen. N is/are pinned
+                // now" — which is wrong when the
+                // toggle is OFF, because new
+                // notes will NOT appear on the
+                // home screen in that state. The
+                // new explainer reads differently
+                // for ON vs OFF so the user
+                // understands the current
+                // behaviour, not a stale
+                // description.
                 Text(
                     text = stringResource(R.string.pin_to_home_label),
                     style = MaterialTheme.typography.bodyLarge,
@@ -2391,7 +2425,11 @@ private fun QuickNotesCard(
                 )
                 Text(
                     text = if (recent.isEmpty()) {
-                        stringResource(R.string.pin_to_home_explainer)
+                        if (pinned) {
+                            stringResource(R.string.pin_to_home_explainer_on_empty)
+                        } else {
+                            stringResource(R.string.pin_to_home_explainer)
+                        }
                     } else {
                         // v0.53.0: show the
                         // current pinned
@@ -2417,16 +2455,46 @@ private fun QuickNotesCard(
                         // [pin_to_home_explainer_v053_n]
                         // has "is" for one, "are" for
                         // everything else.
-                        androidx.compose.ui.res.pluralStringResource(
-                            R.plurals.pin_to_home_explainer_v053_n,
-                            pinnedCount,
-                            pinnedCount,
-                        )
+                        //
+                        // v0.62.2: explainer now picks
+                        // the ON or OFF plural based on
+                        // the toggle state. The OFF
+                        // plural explains that existing
+                        // pinned notes are *not* going
+                        // to keep appearing on home
+                        // (they're "already" pinned in
+                        // the Notes tab) — a common
+                        // source of confusion when
+                        // toggling off: "I toggled it
+                        // off but my pinned note is
+                        // still here".
+                        if (pinned) {
+                            androidx.compose.ui.res.pluralStringResource(
+                                R.plurals.pin_to_home_explainer_on_n,
+                                pinnedCount,
+                                pinnedCount,
+                            )
+                        } else {
+                            androidx.compose.ui.res.pluralStringResource(
+                                R.plurals.pin_to_home_explainer_off_n,
+                                pinnedCount,
+                                pinnedCount,
+                            )
+                        }
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = sky.textSecondary,
                 )
             }
+            Spacer(Modifier.width(12.dp))
+            Switch(
+                checked = pinned,
+                onCheckedChange = {
+                    pinned = it
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                },
+                modifier = Modifier.semantics { role = Role.Switch },
+            )
         }
         // v0.44.0: the time picker for Task and
         // Reminder. Hidden when kind == Quick
@@ -2633,10 +2701,25 @@ private fun QuickNotesCard(
             // to save", "Add a time to save")
             // so the user knows the next
             // affordance.
-            val (hint, buttonVisible) = when {
-                !enabled && draft.isBlank() -> stringResource(R.string.save_button_needs_text) to false
-                !enabled && kind == 2 -> stringResource(R.string.save_button_needs_time) to false
-                else -> "" to true
+            //
+            // v0.62.2: hint rendering removed
+            // (the placeholder + empty-state
+            // copy below are already enough
+            // cues), but the gating logic is
+            // preserved as `buttonVisible` so
+            // the dead button is still hidden
+            // when there's nothing to save. The
+            // "Add a time to save" reason is
+            // logged for diagnostic use; the
+            // first-time Reminder users now
+            // discover the time picker by
+            // tapping a Reminder chip, which is
+            // the only path to a Reminder
+            // anyway.
+            val buttonVisible = when {
+                !enabled && draft.isBlank() -> false
+                !enabled && kind == 2 -> false
+                else -> true
             }
             // v0.48.0: Save is the only button in
             // the row. It spans the full width
@@ -2720,39 +2803,28 @@ private fun QuickNotesCard(
                     Text(label)
                 }
             } else {
-                // v0.53.0: the hint
-                // replaces the
-                // button. One line,
-                // bodySmall, in the
-                // secondary text
-                // colour, so the
-                // user reads it as a
-                // status rather than
-                // a content element.
-                // The hint is the
-                // "next step" — the
-                // user types, the
-                // button reappears.
-                Text(
-                    text = hint,
-                    // v0.55.0: bumped from bodySmall
-                    // (12sp) to bodyMedium (14sp).
-                    // The pre-v0.55.0 hint was the
-                    // smallest M3 body size, which
-                    // on the home card in light mode
-                    // looked like a placeholder, not
-                    // an instruction. bodyMedium
-                    // matches the body text of the
-                    // input field itself, so the
-                    // hint and the input read as
-                    // the same scale.
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = sky.textSecondary,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp, bottom = 4.dp),
-                    textAlign = TextAlign.Center,
-                )
+                // v0.53.0: the hint replaces the
+                // button. v0.62.2: hint was
+                // removed. The input field's
+                // placeholder already says
+                // "Jot something down — it saves
+                // here, in order, with the time."
+                // which is the same message. Two
+                // text elements stacked on top of
+                // the "Nothing yet. The first line
+                // you write lands here." empty
+                // state (when the recent list is
+                // empty) read as three redundant
+                // instructions. The placeholder
+                // alone tells the user the next
+                // affordance; the empty state
+                // below tells them the result.
+                // No element is rendered here.
+                // The `hint` String is unused; the
+                // v0.53.0 logic that decides when
+                // to hide the button still drives
+                // `buttonVisible` from the same
+                // expression.
             }
         }
         if (recent.isEmpty()) {
@@ -5397,7 +5469,21 @@ private fun NotesDayStrip(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(scrollState)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            // v0.62.2: padding 16dp on both
+            // sides left the rightmost pill
+            // ("15 Aug" on a fresh install)
+            // half-clipped at the screen
+            // edge. Equal padding makes the
+            // cut-off look accidental. Asymmetric
+            // padding (24dp left, 48dp right)
+            // shows a generous slice of the
+            // next pill, which reads as "more
+            // pills over there" instead of
+            // "this pill is broken". The
+            // [horizontalScroll] is still
+            // active so the user can drag the
+            // strip to see the rest.
+            .padding(start = 24.dp, end = 48.dp, top = 8.dp, bottom = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         // "All days" pill — the default. v0.56.0:
@@ -5733,6 +5819,28 @@ private fun NotesTabRow(
                 // means the swipe-coloured slot is
                 // visible behind the row's content
                 // during the gesture.
+                //
+                // v0.62.2: pinned rows get a subtle
+                // teal-700 left border (3dp) so the
+                // user can tell at a glance which
+                // notes are pinned — the pin glyph
+                // alone is too small to scan in a
+                // 50-row list. A border (not a fill)
+                // keeps the swipe-to-dismiss
+                // background fully visible during
+                // the gesture, where a fill would
+                // tint the swipe slot.
+                .then(
+                    if (note.pinned) {
+                        Modifier.border(
+                            width = 3.dp,
+                            color = KindTealFg,
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                        )
+                    } else {
+                        Modifier
+                    },
+                )
                 .padding(vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -5966,7 +6074,26 @@ private fun notesTabDateTimeText(note: Note): String {
     val timeFormat = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)
     val date = dateFormat.format(java.util.Date(note.updatedAt))
     val time = timeFormat.format(java.util.Date(note.updatedAt))
-    return "$date · $time"
+    // v0.62.2: when the note was created today,
+    // the row is already under a "Today"
+    // sticky-header — "19 Aug 2026 · 10:01 pm"
+    // is redundant. The date prefix takes
+    // 11 chars and pushes the timestamp to the
+    // right edge; with the date dropped the
+    // row reads as "10:01 pm" which is what
+    // the user already knows (they wrote it
+    // just now). The comparison is in the
+    // system default zone, the same zone
+    // [groupNotesByDay] uses for "Today".
+    val noteDate = note.updatedAt.let { ms ->
+        val cal = java.util.Calendar.getInstance().apply {
+            timeInMillis = ms
+        }
+        val now = java.util.Calendar.getInstance()
+        cal.get(java.util.Calendar.YEAR) == now.get(java.util.Calendar.YEAR) &&
+            cal.get(java.util.Calendar.DAY_OF_YEAR) == now.get(java.util.Calendar.DAY_OF_YEAR)
+    }
+    return if (noteDate) time else "$date · $time"
 }
 
 /**
@@ -6150,7 +6277,18 @@ private fun DrawerSurface(
                         // stay accent-coloured and the
                         // BangHelpDialog behind the "?"
                         // holds the full list.
+                        //
+                        // v0.62.2: hint was shortened to
+                        // "Search apps, or tap ? for
+                        // !commands" so it fits at
+                        // bodyMedium on any screen.
+                        // `maxLines = 1` + Ellipsis is a
+                        // belt-and-suspenders guard so
+                        // future copy edits can't
+                        // re-introduce the wrap.
                         style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
                     // v0.53.0 (Issue 7): the "?"

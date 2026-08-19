@@ -49,7 +49,8 @@
     <string name="gratitude_row_two">2. ___</string>
     <string name="gratitude_row_three">3. ___</string>
     <string name="gratitude_hint">What was good today, in your own words. The card clears at midnight.</string>
-    <string name="settings">settings</string>
+    <!-- v0.62.2: "settings" → "Settings" (capitalized) -->
+    <string name="settings">Settings</string>
     <string name="settings_group_quiet">Quiet</string>
     <string name="settings_group_quiet_desc">Batching, quiet hours, and colour.</string>
     <string name="settings_group_pauses">When you want a breath</string>
@@ -117,7 +118,11 @@
     <string name="session_over_title">Your time in %1$s is up</string>
     <string name="session_over_text">Done, or a little longer?</string>
     <string name="session_extend_action">+5 minutes</string>
-    <string name="action_back">← back</string>
+    <!-- v0.62.2: "back" → "Back" (capitalized for consistency with
+         "Notes", "Quiet", "Settings" titles). The screen titles
+         throughout the launcher use sentence case; the v0.21.0
+         "← back" was lowercase. -->
+    <string name="action_back">← Back</string>
 
     <string name="batching_section">Notification batching</string>
     <string name="batching_explainer">Chosen apps stop interrupting you; their notifications wait quietly and arrive together at 8:00, 12:30 and 18:00. Conversations, calls and alarms always come through instantly.</string>
@@ -753,8 +758,15 @@
          grade the user; "X days of notes" is
          a fact about the user's pattern, not a
          score. -->
+    <!-- v0.62.2: subtitle "X day(s) of notes" was a count of distinct
+         days with notes, not a count of notes. A user with one note
+         on Aug 19 saw "1 day of notes" and read it as "I have one
+         note" or "I have notes from one place". The new copy is
+         "Today" when the count is 1 (the only day with notes is
+         today) and "N days of notes" otherwise. The Notes tab still
+         shows day-grouped pills so the user can see which days. -->
     <plurals name="quick_notes_count_n">
-        <item quantity="one">%1$d day of notes</item>
+        <item quantity="one">Today</item>
         <item quantity="other">%1$d days of notes</item>
     </plurals>
     <!-- v0.62.0: pin-to-home explainer. v0.53.0
@@ -771,6 +783,29 @@
         <item quantity="one">New notes will appear on the home screen. %1$d is pinned now.</item>
         <item quantity="other">New notes will appear on the home screen. %1$d are pinned now.</item>
     </plurals>
+    <!-- v0.62.2: explainer text is now state-dependent. The v0.53.0
+         string above always claimed "New notes will appear on the
+         home screen" — true when the toggle is ON, false when it's
+         OFF. The new plurals split ON vs OFF so the explainer
+         matches the actual behaviour:
+         - ON:  "New notes will appear on the home screen. N is/are
+                pinned now" (the legacy v0.53.0 copy)
+         - OFF: "New notes will stay in the Notes tab. N is/are
+                already pinned" (a user who toggles off wants to
+                know their existing pinned notes are still there in
+                the Notes tab — just not surfaced on the home card).
+         The empty-state strings [pin_to_home_explainer] (OFF) and
+         [pin_to_home_explainer_on_empty] (ON) cover the recent-is-
+         empty case without a count. -->
+    <plurals name="pin_to_home_explainer_on_n">
+        <item quantity="one">New notes will appear on the home screen. %1$d is pinned now.</item>
+        <item quantity="other">New notes will appear on the home screen. %1$d are pinned now.</item>
+    </plurals>
+    <plurals name="pin_to_home_explainer_off_n">
+        <item quantity="one">New notes will stay in the Notes tab. %1$d is already pinned.</item>
+        <item quantity="other">New notes will stay in the Notes tab. %1$d are already pinned.</item>
+    </plurals>
+    <string name="pin_to_home_explainer_on_empty">New notes will appear on the home screen.</string>
     <!-- v0.49.0: kind picker + Task / Reminder save flow.
          Renamed "Quick" → "Quick note" so the chip is unambiguous
          (a user reading just the chip label knows it's a note, not
@@ -915,7 +950,17 @@
          hint copy so the user knows the new
          clinical-variant bangs exist without
          having to tap the help dialog. -->
-    <string name="search_hint_v058">What do you want to open? (or !ground, !panic, !breathe, !note, !task)</string>
+    <!-- v0.62.2: hint shortened — "Search apps, or tap ? for !commands".
+         v0.58.0 introduced 5 inline bangs ("What do you want to open?
+         (or !ground, !panic, !breathe, !note, !task)") and v0.62.0
+         tried `bodySmall` to make it fit one line on a 1264px screen.
+         bodySmall still wrapped the hint mid-bang — "ground, !" sat
+         on line 1 and "panic" fell to line 2, splitting the bang
+         token. The full list now lives only behind the "?" button
+         (the universal "show me help" gesture, v0.53.0 Issue 7).
+         The new copy is short enough to fit on one line at
+         bodyMedium on any screen size. -->
+    <string name="search_hint_v058">Search apps, or tap ? for !commands</string>
     <string name="search_hint_help_cd">Show all bang commands</string>
     <string name="search_help_title">Bang commands</string>
     <string name="bang_help_ground">Go to the Ground me surface</string>
