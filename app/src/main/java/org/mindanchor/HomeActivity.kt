@@ -19,6 +19,7 @@ import org.mindanchor.data.NotesPrefs
 import org.mindanchor.data.SunsetPrefs
 import org.mindanchor.friction.SessionManager
 import org.mindanchor.launcher.LauncherRoot
+import org.mindanchor.journal.JournalRoot
 import org.mindanchor.letters.LetterScheduler
 import org.mindanchor.onboarding.OnboardingPrefs
 import org.mindanchor.onboarding.OnboardingScreen
@@ -245,13 +246,17 @@ class HomeActivity : ComponentActivity() {
                                 // pattern). The activity is
                                 // foreground when the flash plays.
                                 val flashEvent by flashSignal.collectAsStateWithLifecycle()
-                                LauncherRoot(
-                                    goHomeSignal = goHome,
-                                    letterDateSignal = letterDate,
-                                    onLetterDateConsumed = ::consumeLetterDate,
-                                    flashEvent = flashEvent,
-                                    onFlashConsumed = ::consumeFlash,
-                                )
+                                // v0.63.0: the journal home replaces the
+                                // v0.62.7 launcher tree. The launcher
+                                // (app drawer, favourites, friction
+                                // gate, etc.) is preserved in code as
+                                // LauncherRoot for rollback, but the
+                                // primary home surface is now the
+                                // paper-texture journal from the
+                                // superdesign "warmer journal"
+                                // direction (b35ee64d, b446ae65,
+                                // 5088ef9e, c01a4b03, 4cf0a48a).
+                                JournalRoot()
                             }
                         }
                     }
