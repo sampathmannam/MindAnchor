@@ -59,6 +59,7 @@ internal fun JournalArchive(
     onBack: () -> Unit,
     onSearch: () -> Unit,
     onSettings: () -> Unit,
+    onCall: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     // v0.64.0 fixtures — the four entries the draft renders.
@@ -153,6 +154,7 @@ internal fun JournalArchive(
                 // Crisis line.
                 JournalCrisisLine(
                     modifier = Modifier.padding(vertical = 8.dp),
+                    onCall = onCall,
                 )
 
                 // Footer.

@@ -88,6 +88,7 @@ internal fun JournalToday(
     onSearch: () -> Unit,
     onArchive: () -> Unit,
     onSettings: () -> Unit,
+    onCall: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val today = remember { LocalDate.now() }
@@ -226,10 +227,14 @@ internal fun JournalToday(
                 // v0.64.0: present only when the body is
                 // empty, so the card doesn't keep
                 // re-suggesting the QuickNote screen while
-                // the user is writing inline. The mood
-                // affordance sits in the same empty-state
-                // block so the home stays quiet when
-                // there's already something written.
+                // the user is writing inline.
+                // v0.65.0: the "Name what today feels
+                // like" link is now ALWAYS present, so
+                // Mood is reachable from the journal home
+                // even when the body has text. Naming a
+                // feeling is a different mental action
+                // than writing prose — it doesn't compete
+                // with what's already on the page.
                 if (entryBody.isEmpty()) {
                     Box(
                         modifier = Modifier
@@ -248,28 +253,32 @@ internal fun JournalToday(
                             color = Ink.copy(alpha = 0.30f),
                         )
                     }
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 32.dp, vertical = 4.dp)
-                            .clickable(onClick = onMood),
-                    ) {
-                        Text(
-                            text = "Name what today feels like.",
-                            style = TextStyle(
-                                fontFamily = JournalSerif,
-                                fontStyle = FontStyle.Italic,
-                                fontWeight = FontWeight.Light,
-                                fontSize = 14.sp,
-                            ),
-                            color = Ink.copy(alpha = 0.30f),
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            horizontal = 32.dp,
+                            vertical = if (entryBody.isEmpty()) 4.dp else 8.dp,
                         )
-                    }
+                        .clickable(onClick = onMood),
+                ) {
+                    Text(
+                        text = "Name what today feels like.",
+                        style = TextStyle(
+                            fontFamily = JournalSerif,
+                            fontStyle = FontStyle.Italic,
+                            fontWeight = FontWeight.Light,
+                            fontSize = 14.sp,
+                        ),
+                        color = Ink.copy(alpha = 0.30f),
+                    )
                 }
 
                 // Crisis line — present on every surface.
                 JournalCrisisLine(
                     modifier = Modifier.padding(vertical = 8.dp),
+                    onCall = onCall,
                 )
 
                 // The persistent footer (3 icons, no bangs).

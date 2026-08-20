@@ -106,6 +106,7 @@ internal fun JournalMood(
     onBack: () -> Unit,
     onSearch: () -> Unit,
     onSettings: () -> Unit,
+    onCall: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var selected by remember { mutableStateOf<Mood?>(null) }
@@ -232,6 +233,7 @@ internal fun JournalMood(
                 // Crisis line.
                 JournalCrisisLine(
                     modifier = Modifier.padding(vertical = 8.dp),
+                    onCall = onCall,
                 )
 
                 // Footer.

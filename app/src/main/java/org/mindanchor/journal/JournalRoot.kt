@@ -18,27 +18,42 @@
  *     [JournalFooter] call with the right active
  *     icon, and the 3 icons are NOT labelled (BPD-first:
  *     no labels in the footer).
- *   - The bang commands still work as typed input
- *     inside the Quick Note composer (the existing
- *     LauncherViewModel bang parser routes them), but
- *     the UI no longer advertises them. The right-side
- *     bang-command row in the footer is gone.
+ *
+ * v0.65.0 changes:
+ *   - Crisis numbers (iCall / Vandrevala / AASRA) wired
+ *     to ACTION_DIAL via long-press. The single-tap
+ *     stays text; the long-press fires the dial intent.
+ *   - The single `onCall` callback is supplied here from
+ *     `LocalContext` so each surface composable stays
+ *     Context-free and unit-testable.
+ *   - The journal entry now persists via a JournalPrefs
+ *     DataStore wrapper. DataStore is the single source
+ *     of truth: `todayEntry` collects from
+ *     `prefs.todayEntry` Flow, and the only path that
+ *     mutates it is `updateEntry` (which writes to
+ *     DataStore, re-emits, and `todayEntry` updates).
+ *     A process kill no longer erases the prose.
  */
 @file:Suppress("MagicNumber")
 package org.mindanchor.journal
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.toMutableStateList
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
+import android.app.Activity
 
 /**
  * The 5 journal screens. The enum order is the
@@ -55,17 +70,31 @@ fun JournalRoot(
     val stack: SnapshotStateList<JournalRoute> = remember { mutableStateListOf(JournalRoute.Today) }
     val current: JournalRoute = stack.last()
 
-    // v0.64.0: the entry text is held in this root, so
-    // Today and QuickNote share the same string. v0.65.0
-    // will persist this to NoteStore on close. For
-    // v0.64.0 the text is in-memory only and resets to
-    // the v0.64.0 default fixture on app restart.
-    var todayEntry by remember {
-        // v0.64.0 fixture: the same prose the draft
-        // renders. v0.65.0 will load from NoteStore.
-        mutableStateOf(
-            "The light through the window is different today. It feels quieter. I haven't said it out loud yet, but there is a strange sort of peace in just noticing the way the shadows stretch across the floor. No expectations for the next hour. Just this."
-        )
+    // v0.65.0: persist the journal entry to DataStore.
+    //   - prefs is a JournalPrefs wrapping the host
+    //     Context (HomeActivity, via LocalContext).
+    //   - todayEntry is the single source of truth: the
+    //     value the screens render is whatever the
+    //     DataStore Flow currently emits. On first
+    //     composition it shows DEFAULT_FIXTURE; a
+    //     microtask later DataStore's first real value
+    //     arrives and the screen re-renders. On a fresh
+    //     install DEFAULT_FIXTURE IS the saved value, so
+    //     there is no visible flicker.
+    //   - updateEntry is the only path that mutates
+    //     todayEntry. It pushes to DataStore, which
+    //     re-emits the new value, and todayEntry updates
+    //     from the Flow. No local mutableStateOf mirror
+    //     — keeping one would mean two competing sources
+    //     of truth, which is the bug this rewrite fixes.
+    val context = LocalContext.current
+    val prefs = remember { JournalPrefs(context) }
+    val todayEntry by prefs.todayEntry.collectAsStateWithLifecycle(
+        initialValue = JournalPrefs.DEFAULT_FIXTURE
+    )
+    val scope = rememberCoroutineScope()
+    val updateEntry: (String) -> Unit = { newValue ->
+        scope.launch { prefs.setTodayEntry(newValue) }
     }
 
     // The back gesture pops the stack. If the stack has
@@ -76,36 +105,54 @@ fun JournalRoot(
         stack.removeAt(stack.lastIndex)
     }
 
+    // v0.65.0: wire the crisis-line long-press to an
+    // ACTION_DIAL intent. LocalContext returns the host
+    // Activity (HomeActivity) so the dial opens in the
+    // system dialer, not in-app. ACTION_DIAL (not
+    // ACTION_CALL) — the user still has to press the
+    // green button to connect, which is the right shape
+    // for a crisis line (deliberate, not impulsive).
+    val dial: (String) -> Unit = { phone ->
+        val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone"))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
+    }
+
     Box(modifier = modifier.fillMaxSize()) {
         when (current) {
             JournalRoute.Today -> JournalToday(
                 entryBody = todayEntry,
-                onEntryBodyChange = { todayEntry = it },
+                onEntryBodyChange = updateEntry,
                 onContinueWriting = { stack.add(JournalRoute.QuickNote) },
                 onMood = { stack.add(JournalRoute.Mood) },
                 onSearch = { stack.add(JournalRoute.Archive) },
                 onArchive = { stack.add(JournalRoute.Archive) },
                 onSettings = { stack.add(JournalRoute.Settings) },
+                onCall = dial,
             )
             JournalRoute.Archive -> JournalArchive(
                 onBack = { stack.removeAt(stack.lastIndex) },
                 onSearch = { stack.add(JournalRoute.QuickNote) },
                 onSettings = { stack.add(JournalRoute.Settings) },
+                onCall = dial,
             )
             JournalRoute.Settings -> JournalSettings(
                 onBack = { stack.removeAt(stack.lastIndex) },
                 onSearch = { stack.add(JournalRoute.Archive) },
                 onArchive = { stack.add(JournalRoute.Archive) },
+                onCall = dial,
             )
             JournalRoute.Mood -> JournalMood(
                 onBack = { stack.removeAt(stack.lastIndex) },
                 onSearch = { stack.add(JournalRoute.Archive) },
                 onSettings = { stack.add(JournalRoute.Settings) },
+                onCall = dial,
             )
             JournalRoute.QuickNote -> JournalQuickNote(
                 text = todayEntry,
-                onTextChange = { todayEntry = it },
+                onTextChange = updateEntry,
                 onBack = { stack.removeAt(stack.lastIndex) },
+                onCall = dial,
             )
         }
     }

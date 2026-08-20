@@ -66,6 +66,7 @@ internal fun JournalQuickNote(
     text: String,
     onTextChange: (String) -> Unit,
     onBack: () -> Unit,
+    onCall: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val focusRequester = remember { FocusRequester() }
@@ -190,7 +191,7 @@ internal fun JournalQuickNote(
                 // has no footer (the drafts removed the
                 // 3-icon footer for this surface, and
                 // v0.64.0 keeps that).
-                JournalCrisisLine()
+                JournalCrisisLine(onCall = onCall)
             }
         }
     }

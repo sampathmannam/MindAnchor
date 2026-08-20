@@ -58,13 +58,14 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
-private const val CURRENT_VERSION = "v0.64.0"
+private const val CURRENT_VERSION = "v0.65.0"
 
 @Composable
 internal fun JournalSettings(
     onBack: () -> Unit,
     onSearch: () -> Unit,
     onArchive: () -> Unit,
+    onCall: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     // v0.64.0 in-memory state. v0.65.0 will load these
@@ -203,6 +204,7 @@ internal fun JournalSettings(
                 // Crisis line.
                 JournalCrisisLine(
                     modifier = Modifier.padding(vertical = 8.dp),
+                    onCall = onCall,
                 )
 
                 // Footer.
