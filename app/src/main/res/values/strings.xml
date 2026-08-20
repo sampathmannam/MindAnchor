@@ -1302,7 +1302,7 @@
     <string name="bys_send_anyway">Send anyway</string>
     <string name="bys_send">Send</string>
     <string name="bys_try_section">Try the check</string>
-    <string name="bys_try_explainer">A short self-check the launcher shows on long messages or late-night sends. See what it looks like — the real trigger is in v0.26.1.</string>
+    <string name="bys_try_explainer">A short self-check the launcher shows on long messages or late-night sends. See what it looks like — the trigger lands in your quiet hours, the same hours you set under Sunset mode.</string>
     <string name="bys_try_action">Show the check</string>
     <string name="bys_a11y">Before you send. %1$s.</string>
 

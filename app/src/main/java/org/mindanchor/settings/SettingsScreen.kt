@@ -960,10 +960,33 @@ fun SettingsScreen(
         }
 
         if (group == SettingsGroup.PAUSES) {
-            // v0.26.0 §3.3
-            Text(stringResource(R.string.bys_try_section), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 24.dp, bottom = 4.dp))
-            Text(stringResource(R.string.bys_try_explainer), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = onOpenBeforeYouSend) { Text(stringResource(R.string.bys_try_action)) }
+            // v0.26.0 §3.3. v0.62.7 (F9 from top-50
+            // audit, Aesthetic & Minimalist /
+            // Affordances): the pre-v0.62.7
+            // hierarchy was inverted — titleMedium
+            // header, bodySmall explainer, then
+            // a small TextButton CTA. The user
+            // reads prose, misses the action,
+            // leaves. New shape: the header is
+            // demoted to titleLarge (still
+            // legible, not the loudest element
+            // on the screen), the explainer
+            // grows to bodyMedium so the
+            // description is readable, and the
+            // CTA is an OutlinedButton — the
+            // shape the user already trusts from
+            // v0.62.6 (F4: "Take a reading" and
+            // "Grant usage access" were promoted
+            // the same way). One outlined pill
+            // per section, no separate link.
+            Text(stringResource(R.string.bys_try_section), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 24.dp, bottom = 8.dp))
+            Text(stringResource(R.string.bys_try_explainer), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            OutlinedButton(
+                onClick = onOpenBeforeYouSend,
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .semantics { role = Role.Button },
+            ) { Text(stringResource(R.string.bys_try_action)) }
 
             // v0.26.0 BPD profile
             Text(stringResource(R.string.bpd_profile_section), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 24.dp, bottom = 4.dp))
@@ -2132,9 +2155,26 @@ fun SettingsScreen(
                 Switch(checked = emaEnabled, onCheckedChange = null)
             }
             val emaCount by viewModel.emaCount.collectAsStateWithLifecycle()
+            // v0.62.7 (F8 from top-50 audit,
+            // Visibility of System Status): the
+            // ema count is the only signal the
+            // user has that the system is
+            // collecting anything at all. The
+            // pre-v0.62.7 design hid it in a
+            // bodyMedium line below a 6-line
+            // explainer; the user had to read
+            // 6 lines of prose to find out the
+            // system has 0 data points. New
+            // shape: headlineSmall stat line
+            // ("X check-ins so far.") sits at
+            // the top, the long explainer
+            // drops to bodySmall under it. A
+            // skipped prompt is normal, not a
+            // shortfall, so the line is never
+            // styled as a streak or a goal.
             Text(
                 text = stringResource(R.string.ema_count, emaCount),
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.padding(top = 8.dp),
             )
             Text(

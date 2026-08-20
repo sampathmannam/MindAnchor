@@ -1124,7 +1124,60 @@ fun LauncherRoot(
                 },
                 onOpenGroundMe = { surface = LauncherSurface.GroundMe },
                 recentNotes = pinnedNotes,
-                onAddQuickNote = { body, pinned -> viewModel.addQuickNote(body, pinned) },
+                onAddQuickNote = { body, pinned ->
+                    // v0.62.7 (F6 from top-50 audit,
+                    // Match Real World / Visibility of
+                    // System Status): the Quick note
+                    // input now recognises the same
+                    // `!ground` / `!panic` / `!breathe`
+                    // / `!note` / `!task` / `!settings`
+                    // / `!mood` bangs the search bar
+                    // recognises. The audit's two
+                    // recommendations were either
+                    // "update the help to match the
+                    // search behaviour" or "wire the
+                    // bangs in the Quick note too" —
+                    // the latter is the better outcome
+                    // (the help copy is right, the
+                    // behaviour was missing). When the
+                    // user types a bang, route to the
+                    // matching surface instead of
+                    // saving it as a literal note.
+                    // Same `parseBang` table as the
+                    // search bar; the surface map
+                    // mirrors the Drawer's `onBang`
+                    // callback a few lines down so the
+                    // two entry points stay in sync.
+                    val t = body.trim()
+                    val bangSurface: LauncherSurface? = when {
+                        t == "!ground" || t.startsWith("!ground ") ->
+                            LauncherSurface.GroundMe
+                        t == "!panic" || t.startsWith("!panic ") ->
+                            LauncherSurface.Panic
+                        t == "!breathe" || t.startsWith("!breathe ") ->
+                            LauncherSurface.Breathing
+                        t == "!note" || t.startsWith("!note ") ->
+                            LauncherSurface.Notes
+                        t == "!task" || t.startsWith("!task ") ->
+                            LauncherSurface.Home
+                        t == "!settings" || t.startsWith("!settings ") ->
+                            LauncherSurface.Settings
+                        t == "!mood" || t.startsWith("!mood ") ->
+                            LauncherSurface.Home
+                        else -> null
+                    }
+                    if (bangSurface != null) {
+                        surface = bangSurface
+                        // Clear the search bar so a
+                        // subsequent home render does
+                        // not re-fire the bang (the
+                        // Drawer would also see the
+                        // same query and re-navigate).
+                        viewModel.onQueryChange("")
+                    } else {
+                        viewModel.addQuickNote(body, pinned)
+                    }
+                },
                 // v0.46.0: forward the mood-log
                 // tap to the VM. The VM owns the
                 // note store write; the card
