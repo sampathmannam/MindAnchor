@@ -1,27 +1,33 @@
 /*
- * v0.63.0: the persistent journal footer.
+ * v0.64.0: the persistent journal footer (BPD-first).
  *
- * The drafts use the same 3-icon + bang-commands footer
- * on every screen except Quick Note (which has no footer
- * at all — the Quick Note composer is meant to feel
- * "outside" the journal, a clean page on the desk).
+ * The footer is the journal's persistent anchor. It is
+ * identical on every screen except Quick Note (which has
+ * no footer — the Quick Note composer is the journal's
+ * "outside" surface, a clean page on the desk).
  *
- * Footer spec:
+ * v0.64.0 footer spec:
  *   - 32dp tall, 12px vertical padding
- *   - 3 icon buttons on the left: search, archive, settings
- *     (active = terracotta, inactive = ink/30%)
- *   - 2-3 bang commands on the right: !ground, !breathe,
- *     and !mood (home only)
- *   - Translucent paper fill at 50% alpha + 12dp top
- *     border + 12dp blur backdrop
- *   - Click target for every button is 48dp (a11y minimum)
- *   - Bang commands are serif italic, resting 60% terracotta
+ *   - 3 icon buttons, evenly spaced, NO labels, NO bang
+ *     commands. The drafts render !ground / !breathe /
+ *     !mood as small text buttons on the right; v0.64.0
+ *     drops the "!" affordance entirely (BPD-first: the
+ *     bang commands still work when typed into the Quick
+ *     Note composer, but the UI does not advertise them).
+ *   - Active icon = terracotta. Inactive = ink at 30% alpha.
+ *   - Translucent paper fill at 50% alpha + 1dp top hairline
+ *   - Every icon button is 48dp (a11y minimum)
+ *   - The crisis line above the footer carries the iCall /
+ *     Vandrevala / AASRA numbers — see JournalCrisisLine
+ *     in each screen. The footer is the journal's
+ *     navigation, the crisis line is the journal's
+ *     promise.
  *
- * v0.63.0: the footer is *not* a sticky bar over the
- * content. It sits below the content with 0px overlap,
- * so the body can scroll past it (Notes and Settings
- * have scrollable bodies). On Home the body is the
- * input section, which is short — no scroll needed.
+ * v0.63.0 had a sticky footer with 2-3 bang commands on
+ * the right ("!ground", "!breathe", "!mood"). v0.64.0
+ * removes the bang commands. The bangs are still typed
+ * into the Quick Note composer as power-user shortcuts;
+ * they just aren't part of the visible chrome.
  */
 @file:Suppress("MagicNumber")
 package org.mindanchor.journal
@@ -34,17 +40,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -52,9 +54,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
 /**
- * The persistent footer. 3 icon buttons + 2-3 bang commands.
- * The active icon is passed in (the draft shows terracotta
- * for whichever screen is currently shown).
+ * The persistent footer. 3 icon buttons, no labels, no
+ * bang commands. The active icon is passed in.
  */
 @Composable
 internal fun JournalFooter(
@@ -62,9 +63,6 @@ internal fun JournalFooter(
     onSearch: () -> Unit,
     onArchive: () -> Unit,
     onSettings: () -> Unit,
-    onBangGround: () -> Unit,
-    onBangBreathe: () -> Unit,
-    onBangMood: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val paperAlpha = PaperCard.copy(alpha = 0.50f)
@@ -78,41 +76,26 @@ internal fun JournalFooter(
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
-            // Left: 3 icon buttons.
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                FooterIconButton(
-                    icon = FooterIcon.Search,
-                    isActive = activeIcon == FooterIcon.Search,
-                    onClick = onSearch,
-                    contentDescription = "Search",
-                )
-                Spacer(modifier = Modifier.width(20.dp))
-                FooterIconButton(
-                    icon = FooterIcon.Archive,
-                    isActive = activeIcon == FooterIcon.Archive,
-                    onClick = onArchive,
-                    contentDescription = "Archive",
-                )
-                Spacer(modifier = Modifier.width(20.dp))
-                FooterIconButton(
-                    icon = FooterIcon.Settings,
-                    isActive = activeIcon == FooterIcon.Settings,
-                    onClick = onSettings,
-                    contentDescription = "Settings",
-                )
-            }
-            // Right: bang commands.
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                BangButton("!ground", onClick = onBangGround)
-                Spacer(modifier = Modifier.width(16.dp))
-                BangButton("!breathe", onClick = onBangBreathe)
-                if (onBangMood != null) {
-                    Spacer(modifier = Modifier.width(16.dp))
-                    BangButton("!mood", onClick = onBangMood)
-                }
-            }
+            FooterIconButton(
+                icon = FooterIcon.Search,
+                isActive = activeIcon == FooterIcon.Search,
+                onClick = onSearch,
+                contentDescription = "Search",
+            )
+            FooterIconButton(
+                icon = FooterIcon.Archive,
+                isActive = activeIcon == FooterIcon.Archive,
+                onClick = onArchive,
+                contentDescription = "Archive",
+            )
+            FooterIconButton(
+                icon = FooterIcon.Settings,
+                isActive = activeIcon == FooterIcon.Settings,
+                onClick = onSettings,
+                contentDescription = "Settings",
+            )
         }
     }
 }
@@ -129,7 +112,7 @@ private fun FooterIconButton(
     val color = if (isActive) Terracotta else Ink.copy(alpha = 0.30f)
     Box(
         modifier = Modifier
-            .size(40.dp)
+            .size(48.dp)
             .clickable(onClick = onClick)
             .semantics {
                 role = Role.Button
@@ -143,25 +126,5 @@ private fun FooterIconButton(
             FooterIcon.Settings -> SettingsGlyph(color = color, modifier = Modifier.size(20.dp))
             FooterIcon.None -> {}
         }
-    }
-}
-
-@Composable
-private fun BangButton(label: String, onClick: () -> Unit) {
-    val restColor = Terracotta.copy(alpha = 0.60f)
-    Box(
-        modifier = Modifier
-            .height(40.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 4.dp)
-            .semantics { role = Role.Button },
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            style = JournalBang,
-            color = restColor,
-        )
     }
 }

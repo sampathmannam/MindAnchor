@@ -1,5 +1,5 @@
 /*
- * v0.63.0: the journal root.
+ * v0.64.0 (BPD-first): the journal root.
  *
  * State-based navigation across the 5 journal screens
  * (Today, Archive, Settings, Mood, QuickNote). Holds
@@ -7,18 +7,22 @@
  * gesture / back button returns to the previous screen
  * rather than exiting the journal.
  *
- * The 5 screens correspond exactly to the 5 superdesign
- * drafts (b35ee64d, b446ae65, 5088ef9e, c01a4b03,
- * 4cf0a48a). The state is a simple enum; the bang
- * commands and the footer icons each route to a
- * destination, and the journal returns to Today when
- * the user dismisses the QuickNote composer.
- *
- * v0.63.0 routes the journal as the primary launcher
- * surface — HomeActivity calls [JournalRoot] directly,
- * replacing the v0.62.7 [LauncherRoot]. The old
- * LauncherRoot is preserved in HomeScreen.kt for
- * rollback but is not wired in v0.63.0.
+ * v0.64.0 changes:
+ *   - The 5 screens are the BPD-first variants. The
+ *     Today/QuickNote bodies are connected: a single
+ *     `todayEntry` string lives in this root and is
+ *     shared by both screens. Typing in QuickNote
+ *     updates the same string Today shows.
+ *   - The footer is no longer a fixed parameter on
+ *     every screen — every surface has its own
+ *     [JournalFooter] call with the right active
+ *     icon, and the 3 icons are NOT labelled (BPD-first:
+ *     no labels in the footer).
+ *   - The bang commands still work as typed input
+ *     inside the Quick Note composer (the existing
+ *     LauncherViewModel bang parser routes them), but
+ *     the UI no longer advertises them. The right-side
+ *     bang-command row in the footer is gone.
  */
 @file:Suppress("MagicNumber")
 package org.mindanchor.journal
@@ -51,54 +55,57 @@ fun JournalRoot(
     val stack: SnapshotStateList<JournalRoute> = remember { mutableStateListOf(JournalRoute.Today) }
     val current: JournalRoute = stack.last()
 
-    // v0.63.0: the back gesture pops the stack. If
-    // the stack has only Today, the back gesture
-    // forwards to HomeActivity (which will move
-    // the launcher to the background — standard
-    // launcher behaviour).
+    // v0.64.0: the entry text is held in this root, so
+    // Today and QuickNote share the same string. v0.65.0
+    // will persist this to NoteStore on close. For
+    // v0.64.0 the text is in-memory only and resets to
+    // the v0.64.0 default fixture on app restart.
+    var todayEntry by remember {
+        // v0.64.0 fixture: the same prose the draft
+        // renders. v0.65.0 will load from NoteStore.
+        mutableStateOf(
+            "The light through the window is different today. It feels quieter. I haven't said it out loud yet, but there is a strange sort of peace in just noticing the way the shadows stretch across the floor. No expectations for the next hour. Just this."
+        )
+    }
+
+    // The back gesture pops the stack. If the stack has
+    // only Today, the back gesture forwards to
+    // HomeActivity (which will move the launcher to the
+    // background — standard launcher behaviour).
     BackHandler(enabled = stack.size > 1) {
         stack.removeAt(stack.lastIndex)
     }
 
-    val onBangGround: () -> Unit = { /* TODO v0.64.0: open GroundMe */ }
-    val onBangBreathe: () -> Unit = { /* TODO v0.64.0: open Breathing */ }
-    val onBangMood: () -> Unit = { stack.add(JournalRoute.Mood) }
-
     Box(modifier = modifier.fillMaxSize()) {
         when (current) {
             JournalRoute.Today -> JournalToday(
+                entryBody = todayEntry,
+                onEntryBodyChange = { todayEntry = it },
                 onContinueWriting = { stack.add(JournalRoute.QuickNote) },
+                onMood = { stack.add(JournalRoute.Mood) },
                 onSearch = { stack.add(JournalRoute.Archive) },
                 onArchive = { stack.add(JournalRoute.Archive) },
                 onSettings = { stack.add(JournalRoute.Settings) },
-                onBangGround = onBangGround,
-                onBangBreathe = onBangBreathe,
-                onBangMood = onBangMood,
             )
             JournalRoute.Archive -> JournalArchive(
                 onBack = { stack.removeAt(stack.lastIndex) },
                 onSearch = { stack.add(JournalRoute.QuickNote) },
                 onSettings = { stack.add(JournalRoute.Settings) },
-                onBangGround = onBangGround,
-                onBangBreathe = onBangBreathe,
             )
             JournalRoute.Settings -> JournalSettings(
                 onBack = { stack.removeAt(stack.lastIndex) },
                 onSearch = { stack.add(JournalRoute.Archive) },
                 onArchive = { stack.add(JournalRoute.Archive) },
-                onBangGround = onBangGround,
-                onBangBreathe = onBangBreathe,
             )
             JournalRoute.Mood -> JournalMood(
                 onBack = { stack.removeAt(stack.lastIndex) },
                 onSearch = { stack.add(JournalRoute.Archive) },
                 onSettings = { stack.add(JournalRoute.Settings) },
-                onBangGround = onBangGround,
-                onBangBreathe = onBangBreathe,
             )
             JournalRoute.QuickNote -> JournalQuickNote(
+                text = todayEntry,
+                onTextChange = { todayEntry = it },
                 onBack = { stack.removeAt(stack.lastIndex) },
-                onSave = { /* TODO v0.64.0: write to NoteStore */ stack.removeAt(stack.lastIndex) },
             )
         }
     }

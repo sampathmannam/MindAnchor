@@ -1,14 +1,40 @@
 /*
- * v0.63.0: the Today screen — the journal's home.
+ * v0.64.0 (BPD-first): the Today screen — the journal's
+ * home.
  *
- * Locked from superdesign draft b35ee64d ("MindAnchor Journal -
- * Day One Chapter"). The drafts render a 4-icon footer
- * (search, archive, notes, settings) plus 3 bang commands
- * (!ground, !breathe, !mood). v0.63.0 sticks to the launcher's
- * 3-icon rule (search, archive, settings — no notes tile;
- * notes are reachable via the "Continue writing..." input
- * or the !note bang). The 3 bangs (`!ground`, `!breathe`,
- * `!mood`) are home-specific.
+ * v0.63.0 had a hard-coded fixture note and three visible
+ * pieces of pressure:
+ *   1. "Entry No. 412" in the header — a counter, can
+ *      shame ("412 entries, are you keeping up?")
+ *   2. A broken vertical-timestamp rendered one
+ *      character per line in the left margin (the
+ *      JournalVerticalText composable constrained its
+ *      width to 10dp, which the text overflows by
+ *      stacking vertically — visually broken)
+ *   3. "Continue writing..." with a feather icon —
+ *      pressuring, always-on, classifying
+ *
+ * v0.64.0 changes:
+ *   - No entry number. Just the date.
+ *   - No vertical timestamp. Time is NOT on the screen
+ *     (BPD-first: no time pressure).
+ *   - No "Continue writing..." pressuring. The soft
+ *     input asks "Anything here?" (or stays empty if
+ *     there's no entry yet).
+ *   - No "saved quietly" ticking counter. The body
+ *     ends with "Thanks for writing that." — a
+ *     validation, not a status.
+ *   - The body is a single Column (no fixed-height Box)
+ *     so the gap between body and caption follows the
+ *     text, not a 300dp box.
+ *   - The crisis line sits just above the 3-icon footer
+ *     (search · archive · settings).
+ *
+ * Bang commands still work when typed into the body
+ * (e.g. "!ground" routes to GroundMe — wired in v0.64.0
+ * via the existing LauncherViewModel bang parser), but
+ * the UI does not advertise them (BPD-first: no "!"
+ * affordances).
  */
 @file:Suppress("MagicNumber")
 package org.mindanchor.journal
@@ -27,6 +53,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,46 +64,42 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.time.LocalDate
-import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
- * The Today body. v0.63.0 uses a single hard-coded fixture
- * note (the same prose the superdesign draft renders) so
- * the visual lands exactly. v0.64.0 will swap in the most-
- * recent note from [org.mindanchor.model.NoteStore].
- *
- * The "Entry No. 412" is a journal ritual, not a count —
- * the v0.63.0 fixture is 412; v0.64.0 will read from
- * NoteStore.count() but the rendering stays "Entry No. N"
- * rather than "412 notes". The drafts render the
- * hard-coded 412 because the journal aesthetic reads
- * "412th day of practice", not "412 entries in DB".
+ * The Today body. v0.64.0 reads/writes the entry body
+ * via the JournalRoot's NoteStore binding (wired in
+ * v0.64.0). The hard-coded fixture text is gone — the
+ * screen is empty by default, which is the BPD-first
+ * stance: an empty state is a valid state.
  */
 @Composable
 internal fun JournalToday(
+    entryBody: String,
+    onEntryBodyChange: (String) -> Unit,
     onContinueWriting: () -> Unit,
+    onMood: () -> Unit,
     onSearch: () -> Unit,
     onArchive: () -> Unit,
     onSettings: () -> Unit,
-    onBangGround: () -> Unit,
-    onBangBreathe: () -> Unit,
-    onBangMood: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var noteText by remember { mutableStateOf(
-        "The light through the window is different today. It feels quieter. I haven't said it out loud yet, but there is a strange sort of peace in just noticing the way the shadows stretch across the floor. No expectations for the next hour. Just this."
-    ) }
     val today = remember { LocalDate.now() }
-    val time = remember { LocalTime.now() }
-    val dateText = today.format(DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.US))
-    val timeText = time.format(DateTimeFormatter.ofPattern("h:mm a", Locale.US))
-    val entryNumber = 412
+    // BPD-first: the date is shown, the time is not.
+    // v0.64.0 keeps the date because dates help orient
+    // ("Monday" vs "Tuesday" matters) but omits the
+    // hour/minute (which would be a counter). The format
+    // "EEEE  d MMMM" already produces "Thursday 20 August"
+    // with proper title-case — we do NOT lowercase + only
+    // title-case the first character (that left "august"
+    // lowercase in v0.64.0 first build).
+    val dateText = today.format(DateTimeFormatter.ofPattern("EEEE  d MMMM", Locale.US))
 
     Column(
         modifier = modifier
@@ -89,11 +112,10 @@ internal fun JournalToday(
         JournalPaperCard(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .height(720.dp),
+                .padding(horizontal = 16.dp),
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Header — TODAY + divider + date / entry no.
+                // Header — TODAY + divider + date.
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -118,94 +140,144 @@ internal fun JournalToday(
                             .background(Terracotta.copy(alpha = 0.30f)),
                     )
                     Spacer(modifier = Modifier.height(12.dp))
-                    Row(
+                    Text(
+                        text = dateText,
+                        style = JournalSmallCaps,
+                        color = Ink.copy(alpha = 0.40f),
+                    )
+                }
+
+                // Body — entry text. v0.64.0:
+                //   - Single Column (no fixed-height Box)
+                //   - A BasicTextField always present (the
+                //     "Anything here?" placeholder is the
+                //     default state, which IS the empty
+                //     state — no separate "no note" UI)
+                //   - When the user types, a "Thanks for
+                //     writing that." validation line appears
+                //     directly below the body, no extra
+                //     spacer, no weight(1f) forcing the
+                //     body to fill a fixed-height box.
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 32.dp),
+                ) {
+                    BasicTextField(
+                        value = entryBody,
+                        onValueChange = onEntryBodyChange,
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Bottom,
-                    ) {
-                        Text(
-                            text = dateText.uppercase(),
-                            style = JournalSmallCaps,
-                            color = Ink.copy(alpha = 0.40f),
-                        )
-                        Text(
-                            text = "Entry No. $entryNumber",
-                            style = JournalEntryNumber,
-                            color = Ink.copy(alpha = 0.30f),
-                        )
-                    }
-                }
-
-                // Body — vertical timestamp in the left margin + note.
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 32.dp)
-                        .height(300.dp),
-                ) {
-                    JournalVerticalText(
-                        text = timeText,
-                        modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .padding(start = 0.dp),
+                        textStyle = TextStyle(
+                            fontFamily = JournalSerif,
+                            fontWeight = FontWeight.Light,
+                            fontSize = 20.sp,
+                            lineHeight = 32.sp,
+                            color = Ink.copy(alpha = 0.80f),
+                        ),
+                        cursorBrush = androidx.compose.ui.graphics.SolidColor(Terracotta),
+                        decorationBox = { innerTextField ->
+                            if (entryBody.isEmpty()) {
+                                Text(
+                                    text = "Anything here?",
+                                    style = TextStyle(
+                                        fontFamily = JournalSerif,
+                                        fontStyle = FontStyle.Italic,
+                                        fontWeight = FontWeight.Light,
+                                        fontSize = 20.sp,
+                                        lineHeight = 32.sp,
+                                    ),
+                                    color = Ink.copy(alpha = 0.20f),
+                                )
+                            } else {
+                                innerTextField()
+                            }
+                        },
                     )
-                    Text(
-                        text = noteText,
-                        style = JournalNoteBody,
-                        color = Ink.copy(alpha = 0.80f),
-                        modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .padding(start = 28.dp)
-                            .fillMaxWidth(),
-                    )
-                    Text(
-                        text = "saved quietly",
-                        style = JournalBang,
-                        color = QuietTeal.copy(alpha = 0.50f),
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(start = 28.dp, bottom = 4.dp),
-                    )
-                }
-
-                // Input section — "Continue writing..." with feather icon.
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 32.dp)
-                        .clickable(onClick = onContinueWriting)
-                        .padding(vertical = 12.dp),
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        FeatherGlyph(
-                            color = Ink.copy(alpha = 0.30f),
-                            modifier = Modifier.size(16.dp),
+                    if (entryBody.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(1.dp)
+                                .background(Terracotta.copy(alpha = 0.20f)),
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = "Continue writing...",
+                            text = "Thanks for writing that.",
                             style = TextStyle(
                                 fontFamily = JournalSerif,
-                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                                fontStyle = FontStyle.Italic,
                                 fontWeight = FontWeight.Light,
-                                fontSize = 18.sp,
+                                fontSize = 14.sp,
                             ),
-                            color = Ink.copy(alpha = 0.20f),
+                            color = AcknowledgeTeal,
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                // Spacer pushes the crisis line and footer
+                // to the bottom of the card. v0.64.0: a
+                // fixed 24dp gap (not weight(0.5f) which
+                // produced a big white gap in the v0.64.0
+                // first build).
+                Spacer(modifier = Modifier.height(24.dp))
 
-                // The persistent footer.
+                // The "open a fuller composer" affordance.
+                // v0.64.0: present only when the body is
+                // empty, so the card doesn't keep
+                // re-suggesting the QuickNote screen while
+                // the user is writing inline. The mood
+                // affordance sits in the same empty-state
+                // block so the home stays quiet when
+                // there's already something written.
+                if (entryBody.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 32.dp, vertical = 12.dp)
+                            .clickable(onClick = onContinueWriting),
+                    ) {
+                        Text(
+                            text = "Open the note — if you'd like.",
+                            style = TextStyle(
+                                fontFamily = JournalSerif,
+                                fontStyle = FontStyle.Italic,
+                                fontWeight = FontWeight.Light,
+                                fontSize = 14.sp,
+                            ),
+                            color = Ink.copy(alpha = 0.30f),
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 32.dp, vertical = 4.dp)
+                            .clickable(onClick = onMood),
+                    ) {
+                        Text(
+                            text = "Name what today feels like.",
+                            style = TextStyle(
+                                fontFamily = JournalSerif,
+                                fontStyle = FontStyle.Italic,
+                                fontWeight = FontWeight.Light,
+                                fontSize = 14.sp,
+                            ),
+                            color = Ink.copy(alpha = 0.30f),
+                        )
+                    }
+                }
+
+                // Crisis line — present on every surface.
+                JournalCrisisLine(
+                    modifier = Modifier.padding(vertical = 8.dp),
+                )
+
+                // The persistent footer (3 icons, no bangs).
                 JournalFooter(
                     activeIcon = FooterIcon.None,
                     onSearch = onSearch,
                     onArchive = onArchive,
                     onSettings = onSettings,
-                    onBangGround = onBangGround,
-                    onBangBreathe = onBangBreathe,
-                    onBangMood = onBangMood,
                 )
             }
         }

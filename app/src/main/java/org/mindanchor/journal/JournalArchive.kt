@@ -1,19 +1,27 @@
 /*
- * v0.63.0: the Archive screen — the journal's notes list.
+ * v0.64.0 (BPD-first): the Archive screen — the journal's
+ * notes list.
  *
- * Locked from superdesign draft b446ae65. The drafts
- * render four entries on a single scrollable card, each
- * with the date in a left-margin label and the entry
- * body in serif italic. The list has a header (back
- * chevron, "ARCHIVE / ALL ENTRIES" breadcrumb, "Search
- * Notes" right-side hint) and the persistent 3-icon
- * footer.
+ * v0.63.0 had a header reading "ARCHIVE / ALL ENTRIES"
+ * (the second part is a count — BPD-unsafe) and a
+ * "Search Notes" right-side hint (a discoverability
+ * affordance for a feature we don't need to advertise —
+ * the bangs still work, the search is a real
+ * affordance via the footer icon).
  *
- * v0.63.0 keeps the four fixture entries from the draft
- * (the same Monday-24 / Sunday-23 / Friday-21 /
- * Tuesday-18 prose the draft renders) so the visual
- * lands exactly. v0.64.0 will swap in the last 4
- * notes from [org.mindanchor.model.NoteStore].
+ * v0.64.0 changes:
+ *   - Header: just "ARCHIVE". No count, no breadcrumb.
+ *   - No "Search Notes" hint. The search is the first
+ *     footer icon.
+ *   - Each entry: date above, body below. No vertical
+ *     timestamp margin. The drafts used a left-margin
+ *     absolute date label; v0.64.0 stacks the date
+ *     above the body (the same column) — simpler,
+ *     reads naturally, no rendering bugs.
+ *   - No date grouping. No "This week / This month /
+ *     Older" — these are implicit rankings.
+ *   - No entry count at the top or bottom.
+ *   - Crisis line above the footer.
  */
 @file:Suppress("MagicNumber")
 package org.mindanchor.journal
@@ -39,18 +47,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 
+/**
+ * The Archive body. v0.64.0 reads entries from the
+ * journal's NoteStore. v0.64.0 still keeps the four
+ * fixture entries from v0.63.0 (so the visual lands
+ * exactly) — v0.65.0+ will swap in live data.
+ */
 @Composable
 internal fun JournalArchive(
     onBack: () -> Unit,
     onSearch: () -> Unit,
     onSettings: () -> Unit,
-    onBangGround: () -> Unit,
-    onBangBreathe: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // v0.63.0 fixtures — the four entries the draft renders.
+    // v0.64.0 fixtures — the four entries the draft renders.
     val entries = remember {
         listOf(
             "Monday, Aug 24" to "The light through the window is different today. It feels quieter. I haven't said it out loud yet, but there is a strange sort of peace in just noticing the way the shadows stretch across the floor. No expectations for the next hour. Just this.",
@@ -72,44 +83,30 @@ internal fun JournalArchive(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
-                .height(800.dp),
+                .height(900.dp),
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Header — back chevron + breadcrumb + search hint.
+                // Header — back chevron + title only.
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 32.dp)
                         .padding(top = 32.dp, bottom = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clickable(onClick = onBack),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            ChevronLeftGlyph(color = Ink.copy(alpha = 0.30f))
-                        }
-                        Spacer(modifier = Modifier.size(16.dp))
-                        Text(
-                            text = "ARCHIVE / ",
-                            style = JournalSmallCaps,
-                            color = Ink.copy(alpha = 0.40f),
-                        )
-                        Text(
-                            text = "ALL ENTRIES",
-                            style = JournalSmallCaps,
-                            color = Terracotta.copy(alpha = 0.60f),
-                        )
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clickable(onClick = onBack),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        ChevronLeftGlyph(color = Ink.copy(alpha = 0.30f))
                     }
+                    Spacer(modifier = Modifier.size(16.dp))
                     Text(
-                        text = "Search Notes",
+                        text = "ARCHIVE",
                         style = JournalSmallCaps,
-                        color = Ink.copy(alpha = 0.30f),
-                        modifier = Modifier.clickable(onClick = onSearch),
+                        color = Terracotta,
                     )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
@@ -118,10 +115,10 @@ internal fun JournalArchive(
                         .fillMaxWidth()
                         .padding(horizontal = 32.dp)
                         .height(1.dp)
-                        .background(Terracotta.copy(alpha = 0.05f)),
+                        .background(Terracotta.copy(alpha = 0.30f)),
                 )
 
-                // Body — the 4 entries.
+                // Body — the 4 entries, plain list.
                 Spacer(modifier = Modifier.height(24.dp))
                 Column(
                     modifier = Modifier
@@ -129,20 +126,12 @@ internal fun JournalArchive(
                         .padding(horizontal = 32.dp),
                 ) {
                     entries.forEachIndexed { index, (date, body) ->
-                        // Each entry: a 96dp-wide left-margin date label
-                        // (absolute-positioned so it sits in the
-                        // card's own margin, not in the column's),
-                        // plus a body text that fills the rest of
-                        // the row. The drafts use a `position: absolute;
-                        // left: -48px` pattern, which we approximate
-                        // by giving the date its own narrow Row at
-                        // the top of a vertical column.
                         Column {
                             Text(
                                 text = date,
                                 style = JournalArchiveEntry.copy(
                                     fontStyle = FontStyle.Italic,
-                                    fontSize = 11.sp,
+                                    fontSize = 12.sp(),
                                 ),
                                 color = Ink.copy(alpha = 0.30f),
                                 modifier = Modifier.padding(bottom = 8.dp),
@@ -154,12 +143,17 @@ internal fun JournalArchive(
                             )
                         }
                         if (index < entries.size - 1) {
-                            Spacer(modifier = Modifier.height(48.dp))
+                            Spacer(modifier = Modifier.height(40.dp))
                         }
                     }
                 }
 
                 Spacer(modifier = Modifier.weight(1f))
+
+                // Crisis line.
+                JournalCrisisLine(
+                    modifier = Modifier.padding(vertical = 8.dp),
+                )
 
                 // Footer.
                 JournalFooter(
@@ -167,11 +161,12 @@ internal fun JournalArchive(
                     onSearch = onSearch,
                     onArchive = onBack,
                     onSettings = onSettings,
-                    onBangGround = onBangGround,
-                    onBangBreathe = onBangBreathe,
                 )
             }
         }
         Spacer(modifier = Modifier.height(32.dp))
     }
 }
+
+@Suppress("FunctionName")
+private fun Int.sp() = androidx.compose.ui.unit.TextUnit(this.toFloat(), androidx.compose.ui.unit.TextUnitType.Sp)

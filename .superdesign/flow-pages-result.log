@@ -1,0 +1,43 @@
+{
+  "jobId": "8d7c0c64-cde5-4c06-8510-0655c77d5d92",
+  "status": "completed",
+  "result": {
+    "drafts": [
+      {
+        "index": 0,
+        "title": "Notes",
+        "nodeId": "draft-variant-b446ae65-9563-4a06-bee5-50678ff94565",
+        "draftId": "b446ae65-9563-4a06-bee5-50678ff94565",
+        "nodeUrl": "https://superdesign.dev/teams/6d8bb8c8-601f-4be3-b8e0-649afb23cd36/projects/8365ffe8-6310-43cc-aee1-0b6e7a3b2fb4?node=draft-variant-b446ae65-9563-4a06-bee5-50678ff94565",
+        "previewUrl": "https://p.superdesign.dev/draft/b446ae65-9563-4a06-bee5-50678ff94565"
+      },
+      {
+        "index": 1,
+        "title": "Settings",
+        "nodeId": "draft-variant-5088ef9e-9f32-4a77-9063-7ec4b9792a65",
+        "draftId": "5088ef9e-9f32-4a77-9063-7ec4b9792a65",
+        "nodeUrl": "https://superdesign.dev/teams/6d8bb8c8-601f-4be3-b8e0-649afb23cd36/projects/8365ffe8-6310-43cc-aee1-0b6e7a3b2fb4?node=draft-variant-5088ef9e-9f32-4a77-9063-7ec4b9792a65",
+        "previewUrl": "https://p.superdesign.dev/draft/5088ef9e-9f32-4a77-9063-7ec4b9792a65"
+      },
+      {
+        "index": 2,
+        "title": "Mood check-in",
+        "nodeId": "draft-variant-c01a4b03-cd2a-4541-96b1-dd1a037a20f0",
+        "draftId": "c01a4b03-cd2a-4541-96b1-dd1a037a20f0",
+        "nodeUrl": "https://superdesign.dev/teams/6d8bb8c8-601f-4be3-b8e0-649afb23cd36/projects/8365ffe8-6310-43cc-aee1-0b6e7a3b2fb4?node=draft-variant-c01a4b03-cd2a-4541-96b1-dd1a037a20f0",
+        "previewUrl": "https://p.superdesign.dev/draft/c01a4b03-cd2a-4541-96b1-dd1a037a20f0"
+      },
+      {
+        "index": 3,
+        "title": "Quick note composer",
+        "nodeId": "draft-variant-4cf0a48a-359f-47ea-a90c-9ecf9b0ebd6d",
+        "draftId": "4cf0a48a-359f-47ea-a90c-9ecf9b0ebd6d",
+        "nodeUrl": "https://superdesign.dev/teams/6d8bb8c8-601f-4be3-b8e0-649afb23cd36/projects/8365ffe8-6310-43cc-aee1-0b6e7a3b2fb4?node=draft-variant-4cf0a48a-359f-47ea-a90c-9ecf9b0ebd6d",
+        "previewUrl": "https://p.superdesign.dev/draft/4cf0a48a-359f-47ea-a90c-9ecf9b0ebd6d"
+      }
+    ],
+    "projectUrl": "https://superdesign.dev/teams/6d8bb8c8-601f-4be3-b8e0-649afb23cd36/projects/8365ffe8-6310-43cc-aee1-0b6e7a3b2fb4"
+  },
+  "creditsConsumed": 13.5,
+  "completedAt": "2026-08-20T09:25:09.055Z"
+}

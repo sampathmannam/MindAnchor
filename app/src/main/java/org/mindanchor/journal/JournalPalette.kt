@@ -51,6 +51,20 @@ internal val Terracotta = Color(0xFF8B5A44)
 /** The "saved quietly" caption — used by the Today screen. */
 internal val QuietTeal = Color(0xFF0F766E)
 
+/**
+ * The crisis-line text colour. v0.64.0 (BPD-first):
+ * the same [Ink] at the secondary alpha so the line is
+ * equal-weight to other secondary text, not a banner. The
+ * line is the same on every surface and never highlighted.
+ */
+internal val CrisisLine = Ink.copy(alpha = 0.40f)
+
+/**
+ * The "Thanks for writing that." acknowledgement caption.
+ * Reads as validation, not a counter or status badge.
+ */
+internal val AcknowledgeTeal = Color(0xFF0F766E).copy(alpha = 0.55f)
+
 /** Mood tints — 4-8% opacity backgrounds, 70-100% text. */
 internal val MoodCrushedBg = Color(0xFF8B4A4A).copy(alpha = 0.04f)
 internal val MoodCrushedFg = Color(0xFF8B4A4A)
