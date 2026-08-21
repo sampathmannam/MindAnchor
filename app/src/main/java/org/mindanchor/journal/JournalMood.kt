@@ -63,7 +63,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private enum class Mood(
+// v0.66.0: promoted from `private` to `internal` so the diary package
+// (Task 1: DiaryCardEntry) can reference the 5-state mood enum without
+// re-declaring it. The enum stays file-local to the mood surface's
+// UI concerns — no other file mutates it; the diary package only reads
+// the values.
+internal enum class Mood(
     val displayName: String,
     val bg: Color,
     val fg: Color,
