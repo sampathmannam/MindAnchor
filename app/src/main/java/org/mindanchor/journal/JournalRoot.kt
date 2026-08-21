@@ -185,15 +185,32 @@ fun JournalRoot(
 
     Box(modifier = modifier.fillMaxSize()) {
         when (current) {
+            // v0.66.0 (Task 11): the Today composable now takes a
+            // wider signature — skill-of-the-day + diary card
+            // callbacks + voice-first + therapist-export toggles +
+            // two navigation callbacks. The actual SkillsPrefs and
+            // DiaryCardPrefs writes are wired in Task 12 (the
+            // follow-up to this refactor); for now the new
+            // callbacks are no-op lambdas so the build compiles.
+            // The voice-first and therapist-export toggles default
+            // to false here — the real values are read from
+            // JournalSettingsPrefs in Task 12.
             JournalRoute.Today -> JournalToday(
                 entryBody = todayEntry,
                 onEntryBodyChange = updateEntry,
                 onContinueWriting = { stack.add(JournalRoute.QuickNote) },
-                onMood = { stack.add(JournalRoute.Mood) },
                 onSearch = { stack.add(JournalRoute.Archive) },
                 onArchive = { stack.add(JournalRoute.Archive) },
                 onSettings = { stack.add(JournalRoute.Settings) },
                 onCall = dial,
+                onSkillDone = { /* Task 12: skillsPrefs.markUsed(it, today) */ },
+                onUrgeEntry = { /* Task 12: diaryCardPrefs.setEntry(...) */ },
+                onExportRequest = { /* Task 12: therapist export intent */ },
+                onNavigateToSkills = { /* Task 12: stack.add(JournalRoute.Skills) */ },
+                onNavigateToCrisis = { /* Task 12: stack.add(JournalRoute.Crisis) */ },
+                voiceFirstEnabled = false,
+                therapistExportEnabled = false,
+                skillOfTheDay = skillOfTheDay,
             )
             JournalRoute.Archive -> JournalArchive(
                 onBack = { stack.removeAt(stack.lastIndex) },
