@@ -51,12 +51,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
+import org.mindanchor.journal.JournalSettingsPrefs
 
 private const val CURRENT_VERSION = "v0.65.0"
 
@@ -72,6 +77,31 @@ internal fun JournalSettings(
     // from the existing NotesPrefs / AppearancePrefs.
     var pauseEverything by remember { mutableStateOf(false) }
     var sourcesExpanded by remember { mutableStateOf(false) }
+
+    // v0.66.0 (Task 10): the three new optional
+    // surface toggles, DataStore-backed. The reads
+    // are `collectAsStateWithLifecycle(false)` —
+    // `false` is the BPD-safe default, and on the
+    // first composition the screen shows the
+    // default until DataStore's first real value
+    // arrives. Writes are wrapped in
+    // `rememberCoroutineScope().launch` — the
+    // `set*` functions are `suspend` (DataStore's
+    // `edit` is suspending). Persistence file:
+    // `journal_settings_v66` (see
+    // `JournalSettingsPrefs.kt`).
+    val context = LocalContext.current
+    val settingsPrefs = remember { JournalSettingsPrefs(context) }
+    val scope = rememberCoroutineScope()
+    val voiceFirstEnabled by settingsPrefs.voiceFirstEnabled.collectAsStateWithLifecycle(
+        initialValue = false,
+    )
+    val affectGridEnabled by settingsPrefs.affectGridEnabled.collectAsStateWithLifecycle(
+        initialValue = false,
+    )
+    val therapistExportEnabled by settingsPrefs.therapistExportEnabled.collectAsStateWithLifecycle(
+        initialValue = false,
+    )
 
     Column(
         modifier = modifier
@@ -126,6 +156,37 @@ internal fun JournalSettings(
                         .fillMaxWidth()
                         .padding(horizontal = 32.dp),
                 ) {
+                    // v0.66.0 (Task 10): the three new
+                    // optional surface toggles at the
+                    // top of the list. All default OFF
+                    // per v0.65.0 BPD-safe defaults.
+                    // The visual style matches the
+                    // existing `pauseEverything` toggle
+                    // pattern below (SettingsToggleRow
+                    // + sublabel). No "!" or "New!"
+                    // affordance — the sublabels are
+                    // validate-then-suggest.
+                    SectionHeader("v0.66.0")
+                    SettingsToggleRow(
+                        label = "Voice-first for crisis, check-in, skills",
+                        sublabel = "When this is on, the surfaces that have it read what's on screen out loud. You can turn it off any time.",
+                        checked = voiceFirstEnabled,
+                        onCheckedChange = { scope.launch { settingsPrefs.setVoiceFirstEnabled(it) } },
+                    )
+                    SettingsToggleRow(
+                        label = "2D mood grid (Affect-Grid)",
+                        sublabel = "When this is on, the Today mood input is a 2D grid instead of the 1D slider. Both are valid; pick what feels easier today.",
+                        checked = affectGridEnabled,
+                        onCheckedChange = { scope.launch { settingsPrefs.setAffectGridEnabled(it) } },
+                    )
+                    SettingsToggleRow(
+                        label = "Share with therapist PDF",
+                        sublabel = "When this is on, an export action appears on Today and in the Crisis surface. The export is generated on this device; nothing is sent.",
+                        checked = therapistExportEnabled,
+                        onCheckedChange = { scope.launch { settingsPrefs.setTherapistExportEnabled(it) } },
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+
                     // BPD-first: "If you're in crisis" is
                     // FIRST, not last. The numbers sit
                     // inside a paper card so they are
