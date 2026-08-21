@@ -33,6 +33,35 @@
  *     mutates it is `updateEntry` (which writes to
  *     DataStore, re-emits, and `todayEntry` updates).
  *     A process kill no longer erases the prose.
+ *
+ * v0.66.0 changes (Task 9):
+ *   - Three new DataStore wrappers are now constructed
+ *     here: DiaryCardPrefs (per-day DBT diary card),
+ *     SkillsPrefs (which skill the user logged when),
+ *     SafetyPlanPrefs (the Stanley-Brown safety plan).
+ *     None are consumed by a screen yet — Tasks 11/12
+ *     will refactor the screen dispatch and pass the
+ *     needed callbacks down. The wrappers are wired in
+ *     now so the refactor is a wiring change, not a
+ *     state-holder introduction.
+ *   - `skillOfTheDay` is computed once at composition
+ *     (not `mutableStateOf` — it does not need to change
+ *     after the root composes). Mood override is `null`
+ *     because Today is not the surface that owns mood
+ *     input; the journal mood screen feeds `skillOfTheDay`
+ *     in v0.66.0 task 11.
+ *   - `plan` is collected from SafetyPlanPrefs so the
+ *     safety-plan value is available to the v0.66.0
+ *     JournalCrisis refactor (Task 12) without that
+ *     refactor having to re-introduce the Flow plumbing.
+ *   - The existing `dial` closure remains the single
+ *     ACTION_DIAL helper. The brief's proposed
+ *     `crisisDial(tel:)` would have duplicated the same
+ *     five lines; one helper is enough.
+ *   - Screen signatures are unchanged in this task. The
+ *     `onSkillDone` and `onUrgeEntry` callbacks belong
+ *     to Tasks 11/12's refactor, not to this wiring
+ *     pass.
  */
 @file:Suppress("MagicNumber")
 package org.mindanchor.journal
@@ -54,6 +83,13 @@ import androidx.compose.runtime.toMutableStateList
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import android.app.Activity
+import java.time.LocalTime
+import org.mindanchor.journal.crisis.SafetyPlanEntry
+import org.mindanchor.journal.crisis.SafetyPlanPrefs
+import org.mindanchor.journal.diary.DiaryCardPrefs
+import org.mindanchor.journal.skills.SkillId
+import org.mindanchor.journal.skills.SkillOfTheDay
+import org.mindanchor.journal.skills.SkillsPrefs
 
 /**
  * The 5 journal screens. The enum order is the
@@ -96,6 +132,35 @@ fun JournalRoot(
     val updateEntry: (String) -> Unit = { newValue ->
         scope.launch { prefs.setTodayEntry(newValue) }
     }
+
+    // v0.66.0 (Task 9): the DBT-shaped state holders.
+    //   - DiaryCardPrefs backs the per-day diary card
+    //     (read by the diary list surface, written by
+    //     the diary card surface — both land in Task 11).
+    //   - SkillsPrefs backs the "which skill did the user
+    //     use on which date" log. Today will write a
+    //     SkillId when the user marks a skill done; the
+    //     nudge and the PDF export read it.
+    //   - SafetyPlanPrefs holds the Stanley-Brown
+    //     safety plan. Collected as a Flow here so
+    //     JournalCrisis (Task 12) can read `plan`
+    //     without re-introducing the plumbing.
+    //   - skillOfTheDay is computed once at composition
+    //     (not `mutableStateOf` — it does not need to
+    //     change after the root composes). Mood is
+    //     `null` here because Today does not own mood
+    //     input; the mood screen is the right place to
+    //     call SkillOfTheDay.suggest with the user's
+    //     actual mood, and that lands in Task 11.
+    val diaryCardPrefs = remember { DiaryCardPrefs(context) }
+    val skillsPrefs = remember { SkillsPrefs(context) }
+    val safetyPlanPrefs = remember { SafetyPlanPrefs(context) }
+    val skillOfTheDay: SkillId = remember {
+        SkillOfTheDay.suggest(LocalTime.now(), mood = null)
+    }
+    val plan by safetyPlanPrefs.plan.collectAsStateWithLifecycle(
+        initialValue = SafetyPlanEntry.empty()
+    )
 
     // The back gesture pops the stack. If the stack has
     // only Today, the back gesture forwards to
