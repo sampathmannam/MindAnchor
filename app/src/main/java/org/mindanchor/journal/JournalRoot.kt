@@ -34,7 +34,7 @@
  *     DataStore, re-emits, and `todayEntry` updates).
  *     A process kill no longer erases the prose.
  *
- * v0.66.0 changes (Task 9):
+ * v0.66.0 changes (Task 9 + Task 12):
  *   - Three new DataStore wrappers are now constructed
  *     here: DiaryCardPrefs (per-day DBT diary card),
  *     SkillsPrefs (which skill the user logged when),
@@ -62,6 +62,18 @@
  *     `onSkillDone` and `onUrgeEntry` callbacks belong
  *     to Tasks 11/12's refactor, not to this wiring
  *     pass.
+ *   - Task 12: two new `JournalRoute` entries
+ *     (`Skills`, `Crisis`) are appended to the enum
+ *     (additive — the first 5 are still addressable for
+ *     rollback). The `onNavigateToSkills` and
+ *     `onNavigateToCrisis` callbacks from the Today
+ *     surface are wired to `stack.add(...)`; the new
+ *     dispatch branches render `JournalSkills` (a
+ *     stub — see JournalSkills.kt) and `JournalCrisis`
+ *     (the new full-screen DBT card — see
+ *     JournalCrisis.kt). The plan's `onPlanChange`
+ *     writes through `scope.launch { safetyPlanPrefs
+ *     .set(newPlan) }`, reusing the Task 9 plumbing.
  */
 @file:Suppress("MagicNumber")
 package org.mindanchor.journal
@@ -92,11 +104,20 @@ import org.mindanchor.journal.skills.SkillOfTheDay
 import org.mindanchor.journal.skills.SkillsPrefs
 
 /**
- * The 5 journal screens. The enum order is the
- * canonical navigation order (Today → Archive →
- * Settings → Mood → QuickNote).
+ * The 5 v0.65.0 journal screens + the 2 v0.66.0
+ * DBT-shaped destinations. The first 5 entries are
+ * "kept for rollback, NOT in v0.66.0 nav" per the
+ * v0.66.0 plan's deprecated list — they remain
+ * addressable so the existing 5-screen nav still
+ * works (the Today v0.66.0 surface is a wide
+ * signature, not a new screen), but the only new
+ * routes are `Skills` and `Crisis`. The enum order
+ * is the canonical navigation order for the v0.65.0
+ * surfaces; the v0.66.0 destinations sit at the end
+ * so existing code that switches on the first 5 is
+ * unchanged.
  */
-enum class JournalRoute { Today, Archive, Settings, Mood, QuickNote }
+enum class JournalRoute { Today, Archive, Settings, Mood, QuickNote, Skills, Crisis }
 
 @Composable
 fun JournalRoot(
@@ -205,8 +226,8 @@ fun JournalRoot(
                 onSkillDone = { /* Task 12: skillsPrefs.markUsed(it, today) */ },
                 onUrgeEntry = { /* Task 12: diaryCardPrefs.setEntry(...) */ },
                 onExportRequest = { /* Task 12: therapist export intent */ },
-                onNavigateToSkills = { /* Task 12: stack.add(JournalRoute.Skills) */ },
-                onNavigateToCrisis = { /* Task 12: stack.add(JournalRoute.Crisis) */ },
+                onNavigateToSkills = { stack.add(JournalRoute.Skills) },
+                onNavigateToCrisis = { stack.add(JournalRoute.Crisis) },
                 voiceFirstEnabled = false,
                 therapistExportEnabled = false,
                 skillOfTheDay = skillOfTheDay,
@@ -233,6 +254,34 @@ fun JournalRoot(
                 text = todayEntry,
                 onTextChange = updateEntry,
                 onBack = { stack.removeAt(stack.lastIndex) },
+                onCall = dial,
+            )
+            // v0.66.0 (Task 12): the two new DBT destinations.
+            //   - `Skills` is a stub (JournalSkills.kt) that
+            //     renders a "coming in v0.66.1" placeholder.
+            //     The real picker UI lands in a follow-up.
+            //     `onBack` pops the stack; the system back
+            //     button is also wired by `BackHandler` above.
+            //   - `Crisis` is the new full-screen DBT card
+            //     (JournalCrisis.kt): panic button +
+            //     6-step Safety Plan + 4 India crisis lines +
+            //     disclosure. The plan is collected from
+            //     `safetyPlanPrefs` (set up in Task 9); every
+            //     keystroke writes the updated plan back via
+            //     `scope.launch { safetyPlanPrefs.set(...) }`.
+            //     The panic button's `onSkillStart` is a
+            //     no-op for now — the actual skill-composable
+            //     surface is a follow-up. `onNavigateToSkills`
+            //     is a forward nav to the skills library.
+            JournalRoute.Skills -> JournalSkills(
+                onBack = { stack.removeAt(stack.lastIndex) },
+                onCall = dial,
+            )
+            JournalRoute.Crisis -> JournalCrisis(
+                plan = plan,
+                onPlanChange = { newPlan -> scope.launch { safetyPlanPrefs.set(newPlan) } },
+                onSkillStart = { /* TODO: wire to a skill-composables screen in a follow-up */ },
+                onNavigateToSkills = { stack.add(JournalRoute.Skills) },
                 onCall = dial,
             )
         }
