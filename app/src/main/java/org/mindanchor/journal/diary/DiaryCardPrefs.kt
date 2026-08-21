@@ -67,8 +67,28 @@ import org.mindanchor.journal.Mood
 import org.mindanchor.journal.skills.SkillId
 import java.time.LocalDate
 
-private val Context.diaryCardDataStore: DataStore<Preferences> by preferencesDataStore(
-    name = "diary_card",
+// The DataStore name MUST NOT collide with the v0.28.0
+// `org.mindanchor.support.DiaryCardPrefs`, which uses
+// `preferencesDataStore(name = "diary_card")` (see
+// `app/src/main/java/org/mindanchor/support/DiaryCardPrefs.kt:15`).
+// The delegate is process-wide per file name — two `private val`
+// extensions in different packages would throw
+// `IllegalStateException: There are multiple DataStores active for
+// the same file` the moment the live app touched both stores. The
+// v0.66.0 surface (Task 3) is a separate screen from the v0.28.0
+// `DiaryCardScreen`, but they coexist in the binary until the v0.28.0
+// surface is removed in a follow-up release. `_v66` makes the names
+// unambiguous on disk and in `adb shell run-as` dumps.
+//
+// `internal` (not `private`) so the unit test in
+// `app/src/test/java/org/mindanchor/journal/diary/DiaryCardPrefsTest.kt`
+// can call `context.diaryCardDataStore.edit { it.clear() }` to
+// isolate tests in the same class. Test source set is the same
+// Gradle module as `main`, so `internal` is in scope. The
+// production class has no `reset()` method on purpose — see the
+// `@Before` in the test for the rationale.
+internal val Context.diaryCardDataStore: DataStore<Preferences> by preferencesDataStore(
+    name = "diary_card_v66",
 )
 
 /**
@@ -125,16 +145,15 @@ internal class DiaryCardPrefs(private val context: Context) {
     }
 
     /**
-     * Test-only: drop every key. The round-trip test's
-     * `@Before` calls this to isolate tests in the same class
-     * (DataStore is a process-wide singleton keyed on the
-     * preferences name, so two tests share state without an
-     * explicit reset). `internal` so the test in the same module
-     * can call it; production code never clears the store.
+     * NOTE: there is deliberately no `reset()` on this class. The
+     * round-trip test reaches the [Context.diaryCardDataStore]
+     * extension directly to clear the store between tests, so the
+     * production surface stays minimal. A `reset()` here would be
+     * `internal` (module-wide) which lets any same-module code
+     * wipe the user's diary history — a real risk, not a theoretical
+     * one, given the project's `internal` test helpers and the
+     * `backup` package's `internal` reset methods.
      */
-    internal suspend fun reset() {
-        store.edit { it.clear() }
-    }
 
     private fun keysForDate(date: LocalDate) =
         stringPreferencesKey("$KEY_PREFIX${date.toEpochDay()}")

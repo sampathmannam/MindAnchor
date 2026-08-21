@@ -7,7 +7,7 @@
  * reads recent cards to pick a suggestion, and the PDF export (Task 8)
  * iterates a date range.
  *
- * Two tests cover the two contracts every later task depends on:
+ * Three tests cover the three contracts every later task depends on:
  *
  *  1. `setEntry` then `entryFor` round-trips the entry unchanged. The
  *     pipe-delimited encoding is hand-rolled, so a typo in `encode` or
@@ -23,11 +23,20 @@
  *     "0 / 0 / 0" on every blank day — the DBT "did not check" vs
  *     "checked and noticed nothing" distinction is gone.
  *
+ *  3. `entriesInRange` returns only the inclusive window, sorted by
+ *     date. The PDF export (Task 8) depends on this — a wrong filter
+ *     silently drops or duplicates cards in the exported PDF, and
+ *     a missing sort leaves the PDF in a chaotic order.
+ *
  * Follows the v0.25.4 `BackupPrefsRoundTripFindingTest` pattern: JUnit
  * 4, Robolectric 4.13 with `@Config(sdk = [34])`, and a `@Before` that
- * calls a `reset()` method on the prefs class to isolate tests in the
- * same class (DataStore is a process-wide singleton keyed on the
- * preferences name, so two tests share state without an explicit reset).
+ * isolates tests in the same class (DataStore is a process-wide
+ * singleton keyed on the preferences name, so two tests share state
+ * without an explicit reset). The reset path here reaches into
+ * `Context.diaryCardDataStore` directly because the production class
+ * intentionally has no `reset()` method — `internal` on a production
+ * method is module-wide callable and would let any same-module code
+ * wipe the user's diary history.
  *
  * The plan's brief used `kotlinx.coroutines.test.runTest` from
  * `kotlinx-coroutines-test`. That artifact is NOT in the project
@@ -39,6 +48,7 @@
 package org.mindanchor.journal.diary
 
 import android.content.Context
+import androidx.datastore.preferences.core.edit
 import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -57,14 +67,29 @@ import java.time.LocalDate
 @Config(sdk = [34])
 class DiaryCardPrefsTest {
 
-    @Before fun resetStore() = runBlocking {
+    @Before
+    fun resetStore() = runBlocking<Unit> {
         // DataStore is a process-wide singleton keyed on the
-        // preferences name ("diary_card"), so two tests in this
+        // preferences name ("diary_card_v66"), so two tests in this
         // class share state without an explicit reset. Wipe before
         // each test so a write in `entry round-trips` does not
         // leak into `missing entry returns null` (or vice versa).
+        //
+        // We reach into [Context.diaryCardDataStore] directly rather
+        // than going through a `DiaryCardPrefs.reset()` method. The
+        // top-level val is `internal` (not `private`) so this is in
+        // scope; adding a `reset()` to the production class would
+        // make it module-wide callable, which lets any same-module
+        // code wipe the user's diary history.
+        //
+        // `<Unit>` is load-bearing: `edit { it.clear() }` returns
+        // the cleared `Preferences`, which would otherwise be the
+        // inferred return type of this `@Before` method. JUnit 4
+        // requires `@Before` to be `void`-returning, and `Preferences`
+        // would compile to a Java `Object` return. Forcing `<Unit>`
+        // makes the contract explicit.
         val ctx = ApplicationProvider.getApplicationContext<Context>()
-        DiaryCardPrefs(ctx).reset()
+        ctx.diaryCardDataStore.edit { it.clear() }
     }
 
     @Test
@@ -97,5 +122,51 @@ class DiaryCardPrefsTest {
         // `empty(date)` placeholder; a non-null return would
         // silently turn every blank day into a zero-urge card.
         assertNull(prefs.entryFor(LocalDate.of(1999, 1, 1)).first())
+    }
+
+    @Test
+    fun `entriesInRange returns only the inclusive window, sorted by date`() = runBlocking {
+        // The range query is the only public method not covered
+        // by the round-trip tests, and the PDF export (Task 8)
+        // depends on its filter + sort contract. Three entries
+        // across three dates — outside, inside, outside — let
+        // one test cover both the inclusive bounds and the
+        // sortedBy(date) ordering in a single assertion.
+        val ctx = ApplicationProvider.getApplicationContext<Context>()
+        val prefs = DiaryCardPrefs(ctx)
+        val before = DiaryCardEntry(
+            date = LocalDate.of(2026, 8, 19),
+            urges = Urges(0, 0, 0),
+            emotions = emptyList(),
+            skillUsed = null,
+            exportedToTherapist = false,
+        )
+        val inside = DiaryCardEntry(
+            date = LocalDate.of(2026, 8, 21),
+            urges = Urges(2, 0, 1),
+            emotions = listOf(Mood.HEAVY),
+            skillUsed = SkillId.TIPP,
+            exportedToTherapist = false,
+        )
+        val after = DiaryCardEntry(
+            date = LocalDate.of(2026, 8, 23),
+            urges = Urges(1, 0, 0),
+            emotions = emptyList(),
+            skillUsed = null,
+            exportedToTherapist = false,
+        )
+        // Write in non-date order so a naive "insertion order"
+        // implementation would fail the sortBy assertion.
+        prefs.setEntry(after)
+        prefs.setEntry(before)
+        prefs.setEntry(inside)
+
+        val inRange = prefs.entriesInRange(
+            from = LocalDate.of(2026, 8, 20),
+            to = LocalDate.of(2026, 8, 22),
+        )
+        // Only the 21st falls inside the inclusive window; the
+        // list must contain it and only it.
+        assertEquals(listOf(inside), inRange)
     }
 }
