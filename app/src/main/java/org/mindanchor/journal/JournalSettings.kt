@@ -63,7 +63,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import org.mindanchor.journal.JournalSettingsPrefs
 
-private const val CURRENT_VERSION = "v0.65.0"
+private const val CURRENT_VERSION = "v0.66.0"
 
 @Composable
 internal fun JournalSettings(
