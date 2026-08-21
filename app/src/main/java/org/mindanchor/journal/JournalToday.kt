@@ -53,11 +53,14 @@
  *     session-scoped input, and the diary card
  *     submission (a follow-up) is the durable record.
  *   - The 60-second "skill recently done" window from
- *     the brief is NOT implemented. The diary expander
- *     is enabled the moment the user taps Done on the
- *     skill card, and stays enabled for the rest of
- *     the session. Task 14's drive-verify will exercise
- *     the flow; a 60s timer is a follow-up if needed.
+ *     the brief IS implemented. Tapping Done on the
+ *     skill card sets `lastSkillDone` to the skill and
+ *     arms a 60-second timer; when the timer fires,
+ *     `lastSkillDone` is reset to null and the diary
+ *     expander is disabled again. Tapping Done a second
+ *     time cancels the previous timer and re-arms
+ *     with the new skill. The timer is per-session;
+ *     app restart resets the state.
  *   - The actual SkillsPrefs / DiaryCardPrefs writes
  *     are NOT done in this file. The callbacks
  *     `onSkillDone` and `onUrgeEntry` are wired up in
@@ -72,6 +75,7 @@ package org.mindanchor.journal
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -94,9 +98,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -105,10 +111,22 @@ import androidx.compose.ui.unit.sp
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.mindanchor.journal.diary.Urges
 import org.mindanchor.journal.skills.Skill
 import org.mindanchor.journal.skills.SkillId
 import org.mindanchor.journal.skills.SkillsLibrary
+
+/**
+ * The diary-expander enablement window after a skill is
+ * marked Done. The brief pins this at 60 seconds — long
+ * enough for a DBT "use the skill, then notice the urge"
+ * sequence, short enough that the diary expander does
+ * not stay armed across the rest of the user's day.
+ */
+private const val URGE_LOG_WINDOW_MS: Long = 60_000L
 
 /**
  * The Today body. v0.66.0 = single screen with mood,
@@ -131,7 +149,6 @@ import org.mindanchor.journal.skills.SkillsLibrary
 internal fun JournalToday(
     entryBody: String,
     onEntryBodyChange: (String) -> Unit,
-    onContinueWriting: () -> Unit,
     onSearch: () -> Unit,
     onArchive: () -> Unit,
     onSettings: () -> Unit,
@@ -158,7 +175,16 @@ internal fun JournalToday(
 
     // Session-local state. NOT persisted (see file header).
     var mood by remember { mutableStateOf<Int?>(null) }
+    // `lastSkillDone` is enabled the moment the user taps
+    // Done on the skill card, and a 60-second timer
+    // (URGE_LOG_WINDOW_MS, per the brief) automatically
+    // disables it again. Tapping Done a second time
+    // cancels the previous timer and re-arms with the
+    // new skill — the user can change their mind and
+    // re-record a different skill within the window.
     var lastSkillDone: SkillId? by remember { mutableStateOf(null) }
+    val lastSkillDoneJob = remember { mutableStateOf<Job?>(null) }
+    val scope = rememberCoroutineScope()
 
     val skill = remember(skillOfTheDay) { SkillsLibrary.byId(skillOfTheDay) }
     val canLogUrge = lastSkillDone != null
@@ -302,13 +328,21 @@ internal fun JournalToday(
 
                 // 5. Skill-of-the-day card. Tapping "Done" both
                 //    sets the local `lastSkillDone` (enables the
-                //    diary expander) AND calls `onSkillDone`, which
-                //    JournalRoot wires to SkillsPrefs.markUsed.
+                //    diary expander for URGE_LOG_WINDOW_MS) AND
+                //    calls `onSkillDone`, which JournalRoot wires
+                //    to SkillsPrefs.markUsed. A second Done tap
+                //    within the window cancels the previous timer
+                //    and re-arms with the new skill.
                 SkillOfTheDayCard(
                     skill = skill,
                     onDone = {
+                        lastSkillDoneJob.value?.cancel()
                         lastSkillDone = skill.id
                         onSkillDone(skill.id)
+                        lastSkillDoneJob.value = scope.launch {
+                            delay(URGE_LOG_WINDOW_MS)
+                            lastSkillDone = null
+                        }
                     },
                     modifier = Modifier.padding(horizontal = 32.dp),
                 )
@@ -733,10 +767,13 @@ private fun UrgeSlider(
 /**
  * One crisis-line row. The name and the number (with the
  * hours-of-availability line) sit on the left; a small
- * "Call" affordance on the right. Tapping the row (or the
- * "Call" text) fires [onCall] with the tel — single-tap,
- * no long-press for v0.66.0 (per the brief: keeps it
- * simple). The four numbers are iCall 9152987821, Vandrevala
+ * "Call" affordance on the right. Long-press anywhere on
+ * the row fires [onCall] with the tel — long-press is
+ * the BPD-first shape for a crisis line: a deliberate,
+ * slow gesture rather than an impulsive single tap. The
+ * single-tap does NOT dial (a single tap on a crisis
+ * number would be too easy to fire by accident). The
+ * four numbers are iCall 9152987821, Vandrevala
  * 18602662362, AASRA 9820466726, Tele-MANAS 14416.
  */
 @Composable
@@ -749,7 +786,9 @@ private fun CrisisLineRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onCall(tel) }
+            .pointerInput(tel) {
+                detectTapGestures(onLongPress = { onCall(tel) })
+            }
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,

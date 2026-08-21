@@ -198,7 +198,6 @@ fun JournalRoot(
             JournalRoute.Today -> JournalToday(
                 entryBody = todayEntry,
                 onEntryBodyChange = updateEntry,
-                onContinueWriting = { stack.add(JournalRoute.QuickNote) },
                 onSearch = { stack.add(JournalRoute.Archive) },
                 onArchive = { stack.add(JournalRoute.Archive) },
                 onSettings = { stack.add(JournalRoute.Settings) },
