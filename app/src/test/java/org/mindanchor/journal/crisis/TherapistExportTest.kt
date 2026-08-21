@@ -1,10 +1,22 @@
 /*
  * v0.66.0 (DBT-grounded journal) — Task 8.
  *
- * Rendering test for [TherapistExport]: the export must produce a
- * real PDF (magic bytes `%PDF` at offset 0, > 1 KB on disk) so the
- * rest of v0.66.0 can build the share intent on top of a non-empty
- * file.
+ * Two tests for [TherapistExport]:
+ *
+ *  1. **Content-level test** (the load-bearing one). Asserts the
+ *     brief's stated contract: the export carries the disclosure
+ *     copy, the 4 crisis line numbers, the mood label, the
+ *     "MindAnchor" header, and the own-median value passed in. These
+ *     assertions run against [TherapistExport.buildContent], which
+ *     returns the exact `List<String>` the renderer consumes. A
+ *     future refactor that accidentally drops, say, the Tele-MANAS
+ *     line will fail this test.
+ *
+ *  2. **Smoke test** (file-shape only). Verifies the PDF is written
+ *     to disk, is > 1 KB, and starts with `%PDF`. The on-disk bytes
+ *     come from the Robolectric `ShadowPdfDocument` (Robolectric
+ *     4.13 does not shadow `PdfDocument`), so this test cannot
+ *     verify content — that is what test 1 is for.
  *
  * Test pattern (project convention, see [BackupPrefsRoundTripFindingTest]):
  *   - Robolectric 4.13 with `@Config(sdk = [34])` (the project's
@@ -13,10 +25,6 @@
  *     NOT `runTest` from `kotlinx-coroutines-test` (that dependency
  *     is not in the project, per `gradle/libs.versions.toml`).
  *   - JUnit 4 (org.junit.*, org.junit.Assert.*).
- *
- * BPD-safe defaults: this test only asserts the on-disk shape of
- * the export. It does not assert any "good" / "bad" / "rank" copy
- * because the export carries none.
  */
 package org.mindanchor.journal.crisis
 
@@ -34,7 +42,53 @@ import java.time.LocalDate
 @Config(sdk = [34], shadows = [ShadowPdfDocument::class])
 class TherapistExportTest {
 
-    @Test fun `export produces a non-empty PDF file`() = runBlocking {
+    @Test fun `content builder includes disclosure, crisis numbers, and mood line`() = runBlocking {
+        val ctx = ApplicationProvider.getApplicationContext<Context>()
+        val exporter = TherapistExport(ctx)
+        val lines = exporter.buildContent(
+            from = LocalDate.of(2026, 8, 14),
+            to = LocalDate.of(2026, 8, 21),
+            diaryEntries = emptyList(),
+            skillEntries = emptyList(),
+            moodOwnMedian = 3,
+            moodMad = 0,
+        )
+
+        assertTrue("content list is non-empty", lines.isNotEmpty())
+
+        // Disclosure copy — bridge-to-therapist framing.
+        assertTrue(
+            "content includes disclosure about therapy substitute",
+            lines.any { it.contains("not a substitute for therapy") },
+        )
+
+        // 4 crisis line numbers (hard-coded strings, per the brief).
+        val crisisNumbers = listOf("9152987821", "18602662362", "9820466726", "14416")
+        for (number in crisisNumbers) {
+            assertTrue(
+                "content includes crisis number $number",
+                lines.any { it.contains(number) },
+            )
+        }
+
+        // Header + section labels.
+        assertTrue(
+            "content includes MindAnchor header",
+            lines.any { it.contains("MindAnchor") },
+        )
+        assertTrue(
+            "content includes mood section label",
+            lines.any { it == "Mood (N-of-1, 14-day)" },
+        )
+
+        // Mood value passed in is reflected.
+        assertTrue(
+            "content includes own median value 3",
+            lines.any { it.contains("Own median: 3") },
+        )
+    }
+
+    @Test fun `export produces a non-empty PDF file (smoke test)`() = runBlocking {
         val ctx = ApplicationProvider.getApplicationContext<Context>()
         val out = TherapistExport(ctx).export(
             from = LocalDate.of(2026, 8, 14),
