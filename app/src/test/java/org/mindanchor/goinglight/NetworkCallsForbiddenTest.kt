@@ -163,6 +163,36 @@ class NetworkCallsForbiddenTest {
     private val corosBridgeTestDir = "app/src/test/java/org/mindanchor/vitals/coros"
 
     /**
+     * The LLM (daily letter) bridge files. v0.25.7 adds an
+     * opt-in outbound path for the daily letter: BYOK Groq
+     * (https://api.groq.com/openai/v1/chat/completions) called
+     * by [org.mindanchor.llm.GroqClient]. Like the COROS and
+     * Drive bridges, the path is silent until the user opts in
+     * by entering an API key in Settings → Reading → Daily
+     * letter (LLM); no key, no outbound call. The set is the
+     * *complete* list of allowed files; a new LLM file that
+     * uses an outbound channel requires an explicit re-pin
+     * with clinical review (see the `llmBridgeFiles set size`
+     * test below).
+     */
+    private val llmBridgeFiles = setOf(
+        "app/src/main/java/org/mindanchor/llm/LlmClient.kt",
+        "app/src/main/java/org/mindanchor/llm/GroqClient.kt",
+        "app/src/main/java/org/mindanchor/llm/LlmClientFactory.kt",
+        "app/src/main/java/org/mindanchor/llm/LlmPrefs.kt",
+        "app/src/main/java/org/mindanchor/llm/LetterContext.kt",
+    )
+
+    /**
+     * The LLM bridge's own tests live under
+     * `app/src/test/java/org/mindanchor/llm/`. The GroqClient
+     * test uses [okhttp3.mockwebserver] to exercise the API
+     * without touching the live server; the test directory
+     * exemption mirrors the COROS bridge test pattern.
+     */
+    private val llmBridgeTestDir = "app/src/test/java/org/mindanchor/llm"
+
+    /**
      * Files in the VpnService subsystem may use the
      * captured-loopback API surface. The set is the
      * *complete* list of allowed network-related
@@ -233,6 +263,36 @@ class NetworkCallsForbiddenTest {
     )
 
     /**
+     * Files in the LLM bridge may use HTTP client primitives,
+     * JSON serialization, DataStore preferences, and the Java
+     * network exception types. The set is the *complete* list
+     * of allowed symbols; any reference outside this set
+     * fails the build.
+     */
+    private val llmBridgeAllowedReferences = setOf(
+        // OkHttp HTTP client (the only outbound channel)
+        "okhttp3.OkHttpClient",
+        "okhttp3.Request",
+        "okhttp3.RequestBody",
+        "okhttp3.MediaType",
+        "okhttp3.Response",
+        "okhttp3.Call",
+        // Kotlinx serialization (JSON wire format)
+        "kotlinx.serialization.Serializable",
+        "kotlinx.serialization.json.Json",
+        "kotlinx.serialization.json.JsonElement",
+        // DataStore for the BYOK API key + provider/model selection
+        "androidx.datastore.preferences.core.edit",
+        // Java network exception types (for LetterError mapping)
+        "java.net.ConnectException",
+        "java.net.SocketTimeoutException",
+        "java.io.IOException",
+        // SSLSocketFactory is the standard way to assert
+        // HTTPS-only (GroqClient's call builder pins TLS).
+        "javax.net.ssl.SSLSocketFactory",
+    )
+
+    /**
      * The v0.25.4+ Drive bridge files re-use the same
      * shape as the WebDAV allowlist above: opt-in,
      * encrypted before transport, the user's own
@@ -262,7 +322,9 @@ class NetworkCallsForbiddenTest {
         val inCorosTest = f.path.startsWith("$corosBridgeTestDir/")
         val inDrive = f.path in googleDriveBackupFiles
         val inDriveTest = f.path.startsWith("$driveBackupTestDir/")
-        return inVpn || inCoros || inCorosTest || inDrive || inDriveTest
+        val inLlm = f.path in llmBridgeFiles
+        val inLlmTest = f.path.startsWith("$llmBridgeTestDir/")
+        return inVpn || inCoros || inCorosTest || inDrive || inDriveTest || inLlm || inLlmTest
     }
 
     /**
@@ -396,6 +458,51 @@ class NetworkCallsForbiddenTest {
                 "Got: ${corosBridgeAllowedReferences.size}: $corosBridgeAllowedReferences",
             16,
             corosBridgeAllowedReferences.size,
+        )
+    }
+
+    @Test
+    fun `llmBridgeFiles set contains only the expected LLM bridge files`() {
+        // The LLM bridge is the v0.25.7 outbound path for the
+        // daily letter: BYOK Groq calls only, opt-in (no API
+        // key → no outbound call). 5 files in production code:
+        //   - LlmClient.kt (the interface)
+        //   - GroqClient.kt (the OkHttp impl)
+        //   - LlmClientFactory.kt (the seam)
+        //   - LlmPrefs.kt (the DataStore; reads the key, doesn't
+        //     make calls itself but lives in the package so the
+        //     test allowlist is in one place)
+        //   - LetterPrompt.kt + LetterContext.kt (the prompt
+        //     builders; merged into a single `LetterContext.kt`
+        //     in the plan — see Files section).
+        // Plan re-pins the size to 5 here. A new LLM file
+        // (e.g. an AnthropicClient.kt) requires an explicit
+        // re-pin with clinical review.
+        assertEquals(
+            "llmBridgeFiles drift. Got: $llmBridgeFiles",
+            5,
+            llmBridgeFiles.size,
+        )
+    }
+
+    @Test
+    fun `llmBridgeAllowedReferences is documented and stable`() {
+        // The 14 allowed symbols for the LLM bridge:
+        //   - OkHttp HTTP client primitives (4: OkHttpClient,
+        //     Request, RequestBody, Response, MediaType, Call)
+        //   - kotlinx.serialization JSON (3: Serializable, Json,
+        //     JsonElement)
+        //   - DataStore preferences edit (1: edit)
+        //   - javax.net.ssl SSLSocketFactory (1) for HTTPS
+        //   - java.io.IOException + SocketTimeoutException +
+        //     ConnectException (3)
+        // Total: 14. A new symbol requires an explicit re-pin.
+        assertEquals(
+            "llmBridgeAllowedReferences drift. " +
+                "Expected exactly 14 entries (current pinned value). " +
+                "Got: ${llmBridgeAllowedReferences.size}: $llmBridgeAllowedReferences",
+            14,
+            llmBridgeAllowedReferences.size,
         )
     }
 }
