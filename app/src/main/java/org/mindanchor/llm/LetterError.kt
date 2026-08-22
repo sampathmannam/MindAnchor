@@ -13,7 +13,7 @@ package org.mindanchor.llm
 sealed class LetterError(
     val userMessage: String,
     val isRetryable: Boolean,
-) {
+) : Throwable() {
     /** No API key set in Settings → Reading → Daily letter (LLM). */
     class NoApiKey : LetterError(
         "Add an API key in Settings.",
