@@ -12,62 +12,6 @@ import kotlinx.coroutines.flow.map
 
 private val Context.letterDataStore by preferencesDataStore(name = "letters")
 
-/**
- * One letter, stored as a flat string. Same shape as
- * [org.mindanchor.model.MomentLedger]: text rather than JSON
- * because a letter is a single readable blob, and a corrupt
- * letter must cost one day's letter, never the inbox.
- *
- * @property date the day the letter was written FOR. A letter
- * dated 2026-08-10 was the morning of 2026-08-11, but the
- * date the letter is filed under is the day it talks about.
- * @property body the letter's text, 2-3 paragraphs
- */
-data class Letter(val date: LocalDate, val body: String)
-
-/**
- * Encodes and decodes the list of letters. The shape is one
- * line per letter, with the date tab-separated from the body
- * — a tab because local dates never contain a tab, and a
- * newline because a letter is always a paragraph of plain
- * text.
- *
- * The wire format is `date\tbody\n` per letter, terminated
- * with a final newline. Empty body means "this line was a
- * placeholder" and is rejected on read.
- */
-object LetterLedger {
-
-    fun encode(letters: List<Letter>): String =
-        letters.joinToString(separator = "\n", postfix = "\n") {
-            "${it.date}\t${it.body.replace("\n", " ")}"
-        }
-
-    fun decode(raw: String): List<Letter> = raw.lineSequence()
-        .mapNotNull(::decodeLine)
-        .sortedBy { it.date }
-        .toList()
-
-    private fun decodeLine(line: String): Letter? {
-        if (line.isBlank()) return null
-        val tab = line.indexOf('\t')
-        if (tab <= 0) return null
-        val date = runCatching { LocalDate.parse(line.substring(0, tab)) }.getOrNull() ?: return null
-        val body = line.substring(tab + 1).trim()
-        return if (body.isEmpty()) null else Letter(date = date, body = body)
-    }
-}
-
-/**
- * Letters written for the user, the toggle for the feature, and
- * the time of day the user chose to receive them.
- *
- * Mirrors the shape of [org.mindanchor.model.MomentStore]: a
- * thin DataStore layer over [LetterLedger], which owns the
- * format. The toggle defaults to OFF (the spec is explicit:
- * "Off by default; opt-in"); the time defaults to 08:00 local
- * (the spec's default).
- */
 class LetterStore(private val context: Context) {
 
     private val enabledKey = booleanPreferencesKey("letters_enabled")

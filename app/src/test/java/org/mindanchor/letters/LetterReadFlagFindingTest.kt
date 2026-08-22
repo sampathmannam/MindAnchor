@@ -39,6 +39,14 @@ class LetterReadFlagFindingTest {
             "app/src/main/java/org/mindanchor/letters/LetterStore.kt",
         ).readText()
 
+    // v0.25.7+ moved LetterLedger (and the encode logic) to its
+    // own file. The wire-format check below follows the move so
+    // the same intent (no read column) is still pinned.
+    private val ledger: String
+        get() = fileAt(
+            "app/src/main/java/org/mindanchor/letters/LetterLedger.kt",
+        ).readText()
+
     private val viewModel: String
         get() = fileAt(
             "app/src/main/java/org/mindanchor/settings/SettingsViewModel.kt",
@@ -140,16 +148,23 @@ class LetterReadFlagFindingTest {
         // wire format is `date<TAB>body<NEWLINE>` per letter. Adding
         // a read column would invalidate every existing user's
         // inbox. Pin that the encode body still uses the
-        // `it.date` and `it.body` fields (in either order, with
+        // `date` and `body` fields (in either order, with
         // whatever transform the body needs) and there is no read
         // column sneaking in.
-        val usesDateAndBody = store.contains("it.date") &&
-            store.contains("it.body")
-        val hasReadColumn = store.contains("read\tbody") ||
-            store.contains("body\tread")
+        //
+        // v0.25.7+ moved LetterLedger out of LetterStore.kt into
+        // its own file, so the check follows the move and reads
+        // LetterLedger.kt instead. The new encode lambda is named
+        // `letter` (not `it`), so the check matches `letter.date`
+        // / `letter.body` to cover either naming the future code
+        // may use.
+        val usesDateAndBody = (ledger.contains("it.date") || ledger.contains("letter.date")) &&
+            (ledger.contains("it.body") || ledger.contains("letter.body"))
+        val hasReadColumn = ledger.contains("read\tbody") ||
+            ledger.contains("body\tread")
         assertTrue(
             "LetterLedger.encode must still produce the v0.25.2 " +
-                "wire format using `it.date` and `it.body` (no read " +
+                "wire format using the date and body fields (no read " +
                 "column added). The read flag is stored as a " +
                 "separate `letters_read_dates` set in the same " +
                 "DataStore. usesDateAndBody=$usesDateAndBody, " +
