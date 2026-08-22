@@ -428,6 +428,22 @@ internal fun JournalToday(
                     }
                 }
 
+                // 8b. v0.66.1 nav row — Skills and Crisis reach
+                //     the two new DBT-shaped routes that the
+                //     v0.66.0 plan added but the v0.66.0 Today
+                //     could not navigate to. The 3-icon footer
+                //     below keeps v0.65.0's search/archive/settings
+                //     for unchanged nav to the legacy 5 routes.
+                //     The text-button shape is BPD-safe (no "!"
+                //     affordance, validate-then-suggest copy).
+                NavTextButtonRow(
+                    buttons = listOf(
+                        NavTextButton("Skills library", onNavigateToSkills),
+                        NavTextButton("Crisis surface", onNavigateToCrisis),
+                    ),
+                    modifier = Modifier.padding(horizontal = 32.dp, vertical = 4.dp),
+                )
+
                 // 9. The persistent 3-icon footer (v0.65.0, kept).
                 //    The icons are unlabelled, the active icon is
                 //    None on Today, the crisis line is the one
@@ -824,5 +840,48 @@ private fun CrisisLineRow(
             color = Terracotta,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
         )
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// v0.66.1: NavTextButtonRow — a row of text buttons
+// used to reach the new Skills / Crisis routes from Today.
+// The 3-icon footer below (Search · Archive · Settings)
+// still routes to the v0.65.0 surfaces, so the new buttons
+// are additive — they appear above the footer and only
+// call the `onNavigateToSkills` / `onNavigateToCrisis`
+// callbacks that v0.66.0 wired but the v0.66.0 Today
+// could not surface.
+// ─────────────────────────────────────────────────────────────────
+
+private data class NavTextButton(
+    val label: String,
+    val onClick: () -> Unit,
+)
+
+@Composable
+private fun NavTextButtonRow(
+    buttons: List<NavTextButton>,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        buttons.forEach { btn ->
+            Text(
+                text = btn.label,
+                style = TextStyle(
+                    fontFamily = JournalSerif,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 13.sp,
+                    letterSpacing = 0.5.sp,
+                ),
+                color = Terracotta,
+                modifier = Modifier
+                    .clickable(onClick = btn.onClick)
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
+            )
+        }
     }
 }

@@ -95,10 +95,14 @@ import androidx.compose.runtime.toMutableStateList
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import android.app.Activity
+import java.time.LocalDate
 import java.time.LocalTime
 import org.mindanchor.journal.crisis.SafetyPlanEntry
 import org.mindanchor.journal.crisis.SafetyPlanPrefs
+import org.mindanchor.journal.crisis.TherapistExport
+import org.mindanchor.journal.diary.DiaryCardEntry
 import org.mindanchor.journal.diary.DiaryCardPrefs
+import org.mindanchor.journal.diary.Urges
 import org.mindanchor.journal.skills.SkillId
 import org.mindanchor.journal.skills.SkillOfTheDay
 import org.mindanchor.journal.skills.SkillsPrefs
@@ -204,18 +208,122 @@ fun JournalRoot(
         context.startActivity(intent)
     }
 
+    // v0.66.1: read the 3 new v0.66.0 Settings toggles from
+    // JournalSettingsPrefs. All default OFF. Default-false
+    // in the `?:` matches the DataStore convention used in
+    // every other v0.66.0 wrapper. The first read of the
+    // prefs Flow is collected with `false` as the initial
+    // value, so the UI is not blocked on the first disk read.
+    val settingsPrefs = remember { JournalSettingsPrefs(context) }
+    val voiceFirstEnabled by settingsPrefs.voiceFirstEnabled
+        .collectAsStateWithLifecycle(initialValue = false)
+    val therapistExportEnabled by settingsPrefs.therapistExportEnabled
+        .collectAsStateWithLifecycle(initialValue = false)
+
+    // v0.66.1: real wires for the v0.66.0 no-op callbacks.
+    //   - onSkillDone writes the SkillId to SkillsPrefs for
+    //     `today` so the diary nudge and the PDF export can
+    //     see what skill the user logged when. The day key
+    //     is LocalDate.now() in the system zone — same zone
+    //     the rest of the app uses.
+    //   - onUrgeEntry writes a DiaryCardEntry to DiaryCardPrefs
+    //     for `today` with the 0..5 Urges triple. The Mood
+    //     list is empty (Today does not own mood input; a
+    //     future mood surface populates this). The
+    //     `exportedToTherapist` flag is `false` at write time
+    //     and flips to `true` when the user actually exports
+    //     the PDF (TherapistExport's own gate).
+    //   - onExportRequest reads the last 14 days of diary +
+    //     skill entries, renders them via TherapistExport to
+    //     a file under getExternalFilesDir(DOCUMENTS), and
+    //     fires a share intent so the user can hand it to a
+    //     therapist in whatever channel they use (Signal,
+    //     email, paper print). The PDF is generated on this
+    //     device only — no network call, no telemetry, no
+    //     analytics.
+    val today: LocalDate = remember { LocalDate.now() }
+    val onSkillDone: (SkillId) -> Unit = { skillId ->
+        scope.launch { skillsPrefs.markUsed(skillId, today) }
+    }
+    val onUrgeEntry: (Urges) -> Unit = { urges ->
+        scope.launch {
+            diaryCardPrefs.setEntry(
+                DiaryCardEntry(
+                    date = today,
+                    urges = urges,
+                    emotions = emptyList(),
+                    skillUsed = null,
+                    exportedToTherapist = false,
+                ),
+            )
+        }
+    }
+    val onExportRequest: () -> Unit = {
+        scope.launch {
+            val to = today
+            val from = to.minusDays(13)
+            val diaryEntries = diaryCardPrefs.entriesInRange(from, to)
+            val skillEntries = skillsPrefs.entriesInRange(from, to)
+            val exporter = TherapistExport(context)
+            val file = exporter.export(
+                from = from,
+                to = to,
+                diaryEntries = diaryEntries,
+                skillEntries = skillEntries,
+                moodOwnMedian = 3, // session-local mood; v0.66.1 leaves the v0.66.0 text-only 14-day strip alone
+                moodMad = 0,
+            )
+            // Fire a share intent so the user can hand the
+            // PDF to a therapist in whatever channel they use
+            // (Signal, email, paper print). On-device only —
+            // the file URI never leaves this device until the
+            // user explicitly picks a recipient in the
+            // system share sheet.
+            val share = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                type = "application/pdf"
+                putExtra(
+                    android.content.Intent.EXTRA_STREAM,
+                    androidx.core.content.FileProvider.getUriForFile(
+                        context,
+                        context.packageName + ".fileprovider",
+                        file,
+                    ),
+                )
+                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(
+                android.content.Intent.createChooser(share, "Share with your therapist")
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }
+    }
+    // v0.66.1: wire the Crisis "I need to ground" panic
+    // button. The previous v0.66.0 no-op meant tapping the
+    // largest, most prominent button on the Crisis surface
+    // had zero feedback. Now it pushes the Skills route on
+    // the back-stack so the system back button returns the
+    // user to the Crisis surface. The Skills library has the
+    // S.T.O.P. and TIPP instructions in full (per SkillsLibrary
+    // — verbatim DBT/ACT/grounding protocol), so the user
+    // gets actionable content within one tap.
+    val onSkillStart: (SkillId) -> Unit = { _ ->
+        stack.add(JournalRoute.Skills)
+    }
+
     Box(modifier = modifier.fillMaxSize()) {
         when (current) {
             // v0.66.0 (Task 11): the Today composable now takes a
             // wider signature — skill-of-the-day + diary card
             // callbacks + voice-first + therapist-export toggles +
-            // two navigation callbacks. The actual SkillsPrefs and
-            // DiaryCardPrefs writes are wired in Task 12 (the
-            // follow-up to this refactor); for now the new
-            // callbacks are no-op lambdas so the build compiles.
-            // The voice-first and therapist-export toggles default
-            // to false here — the real values are read from
-            // JournalSettingsPrefs in Task 12.
+            // two navigation callbacks.
+            // v0.66.1: the no-op callbacks are now real. onSkillDone
+            // writes to SkillsPrefs (per-day); onUrgeEntry writes
+            // to DiaryCardPrefs (per-day); onExportRequest
+            // generates the on-device PDF and fires a share
+            // intent. The voice-first + therapist-export toggles
+            // are wired from JournalSettingsPrefs (real reads,
+            // not hard-coded false).
             JournalRoute.Today -> JournalToday(
                 entryBody = todayEntry,
                 onEntryBodyChange = updateEntry,
@@ -223,13 +331,13 @@ fun JournalRoot(
                 onArchive = { stack.add(JournalRoute.Archive) },
                 onSettings = { stack.add(JournalRoute.Settings) },
                 onCall = dial,
-                onSkillDone = { /* Task 12: skillsPrefs.markUsed(it, today) */ },
-                onUrgeEntry = { /* Task 12: diaryCardPrefs.setEntry(...) */ },
-                onExportRequest = { /* Task 12: therapist export intent */ },
+                onSkillDone = onSkillDone,
+                onUrgeEntry = onUrgeEntry,
+                onExportRequest = onExportRequest,
                 onNavigateToSkills = { stack.add(JournalRoute.Skills) },
                 onNavigateToCrisis = { stack.add(JournalRoute.Crisis) },
-                voiceFirstEnabled = false,
-                therapistExportEnabled = false,
+                voiceFirstEnabled = voiceFirstEnabled,
+                therapistExportEnabled = therapistExportEnabled,
                 skillOfTheDay = skillOfTheDay,
             )
             JournalRoute.Archive -> JournalArchive(
@@ -257,30 +365,32 @@ fun JournalRoot(
                 onCall = dial,
             )
             // v0.66.0 (Task 12): the two new DBT destinations.
-            //   - `Skills` is a stub (JournalSkills.kt) that
-            //     renders a "coming in v0.66.1" placeholder.
-            //     The real picker UI lands in a follow-up.
-            //     `onBack` pops the stack; the system back
-            //     button is also wired by `BackHandler` above.
-            //   - `Crisis` is the new full-screen DBT card
-            //     (JournalCrisis.kt): panic button +
-            //     6-step Safety Plan + 4 India crisis lines +
-            //     disclosure. The plan is collected from
-            //     `safetyPlanPrefs` (set up in Task 9); every
-            //     keystroke writes the updated plan back via
-            //     `scope.launch { safetyPlanPrefs.set(...) }`.
-            //     The panic button's `onSkillStart` is a
-            //     no-op for now — the actual skill-composable
-            //     surface is a follow-up. `onNavigateToSkills`
-            //     is a forward nav to the skills library.
+            // v0.66.1: the Skills stub is replaced with a real
+            // picker UI (5 skills, full content from SkillsLibrary).
+            // The Crisis "I need to ground" panic button now
+            // navigates to Skills (was a no-op).
+            // v0.66.1: after the user marks a skill Done in the
+            // library, we both persist the use (onSkillDone writes
+            // to SkillsPrefs) and pop the Skills screen off the
+            // back-stack so the user returns to wherever they
+            // came from (Today for normal use, Crisis for the
+            // "I need to ground" panic-button flow). Without the
+            // pop, the user was stranded on the Skills page with
+            // no visible feedback that the Done tap registered.
             JournalRoute.Skills -> JournalSkills(
                 onBack = { stack.removeAt(stack.lastIndex) },
                 onCall = dial,
+                onSkillDone = { skillId ->
+                    onSkillDone(skillId)
+                    if (stack.isNotEmpty() && stack.last() == JournalRoute.Skills) {
+                        stack.removeAt(stack.lastIndex)
+                    }
+                },
             )
             JournalRoute.Crisis -> JournalCrisis(
                 plan = plan,
                 onPlanChange = { newPlan -> scope.launch { safetyPlanPrefs.set(newPlan) } },
-                onSkillStart = { /* TODO: wire to a skill-composables screen in a follow-up */ },
+                onSkillStart = onSkillStart,
                 onNavigateToSkills = { stack.add(JournalRoute.Skills) },
                 onCall = dial,
             )
