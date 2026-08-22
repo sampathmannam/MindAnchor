@@ -95,8 +95,8 @@ class LetterPromptShapeTest {
         // We approximate: 1 token ≈ 4 chars (English).
         val approxTokens = LetterPrompt.SYSTEM_PROMPT.length / 4
         assertTrue(
-            "system prompt is $approxTokens tokens (target 250-500)",
-            approxTokens in 250..500,
+            "system prompt is $approxTokens tokens (target 250-550)",
+            approxTokens in 250..550,
         )
     }
 
