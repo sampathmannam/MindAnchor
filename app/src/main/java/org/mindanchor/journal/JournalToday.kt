@@ -72,6 +72,8 @@
 @file:Suppress("MagicNumber")
 package org.mindanchor.journal
 
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -95,6 +97,8 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -103,6 +107,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -161,6 +166,39 @@ internal fun JournalToday(
     voiceFirstEnabled: Boolean = false,
     therapistExportEnabled: Boolean = false,
     skillOfTheDay: SkillId = SkillId.BREATHING_SPACE,
+    // v0.66.2: mood is now persisted to today's diary card.
+    // `currentMood` is the index into `Mood.entries` for the
+    // first emotion in the card (0..4), or null when the card
+    // has no emotions. `onMoodChange` writes the new chip
+    // selection back to the card. The previous session-local
+    // `var mood` was lost on app restart, which left the
+    // diary card's `emotions` empty even when the user had
+    // clearly picked a mood for the day.
+    currentMood: Int? = null,
+    onMoodChange: (Int?) -> Unit = {},
+    // v0.66.2: one-shot signal from JournalRoot. When the
+    // user marks a skill Done in the Skills library, Root
+    // sets `pendingArm = true` and pops the Skills screen.
+    // When Today recomposes and sees `pendingArm = true`,
+    // it arms the 60s diary expander window the same way a
+    // tap on the Skill of the Day's Done button would have
+    // — the user just did a skill, the right next affordance
+    // is to log any urges it surfaced. `onPendingArmConsumed`
+    // flips the flag back to false (one-shot).
+    pendingArm: Boolean = false,
+    onPendingArmConsumed: () -> Unit = {},
+    // v0.66.2: 2D Affect-Grid toggle. When ON, the mood row
+    // renders a 2x2 grid (valence × arousal) instead of the
+    // 1D 5-chip row. The grid's quadrant-to-Mood mapping is
+    // preserved in `AffectGrid` below — Drained→CRUSHED,
+    // Tense→HEAVY, Calm→STEADY, Energized→BRIGHT. LIGHT is
+    // the 5th state but not in the 2D grid (it sits between
+    // Calm and Energized in the original 1D — the 2D drops
+    // it for a cleaner quadrant tap target). The
+    // `onMoodChange` callback is unchanged: tapping a grid
+    // quadrant still writes the mapped Mood index to
+    // DiaryCardPrefs.
+    affectGridEnabled: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     // BPD-first: the date is shown, the time is not.
@@ -173,8 +211,6 @@ internal fun JournalToday(
     val today = remember { LocalDate.now() }
     val dateText = today.format(DateTimeFormatter.ofPattern("EEEE  d MMMM", Locale.US))
 
-    // Session-local state. NOT persisted (see file header).
-    var mood by remember { mutableStateOf<Int?>(null) }
     // `lastSkillDone` is enabled the moment the user taps
     // Done on the skill card, and a 60-second timer
     // (URGE_LOG_WINDOW_MS, per the brief) automatically
@@ -186,23 +222,117 @@ internal fun JournalToday(
     val lastSkillDoneJob = remember { mutableStateOf<Job?>(null) }
     val scope = rememberCoroutineScope()
 
+    // v0.66.2: voice-first read-side. The `voiceFirstEnabled`
+    // toggle was plumbed in v0.66.1 but unread — the actual
+    // TTS surface landed in v0.66.2. The TTS instance is
+    // initialised once at composition (async, with a status
+    // callback that sets `ttsReady` to true on success) and
+    // released at dispose. The "speaking" flag drives the
+    // button label swap (Read aloud → Stop). The user can
+    // tap a skill's "Read aloud" to hear its how-to-do-it
+    // text via the system TTS engine. The TTS engine is the
+    // system default — on the test emulator it is Google's
+    // speech engine, no network call from MindAnchor.
+    val ttsContext = LocalContext.current
+    val ttsState = remember { mutableStateOf<TextToSpeech?>(null) }
+    val ttsReady = remember { mutableStateOf(false) }
+    val ttsSpeaking = remember { mutableStateOf(false) }
+    DisposableEffect(Unit) {
+        ttsState.value = TextToSpeech(ttsContext) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                ttsReady.value = true
+            }
+        }
+        onDispose {
+            ttsState.value?.stop()
+            ttsState.value?.shutdown()
+            ttsState.value = null
+            ttsReady.value = false
+        }
+    }
+    val speakSkill: (Skill) -> Unit = speakSkillImpl@{ sk ->
+        val tts = ttsState.value
+        if (tts == null || !ttsReady.value) return@speakSkillImpl
+        tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+            override fun onStart(utteranceId: String?) { ttsSpeaking.value = true }
+            override fun onDone(utteranceId: String?) { ttsSpeaking.value = false }
+            @Deprecated("Required by API")
+            override fun onError(utteranceId: String?) { ttsSpeaking.value = false }
+            @Deprecated("Required by API")
+            override fun onError(utteranceId: String?, errorCode: Int) { ttsSpeaking.value = false }
+        })
+        // Read the title + when-to-use + how-to-do-it, with a
+        // short pause-like phrase between sections so the
+        // listener can follow the structure. TTS engines
+        // honour SSML breaks; this stays plain text to keep
+        // the dependency surface to the engine default.
+        val text = buildString {
+            append(sk.title).append(". ")
+            append(sk.whenToUse).append(". ")
+            append("How to do it. ").append(sk.howToDoIt)
+        }
+        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "mindanchor-skill-${sk.id.name}")
+    }
+    val stopSpeaking: () -> Unit = {
+        ttsState.value?.stop()
+        ttsSpeaking.value = false
+    }
+
+    // v0.66.2: arm the 60s diary expander window when the
+    // user just did a skill via the Skills library. Without
+    // this, the only way to enable the urge expander was
+    // the Skill of the Day card on Today, which is not
+    // the natural follow-up after "I just did TIPP from
+    // the Crisis screen". The arming is identical to the
+    // Skill of the Day card's onDone — same window, same
+    // skill, same `delay(URGE_LOG_WINDOW_MS)`. Then we
+    // consume the flag so a later re-composition does not
+    // re-arm (one-shot).
+    LaunchedEffect(pendingArm) {
+        if (pendingArm) {
+            lastSkillDoneJob.value?.cancel()
+            lastSkillDone = skillOfTheDay
+            lastSkillDoneJob.value = scope.launch {
+                delay(URGE_LOG_WINDOW_MS)
+                lastSkillDone = null
+            }
+            onPendingArmConsumed()
+        }
+    }
+
     val skill = remember(skillOfTheDay) { SkillsLibrary.byId(skillOfTheDay) }
     val canLogUrge = lastSkillDone != null
 
     Column(
         modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState()),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .fillMaxSize(),
     ) {
-        Spacer(modifier = Modifier.height(48.dp))
-
-        JournalPaperCard(
+        // v0.66.2: the 3-icon footer is now sticky (always
+        // pinned to the bottom of the viewport, visible without
+        // scrolling). The rest of the surface — the paper
+        // card with header, mood, composer, skill, diary
+        // expander, crisis lines, export button, and the
+        // v0.66.1 nav row — scrolls inside a `weight(1f)`
+        // Column above the footer. Previously the footer
+        // lived at the end of the scroll, which meant a
+        // user on the Crisis / Skills routes (v0.66.1 nav
+        // row) had to scroll past the entire card to reach
+        // Search / Archive / Settings.
+        Column(
             modifier = Modifier
+                .weight(1f)
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp),
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Column(modifier = Modifier.fillMaxSize()) {
+            Spacer(modifier = Modifier.height(48.dp))
+
+            JournalPaperCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+            ) {
+                Column(modifier = Modifier.fillMaxSize()) {
                 // 1. Header — TODAY + divider + date. (v0.65.0, kept)
                 Column(
                     modifier = Modifier
@@ -247,15 +377,33 @@ internal fun JournalToday(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // 3. Mood chips (5 horizontal chips, single-select,
-                //    deselectable, NO dimming of unselected states).
-                MoodChipsRow(
-                    selected = mood,
-                    onSelect = { tapped ->
-                        mood = if (mood == tapped) null else tapped
-                    },
-                    modifier = Modifier.padding(horizontal = 32.dp),
-                )
+                // 3. Mood input. Two shapes, gated by
+                //    `affectGridEnabled`:
+                //    - OFF (default): the 1D 5-chip row.
+                //    - ON: the 2D Affect-Grid (valence × arousal,
+                //      2x2). Same `onMoodChange` callback — the
+                //      grid maps each quadrant to a Mood index.
+                //    v0.66.2: both shapes are driven by the
+                //    persisted diary card (passed in as
+                //    `currentMood` + `onMoodChange` from
+                //    JournalRoot), not by session-local state.
+                if (affectGridEnabled) {
+                    AffectGrid(
+                        selected = currentMood,
+                        onSelect = { tapped ->
+                            onMoodChange(if (currentMood == tapped) null else tapped)
+                        },
+                        modifier = Modifier.padding(horizontal = 32.dp),
+                    )
+                } else {
+                    MoodChipsRow(
+                        selected = currentMood,
+                        onSelect = { tapped ->
+                            onMoodChange(if (currentMood == tapped) null else tapped)
+                        },
+                        modifier = Modifier.padding(horizontal = 32.dp),
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -344,6 +492,17 @@ internal fun JournalToday(
                             lastSkillDone = null
                         }
                     },
+                    // v0.66.2: voice-first read-side. The
+                    // "Read aloud" / "Stop" button is rendered
+                    // only when `voiceFirstEnabled` is true
+                    // (default OFF — the button is opt-in via
+                    // Settings → Voice-first for crisis, check-
+                    // in, skills). When speaking, the button
+                    // becomes "Stop" and stops the TTS engine.
+                    voiceFirstEnabled = voiceFirstEnabled,
+                    isSpeaking = ttsSpeaking.value,
+                    onSpeak = { speakSkill(skill) },
+                    onStop = stopSpeaking,
                     modifier = Modifier.padding(horizontal = 32.dp),
                 )
 
@@ -444,20 +603,39 @@ internal fun JournalToday(
                     modifier = Modifier.padding(horizontal = 32.dp, vertical = 4.dp),
                 )
 
-                // 9. The persistent 3-icon footer (v0.65.0, kept).
-                //    The icons are unlabelled, the active icon is
-                //    None on Today, the crisis line is the one
-                //    above this row (the new 4-line footer).
-                JournalFooter(
-                    activeIcon = FooterIcon.None,
-                    onSearch = onSearch,
-                    onArchive = onArchive,
-                    onSettings = onSettings,
-                )
+                // 9. The persistent 3-icon footer (v0.65.0, kept)
+                //    was here in v0.66.1, but it lived at the end
+                //    of the scroll, which meant the user had to
+                //    scroll past the entire paper card to reach
+                //    Search / Archive / Settings. v0.66.2 pulls
+                //    the footer out of the scroll so it is sticky
+                //    (see the outer Column above) and accessible
+                //    without scrolling. The 4-line crisis block
+                //    stays inside the card (item 7) — that is the
+                //    surface's promise, not a nav chrome.
+                //
+                // JournalFooter(...) is rendered as a sibling
+                // of the scrollable Column, after this block.
             }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(32.dp))
+        }
+
+        // v0.66.2: the sticky 3-icon footer. Pinned to the
+        // bottom of the viewport. Same visual chrome as the
+        // v0.65.0 footer (translucent paper + 1dp hairline),
+        // just no longer inside the scroll content. Active
+        // icon is `None` on Today — the legacy 5-route icons
+        // (Search / Archive / Settings) are all the nav
+        // surface this footer offers; the v0.66.1 nav row
+        // (Skills / Crisis) is the v0.66.x nav surface.
+        JournalFooter(
+            activeIcon = FooterIcon.None,
+            onSearch = onSearch,
+            onArchive = onArchive,
+            onSettings = onSettings,
+        )
     }
 }
 
@@ -557,6 +735,124 @@ private fun MoodChipsRow(
 }
 
 /**
+ * 2D Affect-Grid (Russell circumplex, v0.66.2). When the
+ * "2D mood grid (Affect-Grid)" toggle is ON in Settings,
+ * Today's mood row renders this 2x2 grid instead of the
+ * 1D 5-chip [MoodChipsRow].
+ *
+ * The 2D UI exposes 4 of the 5 Mood states (LIGHT, the
+ * in-between state in the 1D row, has no 2D equivalent and
+ * is dropped). The quadrant → Mood mapping is:
+ *   - top-left  (Drained, low energy + sad) → CRUSHED
+ *   - top-right (Tense,   high energy + sad) → HEAVY
+ *   - bot-left  (Calm,    low energy + happy) → STEADY
+ *   - bot-right (Energized, high energy + happy) → BRIGHT
+ *
+ * The grid uses the existing `Mood.bg` / `Mood.fg` palette
+ * for the selected cell's tint, with the same terracotta
+ * border used by [MoodChipsRow] for the selected state.
+ * This keeps the visual language consistent across the
+ * 1D and 2D mood input shapes. The Y axis (energy) is
+ * vertical, the X axis (valence) is horizontal — the
+ * standard Russell (1980) layout.
+ */
+@Composable
+private fun AffectGrid(
+    selected: Int?,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        // Top row — sad (low valence).
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            AffectQuadrant(
+                label = "Drained",
+                mood = Mood.CRUSHED,
+                isSelected = selected == Mood.CRUSHED.ordinal,
+                onClick = { onSelect(Mood.CRUSHED.ordinal) },
+                modifier = Modifier.weight(1f),
+            )
+            AffectQuadrant(
+                label = "Tense",
+                mood = Mood.HEAVY,
+                isSelected = selected == Mood.HEAVY.ordinal,
+                onClick = { onSelect(Mood.HEAVY.ordinal) },
+                modifier = Modifier.weight(1f),
+            )
+        }
+        // Bottom row — happy (high valence).
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            AffectQuadrant(
+                label = "Calm",
+                mood = Mood.STEADY,
+                isSelected = selected == Mood.STEADY.ordinal,
+                onClick = { onSelect(Mood.STEADY.ordinal) },
+                modifier = Modifier.weight(1f),
+            )
+            AffectQuadrant(
+                label = "Energized",
+                mood = Mood.BRIGHT,
+                isSelected = selected == Mood.BRIGHT.ordinal,
+                onClick = { onSelect(Mood.BRIGHT.ordinal) },
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+/**
+ * One 2D Affect-Grid cell. The 2D label ("Drained" / "Tense"
+ * / "Calm" / "Energized") is shown on the cell; the cell's
+ * background tint uses the mapped `Mood.bg` colour. The
+ * 2D label is the only visible text in the cell — the
+ * 5-state Mood name (e.g. "Crushed") is the internal
+ * selection target, not shown to the user in 2D mode.
+ */
+@Composable
+private fun AffectQuadrant(
+    label: String,
+    mood: Mood,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .height(64.dp)
+            .background(mood.bg, shape = RoundedCornerShape(8.dp))
+            .border(
+                width = if (isSelected) 1.5.dp else 1.dp,
+                color = if (isSelected) Terracotta else mood.fg.copy(alpha = 0.20f),
+                shape = RoundedCornerShape(8.dp),
+            )
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp, horizontal = 8.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = label,
+            style = TextStyle(
+                fontFamily = JournalSerif,
+                fontStyle = FontStyle.Italic,
+                fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Light,
+                fontSize = 13.sp,
+            ),
+            color = mood.fg,
+        )
+    }
+}
+
+/**
  * The skill-of-the-day card. The skill is read from
  * `SkillsLibrary.byId(skillOfTheDay)`; tapping "Done" calls
  * [onDone], which both updates the local `lastSkillDone` in
@@ -571,6 +867,14 @@ private fun MoodChipsRow(
 private fun SkillOfTheDayCard(
     skill: Skill,
     onDone: () -> Unit,
+    // v0.66.2: voice-first affordance. The "Read aloud" /
+    // "Stop" button is rendered only when `voiceFirstEnabled`
+    // is true. The button text swaps to "Stop" while the TTS
+    // engine is speaking the skill's how-to-do-it text.
+    voiceFirstEnabled: Boolean = false,
+    isSpeaking: Boolean = false,
+    onSpeak: () -> Unit = {},
+    onStop: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -614,10 +918,33 @@ private fun SkillOfTheDayCard(
             color = Ink.copy(alpha = 0.60f),
         )
         Spacer(modifier = Modifier.height(8.dp))
-        Box(
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            contentAlignment = Alignment.CenterEnd,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
+            // v0.66.2: voice-first read-side button. Only
+            // rendered when the toggle is ON. The "Stop"
+            // label is the same widget — tapping it while
+            // speaking halts the TTS engine (does not re-
+            // start it). BPD-safe copy: "Read aloud" not
+            // "Listen now" — validate-then-suggest.
+            if (voiceFirstEnabled) {
+                Text(
+                    text = if (isSpeaking) "Stop" else "Read aloud",
+                    style = TextStyle(
+                        fontFamily = JournalSerif,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 13.sp,
+                    ),
+                    color = AcknowledgeTeal,
+                    modifier = Modifier
+                        .clickable(onClick = { if (isSpeaking) onStop() else onSpeak() })
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                )
+            } else {
+                Spacer(modifier = Modifier.size(1.dp))
+            }
             Text(
                 text = "Done",
                 style = TextStyle(

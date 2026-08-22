@@ -85,6 +85,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshots.SnapshotStateList
@@ -93,6 +94,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.toMutableStateList
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import android.app.Activity
 import java.time.LocalDate
@@ -187,6 +189,24 @@ fun JournalRoot(
         initialValue = SafetyPlanEntry.empty()
     )
 
+    // v0.66.2: the today diary card is the durable record for
+    // today's mood (per the v0.66.0 spec, the diary card is the
+    // canonical DBT self-monitoring record). Read the current
+    // card as a Flow so the mood chips on Today reflect the
+    // persisted selection across recompositions and process
+    // restarts. `currentMood` is the index into `Mood.entries`
+    // (0..4) for the first emotion in the list, or null when
+    // the card has no emotions. Single-select chip ↔
+    // single-emotion list — the diary card's `emotions` is a
+    // `List<Mood>` for forward compatibility (the DBT workbook
+    // allows multiple per day) but Today only logs one at a
+    // time. Mood-logged-once-per-day is the right shape — the
+    // user is recording "how is it right now", not free-associating.
+    val today: LocalDate = remember { LocalDate.now() }
+    val todayCard by diaryCardPrefs.entryFor(today)
+        .collectAsStateWithLifecycle(initialValue = null)
+    val currentMood: Int? = todayCard?.emotions?.firstOrNull()?.ordinal
+
     // The back gesture pops the stack. If the stack has
     // only Today, the back gesture forwards to
     // HomeActivity (which will move the launcher to the
@@ -219,6 +239,14 @@ fun JournalRoot(
         .collectAsStateWithLifecycle(initialValue = false)
     val therapistExportEnabled by settingsPrefs.therapistExportEnabled
         .collectAsStateWithLifecycle(initialValue = false)
+    // v0.66.2: read the 2D mood input toggle. v0.66.0 stored
+    // the flag in the prefs but never read it into a
+    // composable — JournalSettings shows the toggle, but no
+    // surface responds to it. v0.66.2 wires the flag into
+    // Today so the 1D mood chips switch to a 2x2 Affect-Grid
+    // (Russell circumplex — valence × arousal) when ON.
+    val affectGridEnabled by settingsPrefs.affectGridEnabled
+        .collectAsStateWithLifecycle(initialValue = false)
 
     // v0.66.1: real wires for the v0.66.0 no-op callbacks.
     //   - onSkillDone writes the SkillId to SkillsPrefs for
@@ -228,8 +256,9 @@ fun JournalRoot(
     //     the rest of the app uses.
     //   - onUrgeEntry writes a DiaryCardEntry to DiaryCardPrefs
     //     for `today` with the 0..5 Urges triple. The Mood
-    //     list is empty (Today does not own mood input; a
-    //     future mood surface populates this). The
+    //     list comes from the user's current chip selection
+    //     (v0.66.2: mood is persisted; onUrgeEntry no longer
+    //     clobbers the existing emotions list). The
     //     `exportedToTherapist` flag is `false` at write time
     //     and flips to `true` when the user actually exports
     //     the PDF (TherapistExport's own gate).
@@ -241,19 +270,51 @@ fun JournalRoot(
     //     email, paper print). The PDF is generated on this
     //     device only — no network call, no telemetry, no
     //     analytics.
-    val today: LocalDate = remember { LocalDate.now() }
+    //   - onMoodChange (v0.66.2) writes the new mood chip
+    //     selection to today's diary card. The other card
+    //     fields (urges, skillUsed, exportedToTherapist) are
+    //     read from the current card first so tapping a mood
+    //     chip does not clobber an already-logged urge. If
+    //     there is no card yet for today, a fresh one is
+    //     written with the new mood and the other fields at
+    //     their default (null urges, no skill, not exported).
+    //     `idx` is the index into `Mood.entries` (0..4), or
+    //     null when the user tapped the currently-selected
+    //     chip again to deselect.
     val onSkillDone: (SkillId) -> Unit = { skillId ->
         scope.launch { skillsPrefs.markUsed(skillId, today) }
     }
     val onUrgeEntry: (Urges) -> Unit = { urges ->
         scope.launch {
+            // Preserve the already-persisted mood when the user
+            // logs urges — the diary card is the durable record
+            // for both fields, and writing emptyList() here would
+            // silently clear a mood the user just picked. (The
+            // v0.66.0/v0.66.1 code did exactly that, which is
+            // why v0.66.2 reads the current card first.)
+            val current = diaryCardPrefs.entryFor(today).first()
             diaryCardPrefs.setEntry(
                 DiaryCardEntry(
                     date = today,
                     urges = urges,
-                    emotions = emptyList(),
-                    skillUsed = null,
-                    exportedToTherapist = false,
+                    emotions = current?.emotions ?: emptyList(),
+                    skillUsed = current?.skillUsed,
+                    exportedToTherapist = current?.exportedToTherapist ?: false,
+                ),
+            )
+        }
+    }
+    val onMoodChange: (Int?) -> Unit = { idx ->
+        scope.launch {
+            val current = diaryCardPrefs.entryFor(today).first()
+            val emotions = if (idx == null) emptyList() else listOf(Mood.entries[idx])
+            diaryCardPrefs.setEntry(
+                DiaryCardEntry(
+                    date = today,
+                    urges = current?.urges,
+                    emotions = emotions,
+                    skillUsed = current?.skillUsed,
+                    exportedToTherapist = current?.exportedToTherapist ?: false,
                 ),
             )
         }
@@ -311,6 +372,21 @@ fun JournalRoot(
         stack.add(JournalRoute.Skills)
     }
 
+    // v0.66.2: when the user marks a skill Done in the Skills
+    // library, they have just done the skill — the right time to
+    // arm the 60-second diary expander window in Today (so they
+    // can log any urges the skill surfaced). JournalToday reads
+    // `pendingArm` at composition and arms the window if true,
+    // then calls `onPendingArmConsumed()` to clear the flag.
+    // This is a one-shot signal: the next library Done re-arms
+    // it, but a process restart or a re-composition of Today
+    // without a library Done does not. A `mutableStateOf` (not
+    // a `MutableStateFlow`) is the right shape here — only
+    // JournalRoot and JournalToday ever read or write it, and
+    // the value flips true→false→true in seconds, not in days.
+    val pendingArm = remember { mutableStateOf(false) }
+    val onPendingArmConsumed: () -> Unit = { pendingArm.value = false }
+
     Box(modifier = modifier.fillMaxSize()) {
         when (current) {
             // v0.66.0 (Task 11): the Today composable now takes a
@@ -339,6 +415,24 @@ fun JournalRoot(
                 voiceFirstEnabled = voiceFirstEnabled,
                 therapistExportEnabled = therapistExportEnabled,
                 skillOfTheDay = skillOfTheDay,
+                // v0.66.2: persisted mood (read from today's
+                // diary card) + persistence callback (writes
+                // the new chip selection back to the card).
+                currentMood = currentMood,
+                onMoodChange = onMoodChange,
+                // v0.66.2: 2D Affect-Grid toggle. When ON,
+                // Today's mood row renders a 2x2 grid
+                // (valence × arousal) instead of the 1D
+                // chips. Tapping a quadrant maps to one of
+                // the 5-state Mood values (the 2D UI exposes
+                // 4 of the 5; the centre, if needed, is
+                // STEADY).
+                affectGridEnabled = affectGridEnabled,
+                // v0.66.2: one-shot signal so a library Done
+                // arms the 60s diary expander window on the
+                // way back to Today.
+                pendingArm = pendingArm.value,
+                onPendingArmConsumed = onPendingArmConsumed,
             )
             JournalRoute.Archive -> JournalArchive(
                 onBack = { stack.removeAt(stack.lastIndex) },
@@ -382,6 +476,20 @@ fun JournalRoot(
                 onCall = dial,
                 onSkillDone = { skillId ->
                     onSkillDone(skillId)
+                    // v0.66.2: arm the 60s diary expander window
+                    // in Today before popping. The flag is read
+                    // on Today's next composition and consumed
+                    // (flipped back to false) by JournalToday. The
+                    // pop makes sure Today IS the next composition
+                    // — if the user came from Crisis instead, the
+                    // pop returns them to Crisis, not Today, and
+                    // the flag is held until the next time Today
+                    // is composed (which is still useful — they
+                    // may navigate back to Today and find the
+                    // window armed). The flag survives the pop
+                    // because it lives in JournalRoot, not in
+                    // the route's local state.
+                    pendingArm.value = true
                     if (stack.isNotEmpty() && stack.last() == JournalRoute.Skills) {
                         stack.removeAt(stack.lastIndex)
                     }
