@@ -66,7 +66,7 @@ class LetterGenerationLogTest {
         val read = log.entries.first()
         assertEquals(1, read.size)
         assertEquals("Timeout", read[0].errorClass)
-        assertNotNull(read[0].errorMessage)
+        assertEquals("The request timed out. Try again.", read[0].errorMessage)
     }
 
     @Test
