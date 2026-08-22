@@ -1838,4 +1838,105 @@
 
     <string name="setup_wizard_rerun_label">Run setup wizard again</string>
     <string name="setup_wizard_rerun_description">Walk through Health Connect, a watch, the COROS bridge, and a baseline reading again — one step at a time.</string>
+
+    <!--
+        v0.67.0: DBT-grounded journal (v0.66.0) chrome. The
+        strings below are the new v0.66.x surface's
+        user-facing labels — the screen headers, button
+        captions, the 14-day strip line, the 2D-swap
+        label, the crisis line NAMES, the privacy policy
+        path, the onboarding overlay, the settings
+        toggles, and the export filename subtitle.
+
+        The crisis line NUMBERS stay in code
+        (JournalToday.kt) — they are the public-safety
+        digits and must be exact; moving them to
+        strings.xml would risk a translation mistake
+        turning "9152987821" into "9-1-5-2..." The
+        NAMES and hours-of-availability lines are
+        translated.
+
+        The strings are pulled into Compose with
+        `stringResource(R.string.journal_*)`. Where a
+        string contains an apostrophe, the resource
+        uses a backslash escape (e.g. \"You\\'re\")
+        because the Android resource compiler treats
+        a raw apostrophe as a quoting problem.
+    -->
+    <string name="journal_today_header">TODAY</string>
+    <string name="journal_strip_pattern">Pattern, not diagnosis.</string>
+    <string name="journal_strip_still_learning">Your 14-day direction will appear here once you log a few moods. (%1$d so far)</string>
+    <string name="journal_mood_swap_label">Same mood, different lens.</string>
+    <string name="journal_skill_of_day_label">SKILL OF THE DAY</string>
+    <string name="journal_done_button">Done</string>
+    <string name="journal_read_aloud">Read aloud</string>
+    <string name="journal_stop">Stop</string>
+    <string name="journal_log_urge">Log an urge</string>
+    <string name="journal_use_skill_first">Use a skill first</string>
+    <string name="journal_close">Close</string>
+    <string name="journal_share_with_therapist">Share with my therapist</string>
+    <string name="journal_nav_skills">Skills library</string>
+    <string name="journal_nav_crisis">Crisis surface</string>
+    <string name="journal_anything_here">Anything here?</string>
+    <string name="journal_thanks_for_writing">Thanks for writing that.</string>
+
+    <!-- v0.67.0: crisis line names + hours-of-availability.
+         The number itself (tel) is in code. The NAMES are
+         the public-safety label on the dial; if the user
+         is looking for "iCall" they should see "iCall"
+         regardless of the device language. The
+         hours-of-availability text is descriptive and
+         translates. -->
+    <string name="crisis_line_icall_name">iCall</string>
+    <string name="crisis_line_icall_hours">TISS Mumbai</string>
+    <string name="crisis_line_vandrevala_name">Vandrevala</string>
+    <string name="crisis_line_vandrevala_hours">24/7 multilingual</string>
+    <string name="crisis_line_aasra_name">AASRA</string>
+    <string name="crisis_line_aasra_hours">24/7 suicide prevention</string>
+    <string name="crisis_line_telemanas_name">Tele-MANAS</string>
+    <string name="crisis_line_telemanas_hours">Govt. of India</string>
+    <string name="crisis_line_call">Call</string>
+
+    <!-- v0.67.0: first-run onboarding overlay strings. -->
+    <string name="journal_onboarding_title">A short tour.</string>
+    <string name="journal_onboarding_subtitle">Three things this journal is built around. You can come back to this from Settings.</string>
+    <string name="journal_onboarding_card1_title">Mood — a thing you can name.</string>
+    <string name="journal_onboarding_card1_body">Five states from Crushed to Bright, or a 2x2 grid (Settings → 2D mood). Naming a feeling is different from changing one. Pick one, or none.</string>
+    <string name="journal_onboarding_card2_title">Skill — a thing you can do.</string>
+    <string name="journal_onboarding_card2_body">TIPP, STOP, DEAR MAN, Breathing Space, Wise Mind. The skill of the day is offered, not commanded. You mark it Done when you have done it — a 60-second window then lets you log what came up.</string>
+    <string name="journal_onboarding_card3_title">Diary — a thing you can notice.</string>
+    <string name="journal_onboarding_card3_body">Three sliders: NSSI, Suicidal, Dissociation, each 0–5. Nothing is recorded unless you do it. Nothing is shown to anyone unless you choose to share a PDF with your therapist.</string>
+    <string name="journal_onboarding_got_it">Got it</string>
+    <string name="journal_onboarding_dont_show">Don\'t show this again</string>
+
+    <!-- v0.67.0: privacy policy path in Settings. -->
+    <string name="settings_privacy_data">Privacy and data</string>
+    <string name="settings_privacy_data_sublabel">What MindAnchor stores, who can see it, and what leaves this device.</string>
+    <string name="settings_show_journal_intro">Show journal intro</string>
+    <string name="settings_show_journal_intro_sublabel">Re-open the 3-card tour of mood, skill, and diary.</string>
+    <string name="settings_display_name">Display name</string>
+    <string name="settings_display_name_hint">Optional. Personalises the therapist-export PDF file name.</string>
+
+    <!-- v0.67.0: settings toggle labels (these are the
+         user-facing captions for the three v0.66.0 toggles
+         that the existing code renders as raw English
+         labels — the localisation pass moves them to
+         res/values so the chrome can translate). -->
+    <string name="settings_voice_first">Voice-first for crisis, check-in, skills</string>
+    <string name="settings_voice_first_sublabel">When this is on, the surfaces that have it read what\'s on screen out loud. You can turn it off any time.</string>
+    <string name="settings_affect_grid">2D mood grid (Affect-Grid)</string>
+    <string name="settings_affect_grid_sublabel">When this is on, the Today mood input is a 2D grid instead of the 1D slider. Both are valid; pick what feels easier today.</string>
+    <string name="settings_therapist_export">Share with therapist PDF</string>
+    <string name="settings_therapist_export_sublabel">When this is on, an export action appears on Today and in the Crisis surface. The export is generated on this device; nothing is sent.</string>
+
+    <!-- v0.67.0: settings group captions for the journal
+         surface (About, Display). -->
+    <string name="settings_about_journal">About this journal</string>
+    <string name="settings_about_journal_sublabel">Privacy, display name, and the first-run tour.</string>
+    <string name="settings_about_journal_modes">Display and modes</string>
+    <string name="settings_about_journal_modes_sublabel">Voice-first, 2D mood, and therapist export toggles.</string>
+
+    <!-- v0.67.0: export intent caption (the chooser title
+         when sharing the PDF with the therapist). -->
+    <string name="journal_export_chooser_title">Share with your therapist</string>
 </resources>

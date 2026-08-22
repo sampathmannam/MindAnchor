@@ -4,24 +4,29 @@
  * The Today screen — the journal's home — is now a
  * single screen with the following top-to-bottom layout:
  *   1. Date header (kept from v0.65.0)
- *   2. 14-day N-of-1 strip placeholder (text-only,
- *      see the NOfOneStripPlaceholder sub-composable
- *      for the wiring TODO)
+ *   2. 14-day N-of-1 strip (real, v0.67.0; backed by
+ *      diary card mood history with own-median + MAD
+ *      robust z-score; under 14 days, shows still-
+ *      learning copy)
  *   3. Mood chips (5 horizontal chips, single-select,
  *      deselectable; no dimming of unselected — BPD-first)
+ *      OR 2D Affect-Grid (2x2; gated by `affectGridEnabled`)
  *   4. Journal composer (the existing BasicTextField +
  *      "Thanks for writing that." validation)
  *   5. Skill-of-the-day card (a Card with title + "When
- *      to use" + a "Done" button)
+ *      to use" + a "Read aloud" / "Done" row; voice-first
+ *      toggleable via `voiceFirstEnabled`)
  *   6. Diary card expander (collapsed by default; tap
  *      to expand; the link is disabled until a skill has
- *      been Done in this session)
- *   7. New 4-line crisis footer (iCall, Vandrevala,
- *      AASRA, Tele-MANAS 14416) — single-tap to dial
- *   8. Optional "Share with my therapist" button
+ *      been Done in this session or via Skills library)
+ *   7. Optional "Share with my therapist" button
  *      (visible only when `therapistExportEnabled` is
  *      true; default OFF)
- *   9. The 3-icon footer (kept from v0.65.0 — search,
+ *   8. NavTextButtonRow — Skills / Crisis text buttons
+ *   ─── sticky area (NOT in scroll) ───
+ *   9. v0.67.0: 4-line crisis bar (iCall, Vandrevala,
+ *      AASRA, Tele-MANAS 14416) — long-press to dial
+ *  10. The 3-icon footer (kept from v0.65.0 — search,
  *      archive, settings)
  *
  * v0.66.0 BPD-safe patterns preserved from v0.65.0:
@@ -31,43 +36,34 @@
  *     counter, and it appears the moment the user types.
  *   - Mood chips never dim unselected states.
  *   - No "!" anywhere.
- *   - Crisis footer is always visible.
+ *   - Crisis bar is always visible (v0.67.0: pinned,
+ *     not in the scroll).
  *
  * Sub-composables are all inline private @Composable funs
  * (per the v0.66.0 plan's self-review — no new files for
  * v0.66.0 UI primitives):
- *   - NOfOneStripPlaceholder  (14-day strip, text-only)
+ *   - NOfOneStrip             (14-day strip, real)
  *   - MoodChipsRow            (5 mood chips, BPD-safe)
+ *   - AffectGrid              (2D 2x2 mood grid, optional)
+ *   - AffectQuadrant          (one cell of the 2D grid)
  *   - SkillOfTheDayCard       (the skill card with Done)
  *   - DiaryCardExpander       (collapsed urge entry)
  *   - UrgeSlider              (one 0..5 slider for urges)
  *   - CrisisLineRow           (one crisis-line row)
+ *   - NavTextButtonRow        (text buttons for Skills/Crisis)
  *
  * State scope (Task 11, no JournalRoot changes):
- *   - `mood` and `lastSkillDone` are local-only state
- *     inside this composable. They reset on app restart.
- *     The persistence path is the diary card entry
- *     (Task 12), which writes the mood and the skill
- *     used to DiaryCardPrefs / SkillsPrefs. For v0.66.0
- *     this is acceptable: the inline mood is a
- *     session-scoped input, and the diary card
- *     submission (a follow-up) is the durable record.
- *   - The 60-second "skill recently done" window from
- *     the brief IS implemented. Tapping Done on the
- *     skill card sets `lastSkillDone` to the skill and
- *     arms a 60-second timer; when the timer fires,
- *     `lastSkillDone` is reset to null and the diary
- *     expander is disabled again. Tapping Done a second
- *     time cancels the previous timer and re-arms
- *     with the new skill. The timer is per-session;
- *     app restart resets the state.
- *   - The actual SkillsPrefs / DiaryCardPrefs writes
- *     are NOT done in this file. The callbacks
- *     `onSkillDone` and `onUrgeEntry` are wired up in
- *     JournalRoot (Task 12 follow-up). For now
- *     JournalRoot passes no-op lambdas so the build
- *     compiles; the v0.66.0 single-screen refactor is
- *     purely a UI + signature change here.
+ *   - `lastSkillDone` is local-only state inside this
+ *     composable. The persistence path is the diary card
+ *     entry, which writes the mood and the skill used to
+ *     DiaryCardPrefs / SkillsPrefs. The 60-second "skill
+ *     recently done" window from the brief IS implemented.
+ *     Tapping Done on the skill card sets `lastSkillDone`
+ *     and arms a 60-second timer; when the timer fires,
+ *     `lastSkillDone` is reset to null. Tapping Done a
+ *     second time cancels the previous timer and re-arms.
+ *     The Skills library's Done (v0.66.2) sets the same
+ *     flag via `pendingArm` and pops back to Today.
  */
 @file:Suppress("MagicNumber")
 package org.mindanchor.journal
@@ -108,6 +104,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -123,6 +120,7 @@ import org.mindanchor.journal.diary.Urges
 import org.mindanchor.journal.skills.Skill
 import org.mindanchor.journal.skills.SkillId
 import org.mindanchor.journal.skills.SkillsLibrary
+import org.mindanchor.R
 
 /**
  * The diary-expander enablement window after a skill is
@@ -199,6 +197,18 @@ internal fun JournalToday(
     // quadrant still writes the mapped Mood index to
     // DiaryCardPrefs.
     affectGridEnabled: Boolean = false,
+    // v0.67.0: the 14-day N-of-1 mood history. The list
+    // contains exactly 14 entries, oldest first; the int is
+    // the day-by-day mood ordinal (0..4) or null when the
+    // day was not logged. The list is computed in
+    // JournalRoot from `diaryCardPrefs.entriesInRange`. The
+    // 14-day floor is from the v0.65.0 mood screen pattern
+    // (median + MAD per person, 14-day floor, 180-day
+    // history prune — see MindAnchor user-memory entry
+    // "N-of-1 framing for wearable surfaces (MindAnchor)").
+    // The strip renders the user's own median + MAD, not a
+    // population comparison.
+    moodHistory: List<Pair<LocalDate, Int?>> = emptyList(),
     modifier: Modifier = Modifier,
 ) {
     // BPD-first: the date is shown, the time is not.
@@ -252,7 +262,17 @@ internal fun JournalToday(
     }
     val speakSkill: (Skill) -> Unit = speakSkillImpl@{ sk ->
         val tts = ttsState.value
+        // v0.67.0: TTS spam dedupe. A user in distress who
+        // taps "Read aloud" 20 times in 2 seconds should
+        // not queue 20 utterances. The TTS engine's
+        // QUEUE_FLUSH replaces the queue on each speak(),
+        // which mostly handles the spam — but it also
+        // interrupts itself mid-utterance, which is its
+        // own bad UX. We gate here: if we're already
+        // speaking, ignore the re-tap. The user can stop
+        // the current utterance with the "Stop" button.
         if (tts == null || !ttsReady.value) return@speakSkillImpl
+        if (ttsSpeaking.value) return@speakSkillImpl
         tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(utteranceId: String?) { ttsSpeaking.value = true }
             override fun onDone(utteranceId: String?) { ttsSpeaking.value = false }
@@ -341,7 +361,7 @@ internal fun JournalToday(
                         .padding(top = 32.dp, bottom = 24.dp),
                 ) {
                     Text(
-                        text = "TODAY",
+                        text = stringResource(R.string.journal_today_header),
                         style = TextStyle(
                             fontFamily = JournalSerif,
                             fontWeight = FontWeight.Light,
@@ -365,13 +385,19 @@ internal fun JournalToday(
                     )
                 }
 
-                // 2. 14-day N-of-1 strip (text-only placeholder).
-                //    TODO(v0.66.x): wire to N-of-1 strip from MoodScreen.kt
-                //    — the real strip lives on the dedicated mood screen
-                //    in v0.65.0; the v0.66.0 single-screen refactor leaves
-                //    the inline strip as a copy-only placeholder so the
-                //    surface has its expected shape from day one.
-                NOfOneStripPlaceholder(
+                // 2. 14-day N-of-1 strip. v0.67.0 replaces the
+                //    v0.66.0/v0.66.1 text-only placeholder with
+                //    a real strip backed by the diary card
+                //    history. The strip's median + MAD is the
+                //    user's OWN, not a population comparison
+                //    (N-of-1 framing — per-person, robust
+                //    z-score). A 14-day floor is preserved per
+                //    the v0.65.0 mood screen pattern; under
+                //    14 days of data, the strip shows the
+                //    "still learning" copy from the placeholder
+                //    rather than fake "z-score" colouring.
+                NOfOneStrip(
+                    history = moodHistory,
                     modifier = Modifier.padding(horizontal = 32.dp),
                 )
 
@@ -388,6 +414,29 @@ internal fun JournalToday(
                 //    `currentMood` + `onMoodChange` from
                 //    JournalRoot), not by session-local state.
                 if (affectGridEnabled) {
+                    // v0.67.0: a one-line label sits above the
+                    // 2D grid. The semantic of the 1D ↔ 2D
+                    // swap is "same mood, different lens" —
+                    // the user's persisted mood carries over,
+                    // but the labels (Steady vs Calm) are
+                    // different. Without the label, the swap
+                    // can read as "my mood disappeared". The
+                    // label is always visible (not a one-time
+                    // tooltip) because the toggle is sticky
+                    // and a user may toggle back and forth.
+                    Text(
+                        text = stringResource(R.string.journal_mood_swap_label),
+                        style = TextStyle(
+                            fontFamily = JournalSerif,
+                            fontStyle = FontStyle.Italic,
+                            fontWeight = FontWeight.Light,
+                            fontSize = 11.sp,
+                        ),
+                        color = Ink.copy(alpha = 0.45f),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 32.dp, vertical = 4.dp),
+                    )
                     AffectGrid(
                         selected = currentMood,
                         onSelect = { tapped ->
@@ -435,7 +484,7 @@ internal fun JournalToday(
                         decorationBox = { innerTextField ->
                             if (entryBody.isEmpty()) {
                                 Text(
-                                    text = "Anything here?",
+                                    text = stringResource(R.string.journal_anything_here),
                                     style = TextStyle(
                                         fontFamily = JournalSerif,
                                         fontStyle = FontStyle.Italic,
@@ -460,7 +509,7 @@ internal fun JournalToday(
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = "Thanks for writing that.",
+                            text = stringResource(R.string.journal_thanks_for_writing),
                             style = TextStyle(
                                 fontFamily = JournalSerif,
                                 fontStyle = FontStyle.Italic,
@@ -525,43 +574,6 @@ internal fun JournalToday(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // 7. The new 4-line crisis footer. Each row is a
-                //    single-tap dial target. Numbers are
-                //    hard-coded here (not imported) so the surface
-                //    is self-contained.
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 32.dp, vertical = 8.dp),
-                ) {
-                    CrisisLineRow(
-                        name = "iCall",
-                        tel = "9152987821",
-                        hours = "TISS Mumbai",
-                        onCall = onCall,
-                    )
-                    CrisisLineRow(
-                        name = "Vandrevala",
-                        tel = "18602662362",
-                        hours = "24/7 multilingual",
-                        onCall = onCall,
-                    )
-                    CrisisLineRow(
-                        name = "AASRA",
-                        tel = "9820466726",
-                        hours = "24/7 suicide prevention",
-                        onCall = onCall,
-                    )
-                    CrisisLineRow(
-                        name = "Tele-MANAS",
-                        tel = "14416",
-                        hours = "Govt. of India",
-                        onCall = onCall,
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
                 // 8. Optional export button. Visible only when
                 //    `therapistExportEnabled` is true (default OFF
                 //    per Task 10). The onExportRequest callback is
@@ -576,7 +588,7 @@ internal fun JournalToday(
                     ) {
                         OutlinedButton(onClick = onExportRequest) {
                             Text(
-                                text = "Share with my therapist",
+                                text = stringResource(R.string.journal_share_with_therapist),
                                 style = TextStyle(
                                     fontFamily = JournalSerif,
                                     fontWeight = FontWeight.Normal,
@@ -597,8 +609,8 @@ internal fun JournalToday(
                 //     affordance, validate-then-suggest copy).
                 NavTextButtonRow(
                     buttons = listOf(
-                        NavTextButton("Skills library", onNavigateToSkills),
-                        NavTextButton("Crisis surface", onNavigateToCrisis),
+                        NavTextButton(stringResource(R.string.journal_nav_skills), onNavigateToSkills),
+                        NavTextButton(stringResource(R.string.journal_nav_crisis), onNavigateToCrisis),
                     ),
                     modifier = Modifier.padding(horizontal = 32.dp, vertical = 4.dp),
                 )
@@ -620,6 +632,71 @@ internal fun JournalToday(
         }
 
             Spacer(modifier = Modifier.height(32.dp))
+        }
+
+        // v0.67.0: the 4-line crisis bar is now sticky
+        // (pinned between the scrollable card and the
+        // 3-icon footer). v0.66.0/v0.66.1/v0.66.2 had the
+        // crisis lines inside the paper card, which meant
+        // a user who had scrolled to read their own
+        // journal entry could not see the iCall number
+        // without scrolling back up. The brief for a
+        // crisis line is "always visible" — that is the
+        // safety floor, not a UX preference. v0.66.2
+        // made the 3-icon footer sticky; v0.67.0 makes
+        // the crisis bar sticky too. The bar uses the
+        // same four hard-coded numbers (iCall /
+        // Vandrevala / AASRA / Tele-MANAS), long-press
+        // to dial (BPD-first — deliberate, not
+        // impulsive), and the same CrisisLineRow
+        // composable. A 1dp terracotta hairline above
+        // the bar separates it from the paper card
+        // without a hard card edge.
+        //
+        // v0.67.0: the names and the hours-of-
+        // availability text are pulled from
+        // `res/values*/strings.xml` so the chrome
+        // translates to Tamil / Hindi / Kannada. The
+        // NUMBERS stay in code (the v0.67.0 D-6
+        // localisation brief is explicit: "crisis line
+        // numbers stay in code, hard-coded"). The
+        // numbers are the public-safety digits and must
+        // be exact in every locale.
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(PaperCard)
+                .border(
+                    width = 1.dp,
+                    color = Terracotta.copy(alpha = 0.20f),
+                    shape = RoundedCornerShape(0.dp),
+                )
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+        ) {
+            CrisisLineRow(
+                name = stringResource(R.string.crisis_line_icall_name),
+                tel = "9152987821",
+                hours = stringResource(R.string.crisis_line_icall_hours),
+                onCall = onCall,
+            )
+            CrisisLineRow(
+                name = stringResource(R.string.crisis_line_vandrevala_name),
+                tel = "18602662362",
+                hours = stringResource(R.string.crisis_line_vandrevala_hours),
+                onCall = onCall,
+            )
+            CrisisLineRow(
+                name = stringResource(R.string.crisis_line_aasra_name),
+                tel = "9820466726",
+                hours = stringResource(R.string.crisis_line_aasra_hours),
+                onCall = onCall,
+            )
+            CrisisLineRow(
+                name = stringResource(R.string.crisis_line_telemanas_name),
+                tel = "14416",
+                hours = stringResource(R.string.crisis_line_telemanas_hours),
+                onCall = onCall,
+            )
         }
 
         // v0.66.2: the sticky 3-icon footer. Pinned to the
@@ -644,22 +721,57 @@ internal fun JournalToday(
 // ─────────────────────────────────────────────────────────────────
 
 /**
- * 14-day N-of-1 strip — text-only placeholder for v0.66.0.
+ * 14-day N-of-1 strip. v0.67.0: the v0.66.0/v0.66.1
+ * text-only placeholder is replaced with a real strip
+ * backed by the user's diary-card mood history.
  *
- * The real N-of-1 strip lives on the dedicated Mood screen in
- * v0.65.0 (median + MAD per-person, robust z-score, 14-day
- * floor, 180-day history prune — see MoodScreen.kt). The
- * v0.66.0 single-screen refactor places a copy-only
- * placeholder here so the surface has its expected shape
- * from day one. Wiring the real strip to Today is a follow-up
- * (a `moodHistoryFlow: Flow<List<LocalDate>>` from
- * JournalPrefs + a 14-day direction band rendering).
+ * The strip's median + MAD is the user's OWN — a per-
+ * person robust baseline, not a population comparison
+ * (N-of-1 framing). The cell colour is the absolute
+ * deviation from the user's own median, expressed in
+ * robust z-score units (|x - median| / MAD). The colour
+ * does NOT say "good" or "bad" — only direction. A
+ * cell at the user's own median is the same tint as the
+ * empty (unlogged) cell, so the strip's resting state is
+ * the user's normal.
+ *
+ * The 14-day floor follows the v0.65.0 mood screen
+ * pattern (median + MAD requires >= 14 paired days to
+ * be stable). Under 14 days of data, the strip shows
+ * the "still learning" copy and no cells. Empty days
+ * (no mood logged) render as a thin hairline cell so
+ * the user can see where the data is missing.
+ *
+ * Design intent (BPD-safe): no "!" anywhere, no
+ * "you missed a day" copy, no streaks, no
+ * "abnormal/below" labels. The cells say "this is your
+ * day-to-day" and nothing more.
  */
 @Composable
-private fun NOfOneStripPlaceholder(modifier: Modifier = Modifier) {
+private fun NOfOneStrip(
+    history: List<Pair<LocalDate, Int?>>,
+    modifier: Modifier = Modifier,
+) {
+    val validOrdinals: List<Int> = history.mapNotNull { it.second }
+    val hasEnoughData = validOrdinals.size >= 14
+    val median: Int? = if (hasEnoughData) {
+        val sorted = validOrdinals.sorted()
+        val mid = sorted.size / 2
+        if (sorted.size % 2 == 0) (sorted[mid - 1] + sorted[mid]) / 2 else sorted[mid]
+    } else {
+        null
+    }
+    val mad: Int? = if (hasEnoughData) {
+        val med = median!!
+        val absDev = validOrdinals.map { kotlin.math.abs(it - med) }.sorted()
+        val mid = absDev.size / 2
+        if (absDev.size % 2 == 0) (absDev[mid - 1] + absDev[mid]) / 2 else absDev[mid]
+    } else {
+        null
+    }
     Column(modifier = modifier.fillMaxWidth()) {
         Text(
-            text = "Pattern, not diagnosis.",
+            text = stringResource(R.string.journal_strip_pattern),
             style = TextStyle(
                 fontFamily = JournalSerif,
                 fontStyle = FontStyle.Italic,
@@ -668,18 +780,69 @@ private fun NOfOneStripPlaceholder(modifier: Modifier = Modifier) {
             ),
             color = Ink.copy(alpha = 0.50f),
         )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = "Your 14-day direction will appear here once you log a few moods.",
-            style = TextStyle(
-                fontFamily = JournalSerif,
-                fontStyle = FontStyle.Italic,
-                fontWeight = FontWeight.Light,
-                fontSize = 12.sp,
-            ),
-            color = Ink.copy(alpha = 0.30f),
-        )
-        // TODO(v0.66.x): wire to N-of-1 strip from MoodScreen.kt
+        Spacer(modifier = Modifier.height(6.dp))
+        if (!hasEnoughData) {
+            // v0.67.0: still-learning copy. The
+            // 14-day floor is a research-backed
+            // minimum for a stable median + MAD.
+            // Under that floor, no cells are drawn —
+            // a partially-shaded strip would be
+            // dishonest because the baseline itself
+            // is not yet stable.
+            val logged = validOrdinals.size
+            Text(
+                text = stringResource(R.string.journal_strip_still_learning, logged),
+                style = TextStyle(
+                    fontFamily = JournalSerif,
+                    fontStyle = FontStyle.Italic,
+                    fontWeight = FontWeight.Light,
+                    fontSize = 12.sp,
+                ),
+                color = Ink.copy(alpha = 0.30f),
+            )
+        } else {
+            // v0.67.0: render 14 cells, oldest
+            // first. The cell colour is the robust
+            // z-score of that day's mood against
+            // the user's own median + MAD. Empty
+            // days (null ordinal) render as a
+            // hairline cell (same colour as the
+            // paper) so the user can see where the
+            // data is missing. The strip does NOT
+            // say "good" or "bad" — only "this is
+            // your day-to-day".
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                val med = median!!
+                val madValue = mad!!
+                history.takeLast(14).forEach { (_, ordinal) ->
+                    val cellColor = if (ordinal == null) {
+                        // Missing day — hairline cell,
+                        // ink at 8% so it sits on the
+                        // paper without being read as
+                        // a data point.
+                        Ink.copy(alpha = 0.08f)
+                    } else {
+                        val z = if (madValue == 0) 0f else kotlin.math.abs(ordinal - med).toFloat() / madValue
+                        val mood = Mood.entries.getOrNull(ordinal) ?: Mood.STEADY
+                        when {
+                            z == 0f -> mood.bg
+                            z < 0.5f -> mood.bg
+                            z < 1f -> mood.fg.copy(alpha = 0.30f)
+                            else -> mood.fg.copy(alpha = 0.55f)
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(20.dp)
+                            .background(cellColor, shape = RoundedCornerShape(2.dp)),
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -892,7 +1055,7 @@ private fun SkillOfTheDayCard(
             .padding(16.dp),
     ) {
         Text(
-            text = "SKILL OF THE DAY",
+            text = stringResource(R.string.journal_skill_of_day_label),
             style = JournalSmallCaps,
             color = AcknowledgeTeal,
         )
@@ -929,24 +1092,41 @@ private fun SkillOfTheDayCard(
             // speaking halts the TTS engine (does not re-
             // start it). BPD-safe copy: "Read aloud" not
             // "Listen now" — validate-then-suggest.
+            // v0.67.0: a small speaker / stop glyph is rendered
+            // to the left of the text. The button was
+            // v0.66.2-discoverable (text-only) but for a
+            // feature that exists to be *found* in
+            // distress, the text-only affordance was too
+            // quiet. The icon makes the button look like
+            // an audio control and not just a label.
             if (voiceFirstEnabled) {
-                Text(
-                    text = if (isSpeaking) "Stop" else "Read aloud",
-                    style = TextStyle(
-                        fontFamily = JournalSerif,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 13.sp,
-                    ),
-                    color = AcknowledgeTeal,
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier
                         .clickable(onClick = { if (isSpeaking) onStop() else onSpeak() })
                         .padding(horizontal = 12.dp, vertical = 8.dp),
-                )
+                ) {
+                    if (isSpeaking) {
+                        StopGlyph(color = AcknowledgeTeal)
+                    } else {
+                        SpeakerGlyph(color = AcknowledgeTeal)
+                    }
+                    Text(
+                        text = if (isSpeaking) stringResource(R.string.journal_stop) else stringResource(R.string.journal_read_aloud),
+                        style = TextStyle(
+                            fontFamily = JournalSerif,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 13.sp,
+                        ),
+                        color = AcknowledgeTeal,
+                    )
+                }
             } else {
                 Spacer(modifier = Modifier.size(1.dp))
             }
             Text(
-                text = "Done",
+                text = stringResource(R.string.journal_done_button),
                 style = TextStyle(
                     fontFamily = JournalSerif,
                     fontWeight = FontWeight.Medium,
@@ -996,7 +1176,7 @@ private fun DiaryCardExpander(
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
-                text = if (canLog) "Log an urge" else "Use a skill first",
+                text = if (canLog) stringResource(R.string.journal_log_urge) else stringResource(R.string.journal_use_skill_first),
                 style = TextStyle(
                     fontFamily = JournalSerif,
                     fontStyle = if (canLog) FontStyle.Normal else FontStyle.Italic,
@@ -1014,7 +1194,7 @@ private fun DiaryCardExpander(
             )
             if (canLog && expanded) {
                 Text(
-                    text = "Close",
+                    text = stringResource(R.string.journal_close),
                     style = TextStyle(
                         fontFamily = JournalSerif,
                         fontWeight = FontWeight.Light,
@@ -1158,7 +1338,7 @@ private fun CrisisLineRow(
             )
         }
         Text(
-            text = "Call",
+            text = stringResource(R.string.crisis_line_call),
             style = TextStyle(
                 fontFamily = JournalSerif,
                 fontWeight = FontWeight.Medium,

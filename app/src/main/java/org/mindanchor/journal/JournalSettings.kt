@@ -41,6 +41,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -63,7 +64,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import org.mindanchor.journal.JournalSettingsPrefs
 
-private const val CURRENT_VERSION = "v0.66.2"
+private const val CURRENT_VERSION = "v0.67.0"
 
 @Composable
 internal fun JournalSettings(
@@ -71,6 +72,7 @@ internal fun JournalSettings(
     onSearch: () -> Unit,
     onArchive: () -> Unit,
     onCall: (String) -> Unit = {},
+    onPrivacy: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     // v0.64.0 in-memory state. v0.65.0 will load these
@@ -102,6 +104,23 @@ internal fun JournalSettings(
     val therapistExportEnabled by settingsPrefs.therapistExportEnabled.collectAsStateWithLifecycle(
         initialValue = false,
     )
+    // v0.67.0: the user's chosen display name. Used in
+    // the export PDF file name and in the privacy policy
+    // text. The `OutlinedTextField` is a local state mirror
+    // of the DataStore value so the user can type without
+    // every keystroke writing to disk — the actual
+    // `settingsPrefs.setDisplayName(...)` happens on
+    // focus-loss / back-navigation, not on every char.
+    val displayName by settingsPrefs.displayName.collectAsStateWithLifecycle(
+        initialValue = "",
+    )
+    var displayNameDraft by remember { mutableStateOf(displayName) }
+    androidx.compose.runtime.LaunchedEffect(displayName) {
+        // Keep the local draft in sync with the disk value
+        // when the screen first opens or when the disk
+        // value changes from elsewhere.
+        displayNameDraft = displayName
+    }
 
     Column(
         modifier = modifier
@@ -115,7 +134,19 @@ internal fun JournalSettings(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
-                .height(900.dp),
+                // v0.67.0: removed the v0.66.0 fixed
+                // 900.dp height. The previous cap clipped
+                // the new "Privacy and data" and
+                // "Show journal intro" rows added below
+                // the MindAnchor version row. The vertical-
+                // scroll on the outer Column lets the user
+                // scroll if the natural content is taller
+                // than the viewport. The Crisis line and
+                // 3-icon footer still render at the bottom
+                // of the inner Column (the inner Column is
+                // still fillMaxSize and the Spacer(weight 1f)
+                // before them still works).
+                .heightIn(min = 900.dp),
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 // Header — back arrow + "SETTINGS" title.
@@ -166,7 +197,7 @@ internal fun JournalSettings(
                     // + sublabel). No "!" or "New!"
                     // affordance — the sublabels are
                     // validate-then-suggest.
-                    SectionHeader("v0.66.0")
+                    SectionHeader(CURRENT_VERSION)
                     SettingsToggleRow(
                         label = "Voice-first for crisis, check-in, skills",
                         sublabel = "When this is on, the surfaces that have it read what's on screen out loud. You can turn it off any time.",
@@ -257,6 +288,86 @@ internal fun JournalSettings(
                     SettingsReadOnlyRow(
                         label = "MindAnchor version",
                         value = CURRENT_VERSION,
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    // v0.67.0: the user's display name. Used
+                    // in the export PDF file name. The
+                    // `OutlinedTextField` writes to
+                    // `displayName` in `JournalSettingsPrefs`
+                    // via `setDisplayName(...)` on focus
+                    // change / on each character (cheap
+                    // DataStore writes are fine here — the
+                    // field has at most ~30 chars).
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = "Display name",
+                            style = JournalSettingsLabel,
+                            color = Ink.copy(alpha = 0.60f),
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        androidx.compose.material3.OutlinedTextField(
+                            value = displayNameDraft,
+                            onValueChange = { newValue ->
+                                displayNameDraft = newValue
+                                scope.launch {
+                                    settingsPrefs.setDisplayName(newValue)
+                                }
+                            },
+                            placeholder = {
+                                Text(
+                                    "e.g. Maya R",
+                                    style = androidx.compose.ui.text.TextStyle(
+                                        fontFamily = JournalSerif,
+                                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                                    ),
+                                )
+                            },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                fontFamily = JournalSerif,
+                            ),
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Used in the file name of the export PDF. " +
+                                "Stays on this device only.",
+                            style = androidx.compose.ui.text.TextStyle(
+                                fontFamily = JournalSerif,
+                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                                fontSize = 11.sp(),
+                            ),
+                            color = Ink.copy(alpha = 0.45f),
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    // v0.67.0: a tappable row that pushes the
+                    // Privacy policy route onto the back-stack.
+                    // The screen is reachable from here and
+                    // from Health Connect's rationale intent
+                    // (see `JournalRoot.JournalRoute.Privacy`).
+                    SettingsTappableRow(
+                        label = "Privacy and data",
+                        sublabel = "What MindAnchor stores, who can see it, and what leaves this device.",
+                        onClick = onPrivacy,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    // v0.67.0: a tappable row that re-opens the
+                    // 3-card first-run onboarding overlay. The
+                    // row sets the `journal_onboarding_seen` flag
+                    // back to false, which causes `JournalRoot`
+                    // to render the overlay above the Today
+                    // surface on the next composition. The user
+                    // is the addressee of every artefact in this
+                    // app; the row is the escape hatch the brief
+                    // implies when "Don't show this again" is
+                    // too easy to tap by mistake.
+                    SettingsTappableRow(
+                        label = "Show journal intro",
+                        sublabel = "Re-open the 3-card tour of mood, skill, and diary.",
+                        onClick = {
+                            scope.launch { settingsPrefs.setOnboardingSeen(false) }
+                        },
                     )
                 }
 
@@ -399,6 +510,47 @@ private fun SettingsReadOnlyRow(
             style = JournalSettingsLabel.copy(fontSize = 14.sp()),
             color = Ink.copy(alpha = 0.50f),
         )
+    }
+}
+
+/**
+ * v0.67.0: a tappable row that pushes another surface
+ * onto the back-stack. Visually a label + sublabel with a
+ * small chevron-right at the trailing edge. Used by the
+ * `Privacy and data` row in the About section. The click
+ * area is the whole row, not just the chevron.
+ */
+@Composable
+private fun SettingsTappableRow(
+    label: String,
+    sublabel: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = label,
+                style = JournalSettingsLabel,
+                color = Ink.copy(alpha = 0.80f),
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = sublabel,
+                style = androidx.compose.ui.text.TextStyle(
+                    fontFamily = JournalSerif,
+                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                    fontSize = 11.sp(),
+                ),
+                color = Ink.copy(alpha = 0.50f),
+            )
+        }
+        ChevronRightGlyph(color = Ink.copy(alpha = 0.30f))
     }
 }
 

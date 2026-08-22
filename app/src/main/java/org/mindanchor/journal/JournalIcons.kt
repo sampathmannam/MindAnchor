@@ -346,3 +346,64 @@ internal fun SunGlyph(color: Color, modifier: Modifier = Modifier) {
         )
     }
 }
+
+/**
+ * v0.67.0: A small speaker glyph for the "Read aloud" button.
+ * A trapezoid (the speaker cone) + two arcs (the sound waves).
+ * Drawn at 20dp, 1.5dp stroke, in the caller's colour. The
+ * glyph sits to the left of the "Read aloud" / "Stop" text in
+ * SkillOfTheDayCard so the affordance is recognisable as an
+ * audio control and not just a verb — a button labelled
+ * "Read aloud" is BPD-safe copy but easy to mistake for a
+ * label; a small speaker icon gives it weight without
+ * screaming.
+ */
+@Composable
+internal fun SpeakerGlyph(color: Color, modifier: Modifier = Modifier) {
+    Box(modifier = modifier.size(20.dp), contentAlignment = Alignment.Center) {
+        // Speaker cone — a small filled rectangle on the left
+        // half, 1.5dp wide, that the wave arcs emanate from.
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .size(width = 3.dp, height = 8.dp)
+                .background(color, shape = RoundedCornerShape(0.5.dp)),
+        )
+        // Sound waves — two thin rounded lines to the right
+        // of the cone, growing wider. Drawn as 1.5dp-tall
+        // boxes since Compose does not have a stroked-arc
+        // primitive. The shorter wave sits closer to the
+        // cone; the longer one further out.
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .offset(x = 5.dp, y = 0.dp)
+                .size(width = 1.5.dp, height = 6.dp)
+                .background(color, shape = RoundedCornerShape(0.75.dp)),
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .offset(x = 9.dp, y = 0.dp)
+                .size(width = 1.5.dp, height = 10.dp)
+                .background(color, shape = RoundedCornerShape(0.75.dp)),
+        )
+    }
+}
+
+/**
+ * v0.67.0: A small stop-square glyph for the "Stop" button
+ * state. A single 10dp filled square. Drawn at 20dp, in the
+ * caller's colour. Replaces the speaker glyph when the TTS
+ * engine is currently speaking the skill's how-to-do-it.
+ */
+@Composable
+internal fun StopGlyph(color: Color, modifier: Modifier = Modifier) {
+    Box(modifier = modifier.size(20.dp), contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .background(color, shape = RoundedCornerShape(1.dp)),
+        )
+    }
+}

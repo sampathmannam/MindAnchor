@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    v0.67.0: Tamil translations of the new v0.66.x
+    journal chrome. Tamil is one of the three Indian
+    languages the v0.67.0 D-6 localisation pass adds
+    (Tamil / Hindi / Kannada). Crisis line NUMBERS
+    stay in code (JournalToday.kt) — they are the
+    public-safety digits and must be exact. The
+    NAMES (iCall / Vandrevala / AASRA / Tele-MANAS)
+    are kept verbatim because they are brand names
+    of the operating helplines; translating them
+    would lose the connection to the actual service.
+    The hours-of-availability lines and the rest of
+    the chrome are translated.
+
+    The strings here mirror the keys in
+    res/values/strings.xml. Only the v0.67.0 keys are
+    listed — the rest of the v0.66.x strings fall
+    back to the English default if a user is in the
+    Tamil locale but reads an older surface.
+-->
+<resources>
+    <string name="journal_today_header">இன்று</string>
+    <string name="journal_strip_pattern">முறை, நோய்நிர்ணயம் அல்ல.</string>
+    <string name="journal_strip_still_learning">உங்கள் 14-நாள் திசை இங்கே தோன்றும், நீங்கள் சில மனநிலைகளைப் பதிவு செய்தவுடன். (இதுவரை %1$d)</string>
+    <string name="journal_mood_swap_label">அதே மனநிலை, வேறு பார்வை.</string>
+    <string name="journal_skill_of_day_label">இன்றைய திறன்</string>
+    <string name="journal_done_button">முடிந்தது</string>
+    <string name="journal_read_aloud">சத்தமாகப் படி</string>
+    <string name="journal_stop">நிறுத்து</string>
+    <string name="journal_log_urge">தூண்டலைப் பதிவுசெய்</string>
+    <string name="journal_use_skill_first">முதலில் ஒரு திறனைப் பயன்படுத்து</string>
+    <string name="journal_close">மூடு</string>
+    <string name="journal_share_with_therapist">என் சிகிச்சையாளருடன் பகிர்</string>
+    <string name="journal_nav_skills">திறன்கள் நூலகம்</string>
+    <string name="journal_nav_crisis">நெருக்கடிக் காட்சி</string>
+    <string name="journal_anything_here">இங்கே ஏதாவது இருக்கிறதா?</string>
+    <string name="journal_thanks_for_writing">எழுதியதற்கு நன்றி.</string>
+
+    <string name="crisis_line_icall_name">iCall</string>
+    <string name="crisis_line_icall_hours">TISS மும்பை</string>
+    <string name="crisis_line_vandrevala_name">Vandrevala</string>
+    <string name="crisis_line_vandrevala_hours">24/7 பல்மொழி</string>
+    <string name="crisis_line_aasra_name">AASRA</string>
+    <string name="crisis_line_aasra_hours">24/7 தற்கொலைத் தடுப்பு</string>
+    <string name="crisis_line_telemanas_name">Tele-MANAS</string>
+    <string name="crisis_line_telemanas_hours">இந்திய அரசு</string>
+    <string name="crisis_line_call">அழை</string>
+
+    <string name="journal_onboarding_title">ஒரு சுருக்கச் சுற்றுலா.</string>
+    <string name="journal_onboarding_subtitle">இந்த ஆவணப்பதிவைச் சுற்றி மூன்று விஷயங்கள். அமைப்புகளிலிருந்து இதை மீண்டும் திறக்கலாம்.</string>
+    <string name="journal_onboarding_card1_title">மனநிலை — பெயரிடக்கூடிய ஒன்று.</string>
+    <string name="journal_onboarding_card1_body">நொறுக்கப்பட்டது முதல் பிரகாசமானது வரை ஐந்து நிலைகள், அல்லது 2x2 கட்டம் (அமைப்புகள் → 2D மனநிலை). உணர்வைப் பெயரிடுவது அதை மாற்றுவதிலிருந்து வேறுபட்டது. ஒன்றைத் தேர்ந்தெடுங்கள், அல்லது எதுவும் இல்லை.</string>
+    <string name="journal_onboarding_card2_title">திறன் — செய்யக்கூடிய ஒன்று.</string>
+    <string name="journal_onboarding_card2_body">TIPP, STOP, DEAR MAN, Breathing Space, Wise Mind. இன்றைய திறன் வழங்கப்படுகிறது, கட்டளையிடப்படவில்லை. நீங்கள் அதைச் செய்தபோது முடிந்ததாகக் குறிக்கவும் — 60-விநாடி சாளரம் என்ன வந்தது என்பதைப் பதிவுசெய்ய அனுமதிக்கிறது.</string>
+    <string name="journal_onboarding_card3_title">ஆவணப்பதிவு — கவனிக்கக்கூடிய ஒன்று.</string>
+    <string name="journal_onboarding_card3_body">மூன்று ஸ்லைடர்கள்: NSSI, தற்கொலை, பிரிப்பு, ஒவ்வொன்றும் 0–5. நீங்கள் செய்தால் மட்டுமே எதுவும் பதிவு செய்யப்படும். உங்கள் சிகிச்சையாளருடன் PDF ஐப் பகிர்வதைத் தேர்ந்தெடுத்தால் மட்டுமே எதுவும் யாருக்கும் காட்டப்படும்.</string>
+    <string name="journal_onboarding_got_it">புரிந்தது</string>
+    <string name="journal_onboarding_dont_show">மீண்டும் காட்டாதே</string>
+
+    <string name="settings_privacy_data">தனியுரிமை மற்றும் தரவு</string>
+    <string name="settings_privacy_data_sublabel">MindAnchor என்ன சேமிக்கிறது, யார் பார்க்க முடியும், இந்தச் சாதனத்திலிருந்து என்ன வெளியேறுகிறது.</string>
+    <string name="settings_show_journal_intro">ஆவணப்பதிவு அறிமுகத்தைக் காட்டு</string>
+    <string name="settings_show_journal_intro_sublabel">மனநிலை, திறன் மற்றும் ஆவணப்பதிவின் 3-அட்டை சுற்றுலாவை மீண்டும் திறக்கவும்.</string>
+    <string name="settings_display_name">காட்சி பெயர்</string>
+    <string name="settings_display_name_hint">விருப்பமானது. சிகிச்சையாளர்-ஏற்றுமதி PDF கோப்புப் பெயரைத் தனிப்பயனாக்குகிறது.</string>
+
+    <string name="settings_voice_first">நெருக்கடி, சோதனை-நுழைவு, திறன்களுக்கு குரல்-முதல்</string>
+    <string name="settings_voice_first_sublabel">இது ஆன் செய்யப்பட்டால், அதைக் கொண்ட காட்சிகள் திரையில் உள்ளதை சத்தமாகப் படிக்கும். எப்போது வேண்டுமானாலும் முடக்கலாம்.</string>
+    <string name="settings_affect_grid">2D மனநிலை கட்டம் (Affect-Grid)</string>
+    <string name="settings_affect_grid_sublabel">இது ஆன் செய்யப்பட்டால், இன்றைய மனநிலை உள்ளீடு 1D ஸ்லைடருக்குப் பதிலாக 2D கட்டமாக இருக்கும். இரண்டும் சரியானவை; இன்று எது எளிதாக இருக்கிறதோ அதைத் தேர்ந்தெடுங்கள்.</string>
+    <string name="settings_therapist_export">சிகிச்சையாளருடன் PDF ஐப் பகிர்</string>
+    <string name="settings_therapist_export_sublabel">இது ஆன் செய்யப்பட்டால், இன்று மற்றும் நெருக்கடிக் காட்சியில் ஏற்றுமதி செயல் தோன்றும். ஏற்றுமதி இந்தச் சாதனத்தில் உருவாக்கப்படுகிறது; எதுவும் அனுப்பப்படவில்லை.</string>
+
+    <string name="settings_about_journal">இந்த ஆவணப்பதிவைப் பற்றி</string>
+    <string name="settings_about_journal_sublabel">தனியுரிமை, காட்சி பெயர் மற்றும் முதல்-இயக்க சுற்றுலா.</string>
+    <string name="settings_about_journal_modes">காட்சி மற்றும் முறைகள்</string>
+    <string name="settings_about_journal_modes_sublabel">குரல்-முதல், 2D மனநிலை மற்றும் சிகிச்சையாளர் ஏற்றுமதி மாற்றிகள்.</string>
+
+    <string name="journal_export_chooser_title">உங்கள் சிகிச்சையாளருடன் பகிரவும்</string>
+</resources>

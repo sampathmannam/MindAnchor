@@ -83,6 +83,8 @@ import android.net.Uri
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -123,7 +125,7 @@ import org.mindanchor.journal.skills.SkillsPrefs
  * so existing code that switches on the first 5 is
  * unchanged.
  */
-enum class JournalRoute { Today, Archive, Settings, Mood, QuickNote, Skills, Crisis }
+enum class JournalRoute { Today, Archive, Settings, Mood, QuickNote, Skills, Crisis, Privacy }
 
 @Composable
 fun JournalRoot(
@@ -207,6 +209,31 @@ fun JournalRoot(
         .collectAsStateWithLifecycle(initialValue = null)
     val currentMood: Int? = todayCard?.emotions?.firstOrNull()?.ordinal
 
+    // v0.67.0: 14-day N-of-1 mood history for the
+    // strip on Today. The list contains 14 entries
+    // (oldest first, today last) of (date, moodOrdinal?).
+    // The history is read with a coroutine on the
+    // first composition and re-read every time
+    // `todayCard` changes (which happens whenever the
+    // user picks a mood chip — the diary card writes
+    // a new entry, the Flow re-emits, and we refresh
+    // the strip). The cost is one full-store scan per
+    // write; for a v0.66.0 user with a year of cards
+    // that is 365 string decodes. The v0.66.0 PDF
+    // export also does this scan, so the cost is
+    // already on the hot path.
+    val moodHistory = remember { mutableStateOf<List<Pair<LocalDate, Int?>>>(emptyList()) }
+    LaunchedEffect(todayCard) {
+        val from = today.minusDays(13)
+        val entries = diaryCardPrefs.entriesInRange(from, today)
+        val byDate = entries.associateBy { it.date }
+        moodHistory.value = (0..13).map { offset ->
+            val date = from.plusDays(offset.toLong())
+            val ordinal = byDate[date]?.emotions?.firstOrNull()?.ordinal
+            date to ordinal
+        }
+    }
+
     // The back gesture pops the stack. If the stack has
     // only Today, the back gesture forwards to
     // HomeActivity (which will move the launcher to the
@@ -239,6 +266,30 @@ fun JournalRoot(
         .collectAsStateWithLifecycle(initialValue = false)
     val therapistExportEnabled by settingsPrefs.therapistExportEnabled
         .collectAsStateWithLifecycle(initialValue = false)
+    // v0.67.0: the user's display name for the export file.
+    // Side-effect into the static field on `TherapistExport`
+    // so the export class does not need a prefs dependency
+    // at the call site. The set is keyed off the latest
+    // Flow value (the name is also displayed in the privacy
+    // policy screen and the Settings row).
+    val displayName by settingsPrefs.displayName
+        .collectAsStateWithLifecycle(initialValue = "")
+    SideEffect {
+        TherapistExport.therapistDisplayName = displayName
+    }
+    // v0.67.0: the first-run onboarding overlay. Read
+    // the dismissal flag; while false, the overlay is
+    // shown above the Today surface. Tapping either
+    // dismiss button flips the flag to true (the
+    // "Got it" / "Don't show this again" distinction
+    // is in the wording only — both persist). The
+    // Settings row "Show journal intro" sets the flag
+    // back to false to re-open the overlay.
+    val onboardingSeen by settingsPrefs.onboardingSeen
+        .collectAsStateWithLifecycle(initialValue = true)
+    val onDismissOnboarding: (Boolean) -> Unit = { _ ->
+        scope.launch { settingsPrefs.setOnboardingSeen(true) }
+    }
     // v0.66.2: read the 2D mood input toggle. v0.66.0 stored
     // the flag in the prefs but never read it into a
     // composable — JournalSettings shows the toggle, but no
@@ -334,21 +385,35 @@ fun JournalRoot(
                 moodOwnMedian = 3, // session-local mood; v0.66.1 leaves the v0.66.0 text-only 14-day strip alone
                 moodMad = 0,
             )
-            // Fire a share intent so the user can hand the
-            // PDF to a therapist in whatever channel they use
-            // (Signal, email, paper print). On-device only —
-            // the file URI never leaves this device until the
-            // user explicitly picks a recipient in the
-            // system share sheet.
+            // v0.67.0: a one-line summary that the share
+            // chooser can show in its preview line. Without
+            // this, the chooser shows the file name only —
+            // which the recipient has to open to know what
+            // it is. The summary is the same shape as the
+            // export's own header, condensed. The
+            // `EXTRA_TEXT` field is also picked up by some
+            // targets (email subject, message body) for free.
+            // v0.67.0: also set `ClipData` so the chooser
+            // preview can render the file (the previous
+            // absence of ClipData made the chooser log a
+            // permission-denied warning even when the share
+            // itself worked — see the v0.66.1 drive-verify
+            // log capture).
+            val summary = exporter.summary(from, to, diaryEntries, skillEntries)
+            val fileUri = androidx.core.content.FileProvider.getUriForFile(
+                context,
+                context.packageName + ".fileprovider",
+                file,
+            )
             val share = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                 type = "application/pdf"
-                putExtra(
-                    android.content.Intent.EXTRA_STREAM,
-                    androidx.core.content.FileProvider.getUriForFile(
-                        context,
-                        context.packageName + ".fileprovider",
-                        file,
-                    ),
+                putExtra(android.content.Intent.EXTRA_STREAM, fileUri)
+                putExtra(android.content.Intent.EXTRA_TEXT, summary)
+                putExtra(android.content.Intent.EXTRA_SUBJECT, file.name)
+                clipData = android.content.ClipData.newUri(
+                    context.contentResolver,
+                    file.name,
+                    fileUri,
                 )
                 addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -389,6 +454,16 @@ fun JournalRoot(
 
     Box(modifier = modifier.fillMaxSize()) {
         when (current) {
+            // v0.67.0: the first-run onboarding overlay.
+            // Rendered ONLY when `onboardingSeen` is false.
+            // The overlay is full-screen, translucent-paper
+            // backed, with a 3-card stack in the centre. The
+            // dismiss buttons set the flag to true. The
+            // overlay is checked here rather than at the
+            // top of the `Box` so the entire journal is
+            // gated by one flag, and any future entry point
+            // (e.g. a "Show me the tour" button) can be
+            // added without touching the route dispatch.
             // v0.66.0 (Task 11): the Today composable now takes a
             // wider signature — skill-of-the-day + diary card
             // callbacks + voice-first + therapist-export toggles +
@@ -433,6 +508,10 @@ fun JournalRoot(
                 // way back to Today.
                 pendingArm = pendingArm.value,
                 onPendingArmConsumed = onPendingArmConsumed,
+                // v0.67.0: 14-day N-of-1 mood history. Re-read
+                // every time `todayCard` changes (mood logged,
+                // urge entry, or skill done).
+                moodHistory = moodHistory.value,
             )
             JournalRoute.Archive -> JournalArchive(
                 onBack = { stack.removeAt(stack.lastIndex) },
@@ -445,6 +524,10 @@ fun JournalRoot(
                 onSearch = { stack.add(JournalRoute.Archive) },
                 onArchive = { stack.add(JournalRoute.Archive) },
                 onCall = dial,
+                // v0.67.0: the in-app privacy policy route
+                // is pushed onto the back-stack. The user
+                // returns to Settings on back.
+                onPrivacy = { stack.add(JournalRoute.Privacy) },
             )
             JournalRoute.Mood -> JournalMood(
                 onBack = { stack.removeAt(stack.lastIndex) },
@@ -501,6 +584,30 @@ fun JournalRoot(
                 onSkillStart = onSkillStart,
                 onNavigateToSkills = { stack.add(JournalRoute.Skills) },
                 onCall = dial,
+            )
+            // v0.67.0: the in-app privacy policy surface.
+            // Reached from JournalSettings → About → Privacy
+            // & data. The route is a back-stack entry so the
+            // user returns to the previous surface on back.
+            JournalRoute.Privacy -> JournalPrivacyPolicy(
+                onBack = { stack.removeAt(stack.lastIndex) },
+            )
+        }
+        // v0.67.0: first-run onboarding overlay. Sits
+        // ON TOP of whatever route the user is on, with
+        // a translucent-paper backdrop so the journal
+        // surface is still visible behind it (the user
+        // can see the Today they are about to learn).
+        // The overlay is gated by `!onboardingSeen` and
+        // dismissed by `onDismissOnboarding` (which sets
+        // the flag to true). The Settings row "Show
+        // journal intro" sets the flag back to false to
+        // re-open the overlay; a fresh install sees it
+        // because the default is false.
+        if (!onboardingSeen) {
+            JournalOnboarding(
+                onDismiss = onDismissOnboarding,
+                modifier = Modifier.matchParentSize(),
             )
         }
     }

@@ -63,6 +63,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -115,6 +116,34 @@ class JournalSettingsPrefs(private val context: Context) {
      */
     val therapistExportEnabled: Flow<Boolean> = store.data.map { it[KEY_EXPORT] ?: false }
 
+    /**
+     * v0.67.0: the user's chosen display name (e.g.
+     * "Maya R" or "DC"). Used by `TherapistExport` to
+     * personalise the PDF file name — the recipient sees
+     * "MindAnchor-Maya-R-2026-08-09-2026-08-22.pdf" rather
+     * than the generic "MindAnchor-Therapist-Export-…"
+     * string. The name is also shown in the privacy
+     * policy activity. Empty by default; the user sets it
+     * in Settings. Not validated here — the export class
+     * sanitises non-ASCII / special characters before
+     * putting the tag in a file name.
+     */
+    val displayName: Flow<String> = store.data.map { it[KEY_DISPLAY_NAME] ?: "" }
+
+    /**
+     * v0.67.0: whether the first-run journal onboarding
+     * has been dismissed. Default false (not yet seen).
+     * When false, [JournalRoot] renders the 3-card
+     * overlay above the Today surface on first
+     * composition. Tapping "Got it" or "Don't show this
+     * again" sets the flag to true. The user can re-open
+     * the onboarding from Settings → About → "Show
+     * journal intro" (the row sets the flag back to
+     * false), so the dismissal is reversible, not a
+     * one-way data loss.
+     */
+    val onboardingSeen: Flow<Boolean> = store.data.map { it[KEY_ONBOARDING_SEEN] ?: false }
+
     suspend fun setVoiceFirstEnabled(value: Boolean) {
         store.edit { it[KEY_VOICE] = value }
     }
@@ -127,9 +156,19 @@ class JournalSettingsPrefs(private val context: Context) {
         store.edit { it[KEY_EXPORT] = value }
     }
 
+    suspend fun setDisplayName(value: String) {
+        store.edit { it[KEY_DISPLAY_NAME] = value.trim() }
+    }
+
+    suspend fun setOnboardingSeen(value: Boolean) {
+        store.edit { it[KEY_ONBOARDING_SEEN] = value }
+    }
+
     private companion object {
         val KEY_VOICE = booleanPreferencesKey("voice_first_enabled")
         val KEY_AFFECT = booleanPreferencesKey("affect_grid_enabled")
         val KEY_EXPORT = booleanPreferencesKey("therapist_export_enabled")
+        val KEY_DISPLAY_NAME = stringPreferencesKey("display_name")
+        val KEY_ONBOARDING_SEEN = booleanPreferencesKey("journal_onboarding_seen")
     }
 }

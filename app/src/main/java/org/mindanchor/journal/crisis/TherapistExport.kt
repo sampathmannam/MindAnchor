@@ -195,9 +195,78 @@ internal class TherapistExport(private val context: Context) {
 
         val outDir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS) ?: context.filesDir
         if (!outDir.exists()) outDir.mkdirs()
-        val outFile = File(outDir, "MindAnchor-Therapist-Export-${from.format(titleDate)}-${to.format(titleDate)}.pdf")
+        // v0.67.0: a more semantic file name. The previous
+        // generic `MindAnchor-Therapist-Export-2026-08-09-2026-08-22.pdf`
+        // gave a clinician no anchor when the file landed in
+        // their downloads. The new name includes the user's
+        // display name (from JournalSettings — falls back to
+        // "Therapist-Export" if not set) so the recipient can
+        // scan a folder and see whose file it is. The dates
+        // stay because they make the file a 14-day slice
+        // rather than a "now" snapshot.
+        val outFile = File(
+            outDir,
+            "MindAnchor-${fileNameTag()}-${from.format(titleDate)}-${to.format(titleDate)}.pdf",
+        )
         FileOutputStream(outFile).use { doc.writeTo(it) }
         doc.close()
         return outFile
+    }
+
+    /**
+     * v0.67.0: a one-line summary the share chooser can show
+     * via `Intent.EXTRA_TEXT`. The default Android share sheet
+     * shows the file name, not the contents — without a
+     * summary line, the user (or the recipient) cannot see
+     * what the file is without opening it. The summary here is
+     * "14 days, N diary entries, M skills used" — same shape
+     * as the export's own header, but condensed for a
+     * preview line.
+     */
+    fun summary(
+        from: LocalDate,
+        to: LocalDate,
+        diaryEntries: List<DiaryCardEntry>,
+        skillEntries: List<Pair<LocalDate, SkillId>>,
+    ): String {
+        val days = java.time.temporal.ChronoUnit.DAYS.between(from, to).toInt() + 1
+        val skills = skillEntries.map { it.second }.distinct().size
+        return "MindAnchor — last $days days · ${diaryEntries.size} diary entries · $skills distinct skills used"
+    }
+
+    /**
+     * v0.67.0: the user's display name (or "Therapist-Export"
+     * if not set) for use in the file name. Reads from the
+     * shared Settings prefs file via a static field set by
+     * JournalRoot on app start, so the export class does not
+     * need a Context-aware prefs dependency at call time.
+     */
+    private fun fileNameTag(): String {
+        val raw = therapistDisplayName.trim()
+        // Sanitise for cross-platform filesystems: replace
+        // anything that is not a letter, digit, dash, or
+        // underscore with a dash. Names like "Maya R" become
+        // "Maya-R"; names like "माया" become "" (rejected
+        // below).
+        val safe = raw.map { ch ->
+            if (ch.isLetterOrDigit() || ch == '-' || ch == '_') ch else '-'
+        }.joinToString("").trim('-')
+        return if (safe.isEmpty()) "Therapist-Export" else safe
+    }
+
+    companion object {
+        /**
+         * v0.67.0: the user's chosen display name for use in
+         * the export file name. Set by `JournalRoot` on every
+         * composition from `JournalSettingsPrefs.displayName`
+         * (a new pref). Empty / unset falls back to a generic
+         * "Therapist-Export" tag so the file is still
+         * identifiable. The setter is a static `var` so the
+         * `internal` `TherapistExport` class (which only has a
+         * Context) does not need a prefs dependency at the
+         * call site.
+         */
+        @Volatile
+        var therapistDisplayName: String = ""
     }
 }

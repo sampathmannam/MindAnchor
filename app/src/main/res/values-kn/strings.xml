@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    v0.67.0: Kannada translations of the new v0.66.x
+    journal chrome. Kannada is one of the three
+    Indian languages the v0.67.0 D-6 localisation
+    pass adds (Tamil / Hindi / Kannada). Crisis line
+    NUMBERS stay in code; NAMES are kept verbatim
+    because they are brand names. The
+    hours-of-availability lines and the rest of the
+    chrome are translated.
+-->
+<resources>
+    <string name="journal_today_header">ಇಂದು</string>
+    <string name="journal_strip_pattern">ಮಾದರಿ, ರೋಗನಿರ್ಣಯ ಅಲ್ಲ.</string>
+    <string name="journal_strip_still_learning">ನೀವು ಕೆಲವು ಮನಸ್ಥಿತಿಗಳನ್ನು ದಾಖಲಿಸಿದ ನಂತರ ನಿಮ್ಮ 14-ದಿನದ ದಿಕ್ಕು ಇಲ್ಲಿ ಕಾಣಿಸುತ್ತದೆ. (ಇದುವರೆಗೆ %1$d)</string>
+    <string name="journal_mood_swap_label">ಅದೇ ಮನಸ್ಥಿತಿ, ಬೇರೆ ದೃಷ್ಟಿಕೋನ.</string>
+    <string name="journal_skill_of_day_label">ಇಂದಿನ ಕೌಶಲ</string>
+    <string name="journal_done_button">ಆಯಿತು</string>
+    <string name="journal_read_aloud">ಜೋರಾಗಿ ಓದಿ</string>
+    <string name="journal_stop">ನಿಲ್ಲಿಸಿ</string>
+    <string name="journal_log_urge">ಒಂದು ಬಯಕೆಯನ್ನು ದಾಖಲಿಸಿ</string>
+    <string name="journal_use_skill_first">ಮೊದಲು ಒಂದು ಕೌಶಲ ಬಳಸಿ</string>
+    <string name="journal_close">ಮುಚ್ಚಿ</string>
+    <string name="journal_share_with_therapist">ನನ್ನ ಚಿಕಿತ್ಸಕರೊಂದಿಗೆ ಹಂಚಿಕೊಳ್ಳಿ</string>
+    <string name="journal_nav_skills">ಕೌಶಲಗಳ ಗ್ರಂಥಾಲಯ</string>
+    <string name="journal_nav_crisis">ಬಿಕ್ಕಟ್ಟಿನ ಮೇಲ್ಮೈ</string>
+    <string name="journal_anything_here">ಇಲ್ಲಿ ಏನಾದರೂ ಇದೆಯೇ?</string>
+    <string name="journal_thanks_for_writing">ಬರೆದಿದ್ದಕ್ಕೆ ಧನ್ಯವಾದಗಳು.</string>
+
+    <string name="crisis_line_icall_name">iCall</string>
+    <string name="crisis_line_icall_hours">TISS ಮುಂಬೈ</string>
+    <string name="crisis_line_vandrevala_name">Vandrevala</string>
+    <string name="crisis_line_vandrevala_hours">24/7 ಬಹುಭಾಷಾ</string>
+    <string name="crisis_line_aasra_name">AASRA</string>
+    <string name="crisis_line_aasra_hours">24/7 ಆತ್ಮಹತ್ಯೆ ತಡೆ</string>
+    <string name="crisis_line_telemanas_name">Tele-MANAS</string>
+    <string name="crisis_line_telemanas_hours">ಭಾರತ ಸರ್ಕಾರ</string>
+    <string name="crisis_line_call">ಕರೆ ಮಾಡಿ</string>
+
+    <string name="journal_onboarding_title">ಒಂದು ಸಣ್ಣ ಪ್ರವಾಸ.</string>
+    <string name="journal_onboarding_subtitle">ಈ ಜರ್ನಲ್ ಅನ್ನು ಕೇಂದ್ರೀಕರಿಸಿ ಮೂರು ವಿಷಯಗಳು. ನೀವು ಇದನ್ನು ಸೆಟ್ಟಿಂಗ್‌ಗಳಿಂದ ಮತ್ತೆ ತೆರೆಯಬಹುದು.</string>
+    <string name="journal_onboarding_card1_title">ಮನಸ್ಥಿತಿ — ಹೆಸರಿಸಬಹುದಾದ ಒಂದು ವಿಷಯ.</string>
+    <string name="journal_onboarding_card1_body">ನಿರಾಶೆಯಿಂದ ಹೊಳಪಿನವರೆಗೆ ಐದು ಸ್ಥಿತಿಗಳು, ಅಥವಾ 2x2 ಗ್ರಿಡ್ (ಸೆಟ್ಟಿಂಗ್‌ಗಳು → 2D ಮನಸ್ಥಿತಿ). ಭಾವನೆಗೆ ಹೆಸರಿಡುವುದು ಅದನ್ನು ಬದಲಾಯಿಸುವುದಕ್ಕಿಂತ ಬೇರೆಯಾಗಿದೆ. ಒಂದನ್ನು ಆಯ್ಕೆಮಾಡಿ, ಅಥವಾ ಯಾವುದೂ ಇಲ್ಲ.</string>
+    <string name="journal_onboarding_card2_title">ಕೌಶಲ — ನೀವು ಮಾಡಬಹುದಾದ ಒಂದು ಕೆಲಸ.</string>
+    <string name="journal_onboarding_card2_body">TIPP, STOP, DEAR MAN, Breathing Space, Wise Mind. ದಿನದ ಕೌಶಲವನ್ನು ಸಲಹೆ ಮಾಡಲಾಗುತ್ತದೆ, ಆದೇಶಿಸಲಾಗುವುದಿಲ್ಲ. ನೀವು ಅದನ್ನು ಮಾಡಿದಾಗ ಅದನ್ನು ಆಯಿತು ಎಂದು ಗುರುತಿಸಿ — 60-ಸೆಕೆಂಡ್‌ಗಳ ವಿಂಡೋ ಏನು ಹೊರಹೊಮ್ಮಿತು ಎಂದು ಲಾಗ್ ಮಾಡಲು ನಿಮಗೆ ಅನುಮತಿಸುತ್ತದೆ.</string>
+    <string name="journal_onboarding_card3_title">ಡೈರಿ — ನೀವು ಗಮನಿಸಬಹುದಾದ ಒಂದು ವಿಷಯ.</string>
+    <string name="journal_onboarding_card3_body">ಮೂರು ಸ್ಲೈಡರ್‌ಗಳು: NSSI, ಆತ್ಮಹತ್ಯೆ, ವಿಚ್ಛೇದನ, ಪ್ರತಿಯೊಂದೂ 0–5. ನೀವು ಮಾಡದ ಹೊರತು ಏನನ್ನೂ ರೆಕಾರ್ಡ್ ಮಾಡಲಾಗುವುದಿಲ್ಲ. ನಿಮ್ಮ ಚಿಕಿತ್ಸಕರೊಂದಿಗೆ PDF ಅನ್ನು ಹಂಚಿಕೊಳ್ಳಲು ನೀವು ಆಯ್ಕೆ ಮಾಡದ ಹೊರತು ಯಾರಿಗಾದರೂ ಏನನ್ನೂ ತೋರಿಸಲಾಗುವುದಿಲ್ಲ.</string>
+    <string name="journal_onboarding_got_it">ಅರ್ಥವಾಯಿತು</string>
+    <string name="journal_onboarding_dont_show">ಮತ್ತೆ ತೋರಿಸಬೇಡ</string>
+
+    <string name="settings_privacy_data">ಗೌಪ್ಯತೆ ಮತ್ತು ಡೇಟಾ</string>
+    <string name="settings_privacy_data_sublabel">MindAnchor ಏನನ್ನು ಸಂಗ್ರಹಿಸುತ್ತದೆ, ಯಾರು ನೋಡಬಹುದು, ಮತ್ತು ಈ ಸಾಧನದಿಂದ ಏನು ಹೊರಹೋಗುತ್ತದೆ.</string>
+    <string name="settings_show_journal_intro">ಜರ್ನಲ್ ಪರಿಚಯ ತೋರಿಸಿ</string>
+    <string name="settings_show_journal_intro_sublabel">ಮನಸ್ಥಿತಿ, ಕೌಶಲ ಮತ್ತು ಡೈರಿಯ 3-ಕಾರ್ಡ್ ಪ್ರವಾಸವನ್ನು ಮತ್ತೆ ತೆರೆಯಿರಿ.</string>
+    <string name="settings_display_name">ಪ್ರದರ್ಶನ ಹೆಸರು</string>
+    <string name="settings_display_name_hint">ಐಚ್ಛಿಕ. ಚಿಕಿತ್ಸಕ-ರಫ್ತು PDF ಫೈಲ್ ಹೆಸರನ್ನು ವೈಯಕ್ತೀಕರಿಸುತ್ತದೆ.</string>
+
+    <string name="settings_voice_first">ಬಿಕ್ಕಟ್ಟು, ಚೆಕ್-ಇನ್, ಕೌಶಲಗಳಿಗಾಗಿ ಧ್ವನಿ-ಮೊದಲು</string>
+    <string name="settings_voice_first_sublabel">ಇದು ಆನ್ ಆಗಿರುವಾಗ, ಅದನ್ನು ಹೊಂದಿರುವ ಮೇಲ್ಮೈಗಳು ಪರದೆಯ ಮೇಲಿರುವುದನ್ನು ಜೋರಾಗಿ ಓದುತ್ತವೆ. ನೀವು ಯಾವಾಗ ಬೇಕಾದರೂ ಅದನ್ನು ಆಫ್ ಮಾಡಬಹುದು.</string>
+    <string name="settings_affect_grid">2D ಮನಸ್ಥಿತಿ ಗ್ರಿಡ್ (Affect-Grid)</string>
+    <string name="settings_affect_grid_sublabel">ಇದು ಆನ್ ಆಗಿರುವಾಗ, ಇಂದಿನ ಮನಸ್ಥಿತಿ ಇನ್‌ಪುಟ್ 1D ಸ್ಲೈಡರ್‌ಗೆ ಬದಲಾಗಿ 2D ಗ್ರಿಡ್ ಆಗಿರುತ್ತದೆ. ಎರಡೂ ಮಾನ್ಯ; ಇಂದು ಯಾವುದು ಸುಲಭ ಎನಿಸುತ್ತದೆಯೋ ಅದನ್ನು ಆಯ್ಕೆಮಾಡಿ.</string>
+    <string name="settings_therapist_export">ಚಿಕಿತ್ಸಕರೊಂದಿಗೆ PDF ಹಂಚಿಕೊಳ್ಳಿ</string>
+    <string name="settings_therapist_export_sublabel">ಇದು ಆನ್ ಆಗಿರುವಾಗ, ಇಂದು ಮತ್ತು ಬಿಕ್ಕಟ್ಟಿನ ಮೇಲ್ಮೈಯಲ್ಲಿ ರಫ್ತು ಕ್ರಿಯೆ ಕಾಣಿಸುತ್ತದೆ. ರಫ್ತು ಈ ಸಾಧನದಲ್ಲೇ ರಚಿತವಾಗುತ್ತದೆ; ಏನನ್ನೂ ಕಳುಹಿಸಲಾಗುವುದಿಲ್ಲ.</string>
+
+    <string name="settings_about_journal">ಈ ಜರ್ನಲ್ ಬಗ್ಗೆ</string>
+    <string name="settings_about_journal_sublabel">ಗೌಪ್ಯತೆ, ಪ್ರದರ್ಶನ ಹೆಸರು, ಮತ್ತು ಮೊದಲ-ರನ್ ಪ್ರವಾಸ.</string>
+    <string name="settings_about_journal_modes">ಪ್ರದರ್ಶನ ಮತ್ತು ಮೋಡ್‌ಗಳು</string>
+    <string name="settings_about_journal_modes_sublabel">ಧ್ವನಿ-ಮೊದಲು, 2D ಮನಸ್ಥಿತಿ, ಮತ್ತು ಚಿಕಿತ್ಸಕ ರಫ್ತು ಟಾಗಲ್‌ಗಳು.</string>
+
+    <string name="journal_export_chooser_title">ನಿಮ್ಮ ಚಿಕಿತ್ಸಕರೊಂದಿಗೆ ಹಂಚಿಕೊಳ್ಳಿ</string>
+</resources>
