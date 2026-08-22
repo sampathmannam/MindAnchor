@@ -3,9 +3,9 @@ package org.mindanchor
 import android.app.AlarmManager
 import android.content.Context
 import android.os.Build
+import org.mindanchor.letters.LetterScheduler
 import org.mindanchor.model.EmaScheduler
 import org.mindanchor.notifications.BatchAlarms
-import org.mindanchor.pulse.PulseReminder
 import org.mindanchor.report.ReportScheduler
 import org.mindanchor.sunset.SunsetController
 
@@ -17,10 +17,11 @@ import org.mindanchor.sunset.SunsetController
  * Alarms do not survive a reboot, and until this existed the list of what
  * to put back lived only inside `BootReceiver` — where it had drifted.
  * Batch releases, sunset and the nightly report were re-armed; the
- * check-in prompts and the fortnightly pulse reminder were not. Both of
- * those simply stopped after a restart and came back only if the person
- * happened to open the screen that arms them, which is not a thing anyone
- * would think to do about a feature that had gone quiet.
+ * check-in prompts and the fortnightly pulse reminder (removed in
+ * v0.26.6) were not. Both of those simply stopped after a restart and
+ * came back only if the person happened to open the screen that arms
+ * them, which is not a thing anyone would think to do about a feature
+ * that had gone quiet.
  *
  * A missing alarm is the worst shape of bug this app can have: nothing
  * fails, nothing is logged, a feature just never speaks again and the
@@ -28,10 +29,7 @@ import org.mindanchor.sunset.SunsetController
  *
  * ## Idempotence is the contract
  *
- * Everything here must be safe to call repeatedly. That is why
- * [PulseReminder.ensureScheduled] counts from the last pulse rather than
- * from now — re-arming a "fourteen days from today" alarm on every boot
- * would walk it forward forever on a phone that restarts often.
+ * Everything here must be safe to call repeatedly.
  */
 object Alarms {
 
@@ -39,6 +37,18 @@ object Alarms {
      * Re-arms everything. Never throws: this runs inside broadcast
      * receivers with seconds to live, and one scheduler failing must not
      * cost the others their alarms.
+     *
+     * v0.25.9 (B1, SOTA v2 bug-hunt): the letter
+     * alarm was missing from this list. Every
+     * other scheduler is re-armed here; the letter
+     * scheduler was only re-armed when
+     * `LetterScheduler.onFire` ran — which only
+     * runs when the alarm fires — so a phone that
+     * rebooted never heard the letter again until
+     * the user opened the screen that re-arms it
+     * (which is not a screen anyone would think
+     * to open about a feature that had gone
+     * quiet). The fix is the one-liner below.
      */
     suspend fun ensureAll(context: Context) {
         val app = context.applicationContext
@@ -46,7 +56,7 @@ object Alarms {
         runCatching { SunsetController.ensureScheduled(app) }
         runCatching { ReportScheduler.ensureScheduled(app) }
         runCatching { EmaScheduler.ensureScheduled(app) }
-        runCatching { PulseReminder.ensureScheduled(app) }
+        runCatching { LetterScheduler.ensureScheduled(app) }
     }
 
     /**

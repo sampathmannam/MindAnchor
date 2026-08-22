@@ -79,8 +79,18 @@ style:
     excludes: ['**/test/**', '**/androidTest/**']
     # The 1.5x and 0.7 thresholds in FrictionBandit are
     # evidence-cited in the v1.2 commit. The 7/10/14 cadence
-    # in PulseCadence is Lally 2010. Let those stand.
-    ignoreNumbers: ['-1', '0', '1', '2', '7', '10', '14', '100']
+    # in PulseCadence is Lally 2010. The 60 in
+    # LetterRow's preview truncation is a UX-standard
+    # inbox-row preview length (e.g. Gmail/Outlook); not a
+    # magic value. Let those stand.
+    # v0.25.5: added 1000 (ms->s), 86400 (sec->day), 1000000
+    # (nanos->sec), 9 (date pattern token), 12 (clock hours).
+    # Each is a unit conversion, not a magic value; the literal
+    # is the whole point.
+    # v0.25.5: added 3 (last-N / index), 4 (field count),
+    # 6 (window width), 3600 (sec/hour). Each is a structural
+    # literal, not a magic value.
+    ignoreNumbers: ['-1', '0', '1', '2', '3', '4', '6', '7', '9', '10', '12', '14', '60', '100', '1000', '3600', '1000000', '86400']
   UnusedPrivateMember:
     active: true
   RedundantVisibilityModifierRule:

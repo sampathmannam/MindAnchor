@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    v0.67.0: Hindi translations of the new v0.66.x
+    journal chrome. Hindi is one of the three Indian
+    languages the v0.67.0 D-6 localisation pass adds
+    (Tamil / Hindi / Kannada). Crisis line NUMBERS
+    stay in code (JournalToday.kt); NAMES are kept
+    verbatim because they are brand names of the
+    operating helplines. The hours-of-availability
+    lines and the rest of the chrome are translated.
+-->
+<resources>
+    <string name="journal_today_header">आज</string>
+    <string name="journal_strip_pattern">पैटर्न है, निदान नहीं।</string>
+    <string name="journal_strip_still_learning">कुछ मनोदशाएँ दर्ज करने के बाद आपकी 14-दिन की दिशा यहाँ दिखाई देगी। (अब तक %1$d)</string>
+    <string name="journal_mood_swap_label">वही मनोदशा, अलग नज़रिया।</string>
+    <string name="journal_skill_of_day_label">आज का कौशल</string>
+    <string name="journal_done_button">हो गया</string>
+    <string name="journal_read_aloud">ज़ोर से पढ़ें</string>
+    <string name="journal_stop">रुकें</string>
+    <string name="journal_log_urge">एक आग्रह दर्ज करें</string>
+    <string name="journal_use_skill_first">पहले एक कौशल आज़माएँ</string>
+    <string name="journal_close">बंद करें</string>
+    <string name="journal_share_with_therapist">अपने चिकित्सक के साथ साझा करें</string>
+    <string name="journal_nav_skills">कौशल पुस्तकालय</string>
+    <string name="journal_nav_crisis">संकट सतह</string>
+    <string name="journal_anything_here">यहाँ कुछ है?</string>
+    <string name="journal_thanks_for_writing">लिखने के लिए धन्यवाद।</string>
+
+    <string name="crisis_line_icall_name">iCall</string>
+    <string name="crisis_line_icall_hours">TISS मुंबई</string>
+    <string name="crisis_line_vandrevala_name">Vandrevala</string>
+    <string name="crisis_line_vandrevala_hours">24/7 बहुभाषी</string>
+    <string name="crisis_line_aasra_name">AASRA</string>
+    <string name="crisis_line_aasra_hours">24/7 आत्महत्या रोकथाम</string>
+    <string name="crisis_line_telemanas_name">Tele-MANAS</string>
+    <string name="crisis_line_telemanas_hours">भारत सरकार</string>
+    <string name="crisis_line_call">कॉल करें</string>
+
+    <string name="journal_onboarding_title">एक छोटा सा दौरा।</string>
+    <string name="journal_onboarding_subtitle">इस जर्नल के चारों ओर तीन चीज़ें। आप इसे सेटिंग्स से फिर से खोल सकते हैं।</string>
+    <string name="journal_onboarding_card1_title">मनोदशा — एक ऐसी चीज़ जिसका नाम रखा जा सकता है।</string>
+    <string name="journal_onboarding_card1_body">कुचले हुए से चमकीले तक पाँच अवस्थाएँ, या 2x2 ग्रिड (सेटिंग्स → 2D मनोदशा)। भावना का नाम रखना उसे बदलने से अलग है। एक चुनें, या कोई नहीं।</string>
+    <string name="journal_onboarding_card2_title">कौशल — एक ऐसा काम जो आप कर सकते हैं।</string>
+    <string name="journal_onboarding_card2_body">TIPP, STOP, DEAR MAN, Breathing Space, Wise Mind। दिन का कौशल प्रस्तावित किया जाता है, आदेश नहीं। जब आपने उसे कर लिया हो तो उसे \'हो गया\' के रूप में चिह्नित करें — 60-सेकंड की खिड़की फिर आपको यह लॉग करने देती है कि क्या उभरा।</string>
+    <string name="journal_onboarding_card3_title">डायरी — एक ऐसी चीज़ जिसे आप नोटिस कर सकते हैं।</string>
+    <string name="journal_onboarding_card3_body">तीन स्लाइडर: NSSI, आत्मघाती, विच्छेदन, प्रत्येक 0–5। जब तक आप खुद न करें, कुछ भी रिकॉर्ड नहीं किया जाता। जब तक आप अपने चिकित्सक के साथ PDF साझा नहीं करते, तब तक कुछ भी किसी को नहीं दिखाया जाता।</string>
+    <string name="journal_onboarding_got_it">समझ गया</string>
+    <string name="journal_onboarding_dont_show">फिर से न दिखाएँ</string>
+
+    <string name="settings_privacy_data">गोपनीयता और डेटा</string>
+    <string name="settings_privacy_data_sublabel">MindAnchor क्या संग्रहीत करता है, कौन देख सकता है, और इस डिवाइस से क्या बाहर जाता है।</string>
+    <string name="settings_show_journal_intro">जर्नल परिचय दिखाएँ</string>
+    <string name="settings_show_journal_intro_sublabel">मनोदशा, कौशल और डायरी का 3-कार्ड दौरा फिर से खोलें।</string>
+    <string name="settings_display_name">प्रदर्शन नाम</string>
+    <string name="settings_display_name_hint">वैकल्पिक। चिकित्सक-निर्यात PDF फ़ाइल नाम को वैयक्तिकृत करता है।</string>
+
+    <string name="settings_voice_first">संकट, चेक-इन, कौशल के लिए वॉइस-फ़र्स्ट</string>
+    <string name="settings_voice_first_sublabel">जब यह चालू होता है, तो जिन सतहों पर यह है वे स्क्रीन पर जो है उसे ज़ोर से पढ़ती हैं। आप इसे कभी भी बंद कर सकते हैं।</string>
+    <string name="settings_affect_grid">2D मनोदशा ग्रिड (Affect-Grid)</string>
+    <string name="settings_affect_grid_sublabel">जब यह चालू होता है, तो आज का मनोदशा इनपुट 1D स्लाइडर के बजाय 2D ग्रिड होता है। दोनों मान्य हैं; आज जो आसान लगे उसे चुनें।</string>
+    <string name="settings_therapist_export">चिकित्सक के साथ PDF साझा करें</string>
+    <string name="settings_therapist_export_sublabel">जब यह चालू होता है, तो आज और संकट सतह पर एक निर्यात क्रिया दिखाई देती है। निर्यात इसी डिवाइस पर बनता है; कुछ भी नहीं भेजा जाता।</string>
+
+    <string name="settings_about_journal">इस जर्नल के बारे में</string>
+    <string name="settings_about_journal_sublabel">गोपनीयता, प्रदर्शन नाम, और पहला-रन दौरा।</string>
+    <string name="settings_about_journal_modes">प्रदर्शन और मोड</string>
+    <string name="settings_about_journal_modes_sublabel">वॉइस-फ़र्स्ट, 2D मनोदशा, और चिकित्सक निर्यात टॉगल।</string>
+
+    <string name="journal_export_chooser_title">अपने चिकित्सक के साथ साझा करें</string>
+</resources>

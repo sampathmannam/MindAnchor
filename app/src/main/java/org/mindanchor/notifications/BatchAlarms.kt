@@ -10,7 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import java.time.LocalDateTime
+import java.time.ZonedDateTime
 import org.mindanchor.data.NotificationPrefs
 import java.time.ZoneId
 
@@ -37,8 +37,15 @@ object BatchAlarms {
         val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
         val times = runCatching { NotificationPrefs(context).currentReleaseTimes() }
             .getOrDefault(BatchSchedule.DEFAULT_TIMES)
-        val next = BatchSchedule.nextRelease(LocalDateTime.now(), times)
-        val triggerAt = next.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        // v0.25.10 (SOTA v2 bug-hunt B5): ZonedDateTime.now(zone) so the
+        // "what's the next release" comparison and the alarm Instant come
+        // from the same system instant. Pre-fix shape was a bare
+        // wall-clock-now read plus a separate atZone(systemDefault()) —
+        // a second system call that could cross a midnight or DST
+        // boundary between the comparison and the conversion.
+        val zone = ZoneId.systemDefault()
+        val next = BatchSchedule.nextRelease(ZonedDateTime.now(zone), times)
+        val triggerAt = next.toInstant().toEpochMilli()
         val pending = PendingIntent.getBroadcast(
             context,
             REQUEST_CODE,
@@ -76,8 +83,8 @@ class BatchReleaseReceiver : BroadcastReceiver() {
  * Re-arms every alarm after a reboot.
  *
  * The list used to live here and had drifted out of date — check-in
- * prompts and the pulse reminder were missing from it, so both stopped
- * after a restart. It now lives in [org.mindanchor.Alarms], which the
+ * prompts were missing from it, so they stopped after a restart. It
+ * now lives in [org.mindanchor.Alarms], which the
  * exact-alarm permission receiver shares, so there is one list to keep
  * right instead of two to keep in step.
  */

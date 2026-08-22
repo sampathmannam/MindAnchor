@@ -14,9 +14,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.mindanchor.data.SunsetPrefs
 import org.mindanchor.notifications.BatchSchedule
-import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZonedDateTime
 
 /**
  * Sunset mode: during the wind-down window the interruption filter goes to
@@ -66,8 +66,12 @@ object SunsetController {
 
     private fun schedule(context: Context, action: String, time: LocalTime, requestCode: Int) {
         val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
-        val next = BatchSchedule.nextRelease(LocalDateTime.now(), listOf(time))
-        val triggerAt = next.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        // v0.25.10 (SOTA v2 bug-hunt B5): read ZonedDateTime once in the
+        // system zone, hand it to BatchSchedule.nextRelease, and use the
+        // returned ZonedDateTime directly — no second zone conversion that
+        // could cross a DST or midnight boundary.
+        val next = BatchSchedule.nextRelease(ZonedDateTime.now(ZoneId.systemDefault()), listOf(time))
+        val triggerAt = next.toInstant().toEpochMilli()
         val pending = PendingIntent.getBroadcast(
             context,
             requestCode,

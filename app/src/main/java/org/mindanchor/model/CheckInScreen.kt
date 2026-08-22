@@ -1,4 +1,4 @@
-// @wording-reviewed — the question text, the rating anchors,
+﻿// @wording-reviewed â€” the question text, the rating anchors,
 // and the reflection placeholder are clinical-review-required.
 // The full KDoc is in the CheckIn composable below; this
 // file-level note exists so the clinical-review gate in
@@ -66,7 +66,7 @@ import org.mindanchor.R
  *
  * ## Why the rating is the active ingredient
  *
- * The 1-5 rating is the *response* — the user
+ * The 1-5 rating is the *response* â€” the user
  * reports where they are right now. The launcher
  * does not interpret it; it captures the response
  * and stores it. There is no cut-off, no screen-
@@ -76,7 +76,7 @@ import org.mindanchor.R
  *
  * ## Why the reflection is optional
  *
- * Brief §B5: the reflection is "optional 1-3
+ * Brief Â§B5: the reflection is "optional 1-3
  * sentence free-text." It is not required to save.
  * The user can submit a rating-only check-in by
  * pressing the "Save" button with the reflection
@@ -84,15 +84,15 @@ import org.mindanchor.R
  *
  * ## Why there is no "Not now" button
  *
- * Brief §B3: "no differing of check in, just a
+ * Brief Â§B3: "no differing of check in, just a
  * simple back button to reject." The system back
  * button is the entire reject affordance. The
  * launcher does not draw a "Not now" / "Skip" /
  * "Maybe later" button; the user does not need to
- * choose between "engaging" and "snoozing" — they
+ * choose between "engaging" and "snoozing" â€” they
  * either engage now or back out.
  *
- * @wording-reviewed — the question text, the rating
+ * @wording-reviewed â€” the question text, the rating
  * anchors, and the reflection placeholder are
  * launcher-authored wording and clinical-review-
  * gated. See docs/CLINICAL_REVIEW.md.
@@ -134,7 +134,7 @@ fun CheckInScreen(
     // configChanges in the manifest now
     // includes uiMode, density, fontScale,
     // locale, smallestScreenSize,
-    // layoutDirection — the most common
+    // layoutDirection â€” the most common
     // recreation triggers. With those
     // configChanges set, the activity is NOT
     // recreated for those changes, and the
@@ -197,7 +197,7 @@ fun CheckInScreen(
                                     // meaningful
                                     // without sight.
                                     contentDescription =
-                                        "Rating $value of 5"
+                                        "Rating $value"
                                 },
                         ) {
                             Text(

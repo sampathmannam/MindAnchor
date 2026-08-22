@@ -9,12 +9,14 @@ import org.junit.Test
 /**
  * The Neff 2003 self-compassion break — see [CompassionMoment]
  * and `docs/research/15` §3. Small, scripted, opt-in, the
- * user's own words. Linardon 2020 (*J Clin Psychol* meta,
- * PMID 32586436) reports small-to-moderate effects across 27
- * RCTs of smartphone-delivered self-compassion / acceptance
- * apps; Liu 2023 (*Psicologia: Reflexão e Crítica* 36:32,
- * doi:10.1186/s41155-023-00276-w) reports a decrease in SI
- * after 4 weeks of app-guided loving-kindness meditation.
+ * user's own words. Linardon 2020, *Behavior Therapy*
+ * 51(4):646-658 (DOI 10.1016/j.beth.2019.10.002), reports
+ * small-to-moderate effects across 27 RCTs of
+ * smartphone-delivered self-compassion / acceptance apps;
+ * Liu 2023, *Psicologia: Reflexão e Crítica* 36:32
+ * (DOI 10.1186/s41155-023-00276-w), reports a decrease in
+ * suicidal ideation after 4 weeks of app-guided loving-kindness
+ * meditation.
  */
 class CompassionMomentTest {
 

@@ -5,8 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.addCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.mindanchor.data.CheckInPrefs
 import org.mindanchor.ui.MindAnchorTheme
 
@@ -61,7 +61,14 @@ class CheckInHistoryActivity : ComponentActivity() {
 
         setContent {
             MindAnchorTheme {
-                val state by prefs.checkIns.collectAsState(initial = CheckInState())
+                // v0.25.17 BUG-004: lifecycle-aware collect. The
+                // check-in history activity can be in the
+                // background for long stretches (the user opens
+                // a check-in, answers, then comes back); the flow
+                // was producing fresh lists on every emission
+                // even when the activity was STOPPED, which is
+                // the documented backpressure hole.
+                val state by prefs.checkIns.collectAsStateWithLifecycle(initialValue = CheckInState())
                 CheckInHistoryScreen(
                     checkIns = state,
                     onClose = { finish() },

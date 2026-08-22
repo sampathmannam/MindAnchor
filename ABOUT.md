@@ -89,7 +89,7 @@ Modern smartphones are engineered for engagement. MindAnchor rejects this paradi
 - **UI Framework**: Jetpack Compose
 - **Build System**: Gradle
 - **Minimum SDK**: Android 13+
-- **License**: GPL-3.0-only
+- **License**: Apache 2.0
 
 ### Building the Project
 ```bash
@@ -199,7 +199,7 @@ MindAnchor/
 ├── README.md                     # Quick start guide
 ├── CONTRIBUTING.md              # Contribution guidelines
 ├── ABOUT.md                      # This file
-├── LICENSE                       # GPL-3.0-only license
+├── LICENSE                       # Apache 2.0 license
 └── SOTA-IMPROVEMENT-REPORT.md   # State-of-the-art improvements documentation
 ```
 
@@ -219,15 +219,21 @@ All citations are included in [docs/research/](docs/research/).
 
 ## License
 
-MindAnchor is released under the **GNU General Public License v3.0** (GPL-3.0-only).
+MindAnchor is released under the **Apache License 2.0** (Apache-2.0).
 
 This means:
 - The code is free to use, modify, and distribute
-- Any derivative work must also be licensed under GPL-3.0
-- Commercial use is allowed under the GPL terms
-- Attribution is required
+- Modifications can be released under any license (Apache 2.0
+  does not impose copyleft on derivative works)
+- Commercial use is allowed under the Apache terms
+- Attribution is required; a `NOTICE` file must be preserved
+  if one is included
+- An explicit patent grant from each contributor is included
 
-See [LICENSE](LICENSE) for the full legal text.
+See [LICENSE](LICENSE) for the full legal text. The license
+was flipped from GPL v3 to Apache 2.0 in v0.25.19 (2026-08-12);
+see [RELEASE_NOTES_v0.25.19.md](RELEASE_NOTES_v0.25.19.md) for
+the rationale.
 
 ---
 

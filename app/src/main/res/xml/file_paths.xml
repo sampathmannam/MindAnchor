@@ -1,10 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    FileProvider paths for the on-device log share
-    entry point (docs/research/24). Only the cache
-    subdirectory is exposed; the rest of the app's
-    storage is unreachable via content:// URIs.
+    FileProvider paths. The cache subdirectory hosts the
+    on-device log share entry point (docs/research/24); the
+    external-files path hosts the v0.26.1 therapist-export
+    share. v0.66.1 also exposes the Documents/ subdirectory
+    for the DBT-grounded therapist PDF written by
+    org.mindanchor.journal.crisis.TherapistExport. Nothing
+    else in the app's storage is reachable via content://
+    URIs.
 -->
 <paths>
     <cache-path name="logs" path="logs/" />
+    <external-files-path name="export" path="export/" />
+    <external-files-path name="documents" path="Documents/" />
 </paths>
+

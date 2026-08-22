@@ -1,7 +1,10 @@
 package org.mindanchor.report
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -9,22 +12,34 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import android.text.format.DateFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
+import kotlinx.coroutines.launch
 import org.mindanchor.R
+import org.mindanchor.reader.ReaderPrefs
+import org.mindanchor.reader.ReadingSize
 import org.mindanchor.ui.Spacing
 
 /**
@@ -50,16 +65,46 @@ import org.mindanchor.ui.Spacing
  * person's own history next to what the research says the signal *is*,
  * and it is never the thing that joins those two together.
  */
+@Suppress("FunctionNaming")
 @Composable
 fun ReportScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val store = remember { ReportStore(context.applicationContext) }
-    val stored by store.stored.collectAsState(initial = null)
-    val factsRaw by store.facts.collectAsState(initial = null)
+    // v0.25.17 BUG-004: lifecycle-aware collect. The
+    // report surface reads four flows; each was
+    // producing fresh values on every emission even
+    // when the surface was STOPPED. The four are the
+    // `stored` report, the `facts` snapshot, the
+    // per-report `feedback`, and the reading `size`
+    // preference. Each gets a sensible `initialValue`
+    // so the first composition has data to render.
+    val stored by store.stored.collectAsStateWithLifecycle(initialValue = null)
+    val factsRaw by store.facts.collectAsStateWithLifecycle(initialValue = null)
+    // v0.25.5-WP-C: the one-tap "did this help?" feedback. Local-only;
+    // nothing leaves the phone. Reads from the same DataStore the
+    // report itself lives in; null = unrated for the current report.
+    val feedback by store.feedback.collectAsStateWithLifecycle(initialValue = null)
+    // v0.25.3-WP-D: the report reuses [ReaderPrefs] for its long-form
+    // copy. The same A- / A / A+ segmented control the letter reader
+    // uses appears in the report header; both surfaces read and write
+    // the same DataStore so the size picked in one place carries to
+    // the other. The wire-through is `setSize` on `Dispatchers.IO`
+    // via DataStore; the call is fire-and-forget.
+    val readerPrefs = remember { ReaderPrefs(context.applicationContext) }
+    val size by readerPrefs.size.collectAsStateWithLifecycle(initialValue = ReadingSize.MEDIUM)
+    val scope = rememberCoroutineScope()
     ReportScreen(
         stored = stored,
         onBack = onBack,
         facts = factsRaw?.let(FactsLedger::decode),
+        size = size,
+        onSetSize = { newSize ->
+            scope.launch { readerPrefs.setSize(newSize) }
+        },
+        feedback = feedback,
+        onRecordFeedback = { value ->
+            scope.launch { store.recordFeedback(value) }
+        },
     )
 }
 
@@ -81,12 +126,21 @@ fun ReportScreen(onBack: () -> Unit) {
  * to believe the fourth would be different, and no way to check it
  * without being able to hand this screen a report.
  */
+@Suppress("FunctionNaming", "LongMethod", "CyclomaticComplexMethod")
 @Composable
 fun ReportScreen(
     stored: StoredReport?,
     onBack: () -> Unit,
     /** Yesterday's measured facts, or null when nothing has ever been built. */
     facts: Map<Signal, Sourced>? = null,
+    /** v0.25.3-WP-D: the user's chosen reading size. Defaults to [ReadingSize.MEDIUM] for older callers. */
+    size: ReadingSize = ReadingSize.MEDIUM,
+    /** v0.25.3-WP-D: invoked when the user picks a new size. No-op by default. */
+    onSetSize: (ReadingSize) -> Unit = {},
+    /** v0.25.5-WP-C: the user's one-tap answer to "did this help?" for the current report. Null = unrated. */
+    feedback: ReportFeedback? = null,
+    /** v0.25.5-WP-C: invoked when the user taps 👍 or 👎. No-op by default. */
+    onRecordFeedback: (ReportFeedback) -> Unit = {},
 ) {
     val report = stored?.report
     val narration = stored?.narration
@@ -99,8 +153,38 @@ fun ReportScreen(
             .verticalScroll(rememberScrollState())
             .padding(Spacing.Edge),
     ) {
-        TextButton(onClick = onBack) {
-            Text(stringResource(R.string.action_back))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(onClick = onBack) {
+                Text(stringResource(R.string.action_back))
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            // The same A- / A / A+ segmented control the letter
+            // reader uses. Locale-safe, RTL-safe, no string resources
+            // — see [LetterReaderHeader] for the rationale.
+            SingleChoiceSegmentedButtonRow {
+                listOf(ReadingSize.SMALL, ReadingSize.MEDIUM, ReadingSize.LARGE)
+                    .forEachIndexed { i, s ->
+                        SegmentedButton(
+                            selected = size == s,
+                            onClick = { onSetSize(s) },
+                            shape = SegmentedButtonDefaults.itemShape(index = i, count = 3),
+                        ) {
+                            Text(
+                                text = when (s) {
+                                    ReadingSize.SMALL  -> "A-"
+                                    ReadingSize.MEDIUM -> "A"
+                                    ReadingSize.LARGE  -> "A+"
+                                    else -> "A"
+                                },
+                                style = MaterialTheme.typography.labelLarge,
+                            )
+                        }
+                    }
+            }
+            Spacer(modifier = Modifier.weight(1f))
         }
 
         Text(
@@ -179,10 +263,25 @@ fun ReportScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            current.isEmpty -> Text(
-                text = stringResource(R.string.report_quiet),
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            current.isEmpty -> {
+                // v0.22.2 P3 fix: when the report is empty AND today's
+                // facts are also empty, "Nothing stood out" is a lie
+                // of omission. The pattern search had no data to look
+                // for, so nothing was *available* to stand out — the
+                // honest answer is the facts-empty line below, which
+                // already says "Nothing arrived that day". The
+                // report_quiet line only earns its place when the
+                // search actually ran and found nothing, which is
+                // exactly the case where facts is non-empty.
+                if (facts != null && facts.isNotEmpty()) {
+                    Text(
+                        text = stringResource(R.string.report_quiet),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                // else: silently skip — the facts-empty message below
+                // is the only honest thing the screen can say.
+            }
 
             else -> current.sections.forEach { section -> ReportSectionCard(section) }
         }
@@ -272,6 +371,72 @@ fun ReportScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = Spacing.Section),
             )
+        }
+
+        // v0.25.5-WP-C: the one-tap feedback row. Linardon 2024 found
+        // that a single post-session rating predicts retention better
+        // than the session content itself. The data is local-only —
+        // nothing leaves the phone. The row only appears when there is
+        // a report to rate (a screen with no report cannot ask "did
+        // this help?") and disappears once the user answers; a new
+        // report brings the row back because the stored answer is
+        // for the previous report's day.
+        if (current != null) {
+            ReportFeedbackRow(
+                feedback = feedback,
+                onRecordFeedback = onRecordFeedback,
+            )
+        }
+    }
+}
+
+/**
+ * The two-button "did this help?" row. Sub-Composable to keep the
+ * [ReportScreen] orchestrator under detekt `LongMethod` 60.
+ */
+@Suppress("FunctionNaming")
+@Composable
+private fun ReportFeedbackRow(
+    feedback: ReportFeedback?,
+    onRecordFeedback: (ReportFeedback) -> Unit,
+) {
+    if (feedback != null) {
+        Text(
+            text = stringResource(
+                when (feedback) {
+                    ReportFeedback.HELPED -> R.string.report_feedback_thanks_helped
+                    ReportFeedback.DIDNT_HELP -> R.string.report_feedback_thanks_didnt_help
+                },
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .padding(top = Spacing.Section)
+                .semantics { liveRegion = LiveRegionMode.Polite },
+        )
+    } else {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = Spacing.Section),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = stringResource(R.string.report_feedback_question),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(
+                modifier = Modifier.padding(top = Spacing.Tight),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                TextButton(onClick = { onRecordFeedback(ReportFeedback.HELPED) }) {
+                    Text(stringResource(R.string.report_feedback_helped))
+                }
+                TextButton(onClick = { onRecordFeedback(ReportFeedback.DIDNT_HELP) }) {
+                    Text(stringResource(R.string.report_feedback_didnt_help))
+                }
+            }
         }
     }
 }

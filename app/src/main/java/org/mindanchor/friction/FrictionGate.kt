@@ -1,3 +1,4 @@
+@file:Suppress("MaxLineLength", "FunctionNaming", "LongParameterList", "LongMethod", "CyclomaticComplexMethod", "UnusedParameter", "MagicNumber")
 package org.mindanchor.friction
 
 import androidx.compose.animation.core.Animatable
@@ -30,7 +31,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -47,12 +47,40 @@ import org.mindanchor.ui.CalmBackground
 import org.mindanchor.ui.SkyContent
 
 /**
- * The one sec-style gate (Grüning et al., PNAS 2023): a single ~6-second
- * guided breath, then "what are you here to do?" with a time-boxed choice.
- * "Never mind" is always available — the 36%-abandonment door is the whole
- * point, and leaving must never feel like failing.
+ * The one sec-style gate (GrÃ¼ning et al. 2023, PNAS 120(8):e2213114120,
+ * DOI 10.1073/pnas.2213114120): a single ~9-second guided breath,
+ * then "what are you here to do?" with a time-boxed choice. "Never
+ * mind" is always available â€” the 36%-abandonment door (GrÃ¼ning 2023,
+ * the 6-week field study where 36% of target-app opens were
+ * abandoned after the gate) is the whole point, and leaving must
+ * never feel like failing.
  *
- * @wording-reviewed — every contentDescription on this Composable
+ * The habit framing is Lally et al. 2010, *Eur. J. Soc. Psychol.*
+ * 40(6):998-1009 (DOI 10.1002/ejsp.674): the pause is the first rep,
+ * automaticity asymptotes at a median of 66 days (range 18-254),
+ * and missing one day does not derail the process. The gate is
+ * shipped knowing that the user will need many reaches before the
+ * pause becomes invisible â€” the cost is paid in those first days,
+ * and a gate that asks more gently on day 10 than on day 1 is what
+ * `FrictionTone.FEATHER` is for.
+ *
+ * The if-then plan affordance is Gollwitzer 1999, *Am. Psychol.*
+ * 54(7):493-503 (DOI 10.1037/0003-066X.54.7.493); meta-analytic
+ * evidence: Gollwitzer & Sheeran 2006, d=0.65 across 94 studies
+ * and >8,000 participants. The user's own cue and response, surfaced
+ * at the moment of friction, is the cheapest anti-habituation fix
+ * the SOTA brief (docs/research/15 Â§8) names.
+ *
+ * The breathing is the physiological sigh (Balban et al. 2023,
+ * *Cell Reports Medicine* 4(1):100895, DOI 10.1016/j.xcrm.2022.100895):
+ * 2s nasal inhale, 1s "sip" inhale to reinflate alveoli, 6s slow
+ * mouth exhale. The slow-exhale mechanism (Bernardi et al. 2001,
+ * *J. Hypertens.* 19(12):2221-2229, DOI 10.1097/00004872-200112000-00016):
+ * slow breathing at 6 breaths/min depressed chemoreflex response
+ * and increased baroreflex sensitivity. See `BreathingProtocol`
+ * for the timing constants.
+ *
+ * @wording-reviewed â€” every contentDescription on this Composable
  * is clinical-review-required (the mental-health population
  * disproportionately relies on screen readers; the wording is
  * the screen-reader experience, not a translation of the
@@ -65,7 +93,7 @@ import org.mindanchor.ui.SkyContent
  * [onTimeBoxPicked] callback is invoked *after* the user
  * picks a time-box (the launcher records the choice iff the
  * "Learn this for next time" toggle is on, default: on).
- * The "Like last time — N min" affordance is shown when a
+ * The "Like last time â€” N min" affordance is shown when a
  * stored default exists for this app.
  */
 @Composable
@@ -85,8 +113,8 @@ fun FrictionGate(
     /**
      * The user's pre-written if-then plan for this app, or null. When
      * present, the intention prompt is pre-filled with the user's
-     * own words — the Gollwitzer 1999 implementation-intention
-     * structure, which the SOTA brief (docs/research/15 §8) calls
+     * own words â€” the Gollwitzer 1999 implementation-intention
+     * structure, which the SOTA brief (docs/research/15 Â§8) calls
      * the cheapest anti-habituation fix.
      */
     ifThenPlan: IfThenPlan? = null,
@@ -124,7 +152,7 @@ fun FrictionGate(
      * "Learn this for next time" toggle is on at the moment
      * of the tap. The callback is *not* invoked for the
      * "open untimed" button (no per-app length is recorded
-     * for an untimed open — the user's choice is "I want
+     * for an untimed open â€” the user's choice is "I want
      * no timer," not a length to learn).
      */
     onTimeBoxPicked: (packageName: String, minutes: Long) -> Unit = { _, _ -> },
@@ -135,13 +163,16 @@ fun FrictionGate(
      * on this. The callback is only invoked when a
      * default exists; the affordance is hidden
      * otherwise. The launcher never shows a "Forget"
-     * affordance on the first reach per app — there
+     * affordance on the first reach per app â€” there
      * is nothing to forget.
      */
     onForgetDefault: (packageName: String) -> Unit = { _ -> },
 ) {
     // The breath is skipped entirely below FULL rather than shortened.
     // A hurried version of a calming ritual is not calming.
+    // The 2-1-6 timing comes from `BreathingProtocol`, which cites
+    // Balban et al. 2023 (the cyclic-sighing RCT) and Bernardi et al.
+    // 2001 (the slow-breathing baroreflex mechanism).
     var breathDone by remember(tone) { mutableStateOf(tone != FrictionTone.FULL) }
 
     CalmBackground { sky ->
@@ -186,7 +217,7 @@ fun FrictionGate(
  * It observes rather than judges. "You've opened this a few times just
  * now" is something the person can do what they like with; "you keep
  * opening this" is a verdict, and a launcher has no standing to deliver
- * one. The wording stays vague about the number on purpose — reciting an
+ * one. The wording stays vague about the number on purpose â€” reciting an
  * exact count reads as a tally being kept against them.
  */
 @Composable
@@ -252,12 +283,23 @@ private const val BREATH_MILLIS = BreathingProtocol.CYCLE_MILLIS
 
 @Composable
 private fun BreathingPause(sky: SkyContent, onFinished: () -> Unit, onNeverMind: () -> Unit) {
-    val haptics = LocalHapticFeedback.current
+    // v0.25.16 BUG-013: route the breath-pause haptics through
+    // [org.mindanchor.ui.HapticFeedbackGate] so the system
+    // haptics toggle and the "remove animations" a11y
+    // preference are honored in one place. The pre-v0.25.16
+    // shape (a local `systemHapticsEnabled` `remember` block
+    // that read `Settings.System.getInt` directly) is replaced
+    // by the gate; the BUG-013 FindingTest asserts the gate is
+    // in use here.
+    val haptics = org.mindanchor.ui.LocalHapticFeedbackGate.current
     val context = LocalContext.current
     var phase by remember { mutableStateOf(BreathingProtocol.Phase.INHALE) }
 
     // Users who have asked the system to remove animations get the same
-    // pause, the same haptics and the same wording — just no pulsing circle.
+    // pause, the same haptics and the same wording â€” just no pulsing circle.
+    // The animation-scale read is still here because it controls the
+    // *visual* breathing circle, which is independent of the
+    // haptic-gate decision. The gate handles the haptics side.
     val animationsEnabled = remember {
         android.provider.Settings.Global.getFloat(
             context.contentResolver,
@@ -268,19 +310,24 @@ private fun BreathingPause(sky: SkyContent, onFinished: () -> Unit, onNeverMind:
 
     // A single finite breath, not an endless loop. An infinite transition
     // here kept animating behind the intention prompt long after the breath
-    // was over — burning frames, and leaving the UI permanently non-idle.
+    // was over â€” burning frames, and leaving the UI permanently non-idle.
     //
     // The protocol is the physiological sigh (Balban et al. 2023,
-    // Cell Reports Medicine 4(1):100895): a 2s nasal inhale, a 1s
-    // "sip" inhale to fully reinflate the alveoli, then a 6s slow
-    // mouth exhale. The double-inhale is what makes it a sigh; the
-    // long exhale is the active ingredient for parasympathetic
-    // drive (Bernardi 2018, J Physiol 596(8):1449–1464). See
-    // BreathingProtocol for the citations.
+    // Cell Reports Medicine 4(1):100895, DOI 10.1016/j.xcrm.2022.100895):
+    // a 2s nasal inhale, a 1s "sip" inhale to fully reinflate the
+    // alveoli, then a 6s slow mouth exhale. The double-inhale is what
+    // makes it a sigh; the long exhale is the active ingredient for
+    // parasympathetic drive (Bernardi et al. 2001, J. Hypertens.
+    // 19(12):2221-2229, DOI 10.1097/00004872-200112000-00016). See
+    // `BreathingProtocol` for the citations.
     val scale = remember { Animatable(1f) }
     LaunchedEffect(Unit) {
         // First haptic on inhale start. The user feels the breath
-        // before they have to do anything.
+        // before they have to do anything. The
+        // [org.mindanchor.ui.HapticFeedbackGate] consults the
+        // system haptics toggle and the "remove animations" a11y
+        // preference before forwarding, so a no-op when the user
+        // has asked the system to be quiet.
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         if (animationsEnabled) {
             scale.animateTo(1.6f, tween(
@@ -291,7 +338,7 @@ private fun BreathingPause(sky: SkyContent, onFinished: () -> Unit, onNeverMind:
             delay(BreathingProtocol.INHALE_MILLIS)
         }
 
-        // The "sip" — a second, smaller inhale on top of the first.
+        // The "sip" â€” a second, smaller inhale on top of the first.
         // This is the alveolar reinflation that distinguishes a
         // physiological sigh from an ordinary breath. The second
         // haptic marks the transition.
@@ -306,7 +353,7 @@ private fun BreathingPause(sky: SkyContent, onFinished: () -> Unit, onNeverMind:
             delay(BreathingProtocol.SIP_MILLIS)
         }
 
-        // The slow exhale — the active ingredient. The circle
+        // The slow exhale â€” the active ingredient. The circle
         // shrinks back over six seconds, twice as long as the
         // inhale, which is the parasympathetic-drive lever.
         phase = BreathingProtocol.Phase.EXHALE
@@ -401,7 +448,7 @@ private fun IntentionPrompt(
     /**
      * The user's pre-written if-then plan for this app. When
      * present, the prompt is pre-filled with the user's own
-     * words — the user-chosen plan is *additional* to the
+     * words â€” the user-chosen plan is *additional* to the
      * existing time-box buttons, not a replacement. The way
      * in stays exactly where it was.
      */
@@ -522,7 +569,7 @@ private fun IntentionPrompt(
             }
 
             // v0.20.1 round 4 (item M): when a per-app
-            // default exists, show the "Like last time —
+            // default exists, show the "Like last time â€”
             // N min" affordance above the time-box row.
             // The wording is in strings.xml and is
             // clinical-review-gated.
@@ -541,7 +588,7 @@ private fun IntentionPrompt(
                 // (so the user never sees "Forget"
                 // before anything is stored). The
                 // affordance is a small text button
-                // — the user must be able to read
+                // â€” the user must be able to read
                 // the line above, not just a single
                 // x-out icon. The wording is
                 // clinical-review-gated; the strings
@@ -566,7 +613,7 @@ private fun IntentionPrompt(
                     // same; the user can still pick any of
                     // 5, 10, 20, or "open untimed" with one
                     // tap. The background color is the sky's
-                    // primary with a small alpha — visible
+                    // primary with a small alpha â€” visible
                     // but not loud.
                     TextButton(
                         onClick = {
@@ -577,7 +624,7 @@ private fun IntentionPrompt(
                         },
                         // The text is "5 minutes" but a
                         // screen reader benefits from
-                        // "Open for 5 minutes" — the
+                        // "Open for 5 minutes" â€” the
                         // action precedes the duration.
                         // The contentDescription is
                         // clinical-review-required (the
@@ -605,7 +652,7 @@ private fun IntentionPrompt(
                         // Bold the highlighted button so the
                         // suggestion is legible against the
                         // soft background. The unhighlighted
-                        // buttons keep the regular weight —
+                        // buttons keep the regular weight â€”
                         // a quiet visual hierarchy, not a
                         // wall of bold.
                         Text(
@@ -671,7 +718,7 @@ private fun IntentionPrompt(
             // front of it. Behavioural activation says the small thing is
             // what shifts mood, and this is the one moment anything can
             // see that a small thing is being avoided. It is one line and
-            // it never argues — the way in is still exactly where it was.
+            // it never argues â€” the way in is still exactly where it was.
             if (smallThing != null) {
                 Text(
                     text = stringResource(R.string.small_thing_prompt),
@@ -693,7 +740,7 @@ private fun IntentionPrompt(
             // The user's rotated self-compassion moment. One
             // line, optional, only shown when the user has
             // authored at least one. The brief is explicit
-            // (docs/research/15 §3) that the prompt is the
+            // (docs/research/15 Â§3) that the prompt is the
             // user's own words, not a launcher opinion.
             if (compassionMoment != null) {
                 Text(
@@ -715,8 +762,8 @@ private fun IntentionPrompt(
                 .semantics { role = Role.Button },
         ) {
             // The "never mind" affordance is the
-            // 36%-abandonment door (Grüning 2023
-            // §4). It must be a Role.Button so a
+            // 36%-abandonment door (GrÃ¼ning 2023
+            // Â§4). It must be a Role.Button so a
             // TalkBack user can find and activate
             // it without sighted cues.
             Text(stringResource(R.string.never_mind), color = sky.textSecondary)

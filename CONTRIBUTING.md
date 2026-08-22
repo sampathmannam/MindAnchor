@@ -139,10 +139,12 @@ between the brief and the implementation.
   Light v1.1 VpnService.** The manifest's permission
   set is minimal by design. The `NetworkCallsForbiddenTest`
   enforces "no outbound calls anywhere."
-- **GPLv3.** The license is the project's promise
-  to its users. A change that adds a non-GPLv3
-  dependency needs a written exception from the
-  project owner.
+- **Apache 2.0.** The license is the project's promise
+  to its users. A change that adds a copyleft dependency
+  (GPL, LGPL, AGPL, or any license with a share-alike
+  clause) needs a written exception from the project
+  owner. Permissive licenses (MIT, BSD-2-clause,
+  BSD-3-clause, ISC, Apache 2.0 itself) are fine.
 - **No comments in commit messages with the literal
   `'` character.** Apostrophes in commit-message
   text break git's argument parser on some shells.

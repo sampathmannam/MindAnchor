@@ -89,7 +89,7 @@ one already present. `versionName` is what people read. Both live in
 F-Droid is the right home for this app: it builds from source, so users do
 not have to trust a binary from anyone. It requires the app to be free
 software with no proprietary dependencies, which this already satisfies —
-GPL-3.0, no Google Play Services, and `dependenciesInfo` disabled so the
+Apache 2.0, no Google Play Services, and `dependenciesInfo` disabled so the
 APK carries no proprietary metadata block.
 
 Submission is a merge request against `fdroiddata` and is a human process;

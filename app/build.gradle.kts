@@ -26,8 +26,8 @@ android {
         applicationId = "org.mindanchor"
         minSdk = 33
         targetSdk = 35
-        versionCode = 26
-        versionName = "0.20.9"
+        versionCode = 91
+        versionName = "0.67.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every
@@ -150,6 +150,11 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
+        // Preserve Kotlin parameter names in the bytecode so
+        // reflection-based finding tests (e.g. v0.25.2-A's
+        // LetterSurfaceWiringFindingTest) can pin a Composable's
+        // parameter shape without guessing at arg2 / arg3.
+        javaParameters = true
     }
 
     buildFeatures {
@@ -198,6 +203,7 @@ configurations.configureEach {
 
 dependencies {
     implementation(platform(libs.compose.bom))
+    implementation(libs.compose.ui.text.google.fonts)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
@@ -214,11 +220,30 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.androidx.security.crypto)
     implementation(libs.androidx.work.runtime.ktx)
-    // Device-agnostic wearable ingestion. Integrating with Health Connect
-    // rather than with any one watch's app is what makes changing watches
-    // a non-event: whatever writes there is readable, and nothing in this
-    // app knows or cares which brand produced it.
-    implementation(libs.androidx.health.connect)
+    // Google Sign-In: the OAuth entry point for v0.25.4's
+    // Google Drive backup. The `drive.file` scope is
+    // requested at sign-in; the resulting `GoogleSignInAccount`
+    // is exchanged for an access token via `GoogleAuthUtil`
+    // on every Drive API call. The raw Drive REST is then
+    // hit via the existing `okhttp` dep — no
+    // `play-services-drive` AAR (see libs.versions.toml note).
+    implementation(libs.play.services.auth)
+    // v0.36.0 — Health Connect SDK 1.2.0-alpha05.
+    // The Maven artifact for 1.2.0-alpha05 requires
+    // `minCompileSdk=37`, which the rest of this project
+    // does not need (compileSdk 36, AGP 8.9.1, Kotlin 2.0.21,
+    // Compose compiler 2.0.21). The full toolchain upgrade to
+    // AGP 9.1.0 / Kotlin 2.2.20 hits a Compose compiler
+    // version mismatch the AAR was not designed for. The AAR
+    // in `app/libs/` is the 1.2.0-alpha05 classes with
+    // `aar-metadata.properties` rewritten to drop the
+    // `minCompileSdk` field; the rest of the artifact
+    // (classes.jar, AndroidManifest.xml, AIDL surfaces,
+    // protobuf message classes) is unchanged. Build with
+    // `app/libs/connect-client-1.2.0-alpha05-relaxed.aar`
+    // when this is regenerated; the patch script is at
+    // `scripts/patch-hc-aar.py` in the workspace.
+    implementation(files("libs/connect-client-1.2.0-alpha05-relaxed.aar"))
     // Camera PPG. HRV is the best physiological signal available here and
     // COROS does not release it — it never leaves their own app. Fingertip
     // PPG is the one route that needs no wearable at all, so it survives
@@ -258,6 +283,22 @@ dependencies {
     // Mockito for the CorosAuthTest's stub of the
     // CorosCredentialStore's parent constructor argument.
     testImplementation(libs.mockito.core)
+    // Robolectric for the ReaderPrefsRoundTripFindingTest — a JVM
+    // test that needs a real Android Context to exercise the
+    // DataStore round-trip (set, then re-read). Without Robolectric
+    // the test would need to be an androidTest, which means a
+    // connected device or emulator per run. Robolectric runs the
+    // test in a sandboxed JVM with a real Context, no emulator.
+    // 4.13 is the highest 4.x that compiles cleanly against the
+    // project's compileSdk 36 + AGP 8.9.1; later 4.x lines pull
+    // in SDK 35 native binaries that conflict with the project's
+    // SDK 33 minSdk toolchain.
+    testImplementation(libs.robolectric)
+    // androidx.test:core-ktx for ApplicationProvider, used by the
+    // ReaderPrefs round-trip test to get a real Android Context
+    // inside the Robolectric sandbox. Same version as the catalog
+    // entry; the Robolectric test would fail to compile without it.
+    testImplementation(libs.androidx.test.core)
 
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.androidx.test.junit)

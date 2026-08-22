@@ -1,19 +1,62 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">MindAnchor</string>
     <string name="greeting_morning">A quiet morning.</string>
     <string name="greeting_day">Here, now.</string>
     <string name="greeting_evening">Winding down.</string>
+    <!--
+        v0.22.0 (WP-10 step 2): the home-screen intro callout.
+        One line of small text below the greeting, shown for
+        the first 3 home-surface displays and never again. The
+        callout points at the friction gate (the headline
+        feature) without naming it — the gate is the magic a
+        3rd-party walkthrough should be able to find in under
+        60 seconds (see docs/qa/3rd-party-onboarding-test.md).
+        The wording avoids "best" and "powerful"; the gate is a
+        pause, not a feature, and "long-press any app" is the
+        actual affordance, not a metaphor for one.
+    -->
+    <string name="intro_callout">Long-press any app to add a one-breath pause before it opens.</string>
 
     <string name="open_drawer">search</string>
     <string name="search_hint">Type to find an app…</string>
-    <string name="settings">settings</string>
+    <!-- v0.47.0: drawer-bang hint. The AIO Launcher
+         "bangs in search" pattern; the user types
+         !ground, !note, !task, !settings, or !mood
+         to navigate. The hint is the first thing
+         the user sees when the drawer opens with
+         no query.
+
+         v0.50.0: the hint is now a comma-separated
+         list. The "!" prefix is highlighted in the
+         kind-sage accent colour so the eye catches
+         it as the actionable part of each token;
+         the backticks are gone because the
+         accent-colour prefix does the same job
+         visually. The string is rendered through
+         [androidx.compose.ui.text.buildAnnotatedString]
+         in HomeScreen.kt::DrawerSurface, with a
+         SpanStyle over each "!". -->
+    <string name="search_hint_v047">Type an app, or !ground, !note, !task, !settings, !mood</string>
+    <!-- v0.47.0: 3 Good Things card. Three free-text
+         rows the user fills in at any point during
+         the day. The rows clear at the local
+         midnight so the next day starts fresh. No
+         streak, no comparison, no "you missed a
+         day" badge — the BPD-safe posture. -->
+    <string name="gratitude_card_title">3 good things</string>
+    <string name="gratitude_row_one">1. ___</string>
+    <string name="gratitude_row_two">2. ___</string>
+    <string name="gratitude_row_three">3. ___</string>
+    <string name="gratitude_hint">What was good today, in your own words. The card clears at midnight.</string>
+    <!-- v0.62.2: "settings" → "Settings" (capitalized) -->
+    <string name="settings">Settings</string>
     <string name="settings_group_quiet">Quiet</string>
     <string name="settings_group_quiet_desc">Batching, quiet hours, and colour.</string>
-    <string name="settings_group_pauses">Pauses</string>
-    <string name="settings_group_pauses_desc">A moment before an app opens.</string>
-    <string name="settings_group_measuring">Measuring</string>
-    <string name="settings_group_measuring_desc">What this phone notices, and what you tell it.</string>
+    <string name="settings_group_pauses">When you want a breath</string>
+    <string name="settings_group_pauses_desc">A small pause before an app opens, on your terms.</string>
+    <string name="settings_group_measuring">Sources</string>
+    <string name="settings_group_measuring_desc">Where today\'s readings come from. Three of them, each one opt-in.</string>
     <string name="settings_group_reading">Reading</string>
     <string name="settings_group_reading_desc">Last night\'s look, the research behind it, and the model.</string>
     <string name="settings_group_plan">Your plan</string>
@@ -70,17 +113,23 @@
     <string name="per_app_session_length_forget_label">Forget this default</string>
 
     <string name="session_channel_name">Session timers</string>
+    <!-- v0.25.19 channel consolidation. -->
+    <string name="session_channel_description">When a per-app session expires.</string>
     <string name="session_over_title">Your time in %1$s is up</string>
     <string name="session_over_text">Done, or a little longer?</string>
     <string name="session_extend_action">+5 minutes</string>
-    <string name="action_back">← back</string>
+    <!-- v0.62.2: "back" → "Back" (capitalized for consistency with
+         "Notes", "Quiet", "Settings" titles). The screen titles
+         throughout the launcher use sentence case; the v0.21.0
+         "← back" was lowercase. -->
+    <string name="action_back">← Back</string>
 
     <string name="batching_section">Notification batching</string>
     <string name="batching_explainer">Chosen apps stop interrupting you; their notifications wait quietly and arrive together at 8:00, 12:30 and 18:00. Conversations, calls and alarms always come through instantly.</string>
     <string name="grant_notification_access">Grant notification access to enable batching</string>
     <string name="batching_toggle">Batch notifications</string>
     <string name="batching_times_explainer">When the batches arrive. The default three follow the trial this is drawn from, not anything about your day — move them to where you can actually take an interruption.</string>
-    <string name="batching_time_slot">Arrives at %1$s</string>
+    <string name="batching_time_slot">Arrives at</string>
     <string name="batching_choose_apps">Apps to batch:</string>
 
     <string name="digest_channel_name">Digest</string>
@@ -112,11 +161,18 @@
 
     <string name="appearance_section">Home screen</string>
     <string name="appearance_explainer">A quiet landscape under the sky. Even a brief glance at greenery or water measurably steadies attention, so this is drawn to be looked at — and never to move.</string>
+    <string name="haptics_toggle_label">Haptic feedback</string>
     <string name="scene_rotate">A different scene each day</string>
     <string name="scene_meadow">Meadow</string>
     <string name="scene_water">Water</string>
     <string name="scene_forest">Forest</string>
     <string name="scene_off">Just the sky</string>
+    <!-- v0.40.0: opt-in soft tone at every 4-7-8 phase transition. Off by default. -->
+    <string name="breath_tone_label">A soft tone on each phase</string>
+    <string name="breath_tone_explainer">Off by default. When on, a short quiet chime marks the moment the breath changes — a single soft cue, never a metronome. Safe to leave off.</string>
+    <!-- v0.42.0: hide the 2x2 needs grid on the home surface. On by default. -->
+    <string name="needs_grid_label">Show needs grid</string>
+    <string name="needs_grid_explainer">The four doors on home — "Be heard", "A moment", "Check in", "Get through this". Turn off to leave only the clock and the notes section. Support is still reachable from the top-left button.</string>
 
     <string name="small_things_section">Small things that help</string>
     <string name="small_things_explainer">If you write down a few small things that help you, one of them is offered — beside the app, never instead of it — at the moment you reach for something else. Only your words, never ours. Nothing is offered on a fourth reach in ten minutes, or during your quiet hours: those are not moments to be asked whether you have tried going for a walk.</string>
@@ -141,11 +197,22 @@
         never authors these; the user does, in settings.
     -->
     <string name="compassion_moment_label">For you, right now:</string>
-    <string name="loop_capture">Anything still open? Put it down here and pick it up in the morning.</string>
+    <string name="loop_capture">What\'s open? Put it down here and pick it up in the morning.</string>
     <string name="loop_capture_hint">The one thing on your mind</string>
     <string name="loop_save">Put it down</string>
     <string name="loop_return">You left this for yourself last night:</string>
     <string name="loop_clear">Done with it</string>
+    <string name="loop_postpone">Postpone</string>
+    <string name="loop_postpone_dialog_title">When will you come back to it?</string>
+    <string name="loop_postpone_later_today">Later today</string>
+    <string name="loop_postpone_tomorrow_morning">Tomorrow morning</string>
+    <string name="loop_postpone_cancel">Cancel</string>
+    <string name="loop_postponed_back_at">Back at %1$s</string>
+    <string name="loop_postponed_cancel">Back to it now</string>
+    <string name="one_thing_label">What\'s the one thing, if anything?</string>
+    <string name="one_thing_hint">The single thing you want to do today</string>
+    <string name="one_thing_done">Done with it</string>
+    <string name="one_thing_set">Set</string>
 
     <!--
         Bedtime to-do list — Scullin et al. 2018, J Exp Psychol Gen
@@ -173,7 +240,7 @@
     <string name="goals_none">You have not named anything yet. You do not have to.</string>
     <string name="goals_done">Done</string>
     <string name="goal_marker">One of yours</string>
-    <string name="watch_section">Where the pause applies</string>
+    <string name="watch_section">Across all your apps</string>
     <string name="watch_explainer">On its own, the pause only appears when you open an app from this screen. Tapping a notification, swiping through recents or following a link goes straight in — which is most of how a phone actually gets used. Turning this on means the pause applies however you arrive.</string>
     <string name="watch_cannot_read">Android calls this an accessibility service, and that sounds worse than it is. It is set up so it cannot read your screen — not messages, not passwords, not what you are looking at. It is told the name of the app that came to the front, and nothing else. Android enforces that, not us.</string>
     <string name="watch_on">On. The pause applies however you open an app.</string>
@@ -191,6 +258,15 @@
     <string name="time_nudger_row">%1$s %2$s</string>
     <string name="sunset_section">Sunset mode</string>
     <string name="sunset_explainer">Through your quiet hours the phone goes priority-only: starred contacts and repeat callers still reach you, everything else waits for morning. Set the hours to your night, not to a default — shift work and being on call are the norm, not the exception.</string>
+    <!--
+        Chronotype setting (Roenneberg 2007, Wittmann 2006, Åkerstedt
+        2003, Kecklund 2016). The radio list mirrors the onboarding
+        step. Changing the answer here overwrites the default
+        wind-down window only if the user has not yet picked a window
+        by hand (see SunsetPrefs.setChronotype).
+    -->
+    <string name="chronotype_section">Your hours</string>
+    <string name="chronotype_explainer">When you are most awake. The wind-down window starts from here unless you have already picked your own times.</string>
     <string name="grant_dnd_access">Grant Do Not Disturb access to enable sunset</string>
     <string name="sunset_toggle">Wind down through the quiet hours</string>
 
@@ -248,6 +324,91 @@
     <string name="model_clear">Remove the model</string>
     <string name="model_import_failed">That file could not be copied.</string>
     <!--
+        v0.23.0: opt-in Phi-4 mini download. The button
+        enqueues a system download via DownloadManager;
+        when the system fires ACTION_DOWNLOAD_COMPLETE,
+        the launcher prompts the user with a one-tap
+        "Use this as the narrate model?" Yes-then-import.
+    -->
+    <string name="model_download">Download Phi-4 mini (Q2_K, 1.6 GB)</string>
+    <string name="model_download_enqueued">Download started. MindAnchor will prompt you when the file has landed.</string>
+    <string name="model_download_failed">The system refused the download. Check the network or storage and try again.</string>
+    <string name="model_download_prompt">Phi-4 mini downloaded. Use this as the narrate model?</string>
+    <string name="model_download_use">Use this model</string>
+    <string name="model_download_dismiss">Not now</string>
+    <!--
+        v0.30.1: when the system Downloads
+        collection already contains a Phi-4 file
+        (e.g. a previous in-app attempt whose
+        completion broadcast was missed, or a
+        browser download), offer to import the
+        existing file instead of asking the user to
+        re-download 1.6 GB.
+    -->
+    <string name="model_existing_offer">A Phi-4 file is already in the phone\'s Downloads folder. Use it as the narrate model?</string>
+    <string name="model_existing_use">Use the file in Downloads</string>
+    <string name="model_existing_dismiss">Not now</string>
+    <!--
+        v0.31.0: returned when the model file is on
+        disk but llama_model_load_from_file fails.
+        The most common reason at the moment is
+        that the phone does not have enough free
+        memory at the moment the model is asked to
+        load — 2.32 GB of weights plus KV cache plus
+        runtime needs ~3-4 GB, and an actively-used
+        phone typically has only 1.5-2 GB free. The
+        settings card's "with room to spare" line is
+        correct for the *idle, charging* overnight
+        case, where the system has drained other
+        processes; tapping "Generate now" during the
+        day can run into this. Closing other apps
+        and trying again is the first thing to try;
+        the runtime that ships the model in
+        /storage/emulated/0/Download/ is otherwise
+        unchanged.
+    -->
+    <string name="model_load_failed_out_of_memory">The model file is on this phone, but the launcher could not load it. Most often the phone does not have enough free memory right now — close other apps and try again. The full report is in `adb logcat -s MindAnchor/llama`.</string>
+    <!--
+        v0.24.0: opt-in daily letter. Reuses the
+        v0.23.0 Phi-4 mini on-device engine; runs at
+        user-chosen time; gated on the model being
+        installed and runnable.
+    -->
+    <string name="letters_channel_name">Daily letter</string>
+    <string name="letters_channel_description">A weekly letter drawn from your own last week.</string>
+    <!--
+        v0.32.1: the foreground-service channel for the
+        on-demand "Generate now" letter run. Low importance
+        so it does not sound an alert or pop a heads-up;
+        the user has already acknowledged the run with the
+        Toast. The status-bar icon is the "this is alive"
+        signal; its replacement by the done/failed
+        notification is the "finished" signal.
+    -->
+    <string name="letters_generation_channel_name">Letter generation</string>
+    <string name="letters_generation_channel_description">A small ongoing icon while MindAnchor is writing tonight\'s letter on this phone.</string>
+    <string name="letters_generation_ongoing_title">Generating tonight\'s letter</string>
+    <string name="letters_generation_ongoing_text">The Q2_K model on this phone takes 30–60 minutes. The letter appears in the inbox when it finishes.</string>
+    <string name="letters_generation_done_title">Tonight\'s letter is ready</string>
+    <string name="letters_generation_failed_title">Letter generation didn\'t complete</string>
+    <string name="letters_generation_failed_text">%1$s — tap to open the inbox and try again.</string>
+    <string name="letters_generation_failed_empty">The model returned no text for this week\'s data.</string>
+    <string name="letters_generation_failed_unknown">An unexpected error stopped the generation.</string>
+    <!--
+        v0.26.4 §3.4: the BPD "right now" home surface.
+        Three low-friction affordances for a person
+        mid-dysregulation to externalise the moment
+        before acting on it. The headline reads as
+        one calm line, not a button; the three rows
+        below are the actions.
+    -->
+    <string name="right_now_section">Right now</string>
+    <string name="right_now_caption">A small thing to write down before the next thing happens.</string>
+    <string name="right_now_chain">What just happened?</string>
+    <string name="right_now_ifs">Which part is loud?</string>
+    <string name="right_now_export">Export for my therapist</string>
+    <string name="letters_notification_title">A letter from your week</string>
+    <!--
         Inline forms, for the pattern sentence.
 
         The names above are headings: standalone, capitalised, read on
@@ -289,6 +450,11 @@
     <string name="report_never_built">never — it runs overnight while charging, or on the button below</string>
     <string name="report_run_now">Build last night\'s look now</string>
     <string name="report_running_now">Building…</string>
+    <string name="report_feedback_question">Did this help?</string>
+    <string name="report_feedback_helped">Helped</string>
+    <string name="report_feedback_didnt_help">Didn\'t help</string>
+    <string name="report_feedback_thanks_helped">Thanks. That one is logged.</string>
+    <string name="report_feedback_thanks_didnt_help">Thanks. That one is logged.</string>
     <string name="arriving_section">What is arriving</string>
     <string name="arriving_explainer">Each signal, how many of the last three months\' days have a value on file, and where the latest one came from. A signal missing here is a fact worth knowing, never a silent gap.</string>
     <string name="arriving_not_yet">Nothing counted yet. Build last night\'s look once, under Reading, and this fills in.</string>
@@ -329,11 +495,16 @@
     <string name="ema_learning">Still learning your normal.</string>
     <string name="ema_settled">It has enough to work with, so it asks less now.</string>
     <string name="ema_channel_name">Check-ins</string>
+    <string name="ema_channel_description">A check-in question at a time you chose.</string>
     <string name="ppg_section">Heart rhythm</string>
     <string name="ppg_explainer">Many watches measure heart-rate variability and never hand it over — it stays inside the maker\'s own app, and it cannot be worked out from heart rate alone. So this measures it directly, from your fingertip. It also means it still works if you change watch, or aren\'t wearing one.</string>
     <string name="ppg_how">Rest your index finger over the rear camera and the flash, covering both. Hold still, breathe normally, and stay off the phone for about 90 seconds. Sitting, before you get up, is the most comparable time of day.</string>
     <string name="ppg_start">Take a reading</string>
     <string name="ppg_grant">Allow the camera</string>
+    <string name="ppg_rationale">The camera reads your finger\'s pulse through the flash. We don\'t record or upload anything.</string>
+    <string name="ppg_continue">Continue</string>
+    <string name="ppg_settings_rationale">Camera access is off at the system level, so MindAnchor can\'t ask again. Open Settings → Apps → MindAnchor → Permissions to turn it on.</string>
+    <string name="ppg_open_settings">Open settings</string>
     <string name="ppg_measuring">Measuring — hold still</string>
     <string name="ppg_seconds_left">%1$d seconds left</string>
     <string name="ppg_cancel">Stop</string>
@@ -341,6 +512,7 @@
     <string name="ppg_refused">That reading was too noisy to trust, so it has been thrown away rather than saved. Usually it is finger pressure — cover the lens and the flash completely, but rest the finger rather than pressing.</string>
     <string name="ppg_last">Last reading: %1$s</string>
     <string name="ppg_none_yet">No readings yet.</string>
+    <string name="ppg_history_heading">Recent sessions</string>
     <string name="sleep_section">Sleep rhythm</string>
     <string name="sleep_explainer">MindAnchor can estimate your sleep window from when the screen goes quiet at night — on this phone only, no wearable, nothing uploaded. Consistency matters more than hours.</string>
     <string name="grant_usage_access">Grant usage access to see your rhythm</string>
@@ -348,6 +520,26 @@
     <string name="sleep_regularity">Regularity: %1$d/100</string>
     <string name="sleep_window_row">%1$s — about %2$s h quiet</string>
     <string name="sleep_regularity_note">This is an estimate of how consistent your nightly phone-quiet window is — regular timing, not total hours, is what the research links to better mood and sleep.</string>
+    <!--
+        Wind-down suggestion. Opt-in: the optimizer reads the user's
+        own recent sleep onsets and proposes a window, the user reads
+        the suggestion and either accepts it (one tap) or ignores it.
+        Nothing is set automatically. The copy avoids the word
+        "should" — the suggestion is the launcher's best read of the
+        data, not a recommendation, and a person who sleeps at a
+        time that the data does not fit can always nudge the window
+        by hand.
+
+        Windred et al. 2024 (SLEEP 47(1):zsad285, DOI
+        10.1093/sleep/zsad285) is the citation: the UK Biobank
+        Sleep Regularity Index is the strongest single predictor of
+        mental-health and metabolic outcomes, more so than duration.
+        The default 8h sleep length is the launcher design choice,
+        not a research finding.
+    -->
+    <string name="sleep_suggestion_heading">Suggested wind-down</string>
+    <string name="sleep_suggestion_line">From your last %1$d nights, your nights cluster around %2$s. A wind-down at %3$s would land an hour and a half before that.</string>
+    <string name="sleep_suggestion_apply">Use this</string>
 
     <string name="set_default_launcher">Set MindAnchor as your home screen</string>
     <string name="is_default_launcher">MindAnchor is your home screen.</string>
@@ -365,56 +557,38 @@
     <string name="plan_interruptions">• Notification batching (settings): chosen apps go quiet and arrive together three times a day. People always come through.</string>
     <string name="plan_compulsive">• Long-press any app and choose \"Add a pause\" — a breath and an intention before it opens.</string>
     <string name="plan_sleep">• Sunset mode + sleep rhythm (settings): priority-only nights and a view of how regular your sleep is.</string>
-    <string name="plan_measurement">• The wellbeing pulse (settings): a 2-minute check-in every two weeks, scored honestly.</string>
+    <string name="plan_measurement">• Health Connect (settings): the data the phone already records, surfaced on the home surface when there is enough of it.</string>
     <string name="plan_none">Explore at your own pace — every feature lives in settings and long-press menus, all off by default.</string>
     <string name="onboarding_begin">begin</string>
-
-    <string name="pulse_section">Wellbeing pulse</string>
     <!--
-        This used to say "It's how you — and MindAnchor — know honestly
-        whether any of this is helping." MindAnchor knows nothing of the
-        sort: docs/CLINICAL_REVIEW.md §66 makes never interpreting a score
-        a deliberate invariant, so the app shows the numbers and the
-        change between them and stops there. Claiming a judgement it is
-        built not to make was the one dishonest sentence in this screen.
+        v0.22.0: WP-10 step 1. The "pick" screen combines the
+        goal-elicitation step (CHI 2024 ReDD: naming your own
+        struggle and matching tools to it beats any fixed toolset;
+        CHI 2026 Going Light: imposed minimalism fails, self-
+        endorsed structure works) and the chronotype step
+        (Roenneberg 2007, Wittmann 2006, Åkerstedt 2003 +
+        Kecklund 2016 for shift work) into one screen, reducing
+        total onboarding from 4 screens to 3. Nothing is enabled
+        for the user — they choose, and the closing screen points
+        to where each choice is switched on.
     -->
-    <string name="pulse_section_explainer">A 2-minute WHO-5 check-in every two weeks. It keeps an honest record, in your own words and numbers, of whether any of this is helping — the reading of it stays yours.</string>
-    <string name="pulse_take">Take the pulse</string>
-    <string name="pulse_title">How have the last two weeks felt?</string>
-    <string name="pulse_intro">Five statements, answered 0 (at no time) to 5 (all of the time). This is a self-check, not a diagnosis.</string>
-    <string name="pulse_scale_hint">0 = at no time · 5 = all of the time</string>
-    <string name="pulse_save">Save</string>
-    <string name="pulse_result">Your score: %1$d/100</string>
-    <!-- The legacy "scores in this range" line is retained for callers
-         that import it directly. The presentation in PulseScreen now
-         uses one of the band_* lines below; the wording in each is
-         per docs/research/13 (Topp 2015; WHO 1998; Parker 2020 JMIR
-         mHealth lived-experience findings). -->
-    <string name="pulse_low_note">Scores in this range are common when things are heavy. Your people and your plan are one tap from the home screen whenever you want them.</string>
-    <string name="pulse_open_support">Open support</string>
-    <string name="pulse_band_okay">In the higher range. The WHO-5 is not a diagnosis — it is a check-in on the last two weeks. Trends over time are more useful than any single number.</string>
-    <string name="pulse_band_low">In the lower range — the kind of result that often shows up under a lot of stress or strain. Not a diagnosis, and it does not mean anything is wrong with you. Your people and your plan are one tap away whenever you want them. If this has been going on for a couple of weeks or more, talking to a GP can be a useful next step.</string>
-    <string name="pulse_band_very_low">In the lowest range the WHO describes — the level of well-being often seen in people who are going through a really hard time. The WHO-5 is not a diagnosis; only a clinician can make that call. Given how much you are carrying, it might be worth talking to someone you trust or a GP. Your people are one tap away.</string>
-    <string name="pulse_band_incomplete">A few items are unanswered. Save only when you have answered all five.</string>
-    <string name="pulse_after_disclaimer">MindAnchor is a wellness tool, not a clinical service. A low reading does not mean you are unwell.</string>
-    <string name="pulse_history_up">A meaningful lift from the one before.</string>
-    <string name="pulse_history_down">A meaningful drop from the one before.</string>
-    <string name="pulse_history">History</string>
-    <!--
-        The history was a bare list of ISO dates and scores, which made a
-        person do the subtraction themselves across a fortnight's gap.
-        The change is arithmetic on two numbers they produced — not a
-        reading of them — so it is shown, unlabelled and unexplained.
-        Nothing here says whether a direction is good.
-    -->
-    <string name="pulse_history_line">%1$s — %2$d/100</string>
-    <string name="pulse_history_change">%1$s since the one before</string>
-    <string name="pulse_channel_name">Wellbeing pulse</string>
-    <string name="pulse_reminder_title">Two weeks since your last pulse</string>
-    <string name="pulse_reminder_text">Two minutes, whenever suits you.</string>
+    <string name="onboarding_pick_title">What fits? Pick what helps, skip what doesn\'t.</string>
+    <string name="onboarding_pick_body">Both questions are optional. Whatever you skip, the launcher leaves off. You can change either one in settings.</string>
+    <string name="onboarding_chronotype_title">When are you most awake?</string>
+    <string name="chronotype_morning_lark">Asleep by 21:00, up before 06:00</string>
+    <string name="chronotype_neutral">Somewhere in between</string>
+    <string name="chronotype_night_owl">At my best in the evening, asleep after midnight</string>
+    <string name="chronotype_shift_worker">I work shifts and sleep during the day</string>
+    <string name="chronotype_unknown">Not set</string>
+    <string name="plan_chronotype">• Wind-down default set for your hours: %1$s</string>
 
+    <!-- v0.26.6: pulse_* strings removed (pulse package dropped).
+         The WHO-5 instrument and its research backing
+         (Topp 2015, WHO 1998) are preserved in
+         docs/research/13-pulse.md for the v0.27.x DBT diary card
+         that re-introduces the screen with a different shape. -->
 
-    <string name="support_shortcut">support</string>
+    <string name="support_shortcut">Open Support</string>
     <string name="notes_shortcut">notes</string>
     <string name="support_section">Your people and your plan</string>
     <string name="support_section_explainer">Somewhere to write down what helps, and the people you would want to talk to. Yours to fill in, whenever you feel like it.</string>
@@ -475,7 +649,7 @@
     <string name="grayscale_at_night">Go grey through the quiet hours</string>
     <string name="grayscale_shares_a_switch">This borrows Android\&#39;s colour correction, so the two cannot both be on at once. Whatever correction you had set is put back when the grey screen goes off. If you rely on it during the day, you may still want to leave the night setting alone.</string>
     <string name="backup_section">Keep a copy</string>
-    <string name="backup_explainer">Nothing here is backed up to the cloud, on purpose — so a reset or lost phone would take your plan, your people, your check-ins and your readings with it. Save a copy somewhere you trust, and bring it back whenever you need to. Restoring only ever adds to what is already here.</string>
+    <string name="backup_explainer">Nothing here is backed up to the cloud, on purpose — so a reset or lost phone would take your plan, your people, your check-ins and your readings with it. Save a copy to this phone\'s storage or to a folder you control (Google Drive, Dropbox, an SD card), and bring it back whenever you need to. Restoring only ever adds to what is already here.</string>
     <string name="backup_save">Save a copy…</string>
     <string name="backup_restore">Restore from a copy…</string>
     <string name="backup_saved">Saved. Keep it somewhere only you can reach.</string>
@@ -498,7 +672,10 @@
     -->
     <string name="going_light_section">Going Light</string>
     <string name="going_light_explainer">Blocks chosen apps during a time window you set. The first time you turn it on, your phone will need a one-time VPN permission.</string>
-    <string name="going_light_coming_soon">Available in v0.20.2.</string>
+    <string name="going_light_channel_name">Going Light</string>
+    <string name="going_light_channel_description">Active Going Light window</string>
+    <string name="going_light_notification_title">Going Light is on</string>
+    <string name="going_light_notification_text">Mobile internet is paused for selected apps</string>
 
     <!--
         v0.20.1 round 5: notes + check-in. The
@@ -524,19 +701,364 @@
     <string name="note_title_hint">Title (optional)</string>
     <string name="note_body_hint">Start writing…</string>
     <string name="note_new">New note</string>
-    <string name="note_list_empty">Nothing here yet. Tap + to start.</string>
+    <!-- v0.25.18 i18n sweep: was hardcoded "Close" in NoteScreen.kt's
+         TopAppBar navigationIcon. v0.30.0: comment updated to drop
+         the Tamil-localiser reference (values-ta/ was removed per
+         the "no tamil needed" directive). -->
+    <string name="note_close">Close</string>
+    <string name="note_list_empty">Nothing here yet. Type above and tap Save.</string>
     <string name="note_pin">Pin</string>
     <string name="note_unpin">Unpin</string>
     <string name="note_delete">Delete</string>
     <string name="note_delete_confirm">Delete this note?</string>
     <string name="note_delete_yes">Delete</string>
     <string name="note_delete_no">Keep</string>
+    <!-- v0.25.0: type filter chips above the notes list. -->
+    <string name="note_filter_all">All</string>
+    <string name="note_type_general">General</string>
+    <string name="note_type_task">Task</string>
+    <string name="note_type_reminder">Reminder</string>
+    <string name="note_type_journal">Journal</string>
+    <!-- v0.25.0: empty-state strings when the active
+         type filter has no matches. -->
+    <string name="note_filter_empty_general">No general notes yet.</string>
+    <string name="note_filter_empty_task">No tasks yet.</string>
+    <string name="note_filter_empty_reminder">No reminders yet.</string>
+    <string name="note_filter_empty_journal">No journal entries yet.</string>
+    <!-- v0.25.0: re-classify-all settings section. -->
+    <string name="note_reclassify_title">Re-classify notes</string>
+    <string name="note_reclassify_explainer">Reset every note\'s type and run the on-device model over them again. Use this after upgrading the model, or if a note has the wrong type.</string>
+    <string name="note_reclassify_button">Re-classify all notes</string>
+    <string name="note_reclassify_running">Re-classifying…</string>
+    <string name="note_reclassify_confirm_title">Re-classify every note?</string>
+    <string name="note_reclassify_confirm_body">This resets every note\'s type and runs the on-device model over them again. It is slow — several minutes for a few hundred notes — and runs in the background; you can leave the screen.</string>
+    <string name="note_reclassify_confirm_yes">Re-classify</string>
+    <string name="note_reclassify_confirm_no">Cancel</string>
     <string name="quick_notes_section">Notes</string>
     <string name="quick_notes_input_hint">Jot something down — it saves here, in order, with the time.</string>
     <string name="quick_notes_save">Save</string>
+    <string name="quick_notes_clear">Clear</string>
     <string name="quick_notes_empty">Nothing yet. The first line you write lands here.</string>
     <string name="quick_notes_view_all">View all</string>
     <string name="quick_notes_saved_at">%1$s · %2$s</string>
+    <!-- v0.43.0: count line under the section header.
+         v0.45.1: plural-aware. "1 note" / "X notes on
+         this phone". Uses the Android <plurals> form
+         so the launcher honours en-GB, en-US, and the
+         other plural categories the user might be
+         rendering in. -->
+    <string name="quick_notes_count_zero">No notes yet</string>
+    <!-- v0.53.0 (Red Dot review fix, Issue 3):
+         the v0.49.0 "X notes on this phone" was
+         a vanity metric. v0.53.0 shows the
+         count of distinct days the user has
+         written on, which is a behaviour
+         signal (a rhythm) rather than a count
+         of the act. The launcher does not
+         grade the user; "X days of notes" is
+         a fact about the user's pattern, not a
+         score. -->
+    <!-- v0.62.2: subtitle "X day(s) of notes" was a count of distinct
+         days with notes, not a count of notes. A user with one note
+         on Aug 19 saw "1 day of notes" and read it as "I have one
+         note" or "I have notes from one place". The new copy is
+         "Today" when the count is 1 (the only day with notes is
+         today) and "N days of notes" otherwise. The Notes tab still
+         shows day-grouped pills so the user can see which days. -->
+    <plurals name="quick_notes_count_n">
+        <item quantity="one">Today</item>
+        <item quantity="other">%1$d days of notes</item>
+    </plurals>
+    <!-- v0.62.0: pin-to-home explainer. v0.53.0
+         hard-coded "$count are pinned now" which
+         was wrong for count==1 ("1 are pinned
+         now"). The fix is a quantity string: "is"
+         for one, "are" for everything else. The
+         two cases are also the only ones
+         English needs — "0 are" is correct
+         (zero is plural), and the toggle is
+         on/off so a user almost never sees
+         count > ~10. -->
+    <plurals name="pin_to_home_explainer_v053_n">
+        <item quantity="one">New notes will appear on the home screen. %1$d is pinned now.</item>
+        <item quantity="other">New notes will appear on the home screen. %1$d are pinned now.</item>
+    </plurals>
+    <!-- v0.62.2: explainer text is now state-dependent. The v0.53.0
+         string above always claimed "New notes will appear on the
+         home screen" — true when the toggle is ON, false when it's
+         OFF. The new plurals split ON vs OFF so the explainer
+         matches the actual behaviour:
+         - ON:  "New notes will appear on the home screen. N is/are
+                pinned now" (the legacy v0.53.0 copy)
+         - OFF: "New notes will stay in the Notes tab. N is/are
+                already pinned" (a user who toggles off wants to
+                know their existing pinned notes are still there in
+                the Notes tab — just not surfaced on the home card).
+         The empty-state strings [pin_to_home_explainer] (OFF) and
+         [pin_to_home_explainer_on_empty] (ON) cover the recent-is-
+         empty case without a count. -->
+    <plurals name="pin_to_home_explainer_on_n">
+        <item quantity="one">New notes will appear on the home screen. %1$d is pinned now.</item>
+        <item quantity="other">New notes will appear on the home screen. %1$d are pinned now.</item>
+    </plurals>
+    <plurals name="pin_to_home_explainer_off_n">
+        <item quantity="one">New notes will stay in the Notes tab. %1$d is already pinned.</item>
+        <item quantity="other">New notes will stay in the Notes tab. %1$d are already pinned.</item>
+    </plurals>
+    <string name="pin_to_home_explainer_on_empty">New notes will appear on the home screen.</string>
+    <!-- v0.62.5 (F2 from top-50 audit, User Control / Error
+         Recovery): the toggle on the home card flips a binary
+         preference the user can change by accident and not notice —
+         the v0.62.2 explainer already says "is already pinned" when
+         OFF, which can read as the toggle doing nothing. The fix is
+         a Material 3 Snackbar with an Undo action that flips the
+         toggle back. The two strings here are the Snackbar messages;
+         the action label reuses the existing notes_swipe_undo
+         ("Undo") so the affordance reads the same as the Notes tab
+         delete Undo. The "appear on home" copy mirrors the
+         [pin_to_home_explainer_v053_n] plural; the "stay in Notes
+         tab" copy mirrors the [pin_to_home_explainer_off_n] plural,
+         so the Undo Snackbar reads as a stronger version of the
+         explainer already visible inline. -->
+    <string name="pin_to_home_undo_on">New notes will appear on the home screen.</string>
+    <string name="pin_to_home_undo_off">New notes will stay in the Notes tab.</string>
+    <!-- v0.49.0: kind picker + Task / Reminder save flow.
+         Renamed "Quick" → "Quick note" so the chip is unambiguous
+         (a user reading just the chip label knows it's a note, not
+         a shortcut). The chip stays the default — the user can
+         override with Task or Reminder for time-bound work.
+         "Reminder" stays singular — the picker creates one reminder
+         at a time, plural is misleading. -->
+    <string name="note_kind_quick">Quick note</string>
+    <!-- v0.58.0: long-press mood → annotate
+         dialog. The dialog is opt-in: the
+         1-tap mood log (the v0.46.0
+         design) is still the default
+         affordance. The copy is the
+         same "observe, don't evaluate"
+         tone as the rest of the
+         launcher — a question the user
+         can answer in their own words,
+         not a form to fill out. -->
+    <string name="mood_annotate_title">What made it that way?</string>
+    <string name="mood_annotate_hint">A line, a sentence, or skip.</string>
+    <string name="mood_annotate_save">Save</string>
+    <string name="mood_annotate_skip">Skip</string>
+    <string name="note_kind_task">Task</string>
+    <string name="note_kind_reminder">Reminder</string>
+    <string name="quick_notes_input_hint_task">What needs doing — the body is the task, the picker is the deadline.</string>
+    <string name="quick_notes_input_hint_reminder">What should come back to you — the body is the reminder, the picker is when.</string>
+    <string name="quick_notes_save_task">Save as task</string>
+    <string name="quick_notes_save_reminder">Save reminder</string>
+    <!-- v0.45.1: the reminder subtitle is just the
+         time string — relative times already start
+         with "in" ("in 13 min"), absolute times
+         don't need a leading preposition either.
+         The previous "at %1$s" double-prepositioned
+         a relative time to "at in 13 min". The
+         companion `note_subtitle_due` keeps "due "
+         because "due" is a useful signpost for a
+         task. -->
+    <string name="note_subtitle_at">%1$s</string>
+    <string name="note_subtitle_due">due %1$s</string>
+    <!-- v0.44.0: the reminder flash surface. -->
+    <string name="flash_title">Reminder fired</string>
+    <string name="flash_loading">Loading…</string>
+    <string name="flash_dismiss">Dismiss</string>
+    <!-- v0.44.0: the reminder notification. -->
+    <string name="reminder_notification_title">Reminder</string>
+    <string name="reminder_channel_name">Reminders</string>
+    <string name="reminder_channel_description">Alarms you set on a note — they fire at the time you picked.</string>
+    <!-- v0.45.0: the Notes tab and pin-to-home affordances. -->
+    <string name="notes_button">Notes</string>
+    <string name="notes_tab_title">Notes</string>
+    <string name="notes_tab_back">Back</string>
+    <string name="notes_tab_count_zero">no notes</string>
+    <string name="notes_tab_count_n">%1$d notes</string>
+    <string name="notes_tab_empty">No notes yet. Go back home and write the first one.</string>
+    <!-- v0.62.0: empty state for the
+         day-filter view in the Notes tab.
+         Tapping a day pill with no notes
+         (e.g. "15 Aug" for a day the user
+         didn't write on) used to render a
+         blank list — visually identical to
+         a broken surface. The fix is two
+         strings so the copy reads naturally
+         in every case:
+         - [notes_day_empty_today] when the
+           user tapped "Today" — "No notes
+           today" reads better than "No notes
+           from Today".
+         - [notes_day_empty_dated] when the
+           user tapped a non-today day —
+           "No notes from 18 Aug" pairs with
+           the "18 Aug" pill the user
+           actually tapped, so the empty
+           state reads as confirmation the
+           filter worked, not as a broken
+           surface. -->
+    <string name="notes_day_empty_today">No notes today.</string>
+    <string name="notes_day_empty_dated">No notes from %1$s.</string>
+    <string name="pin_to_home">Pin to home</string>
+    <string name="pin_to_home_explainer">Pinned notes appear on the home screen. Unpinned notes live only in the Notes tab.</string>
+
+    <!-- v0.53.0: named mood states. The face is the
+         tap target; the label is what the user
+         remembers and what the launcher saves as
+         the reading. Five states, ascending. -->
+    <string name="mood_state_1">Crushed</string>
+    <string name="mood_state_2">Heavy</string>
+    <string name="mood_state_3">Steady</string>
+    <string name="mood_state_4">Light</string>
+    <string name="mood_state_5">Bright</string>
+    <!-- v0.59.0: a 6th mood option, the
+         "I don't know / don't ask" face.
+         The 5-emoji scale is a 1-5 rating;
+         this is a refusal-to-answer
+         option. The mental-health EMA
+         methodology (Wrzus & Neubauer
+         2023) cites "free to skip" as
+         the single most important
+         protocol property — a check-in
+         that the user feels forced to
+         complete is a check-in the user
+         will start ignoring. The "?" is
+         a *valid* response, not a missing
+         one. -->
+    <!-- v0.62.3: "Not now" → "Skip" for the 6th "?"
+         refusal-to-answer face. The other 5 labels
+         are single words (Crushed/Heavy/Steady/Light/
+         Bright); "Not now" is a two-word phrase that
+         breaks the rhythm. "Skip" is one word and
+         matches the Wrzus & Neubauer 2023 EMA
+         "free to skip" terminology cited above. The
+         screen-reader copy is unchanged
+         (content-desc still says "Skip this
+         check-in"). -->
+    <string name="mood_state_skip">Skip</string>
+    <string name="mood_label_cd">Mood: %1$s</string>
+
+    <!-- v0.53.0: contextual home subtitle. The
+         subtitle is a function of the wall clock
+         AND the user's recent activity. The
+         absence of a subtitle is itself a design
+         choice (9am-9pm working hours, the
+         launcher is silent). -->
+    <string name="home_subtitle_winding_down">Winding down</string>
+    <string name="home_subtitle_up_late">Up late</string>
+    <string name="home_subtitle_morning">Morning</string>
+    <string name="home_subtitle_good_afternoon">Good afternoon</string>
+    <string name="home_subtitle_just_now">Just now</string>
+    <string name="home_subtitle_last_note_ago">Your last note was %1$s ago</string>
+    <!-- v0.62.6 (F3 from top-50 audit, Visibility of
+         System Status): a tighter "Saved Xs ago" status
+         for notes less than 60 seconds old. The audit
+         flagged that "Just now" + titleMedium + no icon
+         was too quiet for the highest-signal moment
+         (just-after-save) — a user who wrote something
+         vulnerable needs to see the data hit disk. The
+         checkmark icon next to the text reinforces the
+         affordance. Falls back to home_subtitle_just_now
+         for 60s – 30min (the same boundary v0.53.0 used).
+         Plurals not used: the only plural case is
+         singular (1 second) — the audit explicitly
+         cited a single "12s" as the example copy. -->
+    <string name="home_subtitle_just_saved">Saved %1$ds ago</string>
+    <!-- The checkmark is a Material Icons "check" — no
+         string needed; the icon is hard-coded in
+         [HomeScreen.kt:contextualSubtitleFor] consumer. -->
+    <string name="home_subtitle_just_saved_a11y">Saved %1$d seconds ago. Note is on disk.</string>
+    <string name="home_subtitle_count_days">%1$d days of notes</string>
+    <string name="home_subtitle_count_day_one">1 day of notes</string>
+
+    <!-- v0.53.0: bang hint simplification. The
+         previous v0.50.0 hint listed all five
+         bangs inline. v0.53.0 shows ONE example
+         inline and offers a "?" affordance for
+         the rest. Less visual noise on the
+         placeholder. -->
+    <!-- v0.58.0: the search field placeholder.
+         The pre-v0.58.0 copy was "Type an app,
+         or !ground" — a v0.53.0 prompt that
+         worked for a power user but read as
+         "command-line input" to a new user.
+         The v0.58.0 copy uses the launcher's
+         "what do you want to open?" tone
+         (warm, low-pressure) and keeps the
+         bang affordance as a parenthetical
+         rather than the primary affordance,
+         so the new user sees the human
+         affordance first and the bang
+         affordance second. -->
+    <!-- v0.61.0: added !panic and !breathe to the
+         hint copy so the user knows the new
+         clinical-variant bangs exist without
+         having to tap the help dialog. -->
+    <!-- v0.62.2: hint shortened — "Search apps, or tap ? for !commands".
+         v0.58.0 introduced 5 inline bangs ("What do you want to open?
+         (or !ground, !panic, !breathe, !note, !task)") and v0.62.0
+         tried `bodySmall` to make it fit one line on a 1264px screen.
+         bodySmall still wrapped the hint mid-bang — "ground, !" sat
+         on line 1 and "panic" fell to line 2, splitting the bang
+         token. The full list now lives only behind the "?" button
+         (the universal "show me help" gesture, v0.53.0 Issue 7).
+         The new copy is short enough to fit on one line at
+         bodyMedium on any screen size. -->
+    <string name="search_hint_v058">Search apps, or tap ? for !commands</string>
+    <string name="search_hint_help_cd">Show all bang commands</string>
+    <string name="search_help_title">Bang commands</string>
+    <string name="bang_help_ground">Go to the Ground me surface</string>
+    <string name="bang_help_panic">Rate how acute it is right now</string>
+    <string name="bang_help_breathe">Start the paced-breathing screen</string>
+    <string name="bang_help_note">Open the Notes tab</string>
+    <string name="bang_help_task">Quick-capture a Task</string>
+    <string name="bang_help_settings">Open Settings</string>
+    <string name="bang_help_mood">Open the Mood surface</string>
+    <string name="bang_help_close">Close</string>
+
+    <!-- v0.53.0: save button progressive
+         disclosure. The button is hidden when the
+         input is empty or the current kind
+         requires a time that has not been set.
+         The greyed-with-message state names the
+         reason. -->
+    <string name="save_button_save">Save</string>
+    <string name="save_button_needs_text">Type something to save</string>
+    <string name="save_button_needs_time">Add a time to save</string>
+
+    <!-- v0.53.0: pin-to-home preference
+         label. The previous v0.45.0 "Pin to home"
+         was ambiguous; v0.53.0 names the
+         preference as "Future notes will appear
+         on the home screen" so the user knows
+         the toggle is a default, not a current
+         action. -->
+    <string name="pin_to_home_label">Future notes on home</string>
+    <string name="pin_to_home_explainer_v053">New notes will appear on the home screen. %1$d are pinned now.</string>
+
+    <!-- v0.53.0: chevron + calendar strip. -->
+    <string name="notes_chevron_cd">Open the Notes tab</string>
+    <string name="notes_day_strip_today">Today</string>
+    <string name="notes_day_strip_yesterday">Yesterday</string>
+    <string name="notes_day_strip_clear">All days</string>
+
+    <!-- v0.53.0: swipe-to-dismiss on notes.
+         v0.54.0: same strings, now actually wired
+         to a SwipeToDismissBox + Snackbar Undo. -->
+    <string name="notes_swipe_pinned">Pinned</string>
+    <string name="notes_swipe_unpinned">Unpinned</string>
+    <string name="notes_swipe_deleted">Note deleted</string>
+    <string name="notes_swipe_undo">Undo</string>
+    <!-- v0.54.0: accessibility content descriptions
+         for the swipe background surface (a screen
+         reader announces "Swipe right to pin" /
+         "Swipe left to delete" so the user knows
+         the gesture before they commit). -->
+    <string name="notes_swipe_bg_pin_cd">Swipe right to pin or unpin this note</string>
+    <string name="notes_swipe_bg_delete_cd">Swipe left to delete this note</string>
+
+    <!-- v0.53.0: action accent semantic label. -->
+    <string name="action_accent_label">Navigation</string>
 
     <!-- Health Connect permission flow (Phase 2) -->
     <string name="health_connect_title">Wearable</string>
@@ -546,6 +1068,7 @@
     <string name="health_connect_status_not_granted">No data is being read yet. Tap below to choose what to share.</string>
     <string name="health_connect_status_partial">Reading %1$d of %2$d signal types from your watch. Tap to change.</string>
     <string name="health_connect_status_full">All %1$d signal types connected.</string>
+    <string name="health_connect_launch_failed">Couldn\'t open Health Connect. The app may be missing, disabled, or may not have responded in time. Check it is installed and enabled, then try again.</string>
     <string name="health_connect_button_connect">Connect to your watch</string>
     <string name="health_connect_button_change">Change what is shared</string>
     <string name="health_connect_what_reads_header">What this app reads</string>
@@ -637,6 +1160,7 @@
     <string name="wellness_dir_above">above your usual</string>
     <string name="wellness_dir_much_above">much above your usual</string>
     <string name="wellness_dir_below">below your usual</string>
+    <string name="wellness_dir_much_below">much below your usual</string>
     <string name="wellness_dir_no_data">—</string>
     <string name="wellness_vs_usual">vs your usual: %1$s</string>
     <string name="wellness_baseline_building">still building a picture</string>
@@ -652,11 +1176,553 @@
     <string name="wellness_settings_band_above">%1$s — above your usual</string>
     <string name="wellness_settings_band_much_above">%1$s — much above your usual</string>
     <string name="wellness_settings_band_below">%1$s — below your usual</string>
+    <string name="wellness_settings_band_much_below">%1$s — much below your usual</string>
     <string name="wellness_settings_band_no_data">%1$s — no reading today</string>
     <string name="wellness_settings_z_score">robust z-score: %1$.2f</string>
     <string name="wellness_settings_baseline_label">your usual</string>
     <string name="wellness_settings_mad_label">typical spread (MAD)</string>
     <string name="wellness_settings_privacy_note">The launcher reads from Health Connect and never writes back. The data never leaves this phone. The per-signal rolling history lives in app-private storage and is included in the on-device backup.</string>
+
+    <!-- v0.25.2: letter inbox + reader + reader-mode. New strings, all
+         v0.25.2-A unless tagged v0.25.2-B. -->
+    <string name="letters_inbox_title">A letter from your week</string>
+    <string name="letters_inbox_explainer">Written on this phone each morning by the same model that writes the nightly report. Tap any letter to read it.</string>
+    <string name="letters_inbox_label">letters</string>
+    <string name="letters_section">Daily letter</string>
+    <string name="letters_explainer">A short letter, written on this phone by the Phi-4 model, each morning at the time you choose. Tap the notification to read it.</string>
+    <string name="letters_toggle">Send me a letter each morning</string>
+    <string name="letters_time">Time: %1$02d:%2$02d</string>
+    <string name="letters_run_now">Generate now</string>
+    <string name="letters_running_now">Generating…</string>
+    <string name="letters_open_inbox">Open inbox (%1$d)</string>
+    <string name="letters_empty">No letters yet. The first arrives at 8 AM, once enough days have passed.</string>
+    <string name="letters_empty_no_model">Phi-4 isn\'t installed — open Settings → Model to install it.</string>
+    <string name="letters_delete">Delete this letter</string>
+    <string name="letters_delete_confirm">Delete this letter?</string>
+    <string name="letters_delete_body">It will be removed from your inbox. This can\'t be undone.</string>
+    <string name="letters_delete_keep">Keep</string>
+    <string name="letters_reader_missing">This letter is no longer on the phone.</string>
+    <string name="letters_disclaimer">A letter is what your own data looked like to a model on this phone. It is not advice.</string>
+    <string name="letters_delete_button">Delete</string>
+    <string name="letters_cancel">Cancel</string>
+    <!--
+        v0.26.2: letter rework. The empty state is now a
+        composer, not a paragraph; the inbox defaults to
+        user-authored and AI generation is opt-in; AI letters
+        get a thumbs-down affordance; the badge in the inbox
+        shows the per-letter feedback count.
+    -->
+    <string name="letters_empty_icon">✉️</string>
+    <string name="letters_empty_title">No letters yet</string>
+    <string name="letters_empty_body">Letters write themselves overnight. The first one will land here at 7 am. (You can change the time in Settings → Reading.)</string>
+    <string name="letters_write_now">Write a letter now</string>
+    <string name="letters_write_hint">What would you like to remember about today?</string>
+    <string name="letters_write_save">Save</string>
+    <!--
+        v0.31.0: the user-authored composer dialog. The
+        empty-state "Write a letter now" button used to call
+        LetterStore.saveUserLetter with a blank body, which
+        the store silently rejected. The dialog is the
+        proper fix — the user types a body, then the typed
+        body is what gets saved.
+    -->
+    <string name="letters_compose_title">Write a letter</string>
+    <string name="letters_compose_placeholder">What would you like to remember about today?</string>
+    <string name="letters_compose_save">Save</string>
+    <string name="letters_compose_dismiss">Not now</string>
+    <string name="letters_use_ai">Use AI</string>
+    <string name="letters_thumbs_down">👎 This got me wrong</string>
+    <!-- v0.27.0: thumbs-down prompt is validation-first
+         (BPD-safe — see docs/research/14-v0.26.6-audit.md §2.6).
+         The previous copy asked the user to identify what the
+         AI got wrong, which can split into self-criticism. The
+         new copy is a soft open question about what would feel
+         more like them. -->
+    <string name="letters_thumbs_down_prompt">That is helpful. What would feel more like you?</string>
+    <string name="letters_thumbs_down_hint">Optional. No one sees this but you.</string>
+    <string name="letters_thumbs_down_save">Save</string>
+    <string name="letters_thumbs_down_saved">Thanks — we will use this to make the next one better.</string>
+    <string name="letters_thumbs_down_badge">👎 %1$d</string>
+    <string name="letters_ai_label">AI</string>
+    <!-- v0.25.2-B: reader-mode -->
+    <string name="reading_size_section">Reading size</string>
+    <string name="reading_size_explainer">How large the text reads on the letter. Large is the largest size that still fits every letter without clipping or hiding controls.</string>
+
+    <!--
+        v0.25.4: Google Drive backup (replaces v0.23.0 WebDAV).
+        Opt-in (Settings → Reading → Google Drive). The
+        launcher uses the narrowest "per-file" scope
+        (drive.file), so the app only ever sees files it
+        created. The "by the person, to a location they
+        pick" path (the local file picker) is unchanged.
+    -->
+    <string name="drive_section">Google Drive backup (opt-in)</string>
+    <string name="drive_explainer">A second, automatic copy in your own Google Drive — encrypted before it leaves this phone, in two text files (notes and letters). The app can only see files it created; the rest of your Drive is invisible.</string>
+    <string name="drive_sign_in">Sign in with Google</string>
+    <string name="drive_signed_in_as">Signed in as %1$s</string>
+    <string name="drive_switch_account">Switch account</string>
+    <string name="drive_backup_now">Back up now</string>
+    <string name="drive_backup_uploaded">Backed up. The remote copy is encrypted with the same key as the local backup.</string>
+    <string name="drive_upload_failed">Couldn\'t back up right now. Will retry on the next entry.</string>
+    <string name="drive_sign_in_failed">Couldn\'t sign in. Check the account picker and try again.</string>
+    <string name="drive_forget_account">Forget this account</string>
+    <string name="drive_forgot">Forgot the account. The remote copy is still in your Drive; turn the bridge back on any time.</string>
+    <string name="drive_not_signed_in">Sign in to enable this.</string>
+    <string name="drive_auto_sync_notes">Auto-back up new notes</string>
+    <string name="drive_auto_sync_letters">Auto-back up new letters</string>
+
+    <!-- v0.26.0: §3.2 "Ground me right now" -->
+    <string name="ground_me_title">Ground me</string>
+    <string name="ground_me_subtitle">Three things you can do in the next two minutes. Pick whichever one.</string>
+    <string name="ground_me_breath">Breathe, slowly</string>
+    <string name="ground_me_breath_seconds">2 minutes. 5 seconds in, 7 seconds out.</string>
+    <string name="ground_me_cold">Hold something cold to your face</string>
+    <string name="ground_me_cold_seconds">30 seconds. A packet of frozen peas works.</string>
+    <string name="ground_me_grounding">Name what is around you</string>
+    <string name="ground_me_grounding_seconds">5 things you can see, 4 you can touch, 3 you can hear, 2 you can smell, 1 you can taste.</string>
+    <string name="ground_me_back">← back</string>
+    <string name="ground_me_breath_in">Breathe in…</string>
+    <string name="ground_me_breath_out">…and out</string>
+    <string name="ground_me_done">Done</string>
+    <string name="ground_me_cycle">Cycle %1$d of %2$d</string>
+    <string name="ground_me_seconds">%1$d</string>
+    <string name="ground_me_cold_label">Hold something cold to your face for 30 seconds.</string>
+    <string name="ground_me_cold_hint">The dive reflex is the fastest calming lever you have on you. Cold water on the face works the same way.</string>
+    <string name="ground_me_grounding_label">Name five things you can see, four you can touch, three you can hear, two you can smell, one you can taste.</string>
+    <string name="ground_me_see">See five: %1$d</string>
+    <string name="ground_me_touch">Touch four: %1$d</string>
+    <string name="ground_me_hear">Hear three: %1$d</string>
+    <string name="ground_me_smell">Smell two: %1$d</string>
+    <string name="ground_me_taste">Taste one: %1$d</string>
+    <string name="ground_me_a11y">Ground me right now. Three options.</string>
+
+    <!-- v0.26.0: §3.3 "Before you send" -->
+    <string name="bys_title">Before you send</string>
+    <string name="bys_intro">A quick self-check. The message still goes if you want it to.</string>
+    <string name="bys_send_anyway">Send anyway</string>
+    <string name="bys_send">Send</string>
+    <string name="bys_try_section">Try the check</string>
+    <string name="bys_try_explainer">A short self-check the launcher shows on long messages or late-night sends. See what it looks like — the trigger lands in your quiet hours, the same hours you set under Sunset mode.</string>
+    <string name="bys_try_action">Show the check</string>
+    <string name="bys_a11y">Before you send. %1$s.</string>
+
+    <!-- v0.26.0: §3.5 "Now what?" 2am shell -->
+    <string name="now_what_title">It\'s late. What do you need right now?</string>
+    <string name="now_what_subtitle">Pick one. The home will be here in the morning.</string>
+    <string name="now_what_sleep">I want to sleep</string>
+    <string name="now_what_ground">I want to ground</string>
+    <string name="now_what_talk">I want to talk to someone</string>
+    <!-- v0.26.5: opt-in "I'm up late tonight" — toggles okAtNight in
+         BpdProfile and dismisses the 2am shell. Persistent: to
+         revert, the user goes to Settings → PAUSES → BPD profile →
+         uncheck "I'm OK at night". -->
+    <string name="now_what_stay_up">I\'m up late tonight</string>
+    <string name="now_what_a11y">It\'s late. What do you need right now?</string>
+
+    <!-- v0.27.0: DBT Module 4 (Interpersonal Effectiveness) and the
+         v0.26.6 audit additions — Neff self-compassion break and
+         Linehan radical acceptance. Each is a one-screen Composable
+         launched from SupportActivity. BPD-safe: no directive
+         language, validate-then-suggest, no all-or-nothing framing. -->
+    <string name="support_interpersonal_button">Interpersonal skills</string>
+    <string name="support_self_compassion_button">Self-compassion break</string>
+    <string name="support_radical_acceptance_button">Radical acceptance</string>
+    <!-- v0.28.0: BPD-strict rebuild buttons. Each opens a single
+         research-grounded surface (Linehan 1993, Schwartz 1995,
+         Neff 2003, DBT Module 4, DBT Diary Card). -->
+    <string name="support_opposite_action_button">Opposite action</string>
+    <string name="support_distress_thermometer_button">Distress thermometer</string>
+    <string name="support_accepts_button">A small way to land — ACCEPTS</string>
+    <string name="support_letter_to_part_button">A letter to the part that is loudest</string>
+    <string name="support_diary_card_button">Today\'s check-in</string>
+    <!-- v0.29.0: ACT values clarification (Hayes 2004). Sits at the
+         end of the in-the-moment → reflective ordering. -->
+    <string name="support_values_button">What matters to me</string>
+    <string name="support_more_skills_section">More moments</string>
+    <string name="support_more_skills_intro">Each is a short, evidence-grounded practice. Pick the one that fits what is happening right now.</string>
+
+    <!-- v0.28.0: BPD research rebuild — crisis lines (override R1
+         decision from 2026-08-08 per the user directive "design
+         strictly for borderline personality disorder" + the
+         research base in docs/audit/crisis-line-feature-rejected.md
+         that explicitly recommends hardcoded numbers in
+         digital tools for the target population). iCall /
+         Vandrevala / AASRA / 112 are the verified India lines;
+         988 is the US line (kept in the resource for users
+         in diaspora). The format is "verb — line, hours —
+         number" with no "crisis" or "suicide" language. -->
+    <string name="crisis_lines_title">If it feels too much, talking to a person can help</string>
+    <string name="crisis_lines_caption">Free, confidential, and staffed by people who know what this feels like. The lines below are not affiliated with MindAnchor — they are independent services.</string>
+    <string name="crisis_line_icall_label">iCall (Tata Institute) — psychosocial support, 8am–10pm Mon–Sat</string>
+    <string name="crisis_line_icall_number">9152987821</string>
+    <string name="crisis_line_vandrevala_label">Vandrevala Foundation — emotional support, 24/7, multilingual</string>
+    <string name="crisis_line_vandrevala_number">1860-2662-362</string>
+    <string name="crisis_line_aasra_label">AASRA — emotional support and crisis intervention, 24/7</string>
+    <string name="crisis_line_aasra_number">9820466726</string>
+    <string name="crisis_line_emergency_label">Emergency services (India)</string>
+    <string name="crisis_line_emergency_number">112</string>
+    <string name="crisis_line_988_label">988 (US) — Suicide and Crisis Lifeline, 24/7</string>
+    <string name="crisis_line_988_number">988</string>
+    <string name="crisis_line_call_button">Call</string>
+
+    <!-- v0.28.0: Distress Thermometer (DBT + Gross emotion
+         regulation). A 0–100 slider that matches the rating
+         to a single DBT skill. The skill matching is:
+           0–30  → mindfulness, sensory grounding
+           31–60 → emotion regulation (PLEASE, opposite action)
+           61–85 → distress tolerance (TIPP, self-soothe)
+           86–100 → crisis (call a line, ground me) -->
+    <string name="distress_thermo_title">How is it right now?</string>
+    <string name="distress_thermo_caption">Slide to where it is, not where you want it to be. There is no right answer.</string>
+    <string name="distress_thermo_value">%1$d</string>
+    <string name="distress_thermo_label_low">A small thing</string>
+    <string name="distress_thermo_label_mid">Noticeable</string>
+    <string name="distress_thermo_label_high">A lot</string>
+    <string name="distress_thermo_label_extreme">Right now, very hard</string>
+    <string name="distress_thermo_suggestion_intro">For where you are, one thing that often helps:</string>
+    <string name="distress_thermo_low_suggestion">A small breath, a slow walk, a glass of water. The body often settles first.</string>
+    <string name="distress_thermo_mid_suggestion">Name what is here. Do not try to fix it yet. Naming the feeling reduces its grip (Lieberman 2007; Gross 1998).</string>
+    <string name="distress_thermo_high_suggestion">A moment to land. TIPP — Temperature, Intense movement, Paced breath, Paired muscle relaxation. Two minutes.</string>
+    <string name="distress_thermo_extreme_suggestion">You are not alone. The Support group has DBT skills and a place to add the people you would actually call. Open it below when you are ready.</string>
+    <string name="distress_thermo_done">Done</string>
+    <string name="distress_thermo_again">Adjust</string>
+
+    <!-- v0.28.0: Letter to a Part (IFS Schwartz 1995). The user
+         writes a one-page letter to the part that is loudest
+         right now. The activity also lets them switch to a
+         "from the part" view to write back. No save, no log —
+         a letter is an act, not a record. -->
+    <string name="letter_to_part_title">A letter to the part that is loudest</string>
+    <string name="letter_to_part_caption">Pick a part. Write to it. There is no wrong way to begin.</string>
+    <string name="letter_to_part_pick_label">Which part is loudest right now?</string>
+    <string name="letter_to_part_pick_angry">The angry part</string>
+    <string name="letter_to_part_pick_scared">The scared part</string>
+    <string name="letter_to_part_pick_dislike">The part that wants to disappear</string>
+    <string name="letter_to_part_pick_critic">The critic part</string>
+    <string name="letter_to_part_pick_protector">The protector part</string>
+    <string name="letter_to_part_pick_other">A different one</string>
+    <string name="letter_to_part_to_label">To the part</string>
+    <string name="letter_to_part_to_hint">What do you want it to know? Start with the part\'s name if that helps.</string>
+    <string name="letter_to_part_from_label">From the part, back to you</string>
+    <string name="letter_to_part_from_hint">If the part could speak. There is no right answer.</string>
+    <string name="letter_to_part_switch">Switch to writing from the part</string>
+    <string name="letter_to_part_done">Done</string>
+    <string name="letter_to_part_a11y">Letter to a part. Pick which part is loudest, then write to it. Optionally switch to writing from the part back to you.</string>
+
+    <!-- v0.28.0: ACCEPTS self-soothing menu (DBT Linehan 1993
+         Distress Tolerance Module 2). 7 buttons, each a 2-minute
+         grounding practice. BPD-safe: each is a single
+         sensory action, no interpretation. -->
+    <string name="accepts_title">A small way to land</string>
+    <string name="accepts_caption">Pick one. Do it for two minutes. That is the whole task.</string>
+    <string name="accepts_activities">Activities</string>
+    <string name="accepts_activities_body">A small thing with your hands. Tidy one thing. Walk to the window and back. The body often settles first.</string>
+    <string name="accepts_contributing">Contributing</string>
+    <string name="accepts_contributing_body">Send one short text to someone who would smile to hear from you. The point is the act, not the reply.</string>
+    <string name="accepts_comparisons">Comparisons</string>
+    <string name="accepts_comparisons_body">A time it was hard and you came through. It is not a contest, it is a reminder.</string>
+    <string name="accepts_emotions">Other emotions</string>
+    <string name="accepts_emotions_body">Watch a short clip that makes you feel something softer — joy, tenderness, awe. The aim is to shift the channel for a moment, not to fix anything.</string>
+    <string name="accepts_pushaway">Push away</string>
+    <string name="accepts_pushaway_body">Mentally put the thing that is hurting on a shelf, behind glass, in another room. It will still be there in ten minutes. That is fine.</string>
+    <string name="accepts_thoughts">Thoughts</string>
+    <string name="accepts_thoughts_body">Count backwards from 100 by 7s. Name ten things you can see. Anything that asks the brain to do one thing.</string>
+    <string name="accepts_sensations">Sensations</string>
+    <string name="accepts_sensations_body">Hold something cold, smell something strong, listen to one thing on purpose. A sensation in is louder than a thought on its own.</string>
+    <string name="accepts_done">Done</string>
+
+    <!-- v0.38.0: 4-7-8 rhythmic breathing (Zaccaro et al. 2018
+         *Frontiers in Human Neuroscience* 12:353). Inhale 4s,
+         hold 7s, exhale 8s. The circle is the count; no number
+         is shown on screen. The citation lives in a quiet footer
+         so the research is honest about where the protocol
+         came from without cluttering the breathing surface. -->
+    <string name="breathing_title">4-7-8</string>
+    <string name="breathing_inhale">inhale</string>
+    <string name="breathing_hold">hold</string>
+    <string name="breathing_exhale">exhale</string>
+    <string name="breathing_done">Done</string>
+    <string name="breathing_citation">Zaccaro et al. 2018 — slow-paced breathing lowers state anxiety.</string>
+    <string name="breathing_support_button">4-7-8 breathing</string>
+    <string name="breathing_support_caption">A four-second inhale, a seven-second hold, an eight-second exhale. The circle is the count.</string>
+
+    <!-- v0.38.0: DBT PLEASE-mastery log (Linehan 1993 ch. 9).
+         One short line per day, however small. No streak, no
+         score, no chart. -->
+    <string name="receipts_title">Receipts</string>
+    <string name="receipts_caption">One small thing you did today, however small. A line, not a journal.</string>
+    <string name="receipts_input_hint">Walked to the corner. Ate breakfast. Replied to one message.</string>
+    <string name="receipts_save">Save</string>
+    <string name="receipts_empty">No receipts yet. The first small thing counts.</string>
+    <string name="receipts_support_button">Receipts</string>
+
+    <!-- v0.28.0: DBT Diary Card (Linehan 1993 ch. 11; Dimeff et al.
+         2011). Single daily prompt, 5 fields. The card is the
+         gold standard for BPD mood tracking — replaces the ad-hoc
+         EMA + CheckIn in v0.28.0+. Optional. -->
+    <string name="diary_card_title">Today\'s check-in</string>
+    <string name="diary_card_caption">One a day. Five lines. There is no right answer — there is your answer.</string>
+    <string name="diary_card_urge_label">An urge that showed up</string>
+    <string name="diary_card_urge_hint">Anything. Send a text, shut down, check the phone. Whatever pulled at you.</string>
+    <string name="diary_card_emotion_label">An emotion that was loud</string>
+    <string name="diary_card_emotion_hint">A feeling, in one or two words. Ashamed, glad, scared, tender, numb, anything.</string>
+    <string name="diary_card_intensity_label">How loud, 0 to 10</string>
+    <string name="diary_card_intensity_hint">0 is barely there, 10 is the loudest it has been.</string>
+    <string name="diary_card_skill_label">A skill you used (or wish you had)</string>
+    <string name="diary_card_skill_hint">STOP, TIPP, opposite action, radical acceptance, a phone call. The skill that fits.</string>
+    <string name="diary_card_outcome_label">What happened next, in one line</string>
+    <string name="diary_card_outcome_hint">Optional. Anything you notice.</string>
+    <string name="diary_card_save">Save</string>
+    <string name="diary_card_saved">Saved for today. Tomorrow will be its own.</string>
+    <string name="diary_card_history">This week</string>
+    <string name="diary_card_history_empty">No check-ins yet. The first one is the one that counts.</string>
+    <string name="diary_card_a11y">DBT diary card. Five fields: urge, emotion, intensity, skill, outcome. Save at the bottom.</string>
+
+    <!-- v0.29.0: ACT values clarification (Hayes et al. 1999/2004;
+         Wilson & Murrell 2004). The 8-domain standard ACT taxonomy
+         is the scaffold; the user's one sentence per domain is the
+         card. Saved to a single DataStore key on Save tap. No
+         score, no chart, no comparison — the card is the values,
+         nothing more. -->
+    <string name="values_title">What matters to me</string>
+    <string name="values_caption">Values are directions, not goals. You can never finish a value — you can only live it for a moment, and then the next.</string>
+    <string name="values_relationships_label">Relationships</string>
+    <string name="values_health_label">Health</string>
+    <string name="values_work_label">Work</string>
+    <string name="values_growth_label">Growth</string>
+    <string name="values_leisure_label">Leisure</string>
+    <string name="values_spirituality_label">Spirituality</string>
+    <string name="values_community_label">Community</string>
+    <string name="values_parenting_label">Parenting</string>
+    <string name="values_field_hint">In this corner of my life, I want to be the kind of person who…</string>
+    <string name="values_save">Save</string>
+    <string name="values_saved">Saved. Read it again when you want to.</string>
+    <string name="values_a11y">ACT values clarification. Eight domains: relationships, health, work, growth, leisure, spirituality, community, parenting. One sentence each. Save at the bottom.</string>
+
+    <!-- v0.28.0: home surface — Distress Thermometer as the
+         first card. Reframes home from "todo list with BPD
+         features" to "now-based surface with one thing at a
+         time". -->
+    <string name="home_distress_card_title">How is it right now?</string>
+    <string name="home_distress_card_caption">Slide to where it is, not where you want it to be. There is no right answer.</string>
+    <string name="home_ground_me_button">Ground me here</string>
+
+    <!--
+        v0.33.0: "What do you need right now?" — the needs-first
+        card. Replaces the v0.28.0-v0.32.1 Distress Thermometer
+        card on the home surface. The Distress Thermometer is
+        still reachable via the "A moment" affordance below.
+
+        The validate-then-suggest pattern (Linehan 1993, DBT
+        Distress Tolerance, ch. 8) is rendered as four one-tap
+        doors instead of one card-and-button. The four doors
+        are need-language ("I need X") not action-language
+        ("do X"), on purpose: the home asks what is needed
+        first, then offers one well-shaped path.
+
+        @wording-reviewed — clinical-review-required. Any change
+        to a string in this block is a clinical-review-surface
+        change per docs/CLINICAL_REVIEW.md.
+    -->
+    <string name="home_needs_title">What do you need right now?</string>
+    <string name="home_needs_caption">Four doors. Pick the one that\'s closest to what you need. There is no wrong door.</string>
+    <string name="home_needs_be_heard">Be heard</string>
+    <string name="home_needs_be_heard_caption">Write something down, longer than a quick note. The launch will open a free-text page.</string>
+    <string name="home_needs_moment">A moment</string>
+    <string name="home_needs_moment_caption">Slide where it is right now. The launcher will match a small thing to that band.</string>
+    <string name="home_needs_check_in">Check in</string>
+    <string name="home_needs_check_in_caption">See today\'s five signals against your last 14 days. No goals, no grades.</string>
+    <string name="home_needs_get_through">Get through this</string>
+    <string name="home_needs_get_through_caption">Three things, in the order you might want them.</string>
+
+    <!-- v0.33.0: "Get through this" sub-menu (replaces the v0.32.0
+         "Right now" home section). -->
+    <string name="home_get_through_title">Pick what fits this moment</string>
+    <string name="home_get_through_what_happened">What just happened?</string>
+    <string name="home_get_through_what_happened_caption">Five short fields. About 90 seconds.</string>
+    <string name="home_get_through_which_part">Which part is loud?</string>
+    <string name="home_get_through_which_part_caption">Pick one. No analysis, no save unless you ask.</string>
+    <string name="home_get_through_export">Export for my therapist</string>
+    <string name="home_get_through_export_caption">A one-time JSON you can hand over. No upload, no email.</string>
+
+    <!--
+        v0.33.0: "Where it comes from" — the data sources card.
+        Surfaces the Health Connect + Coros + PPG integration
+        for the first time on the home. The three rows are
+        provenance, not guidance. No scores, no "your data is
+        great/worrying" labels.
+
+        Apple Health's "preferred source" pattern is the
+        reference (apptizo.com 2026): when multiple sources
+        have a reading for the same day, the launcher picks
+        one — HC wins when available, COROS fills the gaps,
+        PPG is the manual fallback. v0.33.0 makes the pick
+        visible on the home.
+
+        @wording-reviewed — clinical-review-required. The
+        status lines are honest about the data lifecycle
+        ("last sync 2h ago", "no readings yet", "not
+        connected"). The data sources are NOT a clinical
+        judgment; the wording never asserts that any source
+        is "better" or "worse" than the others.
+    -->
+    <string name="home_sources_title">Where it comes from</string>
+    <string name="home_sources_caption">Three readings. The watch on your wrist, the watch you wear, and the finger you put on the camera. None of them is right or wrong.</string>
+    <string name="home_sources_wearable">Wearable</string>
+    <string name="home_sources_coros">Coros Pace 3</string>
+    <string name="home_sources_ppg">PPG</string>
+    <string name="home_sources_status_not_connected">Not connected. Tap to set up.</string>
+    <string name="home_sources_status_no_readings">No readings yet.</string>
+    <string name="home_sources_status_last_sync">Last sync %1$s.</string>
+    <string name="home_sources_status_last_reading">Last reading %1$s.</string>
+    <string name="home_sources_status_loading">Checking what\'s available…</string>
+
+    <!--
+        v0.35.0: "Smartwatches" settings section. Renders the
+        connector roster from SmartwatchRegistry.state (BLE
+        heart rate, Polar AccessLink, ...), lets the user scan
+        for BLE devices, and pairs with their existing
+        credential store when present.
+
+        @wording-reviewed — clinical-review-required. The
+        "Always reconnect" toggle is a wearable-power trade-off
+        that affects battery life; the wording is deliberately
+        neutral, not coercive.
+    -->
+    <string name="settings_smartwatches_title">Smartwatches</string>
+    <string name="settings_smartwatches_caption">Any watch that talks Bluetooth heart-rate, plus the web bridges that some watches need.</string>
+    <string name="settings_smartwatches_grant_button">Tap to grant Bluetooth access</string>
+    <string name="settings_smartwatches_scan_button">Scan for watches</string>
+    <string name="settings_smartwatches_scanning">Scanning…</string>
+    <string name="settings_smartwatches_no_devices">No watches nearby. Make sure the watch is awake and visible to nearby devices.</string>
+    <string name="settings_smartwatches_disconnect">Disconnect</string>
+    <string name="settings_smartwatches_connect">Connect</string>
+    <string name="settings_smartwatches_always_reconnect">Always reconnect</string>
+    <string name="settings_smartwatches_unavailable">%1$s</string>
+
+    <!--
+        v0.35.0: Polar AccessLink section. The user-facing
+        form is email + password (Polar's oauth2/authorization
+        accepts the same flow as the Flow web app), with a
+        status line and a one-shot "Sync now" button.
+
+        The Polar credentials are Keystore-encrypted (same
+        EncryptedSharedPreferences path the COROS bridge
+        uses). The user can wipe them with the "Disconnect"
+        button.
+
+        @wording-reviewed — clinical-review-required. The
+        status strings are honest about the auth lifecycle
+        ("Connected as", "Sign-in failed"). Wording changes
+        here are a clinical-review-surface change per
+        docs/CLINICAL_REVIEW.md.
+    -->
+    <string name="settings_polar_title">Polar</string>
+    <string name="settings_polar_caption">Polar Flow, signed in directly. The launcher holds the access token for three days, then signs in again.</string>
+    <string name="settings_polar_email_hint">Polar Flow email</string>
+    <string name="settings_polar_password_hint">Password</string>
+    <string name="settings_polar_connect_button">Connect Polar</string>
+    <string name="settings_polar_disconnect_button">Disconnect</string>
+    <string name="settings_polar_sync_now">Sync now</string>
+    <string name="settings_polar_login_failed">Sign-in failed: %1$s</string>
+    <string name="settings_polar_login_in_progress">Signing in…</string>
+    <string name="settings_polar_connected_as">Connected as %1$s.</string>
+    <string name="settings_polar_not_connected">Not connected. Sign in to pull nightly HRV and continuous heart rate.</string>
+
+    <string name="self_compassion_title">Self-compassion break</string>
+    <string name="self_compassion_caption">Three sentences, 45 seconds. There is no wrong way to read them.</string>
+    <string name="self_compassion_line_1">This is a moment of suffering.</string>
+    <string name="self_compassion_line_2">Suffering is part of being human.</string>
+    <string name="self_compassion_line_3">May I be kind to myself.</string>
+    <string name="self_compassion_done">Done</string>
+    <string name="self_compassion_a11y">Self-compassion break. Three sentences at 15 seconds each. Tap Done to finish early.</string>
+
+    <string name="radical_acceptance_title">Radical acceptance</string>
+    <string name="radical_acceptance_caption">Four sentences, 40 seconds. It is what it is.</string>
+    <string name="radical_acceptance_line_1">Reality is what it is.</string>
+    <string name="radical_acceptance_line_2">The pain is part of the pain.</string>
+    <string name="radical_acceptance_line_3">Accepting reduces suffering.</string>
+    <string name="radical_acceptance_line_4">Refusing acceptance increases suffering.</string>
+    <string name="radical_acceptance_done">Done</string>
+    <string name="radical_acceptance_a11y">Radical acceptance. Four sentences at 10 seconds each. Tap Done to finish early.</string>
+
+    <string name="interpersonal_title">Interpersonal skills</string>
+    <string name="interpersonal_caption">DBT Module 4. Pick the one that fits what is happening right now.</string>
+    <string name="interpersonal_dear_man_button">I want to ask for something — DEAR MAN</string>
+    <string name="interpersonal_give_button">I want to keep this relationship OK — GIVE</string>
+    <string name="interpersonal_fast_button">I want to keep my self-respect — FAST</string>
+
+    <string name="dear_man_title">DEAR MAN</string>
+    <string name="dear_man_caption">For asking for what you want. Describe · Express · Assert · Reinforce · Mindful · Appear confident · Negotiate.</string>
+    <string name="dear_man_d">Describe — the situation, just the facts.</string>
+    <string name="dear_man_e">Express — how you feel about it, in one sentence.</string>
+    <string name="dear_man_a">Assert — what you want, plainly.</string>
+    <string name="dear_man_r">Reinforce — the good that comes from doing this.</string>
+    <string name="dear_man_m">Mindful — keep coming back to the point.</string>
+    <string name="dear_man_an">Appear confident — even if you do not feel it yet.</string>
+    <string name="dear_man_n">Negotiate — be willing to give to get.</string>
+    <string name="dear_man_draft_label">If you want, a draft of what you might say.</string>
+    <string name="dear_man_draft_hint">Optional. No one sees this but you.</string>
+    <string name="dear_man_done">Done</string>
+    <string name="dear_man_a11y">DEAR MAN script. Seven steps. Optional draft text field at the bottom.</string>
+
+    <string name="give_title">GIVE</string>
+    <string name="give_caption">For keeping a relationship OK while you say what you need. Gentle · Interested · Validate · Easy manner.</string>
+    <string name="give_g">Gentle — kind words, no attacks.</string>
+    <string name="give_i">Interested — listen, do not interrupt.</string>
+    <string name="give_v">Validate — show you see their side.</string>
+    <string name="give_e">Easy manner — a small smile goes a long way.</string>
+    <string name="give_draft_label">If you want, a draft of what you might say.</string>
+    <string name="give_draft_hint">Optional. No one sees this but you.</string>
+    <string name="give_done">Done</string>
+    <string name="give_a11y">GIVE script. Four steps. Optional draft text field at the bottom.</string>
+
+    <string name="fast_title">FAST</string>
+    <string name="fast_caption">For keeping your self-respect when the pressure is on. Fair · Apologies (skip the unnecessary ones) · Stick to values · Truthful.</string>
+    <string name="fast_f">Fair — to yourself and to them.</string>
+    <string name="fast_a">Apologies — only the ones that are actually owed.</string>
+    <string name="fast_s">Stick to your values — do not trade them for the argument.</string>
+    <string name="fast_t">Truthful — do not lie to keep the peace.</string>
+    <string name="fast_draft_label">If you want, a draft of what you might say.</string>
+    <string name="fast_draft_hint">Optional. No one sees this but you.</string>
+    <string name="fast_done">Done</string>
+    <string name="fast_a11y">FAST script. Four steps. Optional draft text field at the bottom.</string>
+
+    <!--
+        v0.28.0: Opposite Action (Linehan 1993, ch. 8).
+        When the emotion does not fit the facts, do the opposite
+        of the action urge. For BPD this counters the
+        all-or-nothing behaviour pattern that follows an
+        emotion-driven impulse. Four steps, each with a label and
+        an optional free-text field. No save, no score.
+    -->
+    <string name="opposite_action_title">Opposite action</string>
+    <string name="opposite_action_caption">When the emotion does not fit the facts, the skill is to do the opposite of the urge. Four short steps.</string>
+    <string name="opposite_action_step_1_label">1. Name the emotion</string>
+    <string name="opposite_action_step_1_hint">What is here. A feeling, in one or two words.</string>
+    <string name="opposite_action_step_2_label">2. Does it fit the facts?</string>
+    <string name="opposite_action_step_2_hint">What is the evidence for, what is the evidence against. Be honest.</string>
+    <string name="opposite_action_step_3_label">3. What is the action urge?</string>
+    <string name="opposite_action_step_3_hint">What does the emotion want you to do. Send, leave, shut down, fight, hide.</string>
+    <string name="opposite_action_step_4_label">4. The opposite action</string>
+    <string name="opposite_action_step_4_hint">If the urge is to send, the opposite is to wait. If the urge is to withdraw, the opposite is one small reach. Your call.</string>
+    <string name="opposite_action_done">Done</string>
+    <string name="opposite_action_a11y">Opposite action. Four steps. Optional free text per step. Done at the bottom.</string>
+
+    <!-- v0.26.0: BPD profile -->
+    <string name="bpd_profile_section">When things get hard</string>
+    <!-- v0.27.0: shorter explainer (one sentence, validate-then-suggest
+         framing). The full multi-sentence explainer was moving the
+         opt-in to feel like a configuration task; this is closer
+         to a question. -->
+    <string name="bpd_profile_explainer">Anything you turn on is opt-in. The launcher\'s defaults are the safest.</string>
+    <string name="bpd_profile_long_messages">Long messages I might regret</string>
+    <string name="bpd_profile_late_night">Late-night impulses</string>
+    <string name="bpd_profile_split">I split on people sometimes</string>
+    <!-- v0.27.0: shortened label (audit §2.2 — the original 10-word
+         label was a configuration-task shape; this is a question). -->
+    <string name="bpd_profile_named_person">A named person to call</string>
+    <string name="bpd_profile_ok_at_night">I\'m OK at night</string>
 
     <string-array name="who5_items">
         <item>I have felt cheerful and in good spirits</item>
@@ -665,4 +1731,212 @@
         <item>I woke up feeling fresh and rested</item>
         <item>My daily life has been filled with things that interest me</item>
     </string-array>
+    <!-- v0.25.11: recap banner stubs -->
+    <string name="recap_banner_title">A gentle look back</string>
+    <string name="recap_banner_body">Your last 14 days, in one quiet read.</string>
+    <string name="recap_banner_dismiss">Not now</string>
+    <string name="letters_shortcut">Letters</string>
+
+    <!--
+        v0.26.1: §3.4 "What just happened?" 5-field chain
+        capture. The five fields are short labels, not
+        instructions — the screen's subtitle carries the
+        plain-English explanation, the storage carries the
+        keys, and the labels are what the user sees.
+    -->
+    <string name="chain_title">What just happened?</string>
+    <string name="chain_subtitle">A short chain. One line per field. Anything you leave blank stays blank — there is no wrong shape for this.</string>
+    <string name="chain_field_event">The event (what happened, just the facts)</string>
+    <string name="chain_field_interpretation">The story I am telling about it</string>
+    <string name="chain_field_part">The part that is loud right now</string>
+    <string name="chain_field_want">What I actually want underneath</string>
+    <string name="chain_field_part_to_bring">The part I want to bring to it</string>
+    <string name="chain_a11y">What just happened? Five short fields.</string>
+
+    <!--
+        v0.26.1: §3.4 "Which part is loud?" IFS picker.
+    -->
+    <string name="ifs_title">Which part is loud?</string>
+    <string name="ifs_subtitle">Pick the one that fits. The names are the names from Internal Family Systems (Schwartz 1995); pick whichever one is nearest.</string>
+    <string name="ifs_a11y">Which part is loud right now? Pick one.</string>
+
+    <!--
+        v0.26.1: §3.4 "Data export for my therapist."
+    -->
+    <string name="export_title">Export my data</string>
+    <string name="export_subtitle">A single JSON file with everything this phone has on file. Letter content is never included — letters are a private channel and you would have to copy them yourself if you wanted to share.</string>
+    <string name="export_button">Export my data</string>
+    <string name="export_building">Building the export…</string>
+    <string name="export_shared">Export built. Pick where to send it from the share sheet.</string>
+    <string name="export_failed">Couldn\'t build the export: %1$s</string>
+    <string name="export_a11y">Export my data as a single JSON file.</string>
+
+    <!--
+        v0.26.1: §3.4 lock-screen / Quick Settings "Ground me" tile.
+    -->
+    <string name="ground_me_tile_label">Ground me</string>
+
+    <!--
+        v0.26.1: §3.3 SMS tone-check side-channel. The channel
+        is importance HIGH because the prompt is a "before you
+        send" moment, not a "look at this when you can" feed.
+    -->
+    <string name="tone_check_channel_name">Tone check</string>
+    <string name="tone_check_channel_description">A short prompt that appears when an SMS arrives, asking you to glance at the message before you reply.</string>
+    <string name="tone_check_title">Tone check before sending.</string>
+    <string name="tone_check_text">A message just arrived from %1$s. Open to read it before you reply.</string>
+
+    <!--
+        v0.35.1: setup wizard strings. Clinical-review-required —
+        user-facing copy that explains the launcher's role in the
+        3-way data-source integration. The wizard runs on first
+        cold start after the goal-elicitation onboarding, and is
+        re-runnable from Settings → "Run setup wizard again".
+
+        The four `setup_wizard_source_*_detail` strings are the
+        one-line explainers for each data source shown on the
+        Welcome step. The "Source: Health Connect / Watch / Coros
+        / PPG" labels are the same words used on the home's
+        DataSourcesCard, so a user who has read the wizard
+        recognises them at a glance when they land on the home.
+    -->
+    <string name="setup_wizard_welcome_title">Set up your data sources</string>
+    <string name="setup_wizard_welcome_body">MindAnchor reads from three places. You can connect all of them, or only some, or skip the wizard and add them later from Settings. Each step is one decision.</string>
+    <string name="setup_wizard_source_health_connect_label">Health Connect</string>
+    <string name="setup_wizard_source_health_connect_detail">Where your phone already keeps steps, sleep and heart data from any wearable.</string>
+    <string name="setup_wizard_source_watch_label">A Bluetooth watch or chest strap</string>
+    <string name="setup_wizard_source_watch_detail">A universal connector for any Bluetooth heart-rate sensor. No app to install on the watch side.</string>
+    <string name="setup_wizard_source_polar_label">Your Polar account</string>
+    <string name="setup_wizard_source_polar_detail">The Polar Flow OAuth2 web bridge. Email and password, kept on this device only.</string>
+    <string name="setup_wizard_source_ppg_label">A baseline camera reading</string>
+    <string name="setup_wizard_source_ppg_detail">Fingertip on the back-camera lens for 90 seconds. No image is stored or sent anywhere.</string>
+    <string name="setup_wizard_begin">Begin</string>
+    <string name="setup_wizard_skip_hint">You can revisit any of these from Settings → Sources.</string>
+    <string name="setup_wizard_skip">Skip for now</string>
+    <string name="setup_wizard_continue">Continue</string>
+
+    <string name="setup_wizard_health_connect_title">Health Connect</string>
+    <string name="setup_wizard_health_connect_body">MindAnchor reads eight record types from Health Connect: heart rate, resting heart rate, HRV, sleep, steps, exercise, calories, mindfulness. None of it leaves this phone.</string>
+    <string name="setup_wizard_health_connect_what">The system Health Connect dialog will list each one. Grant what you want; the launcher works with whatever you grant.</string>
+    <string name="setup_wizard_health_connect_grant">Grant Health Connect access</string>
+
+    <string name="setup_wizard_pair_watch_title">Pair a watch</string>
+    <string name="setup_wizard_pair_watch_body">Any Bluetooth heart-rate sensor works. The launcher connects to it directly — no app on the watch, no account to create.</string>
+
+    <string name="setup_wizard_polar_title">Your Polar account</string>
+    <string name="setup_wizard_polar_body">If you have a Polar watch, the launcher can pull the seven-day nightly-recharge and continuous-heart-rate data. Email and password are stored only on this device.</string>
+
+    <string name="setup_wizard_ppg_title">A baseline reading</string>
+    <string name="setup_wizard_ppg_body">A 90-second fingertip reading gives the launcher a personal baseline. Without one, your numbers show up as a count of days — useful, but less personal.</string>
+    <string name="setup_wizard_ppg_take_baseline">Take a baseline reading</string>
+    <string name="setup_wizard_ppg_hint">Tap below when you are somewhere calm. The camera lens goes on your fingertip, the torch comes on, and you wait 90 seconds.</string>
+
+    <string name="setup_wizard_done_title">You\'re set up</string>
+    <string name="setup_wizard_done_body">The home will show what is connected. Anything you skipped, you can come back to from Settings → Sources.</string>
+    <string name="setup_wizard_done_set_in_settings">Set in Settings</string>
+    <string name="setup_wizard_done_finish">Open the home</string>
+
+    <string name="setup_wizard_rerun_label">Run setup wizard again</string>
+    <string name="setup_wizard_rerun_description">Walk through Health Connect, a watch, the COROS bridge, and a baseline reading again — one step at a time.</string>
+
+    <!--
+        v0.67.0: DBT-grounded journal (v0.66.0) chrome. The
+        strings below are the new v0.66.x surface's
+        user-facing labels — the screen headers, button
+        captions, the 14-day strip line, the 2D-swap
+        label, the crisis line NAMES, the privacy policy
+        path, the onboarding overlay, the settings
+        toggles, and the export filename subtitle.
+
+        The crisis line NUMBERS stay in code
+        (JournalToday.kt) — they are the public-safety
+        digits and must be exact; moving them to
+        strings.xml would risk a translation mistake
+        turning "9152987821" into "9-1-5-2..." The
+        NAMES and hours-of-availability lines are
+        translated.
+
+        The strings are pulled into Compose with
+        `stringResource(R.string.journal_*)`. Where a
+        string contains an apostrophe, the resource
+        uses a backslash escape (e.g. \"You\\'re\")
+        because the Android resource compiler treats
+        a raw apostrophe as a quoting problem.
+    -->
+    <string name="journal_today_header">TODAY</string>
+    <string name="journal_strip_pattern">Pattern, not diagnosis.</string>
+    <string name="journal_strip_still_learning">Your 14-day direction will appear here once you log a few moods. (%1$d so far)</string>
+    <string name="journal_mood_swap_label">Same mood, different lens.</string>
+    <string name="journal_skill_of_day_label">SKILL OF THE DAY</string>
+    <string name="journal_done_button">Done</string>
+    <string name="journal_read_aloud">Read aloud</string>
+    <string name="journal_stop">Stop</string>
+    <string name="journal_log_urge">Log an urge</string>
+    <string name="journal_use_skill_first">Use a skill first</string>
+    <string name="journal_close">Close</string>
+    <string name="journal_share_with_therapist">Share with my therapist</string>
+    <string name="journal_nav_skills">Skills library</string>
+    <string name="journal_nav_crisis">Crisis surface</string>
+    <string name="journal_anything_here">Anything here?</string>
+    <string name="journal_thanks_for_writing">Thanks for writing that.</string>
+
+    <!-- v0.67.0: crisis line names + hours-of-availability.
+         The number itself (tel) is in code. The NAMES are
+         the public-safety label on the dial; if the user
+         is looking for "iCall" they should see "iCall"
+         regardless of the device language. The
+         hours-of-availability text is descriptive and
+         translates. -->
+    <string name="crisis_line_icall_name">iCall</string>
+    <string name="crisis_line_icall_hours">TISS Mumbai</string>
+    <string name="crisis_line_vandrevala_name">Vandrevala</string>
+    <string name="crisis_line_vandrevala_hours">24/7 multilingual</string>
+    <string name="crisis_line_aasra_name">AASRA</string>
+    <string name="crisis_line_aasra_hours">24/7 suicide prevention</string>
+    <string name="crisis_line_telemanas_name">Tele-MANAS</string>
+    <string name="crisis_line_telemanas_hours">Govt. of India</string>
+    <string name="crisis_line_call">Call</string>
+
+    <!-- v0.67.0: first-run onboarding overlay strings. -->
+    <string name="journal_onboarding_title">A short tour.</string>
+    <string name="journal_onboarding_subtitle">Three things this journal is built around. You can come back to this from Settings.</string>
+    <string name="journal_onboarding_card1_title">Mood — a thing you can name.</string>
+    <string name="journal_onboarding_card1_body">Five states from Crushed to Bright, or a 2x2 grid (Settings → 2D mood). Naming a feeling is different from changing one. Pick one, or none.</string>
+    <string name="journal_onboarding_card2_title">Skill — a thing you can do.</string>
+    <string name="journal_onboarding_card2_body">TIPP, STOP, DEAR MAN, Breathing Space, Wise Mind. The skill of the day is offered, not commanded. You mark it Done when you have done it — a 60-second window then lets you log what came up.</string>
+    <string name="journal_onboarding_card3_title">Diary — a thing you can notice.</string>
+    <string name="journal_onboarding_card3_body">Three sliders: NSSI, Suicidal, Dissociation, each 0–5. Nothing is recorded unless you do it. Nothing is shown to anyone unless you choose to share a PDF with your therapist.</string>
+    <string name="journal_onboarding_got_it">Got it</string>
+    <string name="journal_onboarding_dont_show">Don\'t show this again</string>
+
+    <!-- v0.67.0: privacy policy path in Settings. -->
+    <string name="settings_privacy_data">Privacy and data</string>
+    <string name="settings_privacy_data_sublabel">What MindAnchor stores, who can see it, and what leaves this device.</string>
+    <string name="settings_show_journal_intro">Show journal intro</string>
+    <string name="settings_show_journal_intro_sublabel">Re-open the 3-card tour of mood, skill, and diary.</string>
+    <string name="settings_display_name">Display name</string>
+    <string name="settings_display_name_hint">Optional. Personalises the therapist-export PDF file name.</string>
+
+    <!-- v0.67.0: settings toggle labels (these are the
+         user-facing captions for the three v0.66.0 toggles
+         that the existing code renders as raw English
+         labels — the localisation pass moves them to
+         res/values so the chrome can translate). -->
+    <string name="settings_voice_first">Voice-first for crisis, check-in, skills</string>
+    <string name="settings_voice_first_sublabel">When this is on, the surfaces that have it read what\'s on screen out loud. You can turn it off any time.</string>
+    <string name="settings_affect_grid">2D mood grid (Affect-Grid)</string>
+    <string name="settings_affect_grid_sublabel">When this is on, the Today mood input is a 2D grid instead of the 1D slider. Both are valid; pick what feels easier today.</string>
+    <string name="settings_therapist_export">Share with therapist PDF</string>
+    <string name="settings_therapist_export_sublabel">When this is on, an export action appears on Today and in the Crisis surface. The export is generated on this device; nothing is sent.</string>
+
+    <!-- v0.67.0: settings group captions for the journal
+         surface (About, Display). -->
+    <string name="settings_about_journal">About this journal</string>
+    <string name="settings_about_journal_sublabel">Privacy, display name, and the first-run tour.</string>
+    <string name="settings_about_journal_modes">Display and modes</string>
+    <string name="settings_about_journal_modes_sublabel">Voice-first, 2D mood, and therapist export toggles.</string>
+
+    <!-- v0.67.0: export intent caption (the chooser title
+         when sharing the PDF with the therapist). -->
+    <string name="journal_export_chooser_title">Share with your therapist</string>
 </resources>

@@ -9,7 +9,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -31,8 +31,14 @@ fun AppActionsDialog(
     onToggleAlwaysOpen: () -> Unit,
     onRename: (String?) -> Unit,
 ) {
-    var renaming by remember { mutableStateOf(false) }
-    var newLabel by remember { mutableStateOf(app.label) }
+    // v0.25.15: `renaming` and `newLabel` were `remember`-held
+    // (Compose state lost on config change). Both are auto-Saveable
+    // (Boolean and String) so a one-keyword swap to
+    // `rememberSaveable` is the whole fix. The user is mid-typing
+    // a custom name in the rename field; a config change should
+    // not blank the field and re-open the long-press menu.
+    var renaming by rememberSaveable { mutableStateOf(false) }
+    var newLabel by rememberSaveable { mutableStateOf(app.label) }
 
     if (renaming) {
         AlertDialog(

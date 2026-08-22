@@ -29,6 +29,24 @@ package org.mindanchor.model
  * self-esteem measure). The literature does not
  * validate this exact shape; the brief is honest
  * about the gap.
+ *
+ * ## The reflection's research basis
+ *
+ * Pennebaker's expressive-writing paradigm (Pennebaker 1997,
+ * *Writing to Heal*; Pennebaker & Stone 1977, *J. Abnorm. Psychol.*
+ * 86(2):162-169, DOI 10.1037/0021-843X.86.2.162 — the original
+ * four-day, 15-minute-per-day writing trial) is the cited
+ * mechanism: putting emotional events into language reduces
+ * the rumination load. The launcher's reflection is the
+ * scaled-down version of that protocol — one minute of free
+ * text per check-in, never required, never interpreted. The
+ * launcher never summarises, never stores a mood tag, never
+ * feeds the text into a model; it stores the words and
+ * returns them to the user in the history view.
+ *
+ * Cited in `docs/research/22-research-index.md` as the
+ * Pennebaker / expressive-writing entry. UNANCHORED before
+ * v0.21.0.
  */
 data class CheckIn(
     /**

@@ -1,7 +1,6 @@
 package org.mindanchor.friction
 
 import android.app.AlarmManager
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
@@ -17,6 +16,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import org.mindanchor.R
 import org.mindanchor.data.FrictionPrefs
+import org.mindanchor.notifications.Channels
 import java.time.LocalDate
 
 /**
@@ -27,7 +27,7 @@ import java.time.LocalDate
  */
 object SessionManager {
 
-    private const val CHANNEL_ID = "sessions"
+    private const val CHANNEL_ID = Channels.SESSIONS
     const val ACTION_EXPIRED = "org.mindanchor.SESSION_EXPIRED"
     const val ACTION_EXTEND = "org.mindanchor.SESSION_EXTEND"
     const val EXTRA_PACKAGE = "package"
@@ -133,13 +133,8 @@ object SessionManager {
             return
         }
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
-        manager.createNotificationChannel(
-            NotificationChannel(
-                CHANNEL_ID,
-                context.getString(R.string.session_channel_name),
-                NotificationManager.IMPORTANCE_DEFAULT,
-            ),
-        )
+        // v0.25.19: the channel is created at process start
+        // by [Channels.ensureAll]. No per-post guard here.
 
         val extendIntent = Intent(context, SessionExpiryReceiver::class.java)
             .setAction(ACTION_EXTEND)

@@ -1,4 +1,4 @@
-package org.mindanchor.model
+﻿package org.mindanchor.model
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -58,7 +58,7 @@ import java.util.Locale
  * ## Why no "edit" or "delete" affordance
  *
  * Check-ins are append-only. The launcher does
- * not let the user rewrite their past — that is
+ * not let the user rewrite their past â€” that is
  * the same engagement-analytics trap as a
  * "mood log." Past ratings are past. New ratings
  * are new.
@@ -87,11 +87,11 @@ fun CheckInHistoryScreen(
                     IconButton(
                         onClick = onClose,
                         modifier = Modifier.semantics {
-                            contentDescription = "Back to launcher"
+                            contentDescription = "Close"
                         },
                     ) {
                         Text(
-                            text = "←",
+                            text = "â†",
                             style = MaterialTheme.typography.titleLarge,
                         )
                     }
@@ -132,7 +132,7 @@ fun CheckInHistoryScreen(
                         .padding(horizontal = 16.dp),
                 ) {
                     // The key must be unique across the
-                    // list. atMillis is not — two
+                    // list. atMillis is not â€” two
                     // accepted check-ins in the same
                     // millisecond (rare but possible
                     // across two CheckInActivity
@@ -171,7 +171,7 @@ fun CheckInHistoryScreen(
                                 // user-language anchor in
                                 // parentheses. The launcher
                                 // does *not* colour-code
-                                // ratings — colour is a
+                                // ratings â€” colour is a
                                 // judgement the project is
                                 // not allowed to make.
                                 Text(

@@ -1,7 +1,6 @@
 package org.mindanchor.model
 
 import android.app.AlarmManager
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
@@ -19,9 +18,11 @@ import kotlinx.coroutines.launch
 import org.mindanchor.R
 import org.mindanchor.data.SunsetPrefs
 import org.mindanchor.notifications.BatchSchedule
+import org.mindanchor.notifications.Channels
 import java.time.LocalDate
-import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZonedDateTime
 
 /**
  * Turns [EmaSchedule]'s pure math into real alarms. Ema.kt decides *when*
@@ -50,7 +51,7 @@ import java.time.ZoneId
  */
 object EmaScheduler {
 
-    private const val CHANNEL_ID = "ema"
+    private const val CHANNEL_ID = Channels.EMA
     private const val ACTION_PROMPT = "org.mindanchor.EMA_PROMPT"
     private const val ACTION_REARM = "org.mindanchor.EMA_REARM"
     private const val REQUEST_CODE_REARM = 90
@@ -137,7 +138,15 @@ object EmaScheduler {
         val sleepMinute = quietStart.hour * 60 + quietStart.minute
 
         val today = LocalDate.now()
-        val now = LocalDateTime.now()
+        // v0.25.10 (SOTA v2 bug-hunt B5): ZonedDateTime.now(zone) so the
+        // "is this slot still ahead of now" comparison and the per-slot
+        // ZonedDateTime.of(...) build both come from the same system
+        // instant and the same zone. The pre-fix shape was a bare
+        // wall-clock-now read plus a separate atZone(systemDefault()) at
+        // the schedule() call site. The same system read supplies the
+        // BatchSchedule.nextRelease() call for the wake-minute rearm.
+        val zone = ZoneId.systemDefault()
+        val now = ZonedDateTime.now(zone)
         val count = store.count.first()
         val perDay = EmaSchedule.promptsPerDay(count)
         // The date, not a random source: the same day always recomputes
@@ -150,7 +159,7 @@ object EmaScheduler {
 
         for (index in 0 until MAX_SLOTS) {
             val pending = promptPendingIntent(appContext, index)
-            val at = times.getOrNull(index)?.let { today.atTime(it) }
+            val at = times.getOrNull(index)?.let { ZonedDateTime.of(today, it, zone) }
             if (at == null || !at.isAfter(now)) {
                 // Nothing for this slot today, or its moment already
                 // passed. A slot going unused is normal, not an error —
@@ -172,11 +181,11 @@ object EmaScheduler {
 
     private fun schedule(
         alarmManager: AlarmManager,
-        at: LocalDateTime,
+        at: ZonedDateTime,
         pending: PendingIntent,
         canExact: Boolean,
     ) {
-        val triggerAt = at.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val triggerAt = at.toInstant().toEpochMilli()
         if (canExact) {
             alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending)
         } else {
@@ -248,13 +257,8 @@ object EmaScheduler {
             return
         }
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
-        manager.createNotificationChannel(
-            NotificationChannel(
-                CHANNEL_ID,
-                context.getString(R.string.ema_channel_name),
-                NotificationManager.IMPORTANCE_LOW,
-            ),
-        )
+        // v0.25.19: the channel is created at process start
+        // by [Channels.ensureAll]. No per-post guard here.
         val contentIntent = PendingIntent.getActivity(
             context,
             NOTIFICATION_ID,

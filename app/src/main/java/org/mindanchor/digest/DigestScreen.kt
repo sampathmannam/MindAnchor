@@ -1,3 +1,4 @@
+@file:Suppress("MaxLineLength", "FunctionNaming", "MagicNumber")
 package org.mindanchor.digest
 
 import android.app.Application
@@ -16,11 +17,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -78,7 +82,11 @@ fun DigestScreen(
     onClose: () -> Unit,
     viewModel: DigestViewModel = viewModel(),
 ) {
-    val journal by viewModel.journal.collectAsState()
+    // v0.25.17 BUG-004: lifecycle-aware collect. The
+    // digest screen reads the journal flow; a STOPPED
+    // digest should not be listening to journal
+    // emissions.
+    val journal by viewModel.journal.collectAsStateWithLifecycle()
     val waiting = journal.filter { it.releasedAt == null }
     val released = journal.filter { it.releasedAt != null }
 
@@ -90,7 +98,7 @@ fun DigestScreen(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TextButton(onClick = onClose) { Text(stringResource(R.string.action_back)) }
+                TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = onClose) { Text(stringResource(R.string.action_back)) }
                 Text(
                     text = stringResource(R.string.digest_screen_title),
                     style = MaterialTheme.typography.headlineSmall,
@@ -108,7 +116,7 @@ fun DigestScreen(
                         style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.weight(1f),
                     )
-                    TextButton(onClick = viewModel::releaseNow) {
+                    TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = viewModel::releaseNow) {
                         Text(stringResource(R.string.digest_release_now))
                     }
                 }
@@ -140,7 +148,7 @@ fun DigestScreen(
             }
 
             if (released.isNotEmpty()) {
-                TextButton(onClick = viewModel::clearReleased) {
+                TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = viewModel::clearReleased) {
                     Text(stringResource(R.string.digest_clear_released))
                 }
             }

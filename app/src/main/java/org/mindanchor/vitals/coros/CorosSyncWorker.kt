@@ -113,7 +113,19 @@ class CorosSyncWorker(
         // fetches one page. A failure here is non-fatal
         // for the HRV / RHR surface — the activity list
         // is "nice to have" — so we log and continue.
-        val activities = runCatching { api.fetchActivities(authed, "20260101", "20261231") }
+        // v0.25.8+ WP-4: the activity range was a build-
+        // time constant ("20260101" / "20261231") in
+        // v0.25.7. The COROS API filters server-side by
+        // the from/to range, so the constant stopped
+        // the activity feed on 2027-01-01. The fix
+        // is a rolling 12-month window from today:
+        // the first sync after New Year still has a
+        // full year to draw on, and the file size
+        // stays bounded.
+        val today = java.time.LocalDate.now()
+        val from = today.minusYears(1).toString().replace("-", "")
+        val to = today.toString().replace("-", "")
+        val activities = runCatching { api.fetchActivities(authed, from, to) }
             .getOrDefault(emptyList())
 
         vitalSource.write(

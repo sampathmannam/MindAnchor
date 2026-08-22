@@ -13,17 +13,53 @@ import org.mindanchor.vitals.Measurement
  *
  * ## Why this exists
  *
- * Cloud backup is refused outright, because a safety plan has no business
- * on someone else's server. The honest consequence is that a lost or reset
- * phone takes the safety plan, the chosen contacts and the mood history
- * with it, permanently — and those are exactly the things a person wrote
- * down while calm so that a future, worse version of themselves would not
- * have to remember them.
+ * The default save destination is the system file picker: a person
+ * chooses the location, the file lands there, no upload happens
+ * automatically, and no storage permission is involved. This is the
+ * same posture the launcher has had since v0.17.0 — a safety plan has
+ * no business on a server the user did not pick.
  *
- * So the copy is made deliberately, by the person, to a location they pick
- * through the system file picker. Nothing is automatic, nothing is
- * uploaded, and no storage permission is involved. The privacy promise is
- * unchanged: data leaves this device only when someone chooses to move it.
+ * v0.25.4 added a second, opt-in outbound channel: a Google Drive bridge
+ * to the user's own account, per-type file routing
+ * (`MindAnchor-Notes.txt`, `MindAnchor-Letters.txt`), AES-256-GCM
+ * wrapped, off until the user signs in with Google in Settings. The
+ * v0.23.0 WebDAV bridge has been removed; the architecture is
+ * "user's own account" — not a third-party backup service. See
+ * `## Outbound channels` below.
+ *
+ * The honest consequence of the local-only default is still true: a lost
+ * or reset phone that has no WebDAV bridge armed takes the safety plan,
+ * the chosen contacts and the mood history with it, permanently — and
+ * those are exactly the things a person wrote down while calm so that
+ * a future, worse version of themselves would not have to remember them.
+ * The opt-in WebDAV bridge is the answer for a person who would rather
+ * not rely on a remembered file path.
+ *
+ * ## Outbound channels
+ *
+ * Two paths leave the device. Both are deliberate, both are gated on a
+ * user gesture, neither is automatic.
+ *
+ *  - **Local (default, always on).** The system file picker. The user
+ *    picks the folder, the file lands there as plain JSON, no network
+ *    call is made, no storage permission is required. The privacy
+ *    promise is: data leaves this device only when someone chooses to
+ *    move it.
+ *
+ *  - **Google Drive (opt-in, off by default, v0.25.4+).** The user
+ *    signs in with Google in Settings → Reading → Google Drive, the
+ *    launcher requests the narrowest per-file scope
+ *    (`drive.file`), and every new note / letter is wrapped in
+ *    AES-256-GCM ([org.mindanchor.backup.EncryptedBackupCodec]) and
+ *    appended to the per-type file in the user's Drive root. The
+ *    cloud sees an opaque 12-byte IV prefix, a ciphertext, and an
+ *    auth tag — no information about the plaintext. The transport
+ *    ([org.mindanchor.backup.GoogleDriveBackupTarget]) uses raw
+ *    Drive REST over HTTPS, with the OAuth bearer from
+ *    [org.mindanchor.backup.GoogleDriveAuth]. Per-type routing is
+ *    the v0.25.4 model: one Drive file per
+ *    [org.mindanchor.backup.ContentType] value (Notes, Letters for
+ *    v0.25.4). The v0.23.0 WebDAV bridge has been removed.
  *
  * ## What is in it, and what is not
  *

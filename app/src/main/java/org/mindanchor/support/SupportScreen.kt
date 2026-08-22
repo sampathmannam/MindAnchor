@@ -1,3 +1,4 @@
+@file:Suppress("MaxLineLength", "FunctionNaming", "MagicNumber")
 package org.mindanchor.support
 
 import android.content.Intent
@@ -25,8 +26,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -39,12 +40,16 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import org.mindanchor.R
 import org.mindanchor.data.db.CrisisContact
 import org.mindanchor.data.db.SafetyPlan
+import org.mindanchor.ui.theme.SoftContent
 
 /**
  * Support: crisis contacts, a safety plan, and a few skills — one tap from
@@ -77,8 +82,13 @@ fun SupportScreen(
     viewModel: SupportViewModel = viewModel(),
 ) {
     val context = LocalContext.current
-    val plan by viewModel.plan.collectAsState()
-    val contacts by viewModel.contacts.collectAsState()
+    // v0.25.17 BUG-004: lifecycle-aware collect. The
+    // support screen's plan + contacts flows are
+    // DataStore-backed; pre-v0.25.17 they kept
+    // collecting on every emission even when the
+    // surface was STOPPED.
+    val plan by viewModel.plan.collectAsStateWithLifecycle()
+    val contacts by viewModel.contacts.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf(false) }
     var dialFailure by remember { mutableStateOf<String?>(null) }
 
@@ -114,7 +124,10 @@ fun SupportScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(24.dp),
         ) {
-            TextButton(onClick = onClose) { Text(stringResource(R.string.action_back)) }
+            TextButton(
+        modifier = Modifier.semantics { role = Role.Button },
+        onClick = onClose,
+            ) { Text(stringResource(R.string.action_back)) }
 
             Text(
                 text = stringResource(R.string.support_title),
@@ -146,7 +159,9 @@ fun SupportScreen(
                     contacts.forEach { contact ->
                         TextButton(
                             onClick = { dial(contact.phone) },
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .semantics { role = Role.Button },
                         ) {
                             Text(
                                 text = if (contact.name.isBlank()) {
@@ -207,7 +222,15 @@ fun SupportScreen(
             ).forEach { (title, body, caution) ->
                 Text(
                     text = stringResource(title),
-                    style = MaterialTheme.typography.bodyLarge,
+                    // v0.39.0: serif voice. Lora Medium at 18sp is
+                    // the action word — DBT STOP, TIPP, 5-4-3-2-1 —
+                    // the register that tells the reader "do this
+                    // now." The body that follows is the explanation
+                    // and stays in Inter (system).
+                    style = SoftContent.copy(
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 18.sp,
+                    ),
                     modifier = Modifier.padding(top = 12.dp),
                 )
                 Text(
@@ -225,6 +248,309 @@ fun SupportScreen(
                 }
             }
 
+            // v0.28.2: "More moments" reordered to in-the-moment →
+            // reflective per the v0.28.0 design spec
+            // (docs/superpowers/specs/2026-08-15-v0.28.0-bpd-strict-design.md
+            // §D). The v0.28.0 release shipped the new five
+            // surfaces in the right conceptual order (in-the-moment
+            // first, reflective later) but accidentally placed the
+            // three v0.27.0 entries (Self-compassion, Radical
+            // acceptance, Interpersonal / DEAR MAN) BEFORE the new
+            // ones. Driving v0.28.0–v0.28.1 end-to-end on the phone
+            // surfaced this as a real ordering mismatch.
+            //
+            // The intended order, in the v0.28.0 spec, was:
+            //   1. DBT STOP
+            //   2. TIPP
+            //   3. 5-4-3-2-1
+            //   4. Opposite Action (new)
+            //   5. Distress Thermometer (new)
+            //   6. ACCEPTS (new)
+            //   7. Letter to a Part (new)
+            //   8. Self-compassion break (v0.27.0)
+            //   9. Radical acceptance (v0.27.0)
+            //  10. DBT Diary Card (new)
+            //  11. Interpersonal skills = DEAR MAN / GIVE / FAST (v0.27.0)
+            //
+            // v0.38.0 (audit #9 add): 4-7-8 breathing inserted at
+            // position 4 — between 5-4-3-2-1 (line 218) and
+            // Opposite Action (line 331). It is the most
+            // in-the-moment tool (no reading, no writing, no
+            // reflection; the breath IS the intervention) so it
+            // belongs at the top of the more-skills list.
+            // Research: Zaccaro et al. 2018 *Frontiers in Human
+            // Neuroscience* 12:353.
+            //
+            // In-the-moment skills come first because a person in
+            // crisis who has just scrolled past the DBT crisis
+            // skills (STOP / TIPP / 5-4-3-2-1) is still in a
+            // distressed window. The reflective practices
+            // (Self-compassion, Radical acceptance, Diary Card)
+            // need a person who has already settled; placing them
+            // before the in-the-moment skills makes the wrong
+            // surface the closest tap.
+            //
+            // v0.27.0: three evidence-grounded affordances.
+            //   * Self-compassion break (Neff 2003) — 3 lines, 45s.
+            //   * Radical acceptance (Linehan 1993) — 4 lines, 40s.
+            //   * Interpersonal skills (DBT Module 4 — DEAR MAN /
+            //     GIVE / FAST) — 3 scripts, optional draft text
+            //     field. Most-BPD-specific of the three; the brief
+            //     identified "the moment when a person with BPD is
+            //     about to send a difficult text message" as the
+            //     shape this fills. Sits at the END of the in-the-
+            //     moment → reflective ordering because drafting a
+            //     difficult message is the most reflective action
+            //     in the group and benefits from the user having
+            //     first tried one of the in-the-moment skills.
+            //
+            // v0.28.0: added five more research-grounded surfaces
+            // (Opposite Action, Distress Thermometer, ACCEPTS,
+            // Letter to a Part, Diary Card). See the comment block
+            // below for the research basis and audit references.
+            //
+            // Audit references: docs/research/14-v0.26.6-audit.md
+            // §3.1, §3.2, §3.4.
+            Text(
+                text = stringResource(R.string.support_more_skills_section),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier
+                    .padding(top = 24.dp, bottom = 4.dp)
+                    .semantics { heading() },
+            )
+            Text(
+                text = stringResource(R.string.support_more_skills_intro),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            // v0.28.0: BPD-strict rebuild — five more research-grounded
+            // surfaces, each opened from its own activity. The order
+            // moves from in-the-moment (Opposite Action) to reflective
+            // (Diary Card). All five are non-exported activities, no
+            // hardcoded crisis line numbers (R1 honored).
+            //
+            //   * Opposite Action (Linehan 1993 ch. 8) — 4 steps
+            //     with optional free-text fields, no save.
+            //   * Distress Thermometer (Linehan 1993 + Gross 1998) —
+            //     0-100 slider, band-matched skill suggestion.
+            //   * ACCEPTS (Linehan 1993 ch. 8) — 7-button grid for
+            //     self-soothing, no save.
+            //   * Letter to a Part (IFS Schwartz 1995) — 3 sub-
+            //     screens (pick / write to / write from), optional
+            //     free text, no save.
+            //   * Diary Card (Linehan 1993 ch. 11) — 5 fields per
+            //     day, DataStore round-trip, weekly view as list
+            //     (BPD-safe per audit §2.3 — chart implies
+            //     interpretation the project is not allowed to
+            //     make).
+            //
+            // Audit references: docs/research/14-v0.26.6-audit.md
+            // §2.5, §2.3, §3 (DBT Diary Card, Distress
+            // Thermometer, Opposite Action are the highest-fit
+            // remaining gaps for the target user).
+            //
+            // v0.38.0: 4-7-8 breathing (Zaccaro 2018) added
+            // FIRST in the more-skills list because it is the
+            // most in-the-moment tool — inhale-hold-exhale, no
+            // reading, no writing, no reflection. A user mid-
+            // crisis who has scrolled past the in-the-moment
+            // skills (STOP / TIPP / 5-4-3-2-1) is still in a
+            // distressed window; a single breath is the right
+            // next step before any reflective practice.
+            TextButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(
+                                context,
+                                org.mindanchor.support.BreathingActivity::class.java,
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .semantics { role = Role.Button },
+            ) { Text(stringResource(R.string.breathing_support_button)) }
+            TextButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(
+                                context,
+                                org.mindanchor.support.OppositeActionActivity::class.java,
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .semantics { role = Role.Button },
+            ) { Text(stringResource(R.string.support_opposite_action_button)) }
+            TextButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(
+                                context,
+                                org.mindanchor.support.DistressThermometerActivity::class.java,
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .semantics { role = Role.Button },
+            ) { Text(stringResource(R.string.support_distress_thermometer_button)) }
+            TextButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(
+                                context,
+                                org.mindanchor.support.AcceptsActivity::class.java,
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .semantics { role = Role.Button },
+            ) { Text(stringResource(R.string.support_accepts_button)) }
+            TextButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(
+                                context,
+                                org.mindanchor.support.LetterToPartActivity::class.java,
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .semantics { role = Role.Button },
+            ) { Text(stringResource(R.string.support_letter_to_part_button)) }
+            // v0.27.0: three more evidence-grounded affordances
+            // for the reflective end of the in-the-moment →
+            // reflective ordering. The order is intentional — see
+            // the v0.28.2 block comment above for the rationale.
+            TextButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(
+                                context,
+                                org.mindanchor.support.SelfCompassionActivity::class.java,
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .semantics { role = Role.Button },
+            ) { Text(stringResource(R.string.support_self_compassion_button)) }
+            TextButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(
+                                context,
+                                org.mindanchor.support.RadicalAcceptanceActivity::class.java,
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .semantics { role = Role.Button },
+            ) { Text(stringResource(R.string.support_radical_acceptance_button)) }
+            TextButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(
+                                context,
+                                org.mindanchor.support.DiaryCardActivity::class.java,
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .semantics { role = Role.Button },
+            ) { Text(stringResource(R.string.support_diary_card_button)) }
+            // v0.38.0: Receipts (DBT PLEASE-mastery log,
+            // Linehan 1993 ch. 9) added between Diary Card
+            // and Interpersonal Skills. The audit positions
+            // receipts as a "what I did" practice that
+            // bridges "what I noticed" (Diary Card) and
+            // "what I did with another person" (DEAR MAN /
+            // GIVE / FAST).
+            TextButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(
+                                context,
+                                org.mindanchor.support.ReceiptsActivity::class.java,
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .semantics { role = Role.Button },
+            ) { Text(stringResource(R.string.receipts_support_button)) }
+            TextButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(
+                                context,
+                                org.mindanchor.support.InterpersonalActivity::class.java,
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .semantics { role = Role.Button },
+            ) { Text(stringResource(R.string.support_interpersonal_button)) }
+            // v0.29.0: ACT values clarification (Hayes 2004).
+            // Sits at the end of the in-the-moment → reflective
+            // ordering — the *slowest* reflective practice
+            // (per docs/research/14-v0.26.6-audit.md §3.5). Placed
+            // last because the user needs time and quiet to write
+            // the values, not an in-the-moment skill.
+            TextButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(
+                                context,
+                                org.mindanchor.support.ValuesActivity::class.java,
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .semantics { role = Role.Button },
+            ) { Text(stringResource(R.string.support_values_button)) }
+
             // --- The plan ---
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
@@ -237,7 +563,10 @@ fun SupportScreen(
                         .weight(1f)
                         .semantics { heading() },
                 )
-                TextButton(onClick = { editing = !editing }) {
+                TextButton(
+        modifier = Modifier.semantics { role = Role.Button },
+        onClick = { editing = !editing },
+                ) {
                     Text(
                         stringResource(
                             if (editing) R.string.action_done else R.string.action_edit,
@@ -336,7 +665,7 @@ private fun SafetyPlanEditor(
                 style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = { onRemoveContact(contact) }) {
+            TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = { onRemoveContact(contact) }) {
                 Text(stringResource(R.string.action_remove))
             }
         }
@@ -393,6 +722,7 @@ private fun SafetyPlanEditor(
     // Disabled rather than silently refusing: a tap that does nothing
     // reads as a broken app, and this screen cannot afford to look broken.
     TextButton(
+        modifier = Modifier.semantics { role = Role.Button },
         onClick = {
             onAddContact(name, phone, professional)
             name = ""

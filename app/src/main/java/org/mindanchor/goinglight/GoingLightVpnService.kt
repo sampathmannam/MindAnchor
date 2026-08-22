@@ -1,19 +1,24 @@
 package org.mindanchor.goinglight
 
 import android.app.Notification
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import org.mindanchor.R
+import org.mindanchor.notifications.Channels
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.net.InetAddress
 import java.nio.ByteBuffer
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 
 /**
  * The local VpnService that drops mobile-internet traffic
@@ -45,6 +50,29 @@ class GoingLightVpnService : VpnService() {
     private var protectThread: Thread? = null
     @Volatile var isRunning: Boolean = false
         private set
+
+    /**
+     * v0.25.9 (B2, SOTA v2 bug-hunt, errors
+     * agent): a service-scoped CoroutineScope for
+     * the DataStore read + interface establish
+     * work. [start] used to do a blocking
+     * DataStore `.first()` on the main thread
+     * inside the VpnService Builder
+     * initialisation — a slow DataStore read
+     * blocked the main thread until ANR. The
+     * service is now main-thread by definition
+     * (it is a Service), so all blocking IO is
+     * moved to [serviceScope] (a [SupervisorJob] +
+     * [Dispatchers.IO] scope) and [start] is a
+     * suspend fun.
+     *
+     * The scope is cancelled in [onDestroy] so
+     * the in-flight start coroutine is not
+     * orphaned if the OS kills the service
+     * between the [ACTION_START] intent and the
+     * establish() call.
+     */
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /**
      * The decision function used by the protect loop.
@@ -129,7 +157,23 @@ class GoingLightVpnService : VpnService() {
      * ::/0 route so parseIpv6() can reach the
      * forwarder.
      */
-    fun start(): Boolean {
+    /**
+     * v0.25.9: the start function is now `suspend`
+     * — the DataStore read and the
+     * `Builder.establish()` are both moved off the
+     * main thread (the service is a Service, so its
+     * `onStartCommand` runs on the main thread by
+     * definition). The pre-fix shape was a blocking
+     * DataStore `.first()` on the main thread inside
+     * the Builder initialisation — a slow DataStore
+     * read blocked the main thread until ANR.
+     *
+     * Returns true if the interface is up; false
+     * on establish() failure (caller turns off
+     * the foreground notification and stops
+     * itself).
+     */
+    suspend fun start(): Boolean {
         if (isRunning) return true
         // v0.20.1 round 5 follow-up: read the
         // Going Light schedule and the system /
@@ -148,9 +192,7 @@ class GoingLightVpnService : VpnService() {
         // everything, which is the safe default.
         try {
             val prefs = org.mindanchor.data.FrictionPrefs(this)
-            val schedule = kotlinx.coroutines.runBlocking {
-                prefs.goingLightSchedule.first()
-            }
+            val schedule = prefs.goingLightSchedule.first()
             val contentUids = GoingLightPackageList.effectiveContentUids()
             val systemUids = GoingLightPackageList.systemUids
             forwarder = PacketForwarder(
@@ -369,6 +411,15 @@ class GoingLightVpnService : VpnService() {
     }
 
     override fun onDestroy() {
+        // v0.25.9: cancel the serviceScope so an
+        // in-flight start() coroutine is not
+        // orphaned if the OS kills the service
+        // between the ACTION_START intent and
+        // the establish() call. Without this
+        // cancellation, a service restart could
+        // race with an in-flight start and
+        // double-establish the VPN interface.
+        serviceScope.cancel()
         stop()
         super.onDestroy()
     }
@@ -397,28 +448,36 @@ class GoingLightVpnService : VpnService() {
         when (intent?.action) {
             ACTION_START -> {
                 if (!isRunning) {
-                    val started = start()
-                    if (!started) {
-                        // stopForeground(boolean) was
-                        // deprecated in API 24. The
-                        // int form takes a flag from
-                        // Service.STOP_FOREGROUND_*
-                        // (REMOVE drops the
-                        // notification, DETACH keeps
-                        // it but exits foreground).
-                        // Both call sites below want
-                        // REMOVE.
-                        stopForeground(STOP_FOREGROUND_REMOVE)
-                        stopSelf()
-                        return START_NOT_STICKY
+                    // v0.25.9: start() is a suspend
+                    // fun (no runBlocking on the
+                    // main thread). We launch it
+                    // on the service's IO scope;
+                    // the establish() call happens
+                    // off the main thread.
+                    serviceScope.launch {
+                        val started = start()
+                        if (!started) {
+                            // stopForeground(boolean) was
+                            // deprecated in API 24. The
+                            // int form takes a flag from
+                            // Service.STOP_FOREGROUND_*
+                            // (REMOVE drops the
+                            // notification, DETACH keeps
+                            // it but exits foreground).
+                            // Both call sites below want
+                            // REMOVE.
+                            stopForeground(STOP_FOREGROUND_REMOVE)
+                            stopSelf()
+                            return@launch
+                        }
+                        // Promote to a foreground service so
+                        // the OS does not kill us under the
+                        // background-start restrictions
+                        // (Android 12+). The notification
+                        // copy is the project's wording-
+                        // reviewed surface.
+                        startForeground(NOTIFICATION_ID, buildNotification())
                     }
-                    // Promote to a foreground service so
-                    // the OS does not kill us under the
-                    // background-start restrictions
-                    // (Android 12+). The notification
-                    // copy is the project's wording-
-                    // reviewed surface.
-                    startForeground(NOTIFICATION_ID, buildNotification())
                 }
             }
             ACTION_STOP -> {
@@ -447,23 +506,11 @@ class GoingLightVpnService : VpnService() {
      * lazily.
      */
     private fun buildNotification(): Notification {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            val existing = nm.getNotificationChannel(CHANNEL_ID)
-            if (existing == null) {
-                val channel = NotificationChannel(
-                    CHANNEL_ID,
-                    "Going Light",
-                    NotificationManager.IMPORTANCE_LOW,
-                )
-                channel.description = "Active Going Light window"
-                channel.setShowBadge(false)
-                nm.createNotificationChannel(channel)
-            }
-        }
+        // v0.25.19: the channel is created at process start
+        // by [Channels.ensureAll]. No lazy creation here.
         return Notification.Builder(this, CHANNEL_ID)
-            .setContentTitle("Going Light is on")
-            .setContentText("Mobile internet is paused for selected apps")
+            .setContentTitle(getString(R.string.going_light_notification_title))
+            .setContentText(getString(R.string.going_light_notification_text))
             .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
             .setOngoing(true)
             .setCategory(Notification.CATEGORY_SERVICE)
@@ -491,6 +538,6 @@ class GoingLightVpnService : VpnService() {
          * stable across restarts; the channel is
          * created lazily on first use.
          */
-        const val CHANNEL_ID = "org.mindanchor.goinglight"
+        const val CHANNEL_ID = Channels.GOING_LIGHT
     }
 }

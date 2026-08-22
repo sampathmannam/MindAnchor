@@ -1,10 +1,13 @@
+@file:Suppress("MaxLineLength", "FunctionNaming", "LongParameterList", "LongMethod", "CyclomaticComplexMethod", "MagicNumber")
 package org.mindanchor.settings
 
 import android.app.role.RoleManager
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.util.Log
 import android.provider.Settings
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -12,6 +15,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
@@ -25,21 +30,29 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,6 +63,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -68,6 +83,9 @@ import org.mindanchor.report.MeasureSource
 import org.mindanchor.report.Signal
 import org.mindanchor.onboarding.GoalMap
 import org.mindanchor.onboarding.SettingsSection
+import org.mindanchor.reader.ReadingSize
+import org.mindanchor.sunset.Chronotype
+import org.mindanchor.vitals.HealthConnectRequestPermissionsContract
 import org.mindanchor.vitals.HealthConnectSource
 import org.mindanchor.vitals.coros.CorosConnectionState
 import org.mindanchor.vitals.coros.CorosSyncWorker
@@ -165,10 +183,10 @@ private fun timeNudgerRow(
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.weight(1f),
         )
-        TextButton(onClick = onEarlier) {
+        TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = onEarlier) {
             Text(stringResource(R.string.time_earlier))
         }
-        TextButton(onClick = onLater) {
+        TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = onLater) {
             Text(stringResource(R.string.time_later))
         }
     }
@@ -273,6 +291,7 @@ private fun wellnessSettingsBandRes(
     org.mindanchor.vitals.WellnessDirection.ABOVE -> R.string.wellness_settings_band_above
     org.mindanchor.vitals.WellnessDirection.MUCH_ABOVE -> R.string.wellness_settings_band_much_above
     org.mindanchor.vitals.WellnessDirection.BELOW -> R.string.wellness_settings_band_below
+    org.mindanchor.vitals.WellnessDirection.MUCH_BELOW -> R.string.wellness_settings_band_much_below
 }
 
 /**
@@ -329,6 +348,96 @@ private fun Goal.labelRes(): Int = when (this) {
     Goal.MEASUREMENT -> R.string.goal_measurement
 }
 
+private fun Chronotype.labelRes(): Int = when (this) {
+    Chronotype.MORNING_LARK -> R.string.chronotype_morning_lark
+    Chronotype.NEUTRAL -> R.string.chronotype_neutral
+    Chronotype.NIGHT_OWL -> R.string.chronotype_night_owl
+    Chronotype.SHIFT_WORKER -> R.string.chronotype_shift_worker
+    Chronotype.UNKNOWN -> R.string.chronotype_unknown
+}
+
+/**
+ * One chronotype radio row. The whole row is the target, not just the
+ * radio dot — see [GoalRow] for the same accessibility reasoning.
+ * 48dp tall, screen-reader role is RadioButton, label and selected
+ * state are one node.
+ */
+@Suppress("FunctionNaming")
+@Composable
+private fun ChronotypeRadioRow(
+    chronotype: Chronotype,
+    selected: Chronotype,
+    onChange: (Chronotype) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .selectable(
+                selected = selected == chronotype,
+                role = Role.RadioButton,
+                onClick = { onChange(chronotype) },
+            )
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = selected == chronotype, onClick = null)
+        Text(
+            text = stringResource(chronotype.labelRes()),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(start = 8.dp),
+        )
+    }
+}
+
+/**
+ * v0.25.2-A (Task 10): the dialog for picking the daily letter's
+ * time. Lives in its own sub-Composable so the parent
+ * [SettingsScreen] does not grow past the detekt [LongMethod]
+ * threshold — the dialog's [rememberTimePickerState] + [TimePicker]
+ * + [AlertDialog] wiring is the part the parent would otherwise
+ * inline.
+ *
+ * 24-hour because the spec is local-time-of-day, and a user who
+ * has just chosen "08:00" in the toggle row should not have to
+ * translate AM/PM in a second control. The confirm button hands
+ * the picked [TimePickerState.hour] / [TimePickerState.minute]
+ * straight back to the caller; nothing in here writes to the
+ * store, so the dialog is safe to open, dismiss, and reopen
+ * without ever touching [org.mindanchor.letters.LetterStore.setTime].
+ */
+@Suppress("FunctionNaming")
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LetterTimePickerDialog(
+    initialHour: Int,
+    initialMinute: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (hour: Int, minute: Int) -> Unit,
+) {
+    val state = rememberTimePickerState(
+        initialHour = initialHour,
+        initialMinute = initialMinute,
+        is24Hour = true,
+    )
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = { onConfirm(state.hour, state.minute) }) {
+                Text(stringResource(R.string.action_save))
+            }
+        },
+        dismissButton = {
+            TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = onDismiss) {
+                Text(stringResource(R.string.action_close))
+            }
+        },
+        text = {
+            TimePicker(state = state)
+        },
+    )
+}
+
 /**
  * The six places settings actually falls into, replacing one scroll of
  * eighteen sections where the thing somebody came for was never on
@@ -348,6 +457,49 @@ private fun SettingsGroup.titleRes(): Int = when (this) {
     SettingsGroup.PHONE -> R.string.settings_group_phone
 }
 
+/** v0.26.0 */
+@Composable
+private fun BpdProfileCheckbox(checked: Boolean, labelRes: Int, onToggle: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+            .toggleable(value = checked, role = Role.Checkbox) { on -> onToggle(on) }
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // v0.62.3: explicit Checkbox colors. The
+        // pre-v0.62.3 default Checkbox used
+        // `onSurfaceVariant` for the unchecked
+        // border and the tick, which on the
+        // v0.56.0 dark sky rendered as a
+        // near-invisible dim gray — a real bug
+        // flagged in the v0.62.2 top-50 audit
+        // (Phase 1, finding #9). The new colors
+        // pin the unchecked border to
+        // `onSurface.copy(alpha = 0.85f)` (the
+        // 0.6f first pass was still too dim on
+        // the dark sky; 0.85f reads as a clear
+        // outline without overpowering the
+        // section text). The checked color is
+        // teal-700 (the launcher's [ActionAccentFg]
+        // in HomeScreen.kt; the literal is
+        // inlined here because ActionAccentFg
+        // is file-private to HomeScreen.kt and
+        // a small duplication is cheaper than
+        // promoting the constant to a shared
+        // theme file for one use site).
+        Checkbox(
+            checked = checked,
+            onCheckedChange = null,
+            colors = androidx.compose.material3.CheckboxDefaults.colors(
+                checkedColor = androidx.compose.ui.graphics.Color(0xFF0F766E),
+                uncheckedColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+                checkmarkColor = androidx.compose.material3.MaterialTheme.colorScheme.surface,
+            ),
+        )
+        Text(stringResource(labelRes), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(start = 8.dp))
+    }
+}
+
 /**
  * One row of the settings index: a name and, underneath it, a line
  * saying what it covers. No icon, no chevron, no count — this app puts
@@ -355,6 +507,55 @@ private fun SettingsGroup.titleRes(): Int = when (this) {
  * than something to read, and the index is not exempt from that just
  * because it is new.
  */
+
+/**
+ * v0.35.1: "Run setup wizard again" affordance in Settings →
+ * Sources. A row of label + description + a button. The button
+ * launches the wizard activity and clears the per-step skipped
+ * flags so the user lands on the first not-yet-completed step,
+ * not on Welcome. The button is a one-shot action, not a
+ * toggle, so a single tap fires `runCatching { startActivity }`
+ * and the result is the user looking at the wizard.
+ */
+@Composable
+private fun RerunSetupWizardRow() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    Column {
+        Text(
+            text = stringResource(R.string.setup_wizard_rerun_label),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Text(
+            text = stringResource(R.string.setup_wizard_rerun_description),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        // A11y: TextButton in SettingsScreen must carry
+        // `role = Role.Button` so screen readers announce the
+        // element as a button. The a11y finding test
+        // (B6) enforces the count match — every TextButton call
+        // site in this file must have a corresponding
+        // `role = Role.Button` semantic.
+        androidx.compose.material3.TextButton(
+            modifier = Modifier.semantics { role = androidx.compose.ui.semantics.Role.Button },
+            onClick = {
+                scope.launch {
+                    runCatching {
+                        val intent = android.content.Intent(
+                            context,
+                            org.mindanchor.onboarding.SetupWizardActivity::class.java,
+                        )
+                        context.startActivity(intent)
+                    }
+                }
+            },
+        ) {
+            Text(stringResource(R.string.setup_wizard_continue))
+        }
+    }
+}
+
 @Composable
 private fun GroupRow(titleRes: Int, descriptionRes: Int, marked: Boolean, onClick: () -> Unit) {
     Column(
@@ -410,19 +611,60 @@ fun SettingsScreen(
     onOpenPpg: () -> Unit = {},
     /** Opens last night's report on its own surface. */
     onOpenReport: () -> Unit = {},
-    viewModel: SettingsViewModel = viewModel(),
+    /**
+     * v0.25.2-A (Task 10): opens the letter inbox + reader on its
+     * own surface. Wired from the home screen with the same
+     * `cameFrom = LauncherSurface.Settings` discipline as
+     * [onOpenReport] — the back button on the letter surface
+     * returns here, not to the home, because the user came from
+     * here. The button is also reachable from the new Daily letter
+     * sub-section below; both paths converge on the same callback.
+     */
+    onOpenLetters: () -> Unit = {},
+    /** v0.26.0 §3.3 */
+    onOpenBeforeYouSend: () -> Unit = {},
 ) {
+    val viewModel: SettingsViewModel = viewModel()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val activityLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { }
+    // v0.22.1 — fix: when the user toggles a feature on that needs
+    // POST_NOTIFICATIONS and then denies the permission, the in-app toggle
+    // used to stay ON with no notifications actually delivered, no
+    // explanation, and no way to know the reason. Capture a rollback
+    // callback for the duration of the request and invoke it if the result
+    // comes back false. The pre-fix launcher was a no-op `{}`, so the
+    // toggle stayed optimistic even on deny.
+    var pendingRollback by remember { mutableStateOf<(() -> Unit)?>(null) }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
-    ) { }
+    ) { granted ->
+        if (!granted) pendingRollback?.invoke()
+        pendingRollback = null
+    }
+    // v0.25.11: a second RequestPermission launcher for
+    // the EMA toggle. The pre-fix shape was a single
+    // launcher shared between the notification-batching
+    // and the EMA toggles; a user who flipped batching
+    // on, then EMA on before the first permission dialog
+    // returned, would have their batching rollback
+    // overwritten by the EMA rollback (and vice versa).
+    // Each toggle now has its own launcher; the shared
+    // `pendingRollback` slot at the root is still the
+    // pattern (a second toggle's overwrite is final), but
+    // the race is bounded to the slot, not the launcher
+    // callback.
+    val emaPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (!granted) pendingRollback?.invoke()
+        pendingRollback = null
+    }
 
-    val batchingEnabled by viewModel.batchingEnabled.collectAsState()
-    val batchedApps by viewModel.batchedApps.collectAsState()
+    val batchingEnabled by viewModel.batchingEnabled.collectAsStateWithLifecycle()
+    val batchedApps by viewModel.batchedApps.collectAsStateWithLifecycle()
 
     // Special access is granted in system settings, so nothing in this
     // composition changes when the user comes back — the screen used to keep
@@ -447,11 +689,48 @@ fun SettingsScreen(
     // Read once and used by every section's goal marker as well as by
     // the index rows below; hoisted above the groups so it stays in
     // scope no matter which one is open.
-    val goals by viewModel.goals.collectAsState()
+    val goals by viewModel.goals.collectAsStateWithLifecycle()
 
     // null shows the index of six destinations; a value opens that
     // group's own screen in its place.
     var group by remember { mutableStateOf<SettingsGroup?>(null) }
+
+    // v0.25.16 BUG-018: a [SaveableStateHolder] for the six
+    // sub-screens so per-tab `rememberSaveable` state survives a
+    // tab-switch within a single Settings open. The pre-fix
+    // shape: each `if (group == SettingsGroup.X) { ... }` block
+    // was composed conditionally, so the slot table for the
+    // previous tab's content was torn down the moment the user
+    // tapped a new group row — and any `rememberSaveable` state
+    // that was inside (e.g. the "Pick a moment" date picker in
+    // the OpenLoop postpone dialog, the half-typed email in
+    // the COROS bridge form) was lost.
+    //
+    // The holder is created once for the lifetime of the
+    // SettingsScreen Composable. The wrapper below uses the
+    // tab's enum name as the key, so when the user navigates
+    // PAUSES → READING → PAUSES, the PAUSES slot table is
+    // restored from the holder. A future v0.26+ WP that
+    // converts the `if (group == ...)` blocks into a single
+    // `when (group)` can wrap each branch in
+    // `saveableStateHolder.SaveableStateProvider(group.name)
+    // { ... }` and inherit this state preservation.
+    val saveableStateHolder = rememberSaveableStateHolder()
+
+    // Back closes an open group first and only leaves the
+    // screen on a second press. Without this, the global
+    // back handler in [HomeScreen] would short-circuit to
+    // the home surface the moment a group is open and the
+    // user would lose the index. The visible "back" text
+    // button below has the same predicate, so both paths
+    // behave identically.
+    BackHandler(enabled = true) {
+        if (group != null) {
+            group = null
+        } else {
+            onBack()
+        }
+    }
 
     // COROS bridge form state. Held at the screen level so
     // the input fields survive recomposition while the user
@@ -486,7 +765,7 @@ fun SettingsScreen(
         // Back closes an open group first and only leaves the screen on a
         // second press, so the index is always the landing spot on the way
         // out rather than being skipped over.
-        TextButton(onClick = { if (group != null) group = null else onBack() }) {
+        TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = { if (group != null) group = null else onBack() }) {
             Text(stringResource(R.string.action_back))
         }
 
@@ -501,7 +780,8 @@ fun SettingsScreen(
             val isDefault = roleManager?.isRoleHeld(RoleManager.ROLE_HOME) == true
             if (!isDefault) {
                 TextButton(
-                    onClick = {
+        modifier = Modifier.semantics { role = Role.Button },
+        onClick = {
                         roleManager?.createRequestRoleIntent(RoleManager.ROLE_HOME)
                             ?.let { activityLauncher.launch(it) }
                     },
@@ -534,14 +814,13 @@ fun SettingsScreen(
             GroupRow(
                 titleRes = R.string.settings_group_measuring,
                 descriptionRes = R.string.settings_group_measuring_desc,
-                marked = GoalMap.isChosen(SettingsSection.SLEEP, goals) ||
-                    GoalMap.isChosen(SettingsSection.PULSE, goals),
+                marked = GoalMap.isChosen(SettingsSection.SLEEP, goals),
                 onClick = { group = SettingsGroup.MEASURING },
             )
             GroupRow(
                 titleRes = R.string.settings_group_reading,
                 descriptionRes = R.string.settings_group_reading_desc,
-                marked = GoalMap.isChosen(SettingsSection.PULSE, goals),
+                marked = GoalMap.isChosen(SettingsSection.HEALTH_CONNECT, goals),
                 onClick = { group = SettingsGroup.READING },
             )
             GroupRow(
@@ -624,7 +903,7 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                TextButton(onClick = { editingGoals = !editingGoals }) {
+                TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = { editingGoals = !editingGoals }) {
                     Text(
                         stringResource(
                             if (editingGoals) R.string.goals_done else R.string.goals_change,
@@ -646,7 +925,7 @@ fun SettingsScreen(
             // time means the pause is useless or means it is quietly working is
             // not something a launcher can know, so both doors are the same
             // size and neither is recommended.
-            val stale by viewModel.stalePauses.collectAsState()
+            val stale by viewModel.stalePauses.collectAsStateWithLifecycle()
             if (stale.isNotEmpty()) {
                 Text(
                     text = stringResource(R.string.stale_section),
@@ -669,10 +948,10 @@ fun SettingsScreen(
                         modifier = Modifier.padding(top = 12.dp),
                     )
                     Row {
-                        TextButton(onClick = { viewModel.keepPause(packageName) }) {
+                        TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = { viewModel.keepPause(packageName) }) {
                             Text(stringResource(R.string.stale_keep))
                         }
-                        TextButton(onClick = { viewModel.dropPause(packageName) }) {
+                        TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = { viewModel.dropPause(packageName) }) {
                             Text(stringResource(R.string.stale_drop))
                         }
                     }
@@ -681,6 +960,58 @@ fun SettingsScreen(
         }
 
         if (group == SettingsGroup.PAUSES) {
+            // v0.26.0 §3.3. v0.62.7 (F9 from top-50
+            // audit, Aesthetic & Minimalist /
+            // Affordances): the pre-v0.62.7
+            // hierarchy was inverted — titleMedium
+            // header, bodySmall explainer, then
+            // a small TextButton CTA. The user
+            // reads prose, misses the action,
+            // leaves. New shape: the header is
+            // demoted to titleLarge (still
+            // legible, not the loudest element
+            // on the screen), the explainer
+            // grows to bodyMedium so the
+            // description is readable, and the
+            // CTA is an OutlinedButton — the
+            // shape the user already trusts from
+            // v0.62.6 (F4: "Take a reading" and
+            // "Grant usage access" were promoted
+            // the same way). One outlined pill
+            // per section, no separate link.
+            Text(stringResource(R.string.bys_try_section), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 24.dp, bottom = 8.dp))
+            Text(stringResource(R.string.bys_try_explainer), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            OutlinedButton(
+                onClick = onOpenBeforeYouSend,
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .semantics { role = Role.Button },
+            ) { Text(stringResource(R.string.bys_try_action)) }
+
+            // v0.26.0 BPD profile
+            Text(stringResource(R.string.bpd_profile_section), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 24.dp, bottom = 4.dp))
+            Text(stringResource(R.string.bpd_profile_explainer), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            val bpdProfile by viewModel.bpdProfile.collectAsStateWithLifecycle()
+            BpdProfileCheckbox(bpdProfile.longMessagesIRegret, R.string.bpd_profile_long_messages) { viewModel.setBpdProfile(bpdProfile.copy(longMessagesIRegret = it)) }
+            BpdProfileCheckbox(bpdProfile.lateNightImpulses, R.string.bpd_profile_late_night) { viewModel.setBpdProfile(bpdProfile.copy(lateNightImpulses = it)) }
+            BpdProfileCheckbox(bpdProfile.sometimesISplit, R.string.bpd_profile_split) { viewModel.setBpdProfile(bpdProfile.copy(sometimesISplit = it)) }
+            BpdProfileCheckbox(bpdProfile.namedPersonToCall, R.string.bpd_profile_named_person) { viewModel.setBpdProfile(bpdProfile.copy(namedPersonToCall = it)) }
+            BpdProfileCheckbox(bpdProfile.okAtNight, R.string.bpd_profile_ok_at_night) { viewModel.setBpdProfile(bpdProfile.copy(okAtNight = it)) }
+        }
+
+        // v0.25.16 BUG-018: each SettingsGroup's content is
+        // wrapped in a [SaveableStateProvider] keyed on the
+        // group's enum name. When the user navigates from
+        // PAUSES to READING and back, the PAUSES slot table
+        // is restored from the holder rather than recomposed
+        // from scratch. The pre-v0.25.16 shape was a plain
+        // `if (group == X) { ... }` that tore down the
+        // slot table on every tab switch — the half-typed
+        // "Small thing" draft and the "Pick a moment" date
+        // picker in the OpenLoop postpone dialog were lost
+        // the moment the user opened a different group.
+        if (group == SettingsGroup.PAUSES) {
+            saveableStateHolder.SaveableStateProvider("PAUSES") {
             // --- Small things ---
             //
             // Behavioural activation: the small thing shifts mood, and the
@@ -699,7 +1030,7 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            val smallThings by viewModel.smallThings.collectAsState()
+            val smallThings by viewModel.smallThings.collectAsStateWithLifecycle()
             smallThings.forEach { thing ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -710,7 +1041,7 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.weight(1f),
                     )
-                    TextButton(onClick = { viewModel.removeSmallThing(thing) }) {
+                    TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = { viewModel.removeSmallThing(thing) }) {
                         Text(stringResource(R.string.small_things_remove))
                     }
                 }
@@ -725,7 +1056,8 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 )
                 TextButton(
-                    onClick = {
+        modifier = Modifier.semantics { role = Role.Button },
+        onClick = {
                         viewModel.addSmallThing(draft)
                         draft = ""
                     },
@@ -739,9 +1071,12 @@ fun SettingsScreen(
             // Neff 2003 Self-Compassion Break: at the moment of
             // reaching for a doomscroll app, optionally surface
             // a phrase the user has previously written — their
-            // own words, never the launcher's. Linardon 2020
-            // (J Clin Psychol meta of 27 RCTs, PMID 32586436)
-            // reports small-to-moderate effects on distress.
+            // own words, never the launcher's. Linardon 2020,
+            // Behavior Therapy 51(4):646-658 (DOI 10.1016/j.beth.2019.10.002)
+            // — meta-analysis of 27 RCTs of smartphone apps for
+            // acceptance / mindfulness / self-compassion. Reports
+            // g = −0.32 (95% CI −0.48 to −0.16) for distress and
+            // g = 0.31 (95% CI 0.07-0.56) for self-compassion.
             // Same "only their own words" fence as small things;
             // same shape; same cap (six phrases is enough for
             // a rotation without any one becoming wallpaper).
@@ -755,7 +1090,7 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            val compassionMoments by viewModel.compassionMoments.collectAsState()
+            val compassionMoments by viewModel.compassionMoments.collectAsStateWithLifecycle()
             compassionMoments.forEach { moment ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -766,7 +1101,7 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.weight(1f),
                     )
-                    TextButton(onClick = { viewModel.removeCompassionMoment(moment.phrase) }) {
+                    TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = { viewModel.removeCompassionMoment(moment.phrase) }) {
                         Text(stringResource(R.string.small_things_remove))
                     }
                 }
@@ -781,13 +1116,15 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 )
                 TextButton(
-                    onClick = {
+        modifier = Modifier.semantics { role = Role.Button },
+        onClick = {
                         viewModel.addCompassionMoment(draft)
                         draft = ""
                     },
                 ) {
                     Text(stringResource(R.string.small_things_add))
                 }
+            }
             }
         }
 
@@ -802,7 +1139,8 @@ fun SettingsScreen(
 
             if (!hasNotificationAccess) {
                 TextButton(
-                    onClick = {
+        modifier = Modifier.semantics { role = Role.Button },
+        onClick = {
                         runCatching {
                             activityLauncher.launch(
                                 Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS),
@@ -819,9 +1157,15 @@ fun SettingsScreen(
                         .heightIn(min = 48.dp)
                         .toggleable(value = batchingEnabled, role = Role.Switch) { enabled ->
                             if (enabled) {
+                                // v0.22.1: arm the rollback so a denied
+                                // permission request leaves the toggle OFF
+                                // instead of stuck ON with no notifications.
+                                pendingRollback = { viewModel.setBatchingEnabled(false) }
                                 permissionLauncher.launch(
                                     android.Manifest.permission.POST_NOTIFICATIONS,
                                 )
+                            } else {
+                                pendingRollback = null
                             }
                             viewModel.setBatchingEnabled(enabled)
                         }
@@ -837,7 +1181,7 @@ fun SettingsScreen(
                 }
 
                 if (batchingEnabled) {
-                    TextButton(onClick = viewModel::releaseNow) {
+                    TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = viewModel::releaseNow) {
                         Text(stringResource(R.string.digest_release_now))
                     }
 
@@ -846,7 +1190,7 @@ fun SettingsScreen(
                     // anybody's day — a night shift makes a lunchtime batch
                     // meaningless, and the whole point of batching is that
                     // interruptions land when a person can absorb them.
-                    val releaseTimes by viewModel.releaseTimes.collectAsState()
+                    val releaseTimes by viewModel.releaseTimes.collectAsStateWithLifecycle()
                     Text(
                         text = stringResource(R.string.batching_times_explainer),
                         style = MaterialTheme.typography.bodySmall,
@@ -860,7 +1204,15 @@ fun SettingsScreen(
                         // slot label *and* the time on the
                         // same line — see timeNudgerRow KDoc.
                         timeNudgerRow(
-                            label = stringResource(R.string.batching_time_slot, time.format(HOUR_MINUTE)),
+                            // v0.25.1: the time moved out of
+                            // the label slot — `batching_time_slot`
+                            // is just "Arrives at" now, and the
+                            // time lives in the value slot. The
+                            // pre-fix call passed `time.format` to
+                            // both, which the `time_nudger_row`
+                            // format string rendered as
+                            // "Arrives at 08:00 08:00".
+                            label = stringResource(R.string.batching_time_slot),
                             value = time.format(HOUR_MINUTE),
                             onEarlier = { viewModel.nudgeReleaseTime(slot, -BatchSchedule.NUDGE_MINUTES) },
                             onLater = { viewModel.nudgeReleaseTime(slot, BatchSchedule.NUDGE_MINUTES) },
@@ -882,7 +1234,10 @@ fun SettingsScreen(
                         )
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                             TextButton(
-                                onClick = {
+        modifier = Modifier
+            .semantics { role = Role.Button }
+            .padding(vertical = 4.dp),
+        onClick = {
                                     runCatching {
                                         activityLauncher.launch(
                                             Intent(
@@ -893,7 +1248,15 @@ fun SettingsScreen(
                                     }
                                 },
                             ) {
-                                Text(stringResource(R.string.exact_alarms_grant))
+                                // Trailing chevron so the affordance
+                                // reads as a button, not a label.
+                                // The launcher has no other right-arrow
+                                // icons; this is the one place the user
+                                // is being asked to leave the app, and
+                                // the cue is worth the one glyph.
+                                Text(
+                                    text = stringResource(R.string.exact_alarms_grant) + "  →",
+                                )
                             }
                         }
                     }
@@ -929,7 +1292,7 @@ fun SettingsScreen(
 
         if (group == SettingsGroup.PHONE) {
             // --- Home screen appearance ---
-            val natureScene by viewModel.natureScene.collectAsState()
+            val natureScene by viewModel.natureScene.collectAsStateWithLifecycle()
             Text(
                 text = stringResource(R.string.appearance_section),
                 style = MaterialTheme.typography.titleMedium,
@@ -970,6 +1333,59 @@ fun SettingsScreen(
                     )
                 }
             }
+
+            // v0.40.0: opt-in soft tone for the 4-7-8 breathing
+            // surface. Off by default — sound is the kind of thing
+            // a person with hyperacusis or in a quiet room has to
+            // ask for, never have thrust on them. The haptic pulse
+            // at every phase change still fires (gated by the
+            // system haptics toggle), so the breath rhythm is
+            // unchanged for anyone who leaves the sound off.
+            val breathToneEnabled by viewModel.breathToneEnabled.collectAsStateWithLifecycle()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .toggleable(
+                        value = breathToneEnabled,
+                        role = Role.Switch,
+                    ) { viewModel.setBreathToneEnabled(!breathToneEnabled) }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Switch(checked = breathToneEnabled, onCheckedChange = null)
+                Text(
+                    text = stringResource(R.string.breath_tone_label),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
+            Text(
+                text = stringResource(R.string.breath_tone_explainer),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+
+            // v0.62.1: the 2x2 needs grid toggle was
+            // removed here because the v0.43.0 home
+            // strip removed the actual needs grid
+            // (Be heard / A moment / Check in /
+            // Get through this) from the home
+            // surface. The toggle was orphaned: it
+            // read the value, the launcher wrote it
+            // back, but no card read it. A user
+            // tapping the toggle would see the
+            // switch flip and nothing change. The
+            // [needsGridVisible] preference stays
+            // in [AppearancePrefs] for backward
+            // compat (a v0.62.0 user who turned
+            // the grid off and upgrades to
+            // v0.62.1 still has their saved
+            // value), but the toggle is no longer
+            // surfaced in Settings. Re-introduce
+            // the toggle when the needs grid
+            // returns to home.
         }
 
         if (group == SettingsGroup.PAUSES) {
@@ -1008,7 +1424,8 @@ fun SettingsScreen(
                 modifier = Modifier.padding(top = 8.dp),
             )
             TextButton(
-                onClick = {
+        modifier = Modifier.semantics { role = Role.Button },
+        onClick = {
                     runCatching {
                         context.startActivity(
                             Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
@@ -1027,7 +1444,7 @@ fun SettingsScreen(
 
         if (group == SettingsGroup.QUIET) {
             // --- Sunset mode (F4) ---
-            val sunsetEnabled by viewModel.sunsetEnabled.collectAsState()
+            val sunsetEnabled by viewModel.sunsetEnabled.collectAsStateWithLifecycle()
             SectionHeading(R.string.sunset_section, SettingsSection.SUNSET, goals)
             Text(
                 text = stringResource(R.string.sunset_explainer),
@@ -1035,12 +1452,44 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
+            // Chronotype picker (Roenneberg 2007, Wittmann 2006, Åkerstedt
+            // 2003, Kecklund 2016). The first answer came from onboarding;
+            // this lets the user change it without re-running onboarding,
+            // and changes here overwrite the default window the same way
+            // — only if the user has not already picked their own.
+            val chronotype by viewModel.chronotype.collectAsStateWithLifecycle()
+            Text(
+                text = stringResource(R.string.chronotype_section),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
+            )
+            Text(
+                text = stringResource(R.string.chronotype_explainer),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            ChronotypeRadioRow(Chronotype.MORNING_LARK, chronotype) {
+                viewModel.setChronotype(it)
+            }
+            ChronotypeRadioRow(Chronotype.NEUTRAL, chronotype) {
+                viewModel.setChronotype(it)
+            }
+            ChronotypeRadioRow(Chronotype.NIGHT_OWL, chronotype) {
+                viewModel.setChronotype(it)
+            }
+            ChronotypeRadioRow(Chronotype.SHIFT_WORKER, chronotype) {
+                viewModel.setChronotype(it)
+            }
+            ChronotypeRadioRow(Chronotype.UNKNOWN, chronotype) {
+                viewModel.setChronotype(it)
+            }
+
             // The window used to be hardcoded to 22:00 → 07:00. That is
             // somebody else's bedtime: wrong for shift workers, wrong for
             // anyone on call, wrong for night staff — and a wind-down that
             // begins three hours after you went to bed is not a wind-down.
-            val sunsetStart by viewModel.sunsetStart.collectAsState()
-            val sunsetEnd by viewModel.sunsetEnd.collectAsState()
+            val sunsetStart by viewModel.sunsetStart.collectAsStateWithLifecycle()
+            val sunsetEnd by viewModel.sunsetEnd.collectAsStateWithLifecycle()
             Text(
                 text = stringResource(
                     R.string.sunset_window,
@@ -1069,7 +1518,8 @@ fun SettingsScreen(
             )
             if (!hasDndAccess) {
                 TextButton(
-                    onClick = {
+        modifier = Modifier.semantics { role = Role.Button },
+        onClick = {
                         runCatching {
                             activityLauncher.launch(
                                 Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS),
@@ -1114,14 +1564,33 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            TextButton(onClick = onOpenPpg) {
+            // v0.62.6 (F4 from top-50 audit, Affordances
+            // and Signifiers): the v0.45.0 [TextButton]
+            // was a small green link inside a paragraph
+            // of bodyMedium — the user had no visual
+            // signal that this was the primary action
+            // of the section (could read as a section
+            // heading, a sub-link, or decorative). The
+            // [OutlinedButton] with a top padding
+            // promotes the action to a clearly tappable
+            // button without competing with the
+            // section's primary CTAs (Save / Cancel) for
+            // visual weight. Same pattern at the "Grant
+            // usage access" CTA below (F4 in the
+            // sleep-rhythm section).
+            OutlinedButton(
+                modifier = Modifier
+                    .semantics { role = Role.Button }
+                    .padding(top = 8.dp),
+                onClick = onOpenPpg,
+            ) {
                 Text(stringResource(R.string.ppg_start))
             }
         }
 
         if (group == SettingsGroup.MEASURING) {
             // --- Sleep rhythm (F5) ---
-            val sleepSummary by viewModel.sleepSummary.collectAsState()
+            val sleepSummary by viewModel.sleepSummary.collectAsStateWithLifecycle()
             SectionHeading(R.string.sleep_section, SettingsSection.SLEEP, goals)
             if (!hasUsageAccess) {
                 Text(
@@ -1129,7 +1598,16 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                TextButton(
+                // v0.62.6 (F4): promoted to
+                // [OutlinedButton] — same reasoning as
+                // the "Take a reading" CTA above. The
+                // small-text [TextButton] inside a
+                // bodySmall paragraph was a primary
+                // action hidden in prose.
+                OutlinedButton(
+                    modifier = Modifier
+                        .semantics { role = Role.Button }
+                        .padding(top = 8.dp),
                     onClick = {
                         runCatching { activityLauncher.launch(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) }
                         viewModel.refreshSleep()
@@ -1172,7 +1650,7 @@ fun SettingsScreen(
                     // does generalise, and drops the inference entirely: it
                     // counts nights and names nothing. Off until asked for,
                     // and it never notifies.
-                    val mirrorOn by viewModel.sleepMirror.collectAsState()
+                    val mirrorOn by viewModel.sleepMirror.collectAsStateWithLifecycle()
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1195,7 +1673,7 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    val laterNights by viewModel.nightsLaterThanUsual.collectAsState()
+                    val laterNights by viewModel.nightsLaterThanUsual.collectAsStateWithLifecycle()
                     laterNights?.let { count ->
                         Text(
                             text = stringResource(R.string.mirror_line, count),
@@ -1209,6 +1687,33 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 4.dp),
                     )
+                    // Suggested wind-down, opt-in. Built from the user's
+                    // own sleep onsets (Windred et al. 2024 — regularity
+                    // over duration). The button is the entire "apply"
+                    // surface: a tap writes the window, a lack of a tap
+                    // does nothing. The wording above avoids the word
+                    // "should" — the suggestion is the launcher's best
+                    // read of the data, not a prescription.
+                    val suggestion by viewModel.sleepSuggestion.collectAsStateWithLifecycle()
+                    suggestion?.let { s ->
+                        Text(
+                            text = stringResource(R.string.sleep_suggestion_heading),
+                            style = MaterialTheme.typography.titleSmall,
+                            modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
+                        )
+                        Text(
+                            text = stringResource(
+                                R.string.sleep_suggestion_line,
+                                s.nightsUsed,
+                                s.medianOnset.format(HOUR_MINUTE),
+                                s.startTime.format(HOUR_MINUTE),
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = { viewModel.applySleepSuggestion(s) }) {
+                            Text(stringResource(R.string.sleep_suggestion_apply))
+                        }
+                    }
                 }
             }
         }
@@ -1237,7 +1742,7 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.bodyLarge,
                             modifier = Modifier.weight(1f),
                         )
-                        TextButton(onClick = { onUnhide(app) }) {
+                        TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = { onUnhide(app) }) {
                             Text(stringResource(R.string.action_unhide))
                         }
                     }
@@ -1245,24 +1750,132 @@ fun SettingsScreen(
             }
         }
 
-        if (group == SettingsGroup.MEASURING) {
-            // --- Wellbeing pulse (F7) ---
-            SectionHeading(R.string.pulse_section, SettingsSection.PULSE, goals)
+        if (group == SettingsGroup.READING) {
+            // --- Daily letter (v0.25.2-A) ---
+            //
+            // The headline entry on the Reading surface. The
+            // toggle is always editable, on purpose: a person who
+            // has not yet imported a model needs to be able to
+            // *say* they want a letter without the row being
+            // dead, and the daily alarm is held by the
+            // [org.mindanchor.letters.LetterScheduler] which
+            // already does the right thing when the model is
+            // missing (a quiet "nothing today" — see
+            // [org.mindanchor.letters.LetterScheduler.onFire]).
+            // The "Generate now" button is the one row that
+            // gates on `modelFits`, because pushing a button
+            // that visibly does nothing is its own small
+            // dishonesty. The inbox count gates on
+            // `unreadCount > 0` for the same reason — a button
+            // that says "Open inbox (0)" reads as a stat
+            // rather than an affordance.
+            SectionHeading(R.string.letters_section, null, goals)
             Text(
-                text = stringResource(R.string.pulse_section_explainer),
+                text = stringResource(R.string.letters_explainer),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            TextButton(
-                onClick = {
-                    runCatching {
-                        context.startActivity(
-                            Intent(context, org.mindanchor.pulse.PulseActivity::class.java),
-                        )
+            val modelFits by viewModel.modelFits.collectAsStateWithLifecycle()
+            val lettersEnabled by viewModel.lettersEnabled.collectAsStateWithLifecycle()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .toggleable(value = lettersEnabled, role = Role.Switch) {
+                        viewModel.setLettersEnabled(it)
                     }
-                },
+                    .padding(top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(stringResource(R.string.pulse_take))
+                Text(
+                    text = stringResource(R.string.letters_toggle),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(checked = lettersEnabled, onCheckedChange = null)
+            }
+            val lettersTime by viewModel.lettersTime.collectAsStateWithLifecycle()
+            var showLetterTimePicker by remember { mutableStateOf(false) }
+            TextButton(
+        modifier = Modifier.semantics { role = Role.Button },
+        enabled = lettersEnabled,
+                onClick = { showLetterTimePicker = true },
+            ) {
+                Text(
+                    stringResource(
+                        R.string.letters_time,
+                        lettersTime.first,
+                        lettersTime.second,
+                    ),
+                )
+            }
+            if (showLetterTimePicker) {
+                LetterTimePickerDialog(
+                    initialHour = lettersTime.first,
+                    initialMinute = lettersTime.second,
+                    onDismiss = { showLetterTimePicker = false },
+                    onConfirm = { hour, minute ->
+                        viewModel.setLettersTime(hour, minute)
+                        showLetterTimePicker = false
+                    },
+                )
+            }
+            val letterRunning by viewModel.letterRunning.collectAsStateWithLifecycle()
+            TextButton(
+        modifier = Modifier.semantics { role = Role.Button },
+        enabled = !letterRunning && lettersEnabled && modelFits,
+                onClick = viewModel::runLetterNow,
+            ) {
+                Text(
+                    stringResource(
+                        if (letterRunning) R.string.letters_running_now
+                        else R.string.letters_run_now,
+                    ),
+                )
+            }
+            val unreadCount by viewModel.unreadLetterCount.collectAsStateWithLifecycle()
+            TextButton(
+        modifier = Modifier.semantics { role = Role.Button },
+        enabled = unreadCount > 0,
+                onClick = onOpenLetters,
+            ) {
+                Text(stringResource(R.string.letters_open_inbox, unreadCount))
+            }
+        }
+
+        if (group == SettingsGroup.READING) {
+            // --- Reading size (v0.25.2-B) ---
+            //
+            // The A- / A / A+ control. Mirrors the segmented control
+            // in the reader's top row (Task 18) so a person who has
+            // not yet opened a letter can still pick a size. The
+            // A- / A / A+ labels are locale-safe and RTL-safe; the
+            // control is the same on every device, every locale.
+            SectionHeading(R.string.reading_size_section, null, goals)
+            Text(
+                text = stringResource(R.string.reading_size_explainer),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            val letterSize by viewModel.letterSize.collectAsStateWithLifecycle()
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.padding(top = 8.dp)) {
+                listOf(ReadingSize.SMALL, ReadingSize.MEDIUM, ReadingSize.LARGE)
+                    .forEachIndexed { i, s ->
+                        SegmentedButton(
+                            selected = letterSize == s,
+                            onClick = { viewModel.setLetterSize(s) },
+                            shape = SegmentedButtonDefaults.itemShape(index = i, count = 3),
+                        ) {
+                            Text(
+                                text = when (s) {
+                                    ReadingSize.SMALL  -> "A-"
+                                    ReadingSize.MEDIUM -> "A"
+                                    ReadingSize.LARGE  -> "A+"
+                                    else -> "A"
+                                },
+                            )
+                        }
+                    }
             }
         }
 
@@ -1275,13 +1888,13 @@ fun SettingsScreen(
             // up what the research says the thing measured actually is. See
             // ReportComposer for why it never joins those two together, and
             // ReportScheduler for why an ordinary, quiet night is success too.
-            SectionHeading(R.string.report_section, SettingsSection.PULSE, goals)
+            SectionHeading(R.string.report_section, null, goals)
             Text(
                 text = stringResource(R.string.report_explainer),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            val reportEnabled by viewModel.reportEnabled.collectAsState()
+            val reportEnabled by viewModel.reportEnabled.collectAsStateWithLifecycle()
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1299,7 +1912,7 @@ fun SettingsScreen(
                 )
                 Switch(checked = reportEnabled, onCheckedChange = null)
             }
-            TextButton(onClick = onOpenReport) {
+            TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = onOpenReport) {
                 Text(stringResource(R.string.report_open))
             }
 
@@ -1309,7 +1922,7 @@ fun SettingsScreen(
             // is the difference, and the button proves the whole pipeline
             // on this phone in its first minute rather than trusting a
             // 3am alarm to demonstrate it eventually.
-            val generatedDay by viewModel.reportGeneratedDay.collectAsState()
+            val generatedDay by viewModel.reportGeneratedDay.collectAsStateWithLifecycle()
             Text(
                 text = stringResource(
                     R.string.report_last_built,
@@ -1318,8 +1931,8 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            val reportRunning by viewModel.reportRunning.collectAsState()
-            TextButton(enabled = !reportRunning, onClick = viewModel::runReportNow) {
+            val reportRunning by viewModel.reportRunning.collectAsStateWithLifecycle()
+            TextButton(modifier = Modifier.semantics { role = Role.Button }, enabled = !reportRunning, onClick = viewModel::runReportNow) {
                 Text(
                     stringResource(
                         if (reportRunning) R.string.report_running_now else R.string.report_run_now,
@@ -1337,7 +1950,7 @@ fun SettingsScreen(
             // an update; the research should not have to wait on one, nor be
             // limited to what one person thought to include. See CorpusImport
             // for why an import merges rather than replaces.
-            SectionHeading(R.string.corpus_section, SettingsSection.PULSE, goals)
+            SectionHeading(R.string.corpus_section, null, goals)
             Text(
                 text = stringResource(R.string.corpus_explainer),
                 style = MaterialTheme.typography.bodySmall,
@@ -1352,9 +1965,9 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),
             )
-            val corpusSize by viewModel.corpusSize.collectAsState()
-            val corpusImported by viewModel.corpusImported.collectAsState()
-            val lastImport by viewModel.lastImport.collectAsState()
+            val corpusSize by viewModel.corpusSize.collectAsStateWithLifecycle()
+            val corpusImported by viewModel.corpusImported.collectAsStateWithLifecycle()
+            val lastImport by viewModel.lastImport.collectAsStateWithLifecycle()
             LaunchedEffect(Unit) { viewModel.refreshCorpus() }
             Text(
                 text = stringResource(R.string.corpus_count, corpusSize),
@@ -1370,7 +1983,7 @@ fun SettingsScreen(
                 // and a picker that shows nothing selectable is a dead end.
                 ActivityResultContracts.OpenDocument(),
             ) { uri -> uri?.let(viewModel::importCorpus) }
-            TextButton(onClick = { corpusPicker.launch(arrayOf("*/*")) }) {
+            TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = { corpusPicker.launch(arrayOf("*/*")) }) {
                 Text(stringResource(R.string.corpus_import))
             }
             Text(
@@ -1408,7 +2021,7 @@ fun SettingsScreen(
                 }
             }
             if (corpusImported) {
-                TextButton(onClick = viewModel::clearCorpus) {
+                TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = viewModel::clearCorpus) {
                     Text(stringResource(R.string.corpus_clear))
                 }
             }
@@ -1422,7 +2035,7 @@ fun SettingsScreen(
             // does not yet make any writing happen; it records the file and,
             // exactly like ModelSlot was built to, reports honestly whether
             // this phone has enough memory to run it once an engine exists.
-            SectionHeading(R.string.model_section, SettingsSection.PULSE, goals)
+            SectionHeading(R.string.model_section, null, goals)
             Text(
                 text = stringResource(R.string.model_explainer),
                 style = MaterialTheme.typography.bodySmall,
@@ -1434,9 +2047,9 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),
             )
-            val modelPresent by viewModel.modelPresent.collectAsState()
-            val modelFit by viewModel.modelFit.collectAsState()
-            val modelImportFailed by viewModel.modelImportFailed.collectAsState()
+            val modelPresent by viewModel.modelPresent.collectAsStateWithLifecycle()
+            val modelFit by viewModel.modelFit.collectAsStateWithLifecycle()
+            val modelImportFailed by viewModel.modelImportFailed.collectAsStateWithLifecycle()
             LaunchedEffect(Unit) { viewModel.refreshModel() }
             Text(
                 text = stringResource(if (modelPresent) R.string.model_present else R.string.model_none),
@@ -1463,7 +2076,7 @@ fun SettingsScreen(
                 // selectable is a dead end.
                 ActivityResultContracts.OpenDocument(),
             ) { uri -> uri?.let(viewModel::importModel) }
-            TextButton(onClick = { modelPicker.launch(arrayOf("*/*")) }) {
+            TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = { modelPicker.launch(arrayOf("*/*")) }) {
                 Text(stringResource(R.string.model_import))
             }
             if (modelImportFailed) {
@@ -1474,33 +2087,60 @@ fun SettingsScreen(
                 )
             }
             if (modelPresent) {
-                TextButton(onClick = viewModel::clearModel) {
+                TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = viewModel::clearModel) {
                     Text(stringResource(R.string.model_clear))
                 }
             }
+            // v0.23.0: one-tap Phi-4 mini download.
+            // The download runs through the system
+            // DownloadManager; when it finishes, the
+            // launcher listens for
+            // ACTION_DOWNLOAD_COMPLETE and prompts the
+            // user with a Yes-then-import.
+            Phi4ModelDownloadSection(viewModel = viewModel)
+
+            // v0.25.4: Google Drive backup (replaces
+            // v0.23.0 WebDAV). The section lives in
+            // the Reading group because the "what
+            // you wrote" surface is the natural
+            // home for "where the writes go" — the
+            // letters feature sits here, the
+            // nightly report reuses the same
+            // ReaderPrefs, and the user looking
+            // for the "I lost my phone, where's
+            // my data?" affordance is reading the
+            // same screen.
+            GoogleDriveBackupSettingsSection(viewModel = viewModel)
         }
 
         if (group == SettingsGroup.MEASURING) {
             // --- Check-ins (EMA) ---
             //
-            // The other half of "Labels" alongside the pulse above: a handful
+            // The other half of "Labels" alongside the EMA above: a handful
             // of taps a day rather than a fortnightly instrument. The count
             // is stated plainly and never as a target — a skipped prompt is
             // normal, not a shortfall, so nothing here is styled as a streak.
-            SectionHeading(R.string.ema_section, SettingsSection.PULSE, goals)
+            SectionHeading(R.string.ema_section, null, goals)
             Text(
                 text = stringResource(R.string.ema_explainer),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            val emaEnabled by viewModel.emaEnabled.collectAsState()
+            val emaEnabled by viewModel.emaEnabled.collectAsStateWithLifecycle()
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 48.dp)
                     .toggleable(value = emaEnabled, role = Role.Switch) { enabled ->
                         if (enabled) {
-                            permissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                            // v0.22.1: same rollback as batching — without
+                            // POST_NOTIFICATIONS granted, EMA has no way to
+                            // actually prompt the user, so the toggle should
+                            // not stay ON after a deny.
+                            pendingRollback = { viewModel.setEmaEnabled(false) }
+                            emaPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            pendingRollback = null
                         }
                         viewModel.setEmaEnabled(enabled)
                     }
@@ -1514,10 +2154,27 @@ fun SettingsScreen(
                 )
                 Switch(checked = emaEnabled, onCheckedChange = null)
             }
-            val emaCount by viewModel.emaCount.collectAsState()
+            val emaCount by viewModel.emaCount.collectAsStateWithLifecycle()
+            // v0.62.7 (F8 from top-50 audit,
+            // Visibility of System Status): the
+            // ema count is the only signal the
+            // user has that the system is
+            // collecting anything at all. The
+            // pre-v0.62.7 design hid it in a
+            // bodyMedium line below a 6-line
+            // explainer; the user had to read
+            // 6 lines of prose to find out the
+            // system has 0 data points. New
+            // shape: headlineSmall stat line
+            // ("X check-ins so far.") sits at
+            // the top, the long explainer
+            // drops to bodySmall under it. A
+            // skipped prompt is normal, not a
+            // shortfall, so the line is never
+            // styled as a streak or a goal.
             Text(
                 text = stringResource(R.string.ema_count, emaCount),
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.padding(top = 8.dp),
             )
             Text(
@@ -1556,7 +2213,7 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            val wellnessReadings by viewModel.wellnessReadings.collectAsState()
+            val wellnessReadings by viewModel.wellnessReadings.collectAsStateWithLifecycle()
             LaunchedEffect(permissionEpoch) { viewModel.refreshWellness() }
             val wellness = wellnessReadings
             if (wellness == null) {
@@ -1629,7 +2286,7 @@ fun SettingsScreen(
             // grants; piggy-backing on it means the Health Connect
             // status refreshes for the same reasons and at the same
             // time, no extra plumbing required.
-            val hcStatus by viewModel.healthConnectStatus.collectAsState()
+            val hcStatus by viewModel.healthConnectStatus.collectAsStateWithLifecycle()
             LaunchedEffect(permissionEpoch) { viewModel.refreshHealthConnectStatus() }
 
             val statusText = when (val s = hcStatus) {
@@ -1654,51 +2311,106 @@ fun SettingsScreen(
 
             // The request-permissions launcher. Created here so the
             // contract lives as long as the measuring section is on
-            // screen; the contract is stable across recompositions
-            // because of the rememberLauncherForActivityResult call.
-            // Renamed to [healthConnectPermissionLauncher] to avoid
-            // shadowing the outer [permissionLauncher] declared for
-            // the notification-batching POST_NOTIFICATIONS request
-            // (line ~345) — the two contracts are different shapes,
-            // but a same-named local would silently bind to the
-            // wrong one the next time a maintainer added a button
-            // in this block.
+            // screen.
+            //
+            // v0.23.0 — silent-failure fix: the contract factory was
+            // being called inline (line 1796 of the previous
+            // revision), which means every recomposition produced a
+            // new ActivityResultContract instance. Compose's
+            // rememberLauncherForActivityResult keys on the contract
+            // *instance*, not the class, so a new contract every
+            // recomposition forced the launcher to re-register with
+            // the activity's ActivityResultRegistry. On a phone
+            // with a slightly slower result pipeline — particularly
+            // the Tamil Nadu Police test device behind a
+            // corporate-managed ActivityManager that buffers
+            // dispatches — the onClick lambda drifted from the
+            // registered launcher between recomposition and tap.
+            // The click went to a launcher that was no longer in the
+            // registry; the system returned
+            // `ActivityResultCallback not registered`; the click
+            // was silently swallowed. No exception, no log line, no
+            // dialog. Same shape as the v0.22.1 EMA / Batching
+            // silent-toggle bug.
+            //
+            // The fix is to cache the contract instance with
+            // `remember`. The key is then stable across
+            // recompositions, the launcher is stable, the click is
+            // stable. Renamed to [healthConnectPermissionLauncher]
+            // to avoid shadowing the outer [permissionLauncher]
+            // declared for the notification-batching
+            // POST_NOTIFICATIONS request (line ~345) — the two
+            // contracts are different shapes, but a same-named
+            // local would silently bind to the wrong one the next
+            // time a maintainer added a button in this block.
+            val healthConnectPermissionContract = remember {
+                HealthConnectRequestPermissionsContract()
+            }
+            // v0.25.3-WP-B: hcLaunchError surfaces a launch-dispatch
+            // failure (ActivityNotFoundException, SecurityException,
+            // send-cancel) instead of swallowing it. Result handler
+            // clears it on a real callback.
+            var hcLaunchError by remember { mutableStateOf<String?>(null) }
             val healthConnectPermissionLauncher = rememberLauncherForActivityResult(
-                contract = HealthConnectSource.requestPermissionsContract(),
-            ) { _ ->
-                // Whether the user granted, denied, or partially
-                // granted, the only honest response is to re-read the
-                // current state. The result Set is a subset of what
-                // we asked for; we deliberately do not act on it
-                // because the launcher is not allowed to do anything
-                // in response to "no" except try again later.
+                contract = healthConnectPermissionContract,
+            ) { granted ->
+                Log.w("MindAnchor/HealthConnect", "permission result: " + granted.size + " granted")
+                hcLaunchError = null
                 viewModel.refreshHealthConnectStatus()
             }
 
-            // Show the connect/change button only when Health Connect
-            // is actually available. If it is missing, the explainer
-            // already says so and the right next step is a Play Store
-            // install — which the user does on their own.
+            // Show the connect/change button only when the launcher
+            // has actually probed the source AND Health Connect is
+            // present. The previous guard was `!is Unavailable`,
+            // which also rendered the button for the `Unknown`
+            // initial state — a window of a few hundred milliseconds
+            // between the composable first appearing and the
+            // `LaunchedEffect` coroutine finishing its
+            // [HealthConnectSource.isAvailable] check. A tap in that
+            // window invoked [healthConnectPermissionLauncher.launch]
+            // before the source had been probed; on a phone without
+            // Health Connect the launch dispatched an Intent for a
+            // package that didn't exist and the dialog never opened.
+            // The user saw the button, tapped it, and nothing
+            // happened — the silent-failure shape this whole
+            // permission flow is supposed to avoid.
+            //
             // The local [s] capture is required because [hcStatus] is a
             // delegated property and Kotlin cannot smart-cast across
             // the [is] check; capturing it into a non-delegated [val]
             // restores the smart-cast.
             val s = hcStatus
-            if (s !is SettingsViewModel.HealthConnectStatus.Unavailable) {
-                val buttonLabelRes = when (s) {
-                    is SettingsViewModel.HealthConnectStatus.Available ->
-                        if (s.granted == 0) R.string.health_connect_button_connect
-                        else R.string.health_connect_button_change
-                    else -> R.string.health_connect_button_connect
-                }
+            if (s is SettingsViewModel.HealthConnectStatus.Available) {
+                val buttonLabelRes =
+                    if (s.granted == 0) R.string.health_connect_button_connect
+                    else R.string.health_connect_button_change
                 TextButton(
-                    onClick = {
-                        healthConnectPermissionLauncher.launch(
-                            HealthConnectSource.effectivePermissions(context),
-                        )
+        modifier = Modifier.semantics { role = Role.Button },
+        onClick = {
+                        // v0.25.3-WP-B: runCatching surfaces a launch
+                        // failure instead of swallowing it. The Log.w
+                        // gives a known handle for adb logcat.
+                        Log.w("MindAnchor/HealthConnect", "launch requested")
+                        runCatching {
+                            healthConnectPermissionLauncher.launch(
+                                HealthConnectSource.effectivePermissions(context),
+                            )
+                        }.onFailure { t ->
+                            Log.e("MindAnchor/HealthConnect", "launch failed: " + t.javaClass.simpleName, t)
+                            hcLaunchError = t.javaClass.simpleName
+                        }
                     },
                 ) {
                     Text(stringResource(buttonLabelRes))
+                }
+                val launchError = hcLaunchError
+                if (launchError != null) {
+                    Text(
+                        text = stringResource(R.string.health_connect_launch_failed),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
                 }
             }
 
@@ -1783,10 +2495,10 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            val corosState by viewModel.corosState.collectAsState()
-            val corosLastSync by viewModel.corosLastSyncEpochMs.collectAsState()
-            val corosSyncRunning by viewModel.corosSyncRunning.collectAsState()
-            val corosSyncError by viewModel.corosSyncError.collectAsState()
+            val corosState by viewModel.corosState.collectAsStateWithLifecycle()
+            val corosLastSync by viewModel.corosLastSyncEpochMs.collectAsStateWithLifecycle()
+            val corosSyncRunning by viewModel.corosSyncRunning.collectAsStateWithLifecycle()
+            val corosSyncError by viewModel.corosSyncError.collectAsStateWithLifecycle()
             LaunchedEffect(permissionEpoch) { viewModel.refreshCorosState() }
 
             when (val s = corosState) {
@@ -1826,7 +2538,8 @@ fun SettingsScreen(
                     }
                     Row(modifier = Modifier.padding(top = 8.dp)) {
                         TextButton(
-                            enabled = !corosSyncRunning,
+        modifier = Modifier.semantics { role = Role.Button },
+        enabled = !corosSyncRunning,
                             onClick = viewModel::corosSyncNow,
                         ) {
                             Text(
@@ -1836,7 +2549,7 @@ fun SettingsScreen(
                                 ),
                             )
                         }
-                        TextButton(onClick = viewModel::disconnectCoros) {
+                        TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = viewModel::disconnectCoros) {
                             Text(stringResource(R.string.coros_disconnect_button))
                         }
                     }
@@ -1934,7 +2647,8 @@ fun SettingsScreen(
                     }
                 }
                 TextButton(
-                    enabled = !corosLoginInProgress &&
+        modifier = Modifier.semantics { role = Role.Button },
+        enabled = !corosLoginInProgress &&
                         corosEmailDraft.isNotBlank() && corosPasswordDraft.isNotBlank(),
                     onClick = {
                         corosLoginInProgress = true
@@ -2007,7 +2721,7 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            val coverage by viewModel.coverage.collectAsState()
+            val coverage by viewModel.coverage.collectAsStateWithLifecycle()
             val entries = coverage
             if (entries == null) {
                 Text(
@@ -2043,15 +2757,15 @@ fun SettingsScreen(
                 }
             }
 
-            val probing by viewModel.probing.collectAsState()
-            TextButton(enabled = !probing, onClick = viewModel::probeYesterday) {
+            val probing by viewModel.probing.collectAsStateWithLifecycle()
+            TextButton(modifier = Modifier.semantics { role = Role.Button }, enabled = !probing, onClick = viewModel::probeYesterday) {
                 Text(
                     stringResource(
                         if (probing) R.string.probe_checking else R.string.probe_button,
                     ),
                 )
             }
-            val probe by viewModel.probe.collectAsState()
+            val probe by viewModel.probe.collectAsStateWithLifecycle()
             probe?.let { vitals ->
                 Text(
                     text = stringResource(R.string.probe_intro),
@@ -2079,6 +2793,42 @@ fun SettingsScreen(
             }
         }
 
+        if (group == SettingsGroup.MEASURING) {
+            // --- v0.35.0: Smartwatches + Polar AccessLink ---
+            //
+            // The "Where it comes from" home card surfaces the
+            // three wearable sources the user has. The
+            // settings section is the action surface: pair a
+            // watch, scan for one, set auto-reconnect, and
+            // for Polar specifically, sign in to the web
+            // bridge that pulls nightly HRV.
+            //
+            // The two blocks (Smartwatches roster + Polar
+            // sign-in) are siblings inside the same
+            // "Sources" group, in that order. The roster
+            // surfaces the connector that is already wired
+            // (the universal BLE HR connector from v0.34.0)
+            // and the Polar section surfaces the second
+            // connector in the static roster. New vendors
+            // land as a `register(...)` call in
+            // MindAnchorApp.onCreate and as a sibling block
+            // here — no other surface changes.
+            Spacer(Modifier.height(24.dp))
+            SmartwatchesSection()
+            Spacer(Modifier.height(16.dp))
+            PolarSection()
+            // v0.35.1: the "Run setup wizard again" affordance.
+            // Sits in the Sources group, below the per-source
+            // sections, because the wizard is the guided tour of
+            // this exact group. A tap launches the wizard
+            // activity and the user can re-walk the 5 steps. The
+            // wizard clears its per-step skipped flags on entry
+            // so the user lands on the first not-yet-completed
+            // step, not from Welcome.
+            Spacer(Modifier.height(16.dp))
+            RerunSetupWizardRow()
+        }
+
         if (group == SettingsGroup.PLAN) {
             // --- Your people and your plan ---
             Text(
@@ -2092,7 +2842,8 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             TextButton(
-                onClick = {
+        modifier = Modifier.semantics { role = Role.Button },
+        onClick = {
                     runCatching {
                         context.startActivity(
                             Intent(context, org.mindanchor.support.SupportActivity::class.java),
@@ -2147,7 +2898,7 @@ fun SettingsScreen(
                 // a factory reset, which is not a thing to discover after an
                 // accidental tap. It states that cost and gets out of the way.
                 var confirmingRelease by remember { mutableStateOf(false) }
-                TextButton(onClick = { confirmingRelease = true }) {
+                TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = { confirmingRelease = true }) {
                     Text(stringResource(R.string.owner_release))
                 }
                 if (confirmingRelease) {
@@ -2156,7 +2907,7 @@ fun SettingsScreen(
                         title = { Text(stringResource(R.string.owner_release)) },
                         text = { Text(stringResource(R.string.owner_release_cost)) },
                         confirmButton = {
-                            TextButton(onClick = {
+                            TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = {
                                 confirmingRelease = false
                                 viewModel.releaseDeviceOwner { permissionEpoch++ }
                             }) {
@@ -2164,7 +2915,7 @@ fun SettingsScreen(
                             }
                         },
                         dismissButton = {
-                            TextButton(onClick = { confirmingRelease = false }) {
+                            TextButton(modifier = Modifier.semantics { role = Role.Button }, onClick = { confirmingRelease = false }) {
                                 Text(stringResource(R.string.action_close))
                             }
                         },
@@ -2194,7 +2945,7 @@ fun SettingsScreen(
             // grayscale on at 22:00 without this screen's involvement.
             val grayscaleGranted = remember(permissionEpoch) { Grayscale.isGranted(context) }
             var grayscaleNow by remember(permissionEpoch) { mutableStateOf(Grayscale.isOn(context)) }
-            val greyNights by viewModel.grayscaleAtNight.collectAsState(initial = false)
+            val greyNights by viewModel.grayscaleAtNight.collectAsStateWithLifecycle(initialValue = false)
 
             if (!grayscaleGranted) {
                 Text(
@@ -2300,7 +3051,8 @@ fun SettingsScreen(
             }
 
             TextButton(
-                onClick = {
+        modifier = Modifier.semantics { role = Role.Button },
+        onClick = {
                     val stamp = java.time.LocalDate.now().toString()
                     runCatching {
                         saveTo.launch(org.mindanchor.backup.BackupRepository.fileName(stamp))
@@ -2310,7 +3062,8 @@ fun SettingsScreen(
                 Text(stringResource(R.string.backup_save))
             }
             TextButton(
-                onClick = {
+        modifier = Modifier.semantics { role = Role.Button },
+        onClick = {
                     runCatching { restoreFrom.launch(arrayOf("application/json", "text/plain", "*/*")) }
                 },
             ) {
@@ -2323,6 +3076,23 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+
+            // v0.23.0 WebDAV backup has been
+            // removed in v0.25.4. The local file
+            // picker (the "Save a copy…" / "Restore
+            // from a copy…" buttons above) is the
+            // default backup path; the Google Drive
+            // path lives in the Reading group
+            // (see GoogleDriveBackupSettingsSection
+            // at the bottom of the Reading sub-sections).
+
+            // v0.25.0: re-classify every note on
+            // demand. Sits after the backup section
+            // because both are "do something to
+            // existing data" affordances; the
+            // backup is "send it elsewhere", the
+            // re-classify is "refresh derived data".
+            NoteReclassifySection()
 
             Text(
                 text = stringResource(R.string.about_text),
@@ -2361,12 +3131,6 @@ fun SettingsScreen(
                 text = stringResource(R.string.going_light_explainer),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = stringResource(R.string.going_light_coming_soon),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
             )
         }
     }

@@ -4,10 +4,12 @@ import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import org.mindanchor.sunset.Chronotype
 import java.time.LocalTime
 
 private val Context.dataStore by preferencesDataStore(name = "sunset")
@@ -16,10 +18,47 @@ private val Context.dataStore by preferencesDataStore(name = "sunset")
  * Sunset (wind-down) configuration.
  *
  * The window was hardcoded to 22:00 → 07:00, with "editable times come
- * later" written next to it. 22:00 is somebody else's bedtime: it is wrong
- * for shift workers, wrong for anyone on call, wrong for night staff, and
- * a wind-down that begins three hours after you have gone to bed is not a
- * wind-down. It is stored now, and still defaults to 22:00 → 07:00.
+ * later" written next to it. 22:00 is somebody else's bedtime: it is
+ * wrong for shift workers, wrong for anyone on call, wrong for night
+ * staff, and a wind-down that begins three hours after you have gone
+ * to bed is not a wind-down. It is stored now, and still defaults to
+ * 22:00 → 07:00.
+ *
+ * The "22:00 is somebody else's bedtime" framing rests on two
+ * verified findings, listed in the launcher's research index
+ * (`docs/research/22-research-index.md`):
+ *
+ * - **Roenneberg et al. 2007, *Sleep Med. Rev.* 11(6):429-438,
+ *   DOI 10.1016/j.smrv.2007.07.005.** The Munich Chronotype
+ *   Questionnaire paper — chronotype is age- and sex-dependent, and
+ *   the population distribution of "preferred bedtime" is wide
+ *   enough that no single 22:00 default is the right one for most
+ *   people. The launcher's default of 22:00 → 07:00 is a
+ *   *placeholder*, not a recommendation: the right window is
+ *   whatever the user actually sleeps on.
+ * - **Åkerstedt 2003, *Occup. Med.* 53(2):89-94, DOI
+ *   10.1093/occmed/kqg046.** Difficulty initiating sleep, shortened
+ *   sleep, and somnolence during work hours are the principal acute
+ *   symptoms of shift work. A 22:00 → 07:00 window applied to a
+ *   shift worker is the wrong window by hours, and the launcher
+ *   making the window editable is the only correct response.
+ *
+ * Out of scope for the verified index: the launcher's notion of a
+ * "wind-down" itself is a design choice, not a research finding.
+ * The two citations above justify making the window editable; they
+ * do not justify a specific default length. The default length is
+ * the launcher's choice.
+ *
+ * ## The chronotype → window contract
+ *
+ * Setting a [Chronotype] (from onboarding or settings) writes the
+ * chronotype *and* — if and only if the user has not already picked
+ * their own window — overwrites the default window to that
+ * chronotype's [Chronotype.defaultWindow]. The guard exists so
+ * picking a chronotype six months in does not silently undo a
+ * 21:30 the user once set by hand. [setWindow] flips a "user has
+ * customised" flag, and [setChronotype] only writes the window when
+ * the flag is still off.
  */
 class SunsetPrefs(private val context: Context) {
 
@@ -52,6 +91,16 @@ class SunsetPrefs(private val context: Context) {
     private val startKey = intPreferencesKey("sunset_start_minute")
     private val endKey = intPreferencesKey("sunset_end_minute")
 
+    /**
+     * Flipped the first time the user changes a window by hand. Lets
+     * [setChronotype] tell the difference between "no window yet, so
+     * use the chronotype's default" and "user picked 21:30 themselves
+     * last March, do not stomp on it."
+     */
+    private val windowCustomizedKey = booleanPreferencesKey("sunset_window_customized")
+
+    private val chronotypeKey = stringPreferencesKey("sunset_chronotype")
+
     val enabled: Flow<Boolean> = context.dataStore.data.map { it[enabledKey] ?: false }
 
     suspend fun isEnabled(): Boolean = context.dataStore.data.first()[enabledKey] ?: false
@@ -68,6 +117,53 @@ class SunsetPrefs(private val context: Context) {
 
     suspend fun setEnabled(value: Boolean) {
         context.dataStore.edit { it[enabledKey] = value }
+    }
+
+    /**
+     * The user's chronotype, or [Chronotype.UNKNOWN] before the
+     * onboarding question has been answered.
+     *
+     * Unknown names (a future version adding a case, a corrupted
+     * preference) are dropped to [Chronotype.UNKNOWN] rather than
+     * throwing, so a stored value the launcher no longer recognises
+     * degrades to "ask again" instead of crashing the home screen.
+     */
+    val chronotype: Flow<Chronotype> = context.dataStore.data.map { prefs ->
+        prefs[chronotypeKey]?.let { name ->
+            runCatching { Chronotype.valueOf(name) }.getOrNull()
+        } ?: Chronotype.UNKNOWN
+    }
+
+    suspend fun currentChronotype(): Chronotype = chronotype.first()
+
+    /**
+     * Whether the user has ever written their own window. False on
+     * first run, true from the first call to [setWindow]. Used by
+     * [setChronotype] to decide whether the chronotype should also
+     * overwrite the window.
+     */
+    val isWindowCustomized: Flow<Boolean> =
+        context.dataStore.data.map { it[windowCustomizedKey] ?: false }
+
+    /**
+     * Sets the chronotype, and — only if the user has not already
+     * picked a window — overwrites the window to the chronotype's
+     * [Chronotype.defaultWindow]. The guard matters: a user who set
+     * 21:30 six months ago, and is now picking a chronotype to
+     * answer a different question, would not expect their bedtime
+     * to move.
+     */
+    suspend fun setChronotype(chronotype: Chronotype) {
+        context.dataStore.edit { prefs ->
+            prefs[chronotypeKey] = chronotype.name
+            val customized = prefs[windowCustomizedKey] ?: false
+            val newWindow = newWindowFor(chronotype, customized)
+            if (newWindow != null) {
+                val (start, end) = newWindow
+                prefs[startKey] = start.hour * 60 + start.minute
+                prefs[endKey] = end.hour * 60 + end.minute
+            }
+        }
     }
 
     val startTime: Flow<LocalTime> =
@@ -92,12 +188,18 @@ class SunsetPrefs(private val context: Context) {
      * Stores a new window. A window whose ends are equal is refused rather
      * than stored, because it reads as "all day" and behaves as "never",
      * and the person would have no way to tell which they had asked for.
+     *
+     * Sets the customised flag so a later chronotype change does not
+     * overwrite the user's choice. The flag is sticky on purpose: there
+     * is no scenario where the user wants their hand-set window to be
+     * silently replaced by a chronotype default.
      */
     suspend fun setWindow(start: LocalTime, end: LocalTime): Boolean {
         if (!isValidWindow(start, end)) return false
         context.dataStore.edit {
             it[startKey] = start.hour * 60 + start.minute
             it[endKey] = end.hour * 60 + end.minute
+            it[windowCustomizedKey] = true
         }
         return true
     }
@@ -119,6 +221,20 @@ class SunsetPrefs(private val context: Context) {
             }
 
         fun isValidWindow(start: LocalTime, end: LocalTime): Boolean = start != end
+
+        /**
+         * The window [setChronotype] should write, or null when the
+         * existing window is the user's own and must be left alone.
+         *
+         * Pure function so the customised-window guard is testable
+         * without a DataStore: the DataStore side-effect in
+         * [setChronotype] is the only thing that needs Android.
+         */
+        fun newWindowFor(
+            chronotype: Chronotype,
+            isWindowCustomized: Boolean,
+        ): Pair<LocalTime, LocalTime>? =
+            if (isWindowCustomized) null else chronotype.defaultWindow()
 
         /**
          * Whether [now] falls inside a window running [start] → [end],

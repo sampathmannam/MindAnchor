@@ -6,10 +6,25 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import org.mindanchor.corpus.Passage
 
 private val Context.dataStore by preferencesDataStore(name = "report")
+
+/**
+ * The user's one-tap answer to "did last night's report help?" (v0.25.5,
+ * Linardon 2024). The single-token shape is deliberate: a survey
+ * captures nothing. Two buttons, one choice, the answer is the data.
+ */
+enum class ReportFeedback {
+    /** The user said the report was useful. */
+    HELPED,
+
+    /** The user said the report was not useful. */
+    DIDNT_HELP,
+}
 
 /**
  * A stored [Report] together with the paragraph, if any, a
@@ -290,6 +305,8 @@ class ReportStore(private val context: Context) {
     private val enabledKey = booleanPreferencesKey("report_enabled")
     private val reportKey = stringPreferencesKey("latest_report")
     private val generatedDayKey = stringPreferencesKey("report_generated_day")
+    private val feedbackValueKey = stringPreferencesKey("report_feedback_value")
+    private val feedbackForDayKey = stringPreferencesKey("report_feedback_for_day")
 
     /** Off until asked for, like everything else in this app. */
     val enabled: Flow<Boolean> = context.dataStore.data.map { it[enabledKey] ?: false }
@@ -318,6 +335,44 @@ class ReportStore(private val context: Context) {
      * very different things to tell somebody.
      */
     val generatedDay: Flow<String?> = context.dataStore.data.map { it[generatedDayKey] }
+
+    /**
+     * The user's one-tap answer to "did the report help?" for the
+     * *current* report (the [generatedDay] that the screen is showing).
+     * Returns null when:
+     *
+     *  - the user has not rated the current report, or
+     *  - the user rated an *earlier* report and the screen is now
+     *    showing a newer one.
+     *
+     * The second case is what makes the rating "reset" when a new
+     * night produces a new report: the row reappears because the
+     * stored answer is for a day that is no longer on screen.
+     */
+    val feedback: Flow<ReportFeedback?> = combine(
+        context.dataStore.data.map { it[feedbackValueKey] },
+        context.dataStore.data.map { it[feedbackForDayKey] },
+        context.dataStore.data.map { it[generatedDayKey] },
+    ) { value, forDay, currentDay ->
+        if (value == null || forDay == null || currentDay == null) null
+        else if (forDay != currentDay) null
+        else runCatching { ReportFeedback.valueOf(value) }.getOrNull()
+    }
+
+    /**
+     * Records the user's one-tap answer for the report currently on
+     * screen. The [forDay] is taken from the current [generatedDay];
+     * if no report is on screen yet, the call is a no-op (the user
+     * cannot rate a report that does not exist).
+     */
+    suspend fun recordFeedback(value: ReportFeedback) {
+        val currentDay = context.dataStore.data.map { it[generatedDayKey] }.first()
+            ?: return
+        context.dataStore.edit { prefs ->
+            prefs[feedbackValueKey] = value.name
+            prefs[feedbackForDayKey] = currentDay
+        }
+    }
 
     private val coverageKey = stringPreferencesKey("coverage")
 

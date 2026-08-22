@@ -2,6 +2,7 @@ package org.mindanchor.settings
 
 import android.app.Application
 import android.app.NotificationManager
+import android.content.Context
 import android.net.Uri
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.AndroidViewModel
@@ -19,10 +20,16 @@ import kotlinx.coroutines.launch
 import org.mindanchor.corpus.CorpusImport
 import org.mindanchor.corpus.CorpusStore
 import org.mindanchor.data.AppearancePrefs
+import org.mindanchor.letters.Letter
+import org.mindanchor.letters.LetterStore
+import org.mindanchor.letters.LetterWriter
+import org.mindanchor.letters.WeekDataCollector
 import org.mindanchor.narrate.ModelSlot
 import org.mindanchor.narrate.ModelStore
 import org.mindanchor.data.NotificationPrefs
 import org.mindanchor.data.SunsetPrefs
+import org.mindanchor.reader.ReaderPrefs
+import org.mindanchor.reader.ReadingSize
 import org.mindanchor.ui.NatureScene
 import org.mindanchor.notifications.BatchAlarms
 import org.mindanchor.notifications.BatchSchedule
@@ -34,6 +41,8 @@ import org.mindanchor.report.ReportScheduler
 import org.mindanchor.sleep.Deviation
 import org.mindanchor.sleep.SleepRepository
 import org.mindanchor.sleep.SleepSummary
+import org.mindanchor.sleep.SleepWindowOptimizer
+import org.mindanchor.sunset.Chronotype
 import org.mindanchor.sunset.SunsetController
 import org.mindanchor.vitals.DailyVitals
 import org.mindanchor.vitals.HealthConnectSource
@@ -52,6 +61,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val appearancePrefs = AppearancePrefs(application)
     private val onboardingPrefs = org.mindanchor.onboarding.OnboardingPrefs(application)
     private val reportStore = ReportStore(application)
+    private val backupPrefs = org.mindanchor.backup.BackupPrefs(application)
+    // v0.26.0
+    private val bpdProfilePrefs = org.mindanchor.data.BpdProfilePrefs(application)
 
     /**
      * What the person said they were struggling with, at onboarding or
@@ -270,6 +282,28 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    /**
+     * The user's chronotype, or [Chronotype.UNKNOWN] before the
+     * onboarding question has been answered. Surfaced in settings so
+     * the answer can be edited without re-running onboarding.
+     *
+     * Drives the default quiet-hours window: a new answer overwrites
+     * the window unless the user has already picked one of their own
+     * (see [SunsetPrefs.setChronotype]). The auto-update is the whole
+     * point of the question.
+     */
+    val chronotype = sunsetPrefs.chronotype
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Chronotype.UNKNOWN)
+
+    fun setChronotype(chronotype: Chronotype) {
+        viewModelScope.launch {
+            sunsetPrefs.setChronotype(chronotype)
+            if (sunsetPrefs.isEnabled()) {
+                SunsetController.ensureScheduled(getApplication())
+            }
+        }
+    }
+
     // --- Sleep rhythm ---
 
     private val sleepState = MutableStateFlow<SleepSummary?>(null)
@@ -327,6 +361,37 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    /**
+     * A wind-down window suggested from the user's own recent sleep
+     * onsets, or null when there is not enough data to suggest
+     * anything.
+     *
+     * Built on the regularity-not-duration finding (Windred et al.
+     * 2024, *SLEEP* 47(1):zsad285). The suggestion is opt-in: the
+     * settings panel renders it as a one-line "your nights cluster
+     * around X" with a single button to apply it. Nothing is set
+     * automatically.
+     */
+    val sleepSuggestion: StateFlow<SleepWindowOptimizer.Suggestion?> =
+        sleepState.map { summary ->
+            summary?.let {
+                SleepWindowOptimizer.suggest(it.windows, java.time.ZoneId.systemDefault())
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /**
+     * Applies the optimizer's suggested window. Sets the customised
+     * flag, so a later chronotype change will not stomp on it.
+     */
+    fun applySleepSuggestion(suggestion: SleepWindowOptimizer.Suggestion) {
+        viewModelScope.launch {
+            sunsetPrefs.setWindow(suggestion.startTime, suggestion.endTime)
+            if (sunsetPrefs.isEnabled()) {
+                SunsetController.ensureScheduled(getApplication())
+            }
+        }
+    }
+
     // --- Home-screen appearance ---
 
     val natureScene = appearancePrefs.scene
@@ -335,6 +400,22 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setNatureScene(scene: NatureScene) {
         viewModelScope.launch { appearancePrefs.setScene(scene) }
     }
+
+    // v0.40.0: opt-in soft tone at every 4-7-8 phase transition.
+    val breathToneEnabled = appearancePrefs.breathToneEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setBreathToneEnabled(enabled: Boolean) {
+        viewModelScope.launch { appearancePrefs.setBreathToneEnabled(enabled) }
+    }
+
+    // v0.62.1: [needsGridVisible] + [setNeedsGridVisible]
+    // were removed because the v0.43.0 home strip
+    // deleted the actual needs grid. The
+    // [AppearancePrefs.setNeedsGridVisible] / [appearancePrefs.needsGridVisible]
+    // accessors are kept so a v0.62.0 user who
+    // flipped the toggle and upgrades to v0.62.1
+    // still has their saved value on disk.
 
     // --- Check-ins (EMA) ---
 
@@ -355,6 +436,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             // EmaScheduler.ensureScheduled.
             org.mindanchor.model.EmaScheduler.ensureScheduled(getApplication())
         }
+    }
+
+    // --- v0.26.0 ---
+    val bpdProfile: StateFlow<org.mindanchor.data.BpdProfile> = bpdProfilePrefs.profile
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), org.mindanchor.data.BpdProfile())
+    fun setBpdProfile(profile: org.mindanchor.data.BpdProfile) {
+        viewModelScope.launch { bpdProfilePrefs.update(profile) }
     }
 
     // --- Last night's look (nightly report) ---
@@ -570,6 +658,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             val context = getApplication<Application>()
             _modelPresent.value = ModelStore.hasModel(context)
             _modelFit.value = ModelStore.fit(context)
+            // Keep the new boolean StateFlow in sync with the
+            // detailed fit enum, so a UI consuming [modelFits] sees
+            // the same answer the model card does — both are read
+            // off the same model file on the same disk.
+            ModelStore.refreshFit(context)
         }
     }
 
@@ -588,6 +681,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             _modelImportFailed.value = !imported
             _modelPresent.value = ModelStore.hasModel(context)
             _modelFit.value = ModelStore.fit(context)
+            ModelStore.refreshFit(context)
         }
     }
 
@@ -599,6 +693,199 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             _modelImportFailed.value = false
             _modelPresent.value = ModelStore.hasModel(context)
             _modelFit.value = ModelStore.fit(context)
+            ModelStore.refreshFit(context)
+        }
+    }
+
+    // --- Letters (the v0.25.2 morning letter) ---
+    //
+    // The fields here drive both the letter inbox (Task 6) and the
+    // future Reading sub-section of the settings screen (Task 10).
+    // They default to safe values so the screen renders even before
+    // the first refresh completes: modelFits is "no, the model is
+    // not on file yet", letterRunning is "no generation in flight",
+    // and the size / count / enabled flags come from DataStore
+    // flows that emit their persisted value the moment they are
+    // collected.
+
+    private val letterStore = LetterStore(application)
+
+    private val readerPrefs = ReaderPrefs(application)
+
+    /**
+     * Whether the model on file would actually run on this phone,
+     * exposed as a plain [Boolean] for the letter inbox's
+     * "Generate now" enablement and the empty-state copy.
+     *
+     * Backed by the same probe as [modelFit], just rephrased — see
+     * [ModelStore.fitFlow] for why the StateFlow is held on the
+     * store rather than re-asked on every recomposition.
+     */
+    val modelFits: StateFlow<Boolean> = ModelStore.fitFlow()
+
+    private val _letterRunning = MutableStateFlow(false)
+
+    /**
+     * True while a "Generate now" letter is in flight. Flipped back
+     * to false in a [finally], so a generation that throws still
+     * leaves the UI re-enabled. Mirrors the
+     * [org.mindanchor.report.ReportScheduler] `runReportNow` shape
+     * that this view model already uses for the nightly report.
+     */
+    val letterRunning: StateFlow<Boolean> = _letterRunning.asStateFlow()
+
+    /**
+     * The number of letters the user has not yet opened. v0.25.3-WP-C:
+     * derived from the real per-letter [LetterStore.readDates] set
+     * (replaces the v0.25.2 install-date stand-in). The [combine]
+     * flow re-emits whenever either side changes — a new letter is
+     * generated, or the user opens a letter — so the Settings
+     * "Open inbox (N)" badge decrements the moment a row is tapped.
+     * Empty `readDates` means a fresh install with no letters
+     * opened, and the count then equals the total letter count.
+     */
+    val unreadLetterCount: StateFlow<Int> = combine(
+        letterStore.letters,
+        letterStore.readDates,
+    ) { letters, readDates ->
+        letters.count { it.date !in readDates }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
+    /**
+     * The user's chosen letter-reading text size, in sp.
+     *
+     * The consumer does the [StateFlow] conversion via [stateIn] so
+     * the source of truth can stay a plain [kotlinx.coroutines.flow.Flow]
+     * (Task 13's `ReaderPrefs` widens the read-side to a `Flow` to
+     * cover the `DataStore` and SCALE-list paths). The initial value
+     * is [ReadingSize.MEDIUM] — the same default [ReaderPrefs] falls
+     * back to when no value has been persisted yet, so a user who
+     * opens the screen before [ReaderPrefs] has emitted does not see
+     * a value jump. [SharingStarted.Eagerly] matches the pattern
+     * used by [unreadLetterCount] above: the upstream is a tiny
+     * SharedPreferences read, the value is needed as soon as the
+     * settings screen binds, and the cost of holding the latest
+     * emission is one `ReadingSize` reference.
+     */
+    val letterSize: StateFlow<ReadingSize> = readerPrefs.size
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ReadingSize.MEDIUM)
+
+    /**
+     * The hour-of-day the user chose to receive the daily letter,
+     * exposed as a [StateFlow] so the Reading sub-section can render
+     * the current value and survive recomposition without re-reading
+     * the DataStore.
+     *
+     * Backed by [LetterStore.time] — same flow as the
+     * [org.mindanchor.letters.LetterScheduler] reads. Initial value is
+     * 08:00 (the spec's default — see [LetterStore]); a user who
+     * opens the settings screen before the first DataStore emission
+     * sees the default rather than a value jump, same posture as
+     * [letterSize] above. [SharingStarted.Eagerly] matches the
+     * pattern used by [unreadLetterCount] and [letterSize] because
+     * the upstream is a small DataStore read and the value is needed
+     * as soon as the settings screen binds.
+     */
+    val lettersTime: StateFlow<Pair<Int, Int>> = letterStore.time
+        .stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            LetterStore.DEFAULT_HOUR to LetterStore.DEFAULT_MINUTE,
+        )
+
+    /**
+     * Whether the user has switched the daily letter on.
+     *
+     * The toggle on the Reading sub-section binds to this; the
+     * [org.mindanchor.letters.LetterScheduler] reads the same
+     * [LetterStore.enabled] source. Initial value is `false` — the
+     * spec is "off by default; opt-in" — and matches the default
+     * [LetterStore] falls back to when no value has been persisted
+     * yet, so a user who opens the screen before the first
+     * DataStore emission does not see a value jump.
+     * [SharingStarted.Eagerly] matches the pattern used by
+     * [unreadLetterCount], [letterSize], and [lettersTime] above.
+     */
+    val lettersEnabled: StateFlow<Boolean> = letterStore.enabled
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    /** Pass-through to [LetterStore.setEnabled]. */
+    fun setLettersEnabled(enabled: Boolean) {
+        viewModelScope.launch { letterStore.setEnabled(enabled) }
+    }
+
+    /** Pass-through to [LetterStore.setTime]. */
+    fun setLettersTime(hour: Int, minute: Int) {
+        viewModelScope.launch { letterStore.setTime(hour, minute) }
+    }
+
+    /** Pass-through to [ReaderPrefs.setSize]. */
+    fun setLetterSize(size: ReadingSize) {
+        viewModelScope.launch { readerPrefs.setSize(size) }
+    }
+
+    /**
+     * v0.25.4: per-type auto-sync toggles for the
+     * Google Drive backup. The Settings sub-section
+     * binds to these flows; the WP-D scheduler
+     * reads the same [BackupPrefs] to decide
+     * whether to fire on a new note / letter.
+     *
+     * The toggles are independent of the sign-in
+     * state: a user can sign in with Google but
+     * leave both toggles off (no auto-sync), or
+     * flip a toggle before signing in (the sign-in
+     * prompt fires when the first auto-sync
+     * attempt finds no account). The default is
+     * `false` on both — the v0.23.0
+     * "off by default; opt-in" design that the
+     * v0.25.4 plan explicitly extends.
+     */
+    val autoSyncNotes: StateFlow<Boolean> = backupPrefs.autoSyncNotes
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    val autoSyncLetters: StateFlow<Boolean> = backupPrefs.autoSyncLetters
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    fun setAutoSyncNotes(enabled: Boolean) {
+        viewModelScope.launch { backupPrefs.setAutoSyncNotes(enabled) }
+    }
+
+    fun setAutoSyncLetters(enabled: Boolean) {
+        viewModelScope.launch { backupPrefs.setAutoSyncLetters(enabled) }
+    }
+
+    /**
+     * Generates a letter on demand, using the same call shape as
+     * the daily alarm ([org.mindanchor.letters.LetterScheduler.onFire])
+     * but without the notification post and the re-arm.
+     *
+     * The notification belongs to the alarm — a person who pressed
+     * "Generate now" is already looking at the result on the
+     * settings screen, and a duplicate notification for the same
+     * letter is the kind of small noise that trains people to
+     * ignore the channel. The re-arm is also a no-op: the alarm is
+     * already held by [org.mindanchor.letters.LetterScheduler] at
+     * the user's chosen time, and re-arming it on every manual
+     * generation would only move the trigger by the time the
+     * function takes to return.
+     *
+     * Never throws. A missing model, a sparse week, a generation
+     * the safety filter rejects — all of those are a quiet
+     * "nothing today", same as the daily alarm.
+     */
+    fun runLetterNow() {
+        viewModelScope.launch(Dispatchers.IO) {
+            _letterRunning.value = true
+            try {
+                runCatching {
+                    val week = WeekDataCollector(getApplication()).collectLastWeek()
+                    val writer = LetterWriter(getApplication())
+                    val body = writer.write(week) ?: return@runCatching
+                    letterStore.save(Letter(date = LocalDate.now(), body = body))
+                }
+            } finally {
+                _letterRunning.value = false
+            }
         }
     }
 

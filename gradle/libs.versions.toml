@@ -14,6 +14,14 @@ cameraX = "1.4.1"
 concurrentFutures = "1.2.0"
 listenableFuture = "1.0"
 junit = "4.13.2"
+# Robolectric is the JVM test runner that provides real Android
+# Contexts (and the DataStore / SharedPreferences plumbing) for
+# the ReaderPrefs round-trip test. Without it, the round-trip test
+# would have to be an androidTest (instrumentation, slow, requires
+# a device). 4.13 is the last release in the 4.x line that supports
+# compileSdk 36 cleanly with AGP 8.9.x; the project's CI runner
+# uses JDK 17 (matches Robolectric 4.13's baseline).
+robolectric = "4.13"
 # MockWebServer is the OkHttp project's test fixture: a
 # real HTTP server bound to localhost that records requests
 # and returns scripted responses. v0.20.7's CorosApiTest
@@ -34,6 +42,13 @@ okhttp = "4.12.0"
 # is the smallest, audit-friendly surface for that.
 securityCrypto = "1.1.0-alpha06"
 work = "2.9.1"
+# Google Sign-In is the OAuth entry point for v0.25.4's Google
+# Drive backup path. We use it for the per-file `drive.file`
+# scope; `play-services-drive` is NOT pulled in (1.2 MB AAR for
+# an API that fits in 50 lines of OkHttp). 21.2.0 is the
+# stable build that ships with AGP 8.9.x; later minors add
+# passkey flows we don't need.
+playServicesAuth = "21.2.0"
 # detekt 1.23.8 is the last 1.x line release; built against
 # Kotlin 2.0.21 (matches this project) and AGP 8.8.x (the
 # project's 8.7.3 is one minor behind, which the detekt
@@ -54,6 +69,7 @@ androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = 
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
 compose-ui = { group = "androidx.compose.ui", name = "ui" }
+compose-ui-text-google-fonts = { group = "androidx.compose.ui", name = "ui-text-google-fonts" }
 compose-foundation = { group = "androidx.compose.foundation", name = "foundation" }
 compose-material3 = { group = "androidx.compose.material3", name = "material3" }
 compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
@@ -71,8 +87,10 @@ androidx-room-testing = { group = "androidx.room", name = "room-testing", versio
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 okhttp-mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver", version.ref = "mockwebserver" }
 mockito-core = { group = "org.mockito", name = "mockito-core", version.ref = "mockito" }
+robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
 androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
+play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "playServicesAuth" }
 compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }

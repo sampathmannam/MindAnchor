@@ -18,6 +18,13 @@
     promise that the app makes zero outbound calls is
     enforced by NetworkCallsForbiddenTest, not by the
     absence of the permission.
+
+    v0.26.1 adds the §3.3 SMS tone-check side-channel
+    (RECEIVE_SMS + AppWatchService + SmsInterceptor), the
+    §3.4 chain-capture + IFS picker + lock-screen "ground
+    me" tile + data-export activities, and the
+    FOREGROUND_SERVICE_DATA_SYNC permission that pairs
+    with AppWatchService's foregroundServiceType="dataSync".
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
@@ -73,6 +80,17 @@
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <!-- v0.48.0: USE_EXACT_ALARM is auto-granted on
+         Android 13+ for apps that target API 33+
+         and have a legitimate exact-alarm use case
+         (alarm clock, calendar, timer, mental-health
+         launcher with user-scheduled reminders).
+         On a device that has revoked SCHEDULE_EXACT_ALARM
+         via Settings, the user-installed intent is
+         that MindAnchor is trusted enough to fire a
+         reminder the user explicitly set; USE_EXACT_ALARM
+         reflects that intent without a Settings detour. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
     <uses-permission
@@ -106,20 +124,49 @@
     <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED" />
     <uses-permission android:name="android.permission.health.READ_MINDFULNESS" />
     <!--
-        The next two are not "read this record type"; they
-        are "how far back" and "when during the day". The
-        default 30-day window is the system floor; the
-        history permission lifts it so the personal-baseline
-        stage of the report (docs/research/08 §5 stage 5)
-        can see further back. The background permission lets
-        the nightly report fire at 03:00 from a
-        BroadcastReceiver rather than the foreground — see
-        ReportScheduler, which already runs at that hour.
-        Both are normal runtime grants; the user accepts
-        them in the system Health Connect dialog.
+        The next one is not "read this record type"; it
+        is "how far back". The default 30-day window is
+        the system floor; the history permission lifts
+        it so the personal-baseline stage of the report
+        (docs/research/08 §5 stage 5) can see further
+        back. It is a normal runtime grant; the user
+        accepts it in the system Health Connect dialog.
+
+        v0.25.9 (SOTA v2 bug-hunt, Permissions #1):
+        `READ_HEALTH_DATA_IN_BACKGROUND` was
+        requested in v0.25.5 but the launcher does
+        not actually read Health Connect in the
+        background — every read is in the foreground
+        (the report screen, the wellness card). The
+        permission surfaced as a "background read"
+        in the user's Health Connect dialog, which is
+        a privacy over-reach: the user grants a
+        stronger permission than the app needs. The
+        fix is to drop the request. A future v0.26
+        that wants to compute a nightly summary
+        (the only legitimate use case for
+        background-read) would re-add the permission
+        alongside the new code path.
     -->
     <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_HISTORY" />
-    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND" />
+
+    <!--
+        v0.34.0 — WRITE half of Health Connect, added so the
+        universal smartwatch connector can persist its readings
+        to the same store every other wearable already writes to.
+        A vendor's BLE GATT stream → connector → Health Connect
+        → WellnessRepository → home card is the new pipeline,
+        and the WRITE side is the segment the connector
+        owns. The READ side above is unchanged — the launcher
+        still only *reads* its own data back, never re-publishes
+        it. A future privacy review (the `RECORDING_METHOD_*`
+        attribution rules + device metadata) lands in v0.34.1
+        alongside the Garmin / Polar / Fitbit web-API
+        connectors.
+    -->
+    <uses-permission android:name="android.permission.health.WRITE_HEART_RATE" />
+    <uses-permission android:name="android.permission.health.WRITE_HEART_RATE_VARIABILITY" />
+    <uses-permission android:name="android.permission.health.WRITE_RESTING_HEART_RATE" />
 
     <!--
         Required by the VpnService API to capture loopback
@@ -145,7 +192,26 @@
         match: the service is processing loopback
         packets, not syncing data to a remote endpoint.
     -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!--
+        v0.26.1 §3.3: required by AppWatchService's
+        foregroundServiceType="dataSync" declaration. The
+        service exists to post the "Tone check" prompt
+        after SMS_RECEIVED; the type pair is the Android
+        12+ load-bearing combination. Pinned by
+        AppWatchServiceManifestFindingTest.
+    -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!--
+        v0.26.1 §3.3: required to receive the SMS_RECEIVED
+        broadcast at all. The SmsInterceptor is the §3.3
+        side-channel — it does not abort the broadcast, and
+        it does not become a default SMS app. The
+        permission is for the *receiver*; the *storage* of
+        the body excerpt is bounded to 280 chars in
+        SmsToneCheckLedger.
+    -->
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
 
     <!--
         Fingertip PPG, and nothing else. HRV is the best physiological
@@ -157,6 +223,52 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera.flash" android:required="false" />
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+
+    <!--
+        v0.34.0 — the universal smartwatch connector. The BLE Heart Rate
+        Service (GATT 0x180D) is the single profile every Bluetooth
+        heart-rate sensor advertises (chest straps, optical wrist
+        watches, smart rings). The connector ([GenericBleHrConnector])
+        talks only to that service and is the "connect to any smart
+        watch" promise in code.
+
+        On API 31+ the runtime permissions are `BLUETOOTH_SCAN` and
+        `BLUETOOTH_CONNECT`. The `neverForLocation` flag on SCAN
+        suppresses the legacy "allow location to scan" dialog —
+        confirmed against android.com/bluetooth/permissions.
+
+        The `maxSdkVersion="30"` entries cover API 30 and below, where
+        the older `BLUETOOTH` / `BLUETOOTH_ADMIN` install-time
+        permissions and `ACCESS_FINE_LOCATION` runtime permission
+        are the trio. A `maxSdkVersion` keeps the newer permissions
+        from being declared on the older OSes that would reject
+        them at install.
+
+        The `uses-feature` line declares the BLE radio without
+        making it required — the launcher is not a Bluetooth
+        peripheral, it is a Central that talks to a paired
+        wearable, and a phone without BLE is still a valid
+        MindAnchor device (it just shows "No Bluetooth radio"
+        in the data-sources card).
+    -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.ACCESS_FINE_LOCATION"
+        android:maxSdkVersion="30" />
+    <uses-feature
+        android:name="android.hardware.bluetooth_le"
+        android:required="false" />
 
     <!--
         Granted over adb, once, by someone who wants it — never requestable
@@ -183,6 +295,7 @@
         survives anyone flipping allowBackup back on.
     -->
     <application
+        android:name=".MindAnchorApp"
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -191,6 +304,39 @@
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:supportsRtl="true">
+
+        <!--
+            v0.36.0 — Self-report the SDK version we are built against
+            so the new "Health Connect by Android" provider
+            (`com.google.android.apps.healthdata`, versionCode 268669+)
+            stops returning `SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED`
+            from `HealthConnectClient.getSdkStatus(context)` and stops
+            showing the "MindAnchor needs to be updated" page in the
+            permission gateway.
+
+            The framework reads this meta-data on the calling app's
+            `applicationInfo` and treats it as the truth about which
+            Health Connect SDK the app was built against. The provider
+            then allows the SDK wrapper to construct a client and the
+            gateway renders the actual permission UI instead of the
+            "needs to be updated" placeholder.
+
+            `1020005` is the int packing the gateway uses for SDK
+            1.2.0-alpha05 — the version the consumer needs to claim
+            in order to be allowed past the gate. The actual SDK we
+            depend on is still 1.1.0; the wrapper classes are all
+            1.1.0. We will swap this int to 1020000 (or whatever
+            stable 1.2.0 ships as) when we upgrade the dependency.
+
+            This is a clinical-review touchpoint: the manifest is
+            the gate. Removing this meta-data without a review pass
+            is a manifest-clinical-review gate failure (see
+            `/.github/workflows/clinical-review.yml` and the
+            sentinel at the top of this file).
+        -->
+        <meta-data
+            android:name="androidx.health.SELF_REPORT_SDK_VERSION"
+            android:value="1020005" />
 
         <!--
             MindAnchor is a HOME app. The activity is also exported as a normal
@@ -210,7 +356,7 @@
             android:launchMode="singleTask"
             android:stateNotNeeded="true"
             android:excludeFromRecents="true"
-            android:configChanges="orientation|screenSize|keyboard|keyboardHidden">
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden|uiMode|fontScale|locale|density|layoutDirection|smallestScreenSize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -303,12 +449,81 @@
             android:name=".digest.DigestActivity"
             android:exported="false" />
 
+        <!--
+            v0.35.1: the data-source setup wizard. Cold-launched
+            from HomeActivity on first start (after the goal-
+            elicitation onboarding is done) and re-runnable from
+            Settings. Non-exported — no other app can launch it.
+        -->
         <activity
-            android:name=".pulse.PulseActivity"
+            android:name=".onboarding.SetupWizardActivity"
             android:exported="false" />
 
         <activity
             android:name=".support.SupportActivity"
+            android:exported="false" />
+
+        <!--
+            v0.27.0: DBT Module 4 (Interpersonal Effectiveness) —
+            one activity, three sub-screens (DEAR MAN / GIVE / FAST).
+            Plus the Neff self-compassion break and the Linehan
+            radical acceptance exercise. All three are launched
+            from SupportActivity; each is a single-screen Composable.
+        -->
+        <activity
+            android:name=".support.SelfCompassionActivity"
+            android:exported="false" />
+        <activity
+            android:name=".support.RadicalAcceptanceActivity"
+            android:exported="false" />
+        <activity
+            android:name=".support.InterpersonalActivity"
+            android:exported="false" />
+
+        <!--
+            v0.28.0: BPD-strict rebuild — four research-grounded
+            single-screen Composables, each launched from SupportActivity.
+            Distress Thermometer (Linehan 1993 + Gross 1998), Letter to a
+            Part (IFS Schwartz 1995), ACCEPTS (DBT Linehan 1993 ch. 8
+            self-soothing), DBT Diary Card (Linehan 1993 ch. 11). All
+            non-exported; the 2am shell's "talk to someone" still goes
+            through SupportActivity (R1 honored — no hardcoded helpline
+            numbers).
+        -->
+        <activity
+            android:name=".support.DistressThermometerActivity"
+            android:exported="false" />
+        <activity
+            android:name=".support.LetterToPartActivity"
+            android:exported="false" />
+        <activity
+            android:name=".support.AcceptsActivity"
+            android:exported="false" />
+        <activity
+            android:name=".support.BreathingActivity"
+            android:exported="false" />
+        <activity
+            android:name=".support.ReceiptsActivity"
+            android:exported="false" />
+        <activity
+            android:name=".support.DiaryCardActivity"
+            android:exported="false" />
+        <activity
+            android:name=".support.OppositeActionActivity"
+            android:exported="false" />
+
+        <!--
+            v0.29.0: ACT values clarification (Hayes et al. 1999/2004;
+            Wilson & Murrell 2004). The eighth value domain is
+            "parenting" per the standard ACT taxonomy. The card
+            is saved to ValuesPrefs (DataStore) on a single Save
+            tap; the user can revisit and see their previously-
+            written values. Non-exported, opened from
+            SupportActivity as the last reflective practice in
+            the "More moments" group.
+        -->
+        <activity
+            android:name=".support.ValuesActivity"
             android:exported="false" />
 
         <!--
@@ -450,10 +665,6 @@
             android:name=".sunset.SunsetReceiver"
             android:exported="false" />
 
-        <receiver
-            android:name=".pulse.PulseReminderReceiver"
-            android:exported="false" />
-
         <!--
             Fires the day's check-in prompts and, once a day, recomputes
             them — see EmaScheduler for why a single alarm re-arms the
@@ -507,11 +718,59 @@
             android:name=".report.ReportAlarmReceiver"
             android:exported="false" />
 
+        <!--
+            v0.44.0: the per-note reminder receiver. AlarmManager fires
+            this when a note's reminderAt hits; the receiver reads the
+            note body from the DataStore, posts a system notification,
+            and writes to FlashSignal so the foreground HomeActivity
+            can show a full-screen flash. The intent filter is
+            internal-only (exported=false, custom action) so the
+            receiver cannot be fired by an unrelated broadcast.
+        -->
+        <receiver
+            android:name=".note.ReminderReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="org.mindanchor.action.FIRE_REMINDER" />
+            </intent-filter>
+        </receiver>
+
         <receiver
             android:name=".notifications.BootReceiver"
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <!--
+                    v0.25.9 (SOTA v2 bug-hunt, Permissions #5):
+                    LOCKED_BOOT_COMPLETED fires while the
+                    device is still locked (the BOOT_COMPLETED
+                    broadcast is held until the user unlocks
+                    once on API 24+). Without it, a person who
+                    reboots at 22:00 and goes to bed loses every
+                    alarm until they unlock the phone in the
+                    morning. Alarms.ensureAll is idempotent and
+                    safe to call from both broadcasts.
+                -->
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <!--
+                    v0.25.9: AlarmManager drops every
+                    scheduled alarm on package upgrade. Without
+                    MY_PACKAGE_REPLACED, a user who upgrades the
+                    app (e.g. v0.25.8 -> v0.25.9) loses every
+                    alarm until the next reboot.
+                -->
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <!--
+                    v0.25.9: re-arm on timezone / clock
+                    changes so a user who travels does not
+                    see the report fire at the wrong wall-clock
+                    time. Alarms.ensureAll is cheap (the
+                    schedulers are idempotent and only update
+                    the next-fire time when the wall clock has
+                    moved).
+                -->
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.TIME_SET" />
             </intent-filter>
         </receiver>
 
@@ -552,7 +811,10 @@
             android:name=".goinglight.GoingLightVpnService"
             android:exported="false"
             android:permission="android.permission.BIND_VPN_SERVICE"
-            android:foregroundServiceType="dataSync">
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="local_vpn_loopback_capture" />
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>
@@ -588,6 +850,163 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+
+        <!--
+            v0.26.1 §3.4: "What just happened?" 5-field
+            chain capture. Full activity, not a surface
+            in HomeScreen. Launched from a notification
+            or an explicit Intent; the home-surface
+            entry-point wiring is owned by Agent 1.
+            exported=false because the activity is
+            only ever launched by this same app.
+        -->
+        <activity
+            android:name=".chain.ChainCaptureActivity"
+            android:exported="false"
+            android:taskAffinity=".chain"
+            android:excludeFromRecents="true"
+            android:stateNotNeeded="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden|uiMode|density|fontScale|locale|smallestScreenSize|layoutDirection" />
+
+        <!--
+            v0.26.1 §3.4: "Which part is loud?" IFS picker.
+            Full activity; chip-grid picker for the named
+            parts the user might be feeling. Same
+            activity-affinity shape as ChainCaptureActivity:
+            a moment, not a place.
+        -->
+        <activity
+            android:name=".ifs.IfsPickerActivity"
+            android:exported="false"
+            android:taskAffinity=".ifs"
+            android:excludeFromRecents="true"
+            android:stateNotNeeded="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden|uiMode|density|fontScale|locale|smallestScreenSize|layoutDirection" />
+
+        <!--
+            v0.26.1 §3.4: "Data export for my therapist."
+            One button, one JSON file, one share sheet.
+            The FileProvider exposes the export/ subdir
+            so the system share sheet can hand the file
+            to a chosen recipient. The activity does not
+            auto-share.
+        -->
+        <activity
+            android:name=".export.ExportActivity"
+            android:exported="false"
+            android:taskAffinity=".export"
+            android:excludeFromRecents="true"
+            android:stateNotNeeded="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden|uiMode|density|fontScale|locale|smallestScreenSize|layoutDirection" />
+
+        <!--
+            v0.26.1 §3.3: a host activity for the
+            BeforeYouSendInterstitial so the AppWatchService
+            "Tone check" notification can deep-link to it
+            with SMS context as intent extras. The host is
+            exported=false because the notification's
+            PendingIntent uses an explicit component name.
+        -->
+        <activity
+            android:name=".friction.BeforeYouSendHostActivity"
+            android:exported="false"
+            android:taskAffinity=".friction.byshost"
+            android:excludeFromRecents="true"
+            android:stateNotNeeded="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden" />
+
+        <!--
+            v0.26.1 §3.4: the lock-screen / Quick Settings
+            host for GroundMeScreen. Opened by the
+            GroundMeTile; the activity is its own task
+            affinity so it does not join whatever the
+            user was doing.
+        -->
+        <activity
+            android:name=".lock.GroundMeActivity"
+            android:exported="false"
+            android:taskAffinity=".lock.groundme"
+            android:excludeFromRecents="true"
+            android:stateNotNeeded="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden|uiMode|density|fontScale|locale|smallestScreenSize|layoutDirection" />
+
+        <!--
+            v0.26.1 §3.4: the Quick Settings tile that
+            opens GroundMeActivity. The tile service is
+            the only place the activity is reachable from
+            outside the app. Tile categories="tool" so
+            the tile sorts into the tool group of the
+            system shade rather than the connectivity
+            group; icon and label are system-defaultable.
+        -->
+        <service
+            android:name=".lock.GroundMeTile"
+            android:exported="true"
+            android:label="@string/ground_me_tile_label"
+            android:icon="@drawable/ic_launcher_foreground"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!--
+            v0.26.1 §3.3: the SMS tone-check foreground
+            service. Started by the SmsInterceptor on
+            SMS_RECEIVED; posts the "Tone check" prompt
+            and stops itself. dataSync is the closest
+            type for a no-network, on-device write —
+            the same pair the GoingLightVpnService uses,
+            and the AppWatchServiceManifestFindingTest
+            pins the pair here.
+        -->
+        <service
+            android:name=".watch.AppWatchService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!--
+            v0.26.1 §3.3: the SMS_RECEIVED receiver.
+            exported=true because Android requires it
+            for system broadcasts; the receiver is
+            only this app's own logic and writes to
+            the sms_tone_check DataStore. The receiver
+            does not abort the broadcast.
+        -->
+        <receiver
+            android:name=".watch.SmsInterceptor"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
+
+        <!--
+            v0.32.1: the foreground service that hosts the
+            on-demand letter generation. Pre-v0.32.1 the
+            work ran in a coroutine tied to the Letters
+            inbox's Composable lifecycle; on a 1.8 GB
+            MemAvailable phone the OS reaped the process
+            mid-decode and no letter was saved. The
+            foreground service + partial wake lock + ongoing
+            notification is the Android-canonical way to
+            keep the Q2_K decode alive long enough to
+            produce a 600-token letter.
+
+            The foregroundServiceType="dataSync" pairs with
+            the FOREGROUND_SERVICE_DATA_SYNC permission
+            declared at the top of this file. Pinned by
+            LettersGenerationServiceManifestFindingTest.
+        -->
+        <service
+            android:name=".letters.LettersGenerationService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
     </application>
 
 </manifest>

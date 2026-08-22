@@ -23,6 +23,7 @@ import org.mindanchor.friction.SealedCodecs
 import org.mindanchor.friction.SmallThings
 import org.mindanchor.sleep.BedtimeList
 import java.time.DayOfWeek
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 
@@ -83,6 +84,12 @@ class FrictionPrefs(private val context: Context) {
      * accident.
      */
     suspend fun recordReach(packageName: String, now: Long, windowMillis: Long): Int {
+        // v0.25.11: a blank packageName is a no-op. The
+        // v0.20.x surface silently recorded the empty
+        // string, which then sat in the per-window
+        // reach list forever and inflated the per-app
+        // gate's "have I seen you recently?" check.
+        if (packageName.isBlank()) return 0
         var priorReaches = 0
         context.dataStore.edit { prefs ->
             val entries = (prefs[reachKey] ?: "")
@@ -133,17 +140,49 @@ class FrictionPrefs(private val context: Context) {
 
     private val loopNoteKey = stringPreferencesKey("open_loop_note")
     private val loopDayKey = stringPreferencesKey("open_loop_day")
+    private val loopPostponedAtKey = stringPreferencesKey("open_loop_postponed_at")
 
     /** The one unfinished thing — see [org.mindanchor.friction.OpenLoop]. */
     val openLoopNote: Flow<String?> = context.dataStore.data.map { it[loopNoteKey] }
 
     val openLoopDay: Flow<String?> = context.dataStore.data.map { it[loopDayKey] }
 
-    suspend fun setOpenLoop(note: String, today: LocalDate = LocalDate.now()) {
+    /**
+     * The user-chosen revisit time for the open loop, if any. Stored as
+     * the [Instant.toString] form (ISO-8601 UTC, e.g. `2026-03-10T15:00:00Z`)
+     * so the round-trip survives DST shifts and timezone changes.
+     */
+    val openLoopPostponedAt: Flow<Instant?> =
+        context.dataStore.data.map { prefs ->
+            prefs[loopPostponedAtKey]?.let { stored ->
+                runCatching { Instant.parse(stored) }.getOrNull()
+            }
+        }
+
+    suspend fun setOpenLoop(
+        note: String,
+        today: LocalDate = LocalDate.now(),
+        postponedAt: Instant? = null,
+    ) {
         val cleaned = OpenLoop.clean(note) ?: return
         context.dataStore.edit {
             it[loopNoteKey] = cleaned
             it[loopDayKey] = today.toString()
+            if (postponedAt != null) it[loopPostponedAtKey] = postponedAt.toString()
+            else it.remove(loopPostponedAtKey)
+        }
+    }
+
+    /**
+     * Updates just the postponed-at field without re-writing the note or
+     * the day. Used when the user changes their mind about when to
+     * revisit a worry ("Later today" → "Tomorrow morning") without
+     * changing what the worry is.
+     */
+    suspend fun setOpenLoopPostponedAt(at: Instant?) {
+        context.dataStore.edit { prefs ->
+            if (at == null) prefs.remove(loopPostponedAtKey)
+            else prefs[loopPostponedAtKey] = at.toString()
         }
     }
 
@@ -152,6 +191,7 @@ class FrictionPrefs(private val context: Context) {
         context.dataStore.edit {
             it.remove(loopNoteKey)
             it.remove(loopDayKey)
+            it.remove(loopPostponedAtKey)
         }
     }
 

@@ -22,7 +22,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mindanchor.launcher.LauncherRoot
 import org.mindanchor.onboarding.OnboardingScreen
-import org.mindanchor.pulse.PulseScreen
 import org.mindanchor.report.ReportScreen
 import org.mindanchor.settings.SettingsScreen
 import org.mindanchor.support.SupportScreen
@@ -138,13 +137,10 @@ class ScreenshotTest {
     fun home() = shoot("home") { LauncherRoot() }
 
     @Test
-    fun onboarding() = shoot("onboarding") { OnboardingScreen(onDone = {}) }
+    fun onboarding() = shoot("onboarding") { OnboardingScreen(onDone = { _, _ -> }) }
 
     @Test
     fun support() = shoot("support") { SupportScreen(onClose = {}) }
-
-    @Test
-    fun pulse() = shoot("pulse") { PulseScreen(onClose = {}) }
 
     @Test
     fun settings() = shoot("settings") {

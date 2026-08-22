@@ -1,0 +1,28 @@
+fix(v0.26.3): listSaver for BedtimeListCard drafts - 1438/0 detekt clean
+
+The v0.25.15 BUG-008 fix assumed mutableStateListOf<String>() is
+auto-Saveable. It is NOT — SnapshotStateList<String> is rejected
+by the default rememberSaveable Saver with:
+"SnapshotStateList(value=[])@... cannot be saved using the current
+SaveableStateRegistry. The default implementation only supports types
+which can be stored inside the Bundle. Please consider implementing a
+custom Saver for this class and pass it to rememberSaveable()."
+
+The fix: explicit listSaver<SnapshotStateList<String>, String> that
+converts to a plain List<String> for the Bundle and rebuilds via
+mutableStateListOf<String>().apply { addAll(saved) } on restore.
+
+Also updated BUG-008 FindingTest from v0.25.15 fix-shape (literal
+"val drafts = rememberSaveable {" substring) to v0.26.3 fix-shape
+("val drafts = rememberSaveable" + "listSaver<SnapshotStateList<String>, String>"
++ "mutableStateListOf<String>().apply { add(\"\") }", with the
+expected order: fn < capture < drafts < listSaver < listShape).
+
+Verified end-to-end on emulator-5554 (Android 14, x86_64, 1080x2400):
+app launches without FATAL, home surface renders all 5 cards
+(OpenLoop + QuickNotes + OneThing + BedtimeList), Letters empty state
+shows the v0.26.2 No-letters-yet copy with Write/Use AI/Generate
+buttons, Settings shows all 6 groups (Quiet/Pauses/Measuring/Reading/
+Your plan/This phone).
+
+APK SHA-256: D9B60840B59F18AE67E342F5A1B3E68AADCABBC1CD3B1A5A66EE66C598C0BED5

@@ -40,15 +40,17 @@ class GoalMapTest {
     }
 
     @Test
-    fun `measurement points at the pulse and the wearable section`() {
+    fun `measurement points at the wearable section`() {
         // v0.20.4: the wearable (Health Connect) section is
-        // also a measurement surface — the N-of-1 wellness
-        // signals are read here, not in the pulse section.
-        // The goal maps to both, so a person who said
-        // "I want to track" gets a marked section wherever
-        // they look.
+        // the measurement surface — the N-of-1 wellness
+        // signals are read here.
+        //
+        // v0.26.6: PULSE removed from this enum (and the
+        // pulse package dropped from the app). The
+        // MEASUREMENT goal now points at HEALTH_CONNECT
+        // alone.
         assertEquals(
-            setOf(SettingsSection.PULSE, SettingsSection.HEALTH_CONNECT),
+            setOf(SettingsSection.HEALTH_CONNECT),
             GoalMap.sectionsFor(setOf(Goal.MEASUREMENT)),
         )
     }
