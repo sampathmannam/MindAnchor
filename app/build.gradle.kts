@@ -31,12 +31,17 @@ android {
         applicationId = "org.mindanchor"
         minSdk = 33
         targetSdk = 35
-        // v0.25.10: bigger release (auto-update + privacy + default-home
-        // callout + ProGuard keeps + 11 ObsoleteSdkInt cleanups + back-
-        // gesture TODO). Bumped versionCode 30→31 and versionName
-        // 0.25.9→0.25.10.
-        versionCode = 31
-        versionName = "0.25.10"
+        // v0.25.11: HardcodedText fix in the auto-update
+        // snackbar, 2 final ObsoleteSdkInt cleanups,
+        // ConstantLocale in DayHeader, 46 dead strings
+        // (removed in v0.25.6/v0.25.7 features) deleted,
+        // 8 PluralsCandidate strings converted to
+        // <plurals>, in-app privacy-policy link, merged
+        // mipmap-anydpi-v26 into mipmap-anydpi. Bumped
+        // versionCode 31→32 and versionName 0.25.10→
+        // 0.25.11.
+        versionCode = 32
+        versionName = "0.25.11"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every

@@ -1,7 +1,6 @@
 package org.mindanchor.settings
 
 import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import kotlinx.coroutines.launch
 import org.mindanchor.R
 import org.mindanchor.update.UpdateChecker
@@ -94,7 +94,7 @@ fun UpdateCheckSection() {
                 TextButton(onClick = {
                     runCatching {
                         context.startActivity(
-                            Intent(Intent.ACTION_VIEW, Uri.parse(s.info.url)),
+                            Intent(Intent.ACTION_VIEW, s.info.url.toUri()),
                         )
                     }
                 }) {

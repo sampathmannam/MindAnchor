@@ -2,8 +2,8 @@ package org.mindanchor.narrate
 
 import android.app.DownloadManager
 import android.content.Context
-import android.net.Uri
 import android.util.Log
+import androidx.core.net.toUri
 
 /**
  * The Phi-4 mini GGUF download surface. v0.23.0.
@@ -115,7 +115,7 @@ object Phi4ModelDownload {
      * does not register a receiver.
      */
     fun enqueue(context: Context): Long? {
-        val uri = Uri.parse(PRIMARY_URL)
+        val uri = PRIMARY_URL.toUri()
         val request = DownloadManager.Request(uri).apply {
             setTitle(DOWNLOAD_TITLE)
             setDescription("The narrate model. About 2.49 GB.")

@@ -3,13 +3,12 @@ package org.mindanchor
 import android.app.role.RoleManager
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -224,7 +223,7 @@ class HomeActivity : ComponentActivity() {
      */
     private fun openUpdate(info: UpdateInfo) {
         runCatching {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(info.url)))
+            startActivity(Intent(Intent.ACTION_VIEW, info.url.toUri()))
         }
     }
 
@@ -233,19 +232,24 @@ class HomeActivity : ComponentActivity() {
      * user can switch the home to MindAnchor. The launcher
      * has no API to set itself as home; the user must do it
      * via the system settings.
+     *
+     * v0.25.11: the SDK_INT >= N guard is unnecessary at
+     * minSdk=33; ACTION_HOME_SETTINGS has been around since
+     * API 21. Inlined the action directly.
      */
     private fun openDefaultHomeSettings() {
-        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            Intent(Settings.ACTION_HOME_SETTINGS)
-        } else {
-            @Suppress("DEPRECATION")
-            Intent(Settings.ACTION_SETTINGS)
-        }
+        val intent = Intent(Settings.ACTION_HOME_SETTINGS)
         runCatching { startActivity(intent) }
     }
 
+    /**
+     * v0.25.11: the SDK_INT < Q guard was the pre-Q
+     * `ROLE_HOME` workaround (RoleManager landed at Q).
+     * With minSdk=33, every install runs on Q or later, so
+     * the guard always falls through to the real check.
+     * The deprecated fallback has been removed.
+     */
     private fun computeIsDefaultHome(): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return true
         val roleManager = getSystemService(Context.ROLE_SERVICE) as? RoleManager
             ?: return true
         return roleManager.isRoleHeld(RoleManager.ROLE_HOME)
