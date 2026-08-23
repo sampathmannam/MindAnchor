@@ -802,6 +802,27 @@
     <string name="letters_disclaimer">A letter is what your own data looked like to a model on this phone. It is not advice.</string>
     <string name="letters_delete_button">Delete</string>
     <string name="letters_cancel">Cancel</string>
+    <!-- v0.25.7: LLM-driven letter surface (Inbox / Writing / Reader / Error).
+         New strings kept in the letter_* namespace (singular) so the LLM-facing
+         copy stays separate from the legacy letters_* (plural) on-device-model
+         copy. The 14 strings cover the 4-state surface: inbox title/explainer,
+         today row (Today / no letter / Write / Open / Regenerate), writing
+         surface (Writing / ~2 seconds), error surface (Couldn't write /
+         Try again / Open settings), and the metadata footer. -->
+    <string name="letter_singular">letter</string>
+    <string name="letter_inbox_explainer">One letter a day. Yours alone.</string>
+    <string name="letter_today">Today</string>
+    <string name="letter_no_letter_today">No letter yet for today.</string>
+    <string name="letter_write_today">Write today\'s letter</string>
+    <string name="letter_regenerate">Regenerate</string>
+    <string name="letter_writing">Writing your letter for today.</string>
+    <string name="letter_writing_hint">~2 seconds</string>
+    <string name="letter_couldnt_write">Couldn\'t write the letter right now.</string>
+    <string name="letter_try_again">Try again</string>
+    <string name="letter_open_settings">Open settings</string>
+    <string name="letter_open_existing">Open</string>
+    <string name="letter_footer_format">%1$s · %2$s · %3$d input / %4$d output · %5$.1fs · %6$s</string>
+    <string name="letter_cant_write_explainer">The launcher writes you one letter a day, in its own voice.</string>
     <!-- v0.25.2-B: reader-mode -->
     <string name="reading_size_section">Reading size</string>
     <string name="reading_size_explainer">How large the text reads on the letter. Large is the largest size that still fits every letter without clipping or hiding controls.</string>

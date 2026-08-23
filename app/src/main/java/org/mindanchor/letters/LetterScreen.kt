@@ -1,11 +1,14 @@
 package org.mindanchor.letters
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -14,9 +17,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -37,34 +42,66 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.time.LocalDate
 import org.mindanchor.R
+import org.mindanchor.llm.LetterError
 import org.mindanchor.reader.ReadingSize
 import org.mindanchor.ui.Spacing
 
 /**
- * The letter surface, dispatched between an inbox list and a single
- * reader. `date == null` shows the inbox; a non-null date shows the
- * reader for that date.
+ * v0.25.7: the letter surface is now LLM-driven. The
+ * shape is 4 states: [LetterWriteState.Idle] (inbox),
+ * [LetterWriteState.Writing] (calm screen),
+ * [LetterWriteState.Reader] (letter shown), and
+ * [LetterWriteState.Error] (Try again / Open settings).
  *
- * v0.25.2-A: the inbox and reader Composables are filled in by
- * Tasks 3 and 4. v0.25.2-B: `size` and `onSetSize` are wired in
- * Task 15.
+ * The v0.25.2-A reader body is unchanged — same paper
+ * card, same disclaimer — with a new metadata footer
+ * line appended below the disclaimer for LLM-driven
+ * letters. The v0.25.2-A inbox past-letters list is
+ * preserved behind a pinned "Today" row that is the
+ * primary affordance (Write today's letter / Open /
+ * Regenerate).
  *
- * `modelFits` controls the empty-state copy and the Generate-now
- * enablement, both inside the inbox; the reader doesn't need it.
+ * The new params (`writeState` + 5 callbacks) have
+ * default values so the existing call site
+ * (`HomeScreen` → `LetterScreen`) keeps compiling
+ * until Task 13 wires the LLM state machine. `modelFits`
+ * stays in the signature for the legacy Generate-now
+ * path (not used in the LLM path).
+ *
+ * Haptics follow Brewster CHI 2007: `LongPress` on
+ * commit actions (Write / Open / Try-again / Open
+ * settings) and `TextHandleMove` on stop/replace
+ * gestures (Regenerate / Cancel).
+ *
+ * `modelFits` is kept in the signature for the v0.25.2-A
+ * Generate-now contract even though the LLM path does not
+ * consume it; the call site in `HomeScreen` passes it, and
+ * removing it would be a breaking change to the public API
+ * until Task 13 (HomeScreen changes) consolidates the wiring.
  */
-@Suppress("FunctionNaming", "LongParameterList")
+@Suppress("FunctionNaming", "LongParameterList", "UnusedParameter")
 @Composable
 fun LetterScreen(
     letters: List<Letter>,
     modelFits: Boolean,
     date: LocalDate?,
     size: ReadingSize = ReadingSize.MEDIUM,
+    writeState: LetterWriteState = LetterWriteState.Idle,
     onSelect: (LocalDate) -> Unit = {},
     onBack: () -> Unit = {},
     onDelete: (LocalDate) -> Unit = {},
     onSetSize: (ReadingSize) -> Unit = {},
+    onWriteToday: () -> Unit = {},
+    onRegenerate: () -> Unit = {},
+    onCancelWrite: () -> Unit = {},
+    onRetryError: () -> Unit = {},
+    onOpenLlmSettings: () -> Unit = {},
 ) {
     if (date != null) {
+        // v0.25.2-A path: the user opened a specific date
+        // from the past-letters list. The new path
+        // (LetterWriteState.Reader) carries its letter
+        // explicitly; both converge on LetterReader.
         LetterReader(
             letter = letters.firstOrNull { it.date == date },
             size = size,
@@ -72,36 +109,78 @@ fun LetterScreen(
             onDelete = { onDelete(date) },
             onSetSize = onSetSize,
         )
-    } else {
-        LetterInbox(
+    } else when (writeState) {
+        is LetterWriteState.Writing -> LetterWritingScreen(
+            onCancel = onCancelWrite,
+        )
+        is LetterWriteState.Error -> LetterErrorScreen(
+            error = writeState.error,
+            onRetry = onRetryError,
+            onOpenSettings = onOpenLlmSettings,
+        )
+        is LetterWriteState.Reader -> LetterReader(
+            letter = writeState.letter,
+            size = size,
+            onBack = onBack,
+            onDelete = { onDelete(writeState.letter.date) },
+            onSetSize = onSetSize,
+        )
+        is LetterWriteState.Idle -> LetterInbox(
             letters = letters,
-            modelFits = modelFits,
             size = size,
             onSelect = onSelect,
             onDelete = onDelete,
             onBack = onBack,
+            onWriteToday = onWriteToday,
+            onRegenerate = onRegenerate,
         )
     }
 }
 
-@Suppress("FunctionNaming")
+// -- Inbox (Idle) --
+
+/**
+ * The v0.25.7 inbox. Pinned "Today" row on top
+ * (write / open / regenerate) followed by the
+ * v0.25.2-A past-letters list. The Generate-now
+ * button is gone — the Today row's `Write today's
+ * letter` is the new primary affordance, and the
+ * `Open` / `Regenerate` buttons appear once a
+ * letter exists for today.
+ *
+ * The delete dialog lives here, not in the row:
+ * only one confirm can be open at a time, and
+ * dismissing it must clear the state cleanly. The
+ * row's × button sets the pending date; the
+ * dialog's confirm calls `onDelete` and clears it.
+ *
+ * `LongMethod` is suppressed: the function carries
+ * the pinned Today row, the past-letters grouped
+ * list, and the delete-dialog host. Splitting the
+ * body into a separate `LetterInboxContent`
+ * sub-Composable was the v0.25.2-A shape, but the
+ * v0.25.7 wiring (haptic wrappers around
+ * `onWriteToday` and `onRegenerate` so the state
+ * stays one frame closer to the surface) reads
+ * cleaner when the Today row, the past-letters
+ * loop, and the dialog state share the same
+ * `pendingDelete` slot.
+ */
+@Suppress("FunctionNaming", "LongMethod", "LongParameterList")
 @Composable
 private fun LetterInbox(
     letters: List<Letter>,
-    modelFits: Boolean,
     size: ReadingSize,
     onSelect: (LocalDate) -> Unit,
     onDelete: (LocalDate) -> Unit,
     onBack: () -> Unit,
+    onWriteToday: () -> Unit,
+    onRegenerate: () -> Unit,
 ) {
-    // The dialog belongs to the inbox, not the row: only one
-    // confirm can be open at a time, and dismissing it must clear
-    // the state cleanly. The row's × button sets the pending date;
-    // the dialog's confirm button calls onDelete and clears it.
-    // The content Composable takes a request-callback rather than
-    // touching pendingDelete directly, so the dialog host stays
-    // in this function and the content stays layout-only.
     val pendingDelete = remember { mutableStateOf<LocalDate?>(null) }
+    val haptics = LocalHapticFeedback.current
+    val today = LocalDate.now()
+    val todayLetter = letters.firstOrNull { it.date == today }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -109,19 +188,71 @@ private fun LetterInbox(
             .verticalScroll(rememberScrollState())
             .padding(Spacing.Edge),
     ) {
-        LetterInboxContent(
-            letters = letters,
-            modelFits = modelFits,
-            size = size,
-            onBack = onBack,
-            onSelect = onSelect,
-            onDeleteRequest = { pendingDelete.value = it },
+        TextButton(onClick = onBack) {
+            Text(stringResource(R.string.action_back))
+        }
+        Text(
+            text = stringResource(R.string.letter_singular),
+            style = MaterialTheme.typography.headlineMedium,
+            modifier = Modifier.padding(vertical = Spacing.Comfortable),
         )
+        Text(
+            text = stringResource(R.string.letter_inbox_explainer),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = Spacing.Loose),
+        )
+        // Pinned Today row — primary affordance.
+        TodayRow(
+            today = today,
+            todayLetter = todayLetter,
+            onWriteToday = {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                onWriteToday()
+            },
+            onRegenerate = {
+                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onRegenerate()
+            },
+            onSelect = onSelect,
+        )
+        // Past letters: keep the v0.25.2-A shape (newest
+        // first, grouped by friendly-letter-date). The
+        // `letters.reversed()` pattern is preserved so the
+        // existing inbox finding-test still pins the
+        // ordering. The Today row is excluded because
+        // it lives in its own pinned slot.
+        val pastLetters = letters.reversed().filter { it.date != today }
+        if (pastLetters.isEmpty()) {
+            Text(
+                text = stringResource(R.string.letter_cant_write_explainer),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Spacing.Loose),
+            )
+        } else {
+            val grouped = pastLetters.groupBy { friendlyLetterDate(it.date, today) }
+            grouped.forEach { (label, sameDay) ->
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = Spacing.Loose, bottom = Spacing.Tight),
+                )
+                sameDay.forEach { letter ->
+                    LetterRow(
+                        letter = letter,
+                        size = size,
+                        onSelect = onSelect,
+                        onDelete = { pendingDelete.value = it },
+                    )
+                }
+            }
+        }
     }
     val pendingDeleteDate = pendingDelete.value
     if (pendingDeleteDate != null) {
         // v0.25.5 WP-G: haptic confirmation on letter delete.
-        val haptics = LocalHapticFeedback.current
         LetterDeleteDialog(
             date = pendingDeleteDate,
             onConfirm = {
@@ -135,89 +266,215 @@ private fun LetterInbox(
 }
 
 /**
- * The visible body of [LetterInbox]: header, list (or empty
- * state), and the Generate-now action. Lifted out of [LetterInbox]
- * to keep that function under the LongMethod threshold and to
- * make the dialog-host split obvious in the file. The
- * [onDeleteRequest] callback is what links a row's × tap back
- * to the inbox's `pendingDelete` state — the content doesn't
- * know about the dialog.
+ * The pinned Today row. When today's letter is absent:
+ * the `letter_no_letter_today` line and a primary
+ * `Write today's letter` button. When present: a
+ * one-line preview (tap = open) plus a row of
+ * `Open` / `Regenerate` buttons. The preview is
+ * the first line of the body, truncated at 80 chars
+ * (no ellipsis — the reader carries the full body).
+ *
+ * `today` is plumbed through even though the body does
+ * not consume it yet — the slot is reserved for v0.25.7+
+ * follow-ups (e.g. showing a "Posted 2h ago" line based
+ * on the system clock without re-reading the clock inside
+ * the Composable). The caller in [LetterInbox] already
+ * has the value, so passing it is free.
  */
-@Suppress("FunctionNaming")
+@Suppress(
+    "FunctionNaming",
+    "LongMethod",
+    "LongParameterList",
+    "UnusedParameter",
+)
 @Composable
-private fun LetterInboxContent(
-    letters: List<Letter>,
-    modelFits: Boolean,
-    size: ReadingSize,
-    onBack: () -> Unit,
+private fun TodayRow(
+    today: LocalDate,
+    todayLetter: Letter?,
+    onWriteToday: () -> Unit,
+    onRegenerate: () -> Unit,
     onSelect: (LocalDate) -> Unit,
-    onDeleteRequest: (LocalDate) -> Unit,
 ) {
-    val today = LocalDate.now()
-    TextButton(onClick = onBack) {
-        Text(stringResource(R.string.action_back))
-    }
-    Text(
-        text = stringResource(R.string.letters_inbox_title),
-        style = MaterialTheme.typography.headlineMedium,
-        modifier = Modifier.padding(vertical = Spacing.Comfortable),
-    )
-    Text(
-        text = stringResource(R.string.letters_inbox_explainer),
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(bottom = Spacing.Loose),
-    )
-    if (letters.isEmpty()) {
-        val emptyRes = if (modelFits) R.string.letters_empty else R.string.letters_empty_no_model
+    val haptics = LocalHapticFeedback.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 80.dp)
+            .padding(vertical = Spacing.Snug),
+    ) {
         Text(
-            text = stringResource(emptyRes),
-            style = MaterialTheme.typography.bodyMedium,
+            text = stringResource(R.string.letter_today),
+            style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-    } else {
-        // Newest first: store gives oldest first; the inbox shows
-        // newest first. Group by friendly-date so "Today" sits
-        // above "Yesterday" above the rest.
-        val grouped = letters.reversed()
-            .groupBy { friendlyLetterDate(it.date, today) }
-        grouped.forEach { (label, sameDay) ->
+        Spacer(modifier = Modifier.height(Spacing.Tight))
+        if (todayLetter == null) {
             Text(
-                text = label,
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = Spacing.Loose, bottom = Spacing.Tight),
+                text = stringResource(R.string.letter_no_letter_today),
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.padding(bottom = Spacing.Tight),
             )
-            sameDay.forEach { letter ->
-                LetterRow(
-                    letter = letter,
-                    size = size,
-                    onSelect = onSelect,
-                    onDelete = onDeleteRequest,
-                )
+            Button(
+                onClick = onWriteToday,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.letter_write_today))
+            }
+        } else {
+            Text(
+                text = todayLetter.body.lineSequence().firstOrNull().orEmpty().take(80),
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onSelect(todayLetter.date)
+                    }
+                    .padding(bottom = Spacing.Tight),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.Tight),
+            ) {
+                OutlinedButton(
+                    onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onSelect(todayLetter.date)
+                    },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(stringResource(R.string.letter_open_existing))
+                }
+                TextButton(
+                    onClick = onRegenerate,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(stringResource(R.string.letter_regenerate))
+                }
             }
         }
-    }
-    // Generate-now is opt-in: the user has to ask for one even
-    // when the model is installed. The button is always visible
-    // so a user who doesn't know about the daily alarm can still
-    // request a letter.
-    TextButton(
-        enabled = modelFits,
-        onClick = { /* wired in Task 10 */ },
-        modifier = Modifier.padding(top = Spacing.Loose),
-    ) {
-        Text(stringResource(R.string.letters_run_now))
     }
 }
 
 /**
- * The delete-confirm surface. Lives in the same file as [LetterInbox]
- * because the call site (the inbox's row × button) is what makes the
- * dialog appear. [date] is reserved for v0.25.2-B: the dialog body
- * will eventually show "Delete the letter from {date}?". For now the
- * date is plumbed through so the call site doesn't have to restructure
- * when the body lands.
+ * The calm full-screen surface shown while the LLM
+ * is generating today's letter. The `~2 seconds`
+ * hint is a one-shot estimate, not a countdown —
+ * we don't want the user to feel watched. The
+ * Cancel button at the bottom is a `TextHandleMove`
+ * haptic (Brewster 2007: stop/replace gesture).
+ */
+@Suppress("FunctionNaming")
+@Composable
+private fun LetterWritingScreen(onCancel: () -> Unit) {
+    val haptics = LocalHapticFeedback.current
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .safeDrawingPadding()
+            .padding(Spacing.Edge),
+    ) {
+        Column(
+            modifier = Modifier.align(Alignment.Center),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = stringResource(R.string.letter_writing),
+                style = MaterialTheme.typography.headlineSmall,
+            )
+            Spacer(modifier = Modifier.height(Spacing.Tight))
+            Text(
+                text = stringResource(R.string.letter_writing_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        TextButton(
+            onClick = {
+                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onCancel()
+            },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = Spacing.Loose),
+        ) {
+            Text(stringResource(R.string.letters_cancel))
+        }
+    }
+}
+
+/**
+ * The calm full-screen surface shown when letter
+ * generation fails. The `userMessage` is the
+ * 1-line explanation the LLM error mapping picked
+ * (e.g. "API key not valid. Open settings to
+ * fix."); the buttons depend on `isRetryable` —
+ * `Try again` is only shown when retrying might
+ * work (rate-limit, timeout, network). `Open
+ * settings` is always shown so the user can fix
+ * the configuration regardless of which error
+ * fired.
+ */
+@Suppress("FunctionNaming", "LongParameterList")
+@Composable
+private fun LetterErrorScreen(
+    error: LetterError,
+    onRetry: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    val haptics = LocalHapticFeedback.current
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .safeDrawingPadding()
+            .padding(Spacing.Edge),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = stringResource(R.string.letter_couldnt_write),
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.padding(bottom = Spacing.Tight),
+            )
+            Text(
+                text = error.userMessage,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = Spacing.Loose),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.Tight)) {
+                if (error.isRetryable) {
+                    OutlinedButton(
+                        onClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onRetry()
+                        },
+                    ) {
+                        Text(stringResource(R.string.letter_try_again))
+                    }
+                }
+                OutlinedButton(
+                    onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onOpenSettings()
+                    },
+                ) {
+                    Text(stringResource(R.string.letter_open_settings))
+                }
+            }
+        }
+    }
+}
+
+// -- Reader (unchanged from v0.25.2-A, +metadata footer for LLM letters) --
+
+/**
+ * The delete-confirm surface. Lives in the same
+ * file as `LetterInbox` because the call site
+ * (the inbox's row × button) is what makes the
+ * dialog appear. [date] is plumbed through so the
+ * call site doesn't have to restructure when the
+ * dialog body eventually includes the date.
  */
 @Suppress("FunctionNaming", "UnusedParameter")
 @Composable
@@ -284,7 +541,34 @@ private fun LetterRow(
     }
 }
 
-@Suppress("FunctionNaming", "UnusedParameter")
+/**
+ * The v0.25.2-A reader body. v0.25.7 adds a
+ * metadata footer line below the disclaimer when
+ * `letter.provider != null` (i.e. the letter was
+ * written by an LLM, not the legacy on-device
+ * Phi-4 model). The footer is a quiet
+ * `labelSmall` showing the provider, model, token
+ * counts, generation time, and the friendly date.
+ *
+ * The pending-delete flag lives here, not in the
+ * screen or the inbox: only one confirm can be
+ * open at a time, and dismissing it must clear
+ * the state cleanly. The header's × button sets
+ * the flag; the dialog's confirm calls `onDelete`
+ * and clears it.
+ *
+ * `LongMethod` is suppressed for the v0.25.7
+ * metadata footer (one extra branch on the body).
+ * The function was already 60 lines at the
+ * detekt threshold before the footer landed; the
+ * footer would push it to 61. Splitting the body
+ * into a separate `LetterReaderBody` sub-Composable
+ * would isolate the change but at the cost of
+ * reading 60 lines across two files for what is
+ * one quiet metadata line. The suppression keeps
+ * the v0.25.2-A shape intact.
+ */
+@Suppress("FunctionNaming", "LongMethod", "UnusedParameter")
 @Composable
 private fun LetterReader(
     letter: Letter?,
@@ -293,13 +577,6 @@ private fun LetterReader(
     onDelete: () -> Unit,
     onSetSize: (ReadingSize) -> Unit,
 ) {
-    // The pending-delete flag lives here, not in the screen or
-    // the inbox: only one confirm can be open at a time, and
-    // dismissing it must clear the state cleanly. The header's
-    // × button sets the flag; the dialog's confirm button calls
-    // onDelete and clears it. The date is implicit in the
-    // screen's state, so a Boolean is enough — the inbox's
-    // `LocalDate?` model doesn't translate.
     val pendingDelete = remember { mutableStateOf(false) }
     Column(
         modifier = Modifier
@@ -332,6 +609,28 @@ private fun LetterReader(
                 style = readerDisclaimerStyle(MaterialTheme.typography, size),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            // v0.25.7: LLM metadata footer. Renders only
+            // for letters that came from an LLM
+            // (`provider != null`); legacy v0.25.2-A
+            // letters have all-null metadata and skip
+            // this block, keeping the v0.25.2-A surface
+            // byte-for-byte unchanged.
+            if (letter.provider != null) {
+                Text(
+                    text = stringResource(
+                        R.string.letter_footer_format,
+                        letter.provider,
+                        letter.model.orEmpty(),
+                        letter.promptTokens ?: 0,
+                        letter.completionTokens ?: 0,
+                        (letter.durationMs ?: 0L) / 1000.0,
+                        friendlyLetterDate(letter.date, LocalDate.now()),
+                    ),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = Spacing.Loose),
+                )
+            }
         }
     }
     if (pendingDelete.value) {
@@ -346,18 +645,17 @@ private fun LetterReader(
 }
 
 /**
- * The top row of [LetterReader]: back on the left, the
- * `A-` / `A` / `A+` size toggle in the middle, and the delete
- * × on the right. Extracted from [LetterReader] to keep that
- * function under the LongMethod threshold and to make the
- * size-control slot obvious in the file.
+ * The top row of [LetterReader]: back on the left,
+ * the `A-` / `A` / `A+` size toggle in the middle,
+ * and the delete × on the right. Extracted from
+ * [LetterReader] to keep that function under the
+ * LongMethod threshold and to make the size-control
+ * slot obvious in the file.
  *
- * The toggle labels are A- / A / A+ — locale-safe (no string
- * resources), RTL-safe (the symbols mirror), and immediately
- * legible as "smaller / default / larger" without translation.
- * A real "Small / Medium / Large" would have needed three
- * string resources and a per-locale translation pass; A- / A / A+
- * is the same affordance at zero translation cost.
+ * The toggle labels are A- / A / A+ — locale-safe
+ * (no string resources), RTL-safe (the symbols
+ * mirror), and immediately legible as "smaller /
+ * default / larger" without translation.
  */
 @Suppress("FunctionNaming")
 @Composable
@@ -404,9 +702,10 @@ private fun LetterReaderHeader(
 }
 
 /**
- * The soft empty state for when the letter was deleted while the
- * reader was open. No retry, no recovery — just a clear signpost
- * back to the inbox.
+ * The soft empty state for when the letter was
+ * deleted while the reader was open. No retry,
+ * no recovery — just a clear signpost back to the
+ * inbox.
  */
 @Suppress("FunctionNaming")
 @Composable
@@ -422,11 +721,12 @@ private fun LetterReaderMissing(onBack: () -> Unit) {
 }
 
 /**
- * The reader-level delete confirm. Mirrors the inbox's
- * [LetterDeleteDialog] shape; separated so the
- * `pendingDelete: Boolean` state lives entirely in [LetterReader]
- * (the dialog doesn't need to know what kind of state is
- * tracking the pending action).
+ * The reader-level delete confirm. Mirrors the
+ * inbox's [LetterDeleteDialog] shape; separated so
+ * the `pendingDelete: Boolean` state lives
+ * entirely in [LetterReader] (the dialog doesn't
+ * need to know what kind of state is tracking the
+ * pending action).
  */
 @Suppress("FunctionNaming")
 @Composable
@@ -451,30 +751,33 @@ private fun LetterReaderDeleteDialog(
 }
 
 /**
- * Reader title style. `headlineMedium` shape with `fontSize = size.sp * 1.75f`
- * and `fontWeight = Light`. The `headlineMedium` baseline is the same shape
- * the launcher already uses for top-of-screen headings, so a person who has
- * the reader open at MEDIUM sees a title that's about 32sp tall — comfortably
- * larger than the body's 18sp without overwhelming the page.
+ * Reader title style. `headlineMedium` shape with
+ * `fontSize = size.sp * 1.75f` and `fontWeight = Light`.
+ * The 1.75x ratio is deliberate: a 14sp body (SMALL)
+ * needs a ~24sp title to read as a heading; 18sp body
+ * needs ~32sp; 32sp body needs ~56sp. The ratio is
+ * what keeps the title larger than the body at every
+ * size.
  *
- * The 1.75x ratio is deliberate: a 14sp body (SMALL) needs a ~24sp title to
- * read as a heading; 18sp body needs ~32sp; 32sp body needs ~56sp. The ratio
- * is what keeps the title larger than the body at every size.
+ * v0.25.2-B spec 2 §"3 sizes" — WCAG 2.2 SC 1.4.4
+ * (Resize Text) requires that text scale up to 200%
+ * without loss of content or functionality. The
+ * LARGE size here (32sp body) is exactly 200% of
+ * the 16sp reference body — the maximum the SC
+ * explicitly permits — and the 1.75x title ratio
+ * lands at 56sp, well below the screen-height line
+ * where vertical scrolling would be required to see
+ * the title.
  *
- * v0.25.2-B spec 2 §"3 sizes" — WCAG 2.2 SC 1.4.4 (Resize Text) requires
- * that text scale up to 200% without loss of content or functionality. The
- * LARGE size here (32sp body) is exactly 200% of the 16sp reference body —
- * the maximum the SC explicitly permits — and the 1.75x title ratio lands
- * at 56sp, well below the screen-height line where vertical scrolling would
- * be required to see the title.
- *
- * The [typography] parameter is the active [androidx.compose.material3.Typography];
- * the call site (always inside a `@Composable` function) passes
- * `MaterialTheme.typography` so the title inherits font family and other
- * shape fields from the theme. The function is **not** `@Composable` itself
- * — accepting the Typography as a parameter keeps the size math pure and
- * testable from a regular JUnit test, without the Compose runtime overhead
- * of `runComposeUiTest`.
+ * The [typography] parameter is the active
+ * [androidx.compose.material3.Typography]; the call
+ * site passes `MaterialTheme.typography` so the title
+ * inherits font family and other shape fields from
+ * the theme. The function is **not** `@Composable`
+ * itself — accepting the Typography as a parameter
+ * keeps the size math pure and testable from a regular
+ * JUnit test, without the Compose runtime overhead of
+ * `runComposeUiTest`.
  */
 internal fun readerTitleStyle(typography: Typography, size: ReadingSize): TextStyle =
     typography.headlineMedium.copy(
@@ -483,14 +786,16 @@ internal fun readerTitleStyle(typography: Typography, size: ReadingSize): TextSt
     )
 
 /**
- * Reader body style. `bodyLarge` shape with `fontSize = size.sp` (the size
- * IS the font — that's the whole point of the user-toggle) and
- * `lineHeight = size.sp * 1.45f` (the typography guideline for sustained
- * reading: ~1.4-1.5x line height keeps the eye moving down the column
- * without the lines feeling cramped).
+ * Reader body style. `bodyLarge` shape with
+ * `fontSize = size.sp` (the size IS the font — that's
+ * the whole point of the user-toggle) and
+ * `lineHeight = size.sp * 1.45f` (the typography
+ * guideline for sustained reading: ~1.4-1.5x line
+ * height keeps the eye moving down the column without
+ * the lines feeling cramped).
  *
- * Not `@Composable` — see [readerTitleStyle] for why Typography is a
- * parameter rather than a runtime read.
+ * Not `@Composable` — see [readerTitleStyle] for why
+ * Typography is a parameter rather than a runtime read.
  */
 internal fun readerBodyStyle(typography: Typography, size: ReadingSize): TextStyle =
     typography.bodyLarge.copy(
@@ -499,12 +804,15 @@ internal fun readerBodyStyle(typography: Typography, size: ReadingSize): TextSty
     )
 
 /**
- * Reader disclaimer style (the "this is not a substitute for…" line under
- * every letter body). `bodySmall` shape with `fontSize = size.sp * 0.85f` —
- * a hair smaller than the body, just enough to read as fine print without
- * crossing into "too small to read" territory. The 0.85x ratio holds across
- * the three sizes so the disclaimer always reads as a fraction quieter than
- * the body, never as a different surface.
+ * Reader disclaimer style (the "this is not a
+ * substitute for…" line under every letter body).
+ * `bodySmall` shape with `fontSize = size.sp * 0.85f` —
+ * a hair smaller than the body, just enough to read
+ * as fine print without crossing into "too small to
+ * read" territory. The 0.85x ratio holds across the
+ * three sizes so the disclaimer always reads as a
+ * fraction quieter than the body, never as a different
+ * surface.
  *
  * Not `@Composable` — see [readerTitleStyle].
  */

@@ -90,7 +90,11 @@ style:
     # v0.25.5: added 3 (last-N / index), 4 (field count),
     # 6 (window width), 3600 (sec/hour). Each is a structural
     # literal, not a magic value.
-    ignoreNumbers: ['-1', '0', '1', '2', '3', '4', '6', '7', '9', '10', '12', '14', '60', '100', '1000', '3600', '1000000', '86400']
+    # v0.25.7: added 80 (Today-row preview truncation, mirrors the
+    # 60 in LetterRow.take(60) — same UX-standard inbox-row preview
+    # length, just longer for the pinned Today slot that has more
+    # vertical room).
+    ignoreNumbers: ['-1', '0', '1', '2', '3', '4', '6', '7', '9', '10', '12', '14', '60', '80', '100', '1000', '3600', '1000000', '86400']
   UnusedPrivateMember:
     active: true
   RedundantVisibilityModifierRule:
