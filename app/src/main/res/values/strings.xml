@@ -803,7 +803,19 @@
     <string name="letters_inbox_explainer">Written on this phone each morning by the same model that writes the nightly report. Tap any letter to read it.</string>
     <string name="letters_inbox_label">letters</string>
     <string name="letters_section">Daily letter</string>
-    <string name="letters_explainer">A short letter, written on this phone by the Phi-4 model, each morning at the time you choose. Tap the notification to read it.</string>
+    <!--
+        v0.25.9 (P0-5): the daily letter is now written by
+        the LLM path (Settings → Reading → Daily letter (LLM)),
+        not by the on-device Phi-4 model. The Phi-4 path
+        remains available as a legacy option (see
+        "On-device model (legacy)" further down). Removing
+        the misleading "Phi-4 model" reference from the
+        Daily letter description fixes the v0.25.8
+        description-vs-shipped regression. "On this phone"
+        also implied the letter is generated locally when
+        the LLM path uses a cloud model.
+    -->
+    <string name="letters_explainer">A short letter, written each morning at the time you choose. Tap the notification to read it. The on-device Phi-4 model from earlier versions is still available as a legacy option — see below.</string>
     <string name="letters_toggle">Send me a letter each morning</string>
     <string name="letters_time">Time: %1$02d:%2$02d</string>
     <string name="letters_run_now">Generate now</string>
@@ -850,7 +862,17 @@
         last "Test connection" tap.
     -->
     <string name="settings_llm_section">Daily letter (LLM)</string>
-    <string name="settings_llm_explainer">The launcher writes you one letter a day, in its own voice. Get a free key at console.groq.com.</string>
+    <!--
+        v0.25.9 (P0-4): the LLM section is the path the
+        daily letter actually uses. The previous explainer
+        assumed the user already knew what a Groq key was.
+        Fresh users hit this section with a "Connection
+        failed" state and no onboarding — they bail out.
+        The new copy names the dependency ("a small AI from
+        Groq"), gives the time cost ("2 minutes, free"), and
+        makes the first action obvious.
+    -->
+    <string name="settings_llm_explainer">Want the daily letter? It is written by a small AI, in the launcher\'s own voice. You will need a free key from Groq — sign-up takes about 2 minutes at console.groq.com. Paste the key below, then tap Test connection.</string>
     <string name="settings_llm_provider">Provider</string>
     <string name="settings_llm_api_key">API key</string>
     <string name="settings_llm_connection">Connection</string>

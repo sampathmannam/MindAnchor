@@ -439,12 +439,11 @@ fun LauncherRoot(
         // LetterScreen Composable is otherwise stateless on which
         // date is selected. The back button clears the selected
         // date when in the reader (back to inbox) and falls back
-        // to letterCameFrom when in the inbox. Letters and
-        // modelFits are stubs pending Task 9's SettingsViewModel
-        // fields; the call site does not depend on them being
-        // real flows today.
+        // to letterCameFrom when in the inbox. v0.25.9 (P0-1):
+        // letters are now sourced from LetterStore (the same DataStore
+        // backing the inbox) so the home letter surface reflects
+        // whatever the user has actually generated.
         LauncherSurface.Letter -> Surface(modifier = Modifier.fillMaxSize()) {
-            val letters: List<Letter> = remember { emptyList() }
             val modelFits = remember { mutableStateOf(false) }
             // v0.25.2-B (Task 15): letter size is read from the
             // LauncherViewModel (mirrors the SettingsViewModel.letterSize
@@ -453,6 +452,10 @@ fun LauncherRoot(
             val letterStore = remember(context.applicationContext) {
                 LetterStore(context.applicationContext)
             }
+            // v0.25.9 (P0-1): wire letterStore.letters into the
+            // LetterScreen inbox so the home letter surface reflects
+            // the real inbox instead of a hard-coded empty list.
+            val letters by letterStore.letters.collectAsState(initial = emptyList())
             val letterScope = rememberCoroutineScope()
             LetterScreen(
                 letters = letters,
