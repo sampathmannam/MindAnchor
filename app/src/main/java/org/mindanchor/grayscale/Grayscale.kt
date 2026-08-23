@@ -3,6 +3,7 @@ package org.mindanchor.grayscale
 import android.content.Context
 import android.content.pm.PackageManager
 import android.provider.Settings
+import androidx.core.content.edit
 
 /**
  * Turns the whole screen grey.
@@ -104,10 +105,10 @@ object Grayscale {
                 current = current(context),
                 alreadyRemembered = remembered(context) != null,
             )?.let { prior ->
-                store(context).edit()
-                    .putBoolean(SAVED_ENABLED, prior.enabled)
-                    .putInt(SAVED_MODE, prior.mode)
-                    .apply()
+                store(context).edit {
+                    putBoolean(SAVED_ENABLED, prior.enabled)
+                    putInt(SAVED_MODE, prior.mode)
+                }
             }
             Settings.Secure.putInt(context.contentResolver, MODE, MONOCHROMACY)
             Settings.Secure.putInt(context.contentResolver, ENABLED, 1)
@@ -115,7 +116,7 @@ object Grayscale {
             val restore = GrayscalePolicy.stateToRestore(remembered(context))
             Settings.Secure.putInt(context.contentResolver, ENABLED, if (restore.enabled) 1 else 0)
             Settings.Secure.putInt(context.contentResolver, MODE, restore.mode)
-            store(context).edit().clear().apply()
+            store(context).edit { clear() }
         }
         isOn(context) == on
     }.getOrDefault(false)

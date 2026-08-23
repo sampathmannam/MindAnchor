@@ -1,9 +1,9 @@
 package org.mindanchor.support
 
 import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Column
+import androidx.core.net.toUri
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -89,7 +89,7 @@ fun SupportScreen(
     fun dial(number: String) {
         val opened = runCatching {
             context.startActivity(
-                Intent(Intent.ACTION_DIAL, Uri.parse("tel:$number"))
+                Intent(Intent.ACTION_DIAL, "tel:$number".toUri())
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             )
         }.isSuccess

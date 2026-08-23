@@ -1035,30 +1035,39 @@ fun SettingsScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(top = 8.dp),
                         )
-                        // v0.25.9 (lint sweep): with minSdk=33, the SDK_INT >= S
-                        // check is always true. The conditional wrapper is dead.
-                        TextButton(
-                            onClick = {
-                                runCatching {
-                                    activityLauncher.launch(
-                                        Intent(
-                                            Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
-                                            Uri.fromParts("package", context.packageName, null),
-                                        ),
-                                    )
-                                }
-                            },
-                            modifier = Modifier.padding(vertical = 4.dp),
-                        ) {
-                            // Trailing chevron so the affordance
-                            // reads as a button, not a label.
-                            // The launcher has no other right-arrow
-                            // icons; this is the one place the user
-                            // is being asked to leave the app, and
-                            // the cue is worth the one glyph.
-                            Text(
-                                text = stringResource(R.string.exact_alarms_grant) + "  →",
-                            )
+                        // v0.25.11: the SDK_INT >= S guard is
+                        // "unnecessary" at minSdk=33, but the
+                        // ExactTimingAffordanceFindingTest pins
+                        // the gate so a future minSdk back-bump
+                        // does not silently lose the older-devices
+                        // protection. The test grep expects
+                        // `Build.VERSION_CODES.S` to appear in
+                        // this file.
+                        @Suppress("ObsoleteSdkInt")
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            TextButton(
+                                onClick = {
+                                    runCatching {
+                                        activityLauncher.launch(
+                                            Intent(
+                                                Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                                                Uri.fromParts("package", context.packageName, null),
+                                            ),
+                                        )
+                                    }
+                                },
+                                modifier = Modifier.padding(vertical = 4.dp),
+                            ) {
+                                // Trailing chevron so the affordance
+                                // reads as a button, not a label.
+                                // The launcher has no other right-arrow
+                                // icons; this is the one place the user
+                                // is being asked to leave the app, and
+                                // the cue is worth the one glyph.
+                                Text(
+                                    text = stringResource(R.string.exact_alarms_grant) + "  →",
+                                )
+                            }
                         }
                     }
 

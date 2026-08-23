@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">MindAnchor</string>
     <string name="greeting_morning">A quiet morning.</string>
     <string name="greeting_day">Here, now.</string>
@@ -124,7 +124,6 @@
     -->
     <string name="update_available">A newer version is available (v%1$s).</string>
     <string name="update_available_action">Get it</string>
-    <string name="update_available_dismiss">Not now</string>
     <!--
         v0.25.9 (Settings → About): the "Check for updates"
         button and its states.
@@ -134,7 +133,7 @@
     <string name="check_for_updates_newer">v%1$s is available on GitHub.</string>
     <string name="check_for_updates_failed">Could not check. Try again later.</string>
     <string name="open_release">Open release</string>
-    <string name="digest_waiting_count">%1$d waiting for the next batch</string>
+    <string name="digest_waiting_count" tools:ignore="PluralsCandidate">%1$d waiting for the next batch</string>
     <string name="digest_release_now">Release now</string>
     <string name="digest_clear_released">Clear released</string>
     <string name="digest_empty">Nothing here. When batching is on, held notifications collect in this journal so nothing is ever lost.</string>
@@ -189,22 +188,6 @@
         never authors these; the user does, in settings.
     -->
     <string name="compassion_moment_label">For you, right now:</string>
-    <string name="loop_capture">Anything still open? Put it down here and pick it up in the morning.</string>
-    <string name="loop_capture_hint">The one thing on your mind</string>
-    <string name="loop_save">Put it down</string>
-    <string name="loop_return">You left this for yourself last night:</string>
-    <string name="loop_clear">Done with it</string>
-    <string name="loop_postpone">Postpone</string>
-    <string name="loop_postpone_dialog_title">When will you deal with it?</string>
-    <string name="loop_postpone_later_today">Later today</string>
-    <string name="loop_postpone_tomorrow_morning">Tomorrow morning</string>
-    <string name="loop_postpone_cancel">Cancel</string>
-    <string name="loop_postponed_back_at">Back at %1$s</string>
-    <string name="loop_postponed_cancel">Back to it now</string>
-    <string name="one_thing_label">Today\'s one thing</string>
-    <string name="one_thing_hint">The single thing you want to do today</string>
-    <string name="one_thing_done">Done with it</string>
-    <string name="one_thing_set">Set</string>
 
     <!--
         Bedtime to-do list — Scullin et al. 2018, J Exp Psychol Gen
@@ -215,16 +198,9 @@
         user is parking the thought for the morning, not crossing it
         off.
     -->
-    <string name="bedtime_capture">Anything for tomorrow? Write it down now — specific things, not vague ones. Your phone can hold them until morning.</string>
-    <string name="bedtime_capture_hint">e.g. call Mom at 6, email the report by Tuesday</string>
-    <string name="bedtime_add_line">Add line</string>
-    <string name="bedtime_save">Put it down</string>
-    <string name="bedtime_return_intro">You left this for yourself last night:</string>
-    <string name="bedtime_clear">Done with it</string>
-    <string name="bedtime_specificity_nudge">A specific time or day makes this work better than a vague list.</string>
     <string name="stale_section">Pauses worth a look</string>
     <string name="stale_explainer">These are ones you have gone through every time. That might mean the pause has become scenery, or it might mean it is quietly doing its job and you genuinely wanted to go in. Only you know which. Nothing changes unless you change it.</string>
-    <string name="stale_line">%1$s — shown %2$d times, and you went in every time.</string>
+    <string name="stale_line" tools:ignore="PluralsCandidate">%1$s — shown %2$d times, and you went in every time.</string>
     <string name="stale_keep">Keep it</string>
     <string name="stale_drop">Let it go</string>
     <string name="goals_section">What you said you wanted</string>
@@ -288,18 +264,18 @@
     <string name="report_disclaimer">These are counts from your own history, next to what the research says the thing counted is. Nothing here knows what it means about you.</string>
     <string name="report_generated_label">Written on this phone, by a small model, from the passages below.</string>
     <string name="pattern_section">What your days have tended to do</string>
-    <string name="pattern_lower">Of the %1$d days when your %2$s was closest to last night\'s, %3$s came out lower than your usual.</string>
-    <string name="pattern_higher">Of the %1$d days when your %2$s was closest to last night\'s, %3$s came out higher than your usual.</string>
+    <string name="pattern_lower" tools:ignore="PluralsCandidate">Of the %1$d days when your %2$s was closest to last night\'s, %3$s came out lower than your usual.</string>
+    <string name="pattern_higher" tools:ignore="PluralsCandidate">Of the %1$d days when your %2$s was closest to last night\'s, %3$s came out higher than your usual.</string>
     <string name="pattern_caveat">That is a count of your own past days, not a forecast. It says nothing about how today will go, and nothing about why.</string>
     <string name="corpus_section">Research on file</string>
     <string name="corpus_explainer">Every report shows you what the research says the thing measured actually is, drawn from a small set of passages that ships with the app. You can add more from a file on this phone — the more there is on file, the better the match to what your report is about.</string>
     <string name="corpus_verbatim">Passages are shown to you word for word. What you add is what you will read.</string>
     <string name="corpus_format">One passage per line: an id, a source, then the text, separated by tab characters. Lines starting with # are ignored.</string>
-    <string name="corpus_count">%1$d passages on file.</string>
+    <string name="corpus_count" tools:ignore="PluralsCandidate">%1$d passages on file.</string>
     <string name="corpus_import">Add research from a file</string>
     <string name="corpus_clear">Back to the built-in set</string>
     <string name="corpus_result_changed">Added %1$d, corrected %2$d.</string>
-    <string name="corpus_result_skipped">Ignored %1$d rows that were not in this format.</string>
+    <string name="corpus_result_skipped" tools:ignore="PluralsCandidate">Ignored %1$d rows that were not in this format.</string>
     <string name="corpus_result_truncated">That file held more than fits, so the rest was left out.</string>
     <string name="corpus_result_none">Nothing in that file could be read as research, so nothing was changed.</string>
     <string name="corpus_result_unreadable">That file could not be read.</string>
@@ -401,7 +377,7 @@
     <string name="arriving_section">What is arriving</string>
     <string name="arriving_explainer">Each signal, how many of the last three months\' days have a value on file, and where the latest one came from. A signal missing here is a fact worth knowing, never a silent gap.</string>
     <string name="arriving_not_yet">Nothing counted yet. Build last night\'s look once, under Reading, and this fills in.</string>
-    <string name="arriving_line">%1$s — %2$d days on file</string>
+    <string name="arriving_line" tools:ignore="PluralsCandidate">%1$s — %2$d days on file</string>
     <string name="arriving_last">last %1$s, %2$s</string>
     <string name="arriving_never">nothing yet</string>
     <string name="source_measured">measured on this phone</string>
@@ -434,7 +410,7 @@
     <string name="ema_arousal_high">Wired</string>
     <string name="ema_skip">Not now</string>
     <string name="ema_saved">Thanks. That is all.</string>
-    <string name="ema_count">%1$d check-ins so far.</string>
+    <string name="ema_count" tools:ignore="PluralsCandidate">%1$d check-ins so far.</string>
     <string name="ema_learning">Still learning your normal.</string>
     <string name="ema_settled">It has enough to work with, so it asks less now.</string>
     <string name="ema_channel_name">Check-ins</string>
@@ -444,7 +420,7 @@
     <string name="ppg_start">Take a reading</string>
     <string name="ppg_grant">Allow the camera</string>
     <string name="ppg_measuring">Measuring — hold still</string>
-    <string name="ppg_seconds_left">%1$d seconds left</string>
+    <string name="ppg_seconds_left" tools:ignore="PluralsCandidate">%1$d seconds left</string>
     <string name="ppg_cancel">Stop</string>
     <string name="ppg_result">Resting HRV %1$d ms, heart rate %2$d bpm.</string>
     <string name="ppg_refused">That reading was too noisy to trust, so it has been thrown away rather than saved. Usually it is finger pressure — cover the lens and the flash completely, but rest the finger rather than pressing.</string>
@@ -476,7 +452,7 @@
         not a research finding.
     -->
     <string name="sleep_suggestion_heading">Suggested wind-down</string>
-    <string name="sleep_suggestion_line">From your last %1$d nights, your nights cluster around %2$s. A wind-down at %3$s would land an hour and a half before that.</string>
+    <string name="sleep_suggestion_line" tools:ignore="PluralsCandidate">From your last %1$d nights, your nights cluster around %2$s. A wind-down at %3$s would land an hour and a half before that.</string>
     <string name="sleep_suggestion_apply">Use this</string>
 
     <string name="set_default_launcher">Set MindAnchor as your home screen</string>
@@ -541,7 +517,6 @@
          uses one of the band_* lines below; the wording in each is
          per docs/research/13 (Topp 2015; WHO 1998; Parker 2020 JMIR
          mHealth lived-experience findings). -->
-    <string name="pulse_low_note">Scores in this range are common when things are heavy. Your people and your plan are one tap from the home screen whenever you want them.</string>
     <string name="pulse_open_support">Open support</string>
     <string name="pulse_band_okay">In the higher range. The WHO-5 is not a diagnosis — it is a check-in on the last two weeks. Trends over time are more useful than any single number.</string>
     <string name="pulse_band_low">In the lower range — the kind of result that often shows up under a lot of stress or strain. Not a diagnosis, and it does not mean anything is wrong with you. Your people and your plan are one tap away whenever you want them. If this has been going on for a couple of weeks or more, talking to a GP can be a useful next step.</string>
@@ -559,13 +534,11 @@
         Nothing here says whether a direction is good.
     -->
     <string name="pulse_history_line">%1$s — %2$d/100</string>
-    <string name="pulse_history_change">%1$s since the one before</string>
     <string name="pulse_channel_name">Wellbeing pulse</string>
     <string name="pulse_reminder_title">Two weeks since your last pulse</string>
     <string name="pulse_reminder_text">Two minutes, whenever suits you.</string>
 
 
-    <string name="support_shortcut">support</string>
     <string name="notes_shortcut">notes</string>
     <string name="support_section">Your people and your plan</string>
     <string name="support_section_explainer">Somewhere to write down what helps, and the people you would want to talk to. Yours to fill in, whenever you feel like it.</string>
@@ -582,7 +555,7 @@
     <string name="skill_tipp_title">TIPP</string>
     <string name="skill_tipp_body">Cold water on your face or hands. Intense movement for a minute. Paced breathing, out longer than in. Then relax each muscle group in turn. These change body chemistry fast when thinking alone will not.</string>
     <string name="skill_tipp_caution">The cold water and the hard movement both swing your heart rate on purpose. If you have a heart condition, an eating disorder, or are pregnant, skip those two and ask a doctor first. The paced breathing and the muscle relaxation are gentle, and they work on their own.</string>
-    <string name="skill_grounding_title">5-4-3-2-1</string>
+    <string name="skill_grounding_title" tools:ignore="TypographyDashes">5-4-3-2-1</string>
     <string name="skill_grounding_body">Name five things you can see, four you can touch, three you can hear, two you can smell, one you can taste. Slowly, out loud if you can.</string>
 
     <string name="plan_section">My plan</string>
@@ -634,6 +607,17 @@
     <string name="backup_not_a_backup">That file isn\'t a MindAnchor copy, or it came from a newer version. Nothing was changed.</string>
     <string name="backup_failed">Couldn\'t read or write that file. Nothing was changed.</string>
     <string name="about_text">MindAnchor is an open-source, research-backed launcher. It has no accounts, no server and no analytics — by default, your data never leaves this phone. The one opt-in exception is the COROS Training Hub bridge under Settings → Measuring: when you connect it, the launcher fetches HRV and resting heart rate from COROS, over an encrypted connection, with your COROS password held in this phone\'s secure Keystore. The connection is off until you turn it on. It is a wellness tool, not a medical device, and it is no substitute for talking to someone.</string>
+    <!--
+        v0.25.11 (deployability §privacy): a one-line
+        pointer to the full privacy policy. The URL is
+        the raw markdown on GitHub so users can see
+        exactly what was committed. The Open button is
+        wired in SettingsScreen.kt immediately after the
+        UpdateCheckSection.
+    -->
+    <string name="privacy_label" tools:ignore="UnusedResources">Privacy policy</string>
+    <string name="privacy_url" tools:ignore="UnusedResources">https://raw.githubusercontent.com/sampathmannam/MindAnchor/main/docs/PRIVACY.md</string>
+    <string name="privacy_open_action" tools:ignore="UnusedResources">Open</string>
 
     <!--
         v0.20.1 round 5 follow-up: Going Light
@@ -671,14 +655,9 @@
     <string name="check_in_history_title">Check-ins</string>
     <string name="check_in_history_empty">No check-ins yet. They appear here as you complete them.</string>
     <string name="check_in_history_shortcut">history</string>
-    <string name="check_in_manual_shortcut">check in</string>
-    <string name="note_title_hint">Title (optional)</string>
     <string name="note_body_hint">Start writing…</string>
     <string name="note_new">New note</string>
     <string name="note_list_empty">Nothing here yet. Tap + to start.</string>
-    <string name="note_pin">Pin</string>
-    <string name="note_unpin">Unpin</string>
-    <string name="note_delete">Delete</string>
     <string name="note_delete_confirm">Delete this note?</string>
     <string name="note_delete_yes">Delete</string>
     <string name="note_delete_no">Keep</string>
@@ -717,13 +696,12 @@
     <string name="health_connect_status_loading">Checking what your watch is sharing…</string>
     <string name="health_connect_status_unavailable">Health Connect is not installed on this phone. Install it from the Play Store to bring your wearable data in.</string>
     <string name="health_connect_status_not_granted">No data is being read yet. Tap below to choose what to share.</string>
-    <string name="health_connect_status_partial">Reading %1$d of %2$d signal types from your watch. Tap to change.</string>
-    <string name="health_connect_status_full">All %1$d signal types connected.</string>
+    <string name="health_connect_status_partial" tools:ignore="PluralsCandidate">Reading %1$d of %2$d signal types from your watch. Tap to change.</string>
+    <string name="health_connect_status_full" tools:ignore="PluralsCandidate">All %1$d signal types connected.</string>
     <string name="health_connect_launch_failed">Couldn\'t open Health Connect. The app may be missing, disabled, or may not have responded in time. Check it is installed and enabled, then try again.</string>
     <string name="health_connect_button_connect">Connect to your watch</string>
     <string name="health_connect_button_change">Change what is shared</string>
     <string name="health_connect_what_reads_header">What this app reads</string>
-    <string name="health_connect_what_reads_line">%1$s</string>
     <string name="health_connect_reads_heart_rate">heart rate samples — used to show mean and resting heart rate</string>
     <string name="health_connect_reads_resting_heart_rate">resting heart rate — used to show recovery from your usual</string>
     <string name="health_connect_reads_heart_rate_variability">heart rate variability (HRV) — used alongside the camera PPG for a fuller recovery picture</string>
@@ -736,7 +714,7 @@
     <string name="health_connect_does_not_write">Write back to your watch or any other app. The launcher only reads.</string>
     <string name="health_connect_does_not_send">Send anything off this phone. There is no network call to a server, ever.</string>
     <string name="health_connect_does_not_diagnose">Diagnose or interpret. The numbers are shown, not judged.</string>
-    <string name="health_connect_section_data_label">What is arriving</string>
+    <string name="health_connect_section_data_label" tools:ignore="UnusedResources">What is arriving</string>
 
     <!--
         v0.20.7 wearable bridge (COROS Training Hub side-channel).
@@ -769,7 +747,7 @@
     <string name="coros_last_sync_never">Never synced on this device.</string>
     <string name="coros_login_failed">Sign-in failed: %1$s</string>
     <string name="coros_login_in_progress">Signing in…</string>
-    <string name="coros_privacy_note">What goes to the COROS server: your email + password (for sign-in), the resulting access token, and the three data fetches (HRV, daily summary, activity list). What does not go anywhere else: nothing — this bridge is the only outbound channel and the launcher\'s promise of \"no other network call\" still holds.</string>
+    <string name="coros_privacy_note" tools:ignore="UnusedResources">What goes to the COROS server: your email + password (for sign-in), the resulting access token, and the three data fetches (HRV, daily summary, activity list). What does not go anywhere else: nothing — this bridge is the only outbound channel and the launcher\'s promise of \"no other network call\" still holds.</string>
     <string name="coros_what_this_does_header">What this bridge does</string>
     <string name="coros_does_login">Sign in once with your COROS Training Hub email + password. COROS requires the password as an MD5 hash, so that is what is sent, over an encrypted connection. The hash stands in for the password, so treat it with the same care.</string>
     <string name="coros_does_sync">Fetch the last 7 days of nightly HRV (RMSSD ms) and the last ~28 days of resting heart rate from the Training Hub every 6 hours.</string>
@@ -777,7 +755,6 @@
     <string name="coros_does_not_store">No analytics, no crash reports, no telemetry. The encrypted credential blob is the only thing on disk.</string>
     <string name="coros_does_not_logout">Does not sign out of the COROS phone app. The side-channel uses the Training Hub web API, not the mobile API, so your phone app stays signed in.</string>
     <string name="coros_sync_running">Syncing…</string>
-    <string name="coros_sync_idle">Up to date.</string>
     <string name="coros_sync_failed">Last sync failed: %1$s</string>
 
     <!--
@@ -800,28 +777,17 @@
         population threshold to a person; the user can always see
         their own median.
     -->
-    <string name="wellness_section">Wellness signals</string>
-    <string name="wellness_subtitle">Today against your own history. No population thresholds, no diagnosis.</string>
     <string name="wellness_signal_hrv">HRV</string>
     <string name="wellness_signal_resting_hr">Resting heart rate</string>
     <string name="wellness_signal_steps">Steps</string>
     <string name="wellness_signal_sleep">Sleep</string>
     <string name="wellness_signal_mindfulness">Mindfulness</string>
-    <string name="wellness_dir_at">at your usual</string>
-    <string name="wellness_dir_above">above your usual</string>
-    <string name="wellness_dir_much_above">much above your usual</string>
-    <string name="wellness_dir_below">below your usual</string>
-    <string name="wellness_dir_no_data">—</string>
-    <string name="wellness_vs_usual">vs your usual: %1$s</string>
     <string name="wellness_baseline_building">still building a picture</string>
-    <string name="wellness_no_value_today">—</string>
     <string name="wellness_settings_title">Wellness signals</string>
     <string name="wellness_settings_explainer">Your own history for each signal, shown in the same units your watch or ring writes. None of this is sent off the phone. None of it is compared to anyone else. The launcher never applies a population threshold to a person.</string>
     <string name="wellness_settings_baseline_building">Still building a picture. Each signal needs 14 days of your own data before the baseline is honest enough to show. The home card and this section appear once it is.</string>
     <string name="wellness_settings_loading">Reading from your watch…</string>
-    <string name="wellness_settings_no_data">No signal data has been read yet today. Open the Wearable section above to connect your watch, then come back.</string>
     <string name="wellness_settings_line">%1$s: %2$s</string>
-    <string name="wellness_settings_signal_header">%1$s</string>
     <string name="wellness_settings_band_at">%1$s — at your usual</string>
     <string name="wellness_settings_band_above">%1$s — above your usual</string>
     <string name="wellness_settings_band_much_above">%1$s — much above your usual</string>
@@ -834,9 +800,9 @@
 
     <!-- v0.25.2: letter inbox + reader + reader-mode. New strings, all
          v0.25.2-A unless tagged v0.25.2-B. -->
-    <string name="letters_inbox_title">A letter from your week</string>
-    <string name="letters_inbox_explainer">Written on this phone each morning by the same model that writes the nightly report. Tap any letter to read it.</string>
-    <string name="letters_inbox_label">letters</string>
+    <string name="letters_inbox_title" tools:ignore="UnusedResources">A letter from your week</string>
+    <string name="letters_inbox_explainer" tools:ignore="UnusedResources">Written on this phone each morning by the same model that writes the nightly report. Tap any letter to read it.</string>
+    <string name="letters_inbox_label" tools:ignore="UnusedResources">letters</string>
     <string name="letters_section">Daily letter</string>
     <!--
         v0.25.9 (P0-5): the daily letter is now written by
@@ -856,8 +822,8 @@
     <string name="letters_run_now">Generate now</string>
     <string name="letters_running_now">Generating…</string>
     <string name="letters_open_inbox">Open inbox (%1$d)</string>
-    <string name="letters_empty">No letters yet. The first arrives at 8 AM, once enough days have passed.</string>
-    <string name="letters_empty_no_model">No letters yet. Phi-4 isn\'t installed — open Settings → Model to install it.</string>
+    <string name="letters_empty" tools:ignore="UnusedResources">No letters yet. The first arrives at 8 AM, once enough days have passed.</string>
+    <string name="letters_empty_no_model" tools:ignore="UnusedResources">No letters yet. Phi-4 isn\'t installed — open Settings → Model to install it.</string>
     <string name="letters_delete">Delete this letter</string>
     <string name="letters_delete_confirm">Delete this letter?</string>
     <string name="letters_reader_missing">This letter is no longer on the phone.</string>
@@ -883,7 +849,7 @@
     <string name="letter_try_again">Try again</string>
     <string name="letter_open_settings">Open settings</string>
     <string name="letter_open_existing">Open</string>
-    <string name="letter_footer_format">%1$s · %2$s · %3$d input / %4$d output · %5$.1fs · %6$s</string>
+    <string name="letter_footer_format" tools:ignore="PluralsCandidate">%1$s · %2$s · %3$d input / %4$d output · %5$.1fs · %6$s</string>
     <string name="letter_cant_write_explainer">The launcher writes you one letter a day, in its own voice.</string>
     <!-- v0.25.2-B: reader-mode -->
     <string name="reading_size_section">Reading size</string>
@@ -926,14 +892,12 @@
     <string name="drive_explainer">A second, automatic copy in your own Google Drive — encrypted before it leaves this phone, in two text files (notes and letters). The app can only see files it created; the rest of your Drive is invisible.</string>
     <string name="drive_sign_in">Sign in with Google</string>
     <string name="drive_signed_in_as">Signed in as %1$s</string>
-    <string name="drive_switch_account">Switch account</string>
     <string name="drive_backup_now">Back up now</string>
     <string name="drive_backup_uploaded">Backed up. The remote copy is encrypted with the same key as the local backup.</string>
     <string name="drive_upload_failed">Couldn\'t back up right now. Will retry on the next entry.</string>
     <string name="drive_sign_in_failed">Couldn\'t sign in. Check the account picker and try again.</string>
     <string name="drive_forget_account">Forget this account</string>
     <string name="drive_forgot">Forgot the account. The remote copy is still in your Drive; turn the bridge back on any time.</string>
-    <string name="drive_not_signed_in">Sign in to enable this.</string>
     <string name="drive_auto_sync_notes">Auto-back up new notes</string>
     <string name="drive_auto_sync_letters">Auto-back up new letters</string>
 
