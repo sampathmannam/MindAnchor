@@ -102,17 +102,26 @@ class LetterViewModel(
     }
 
     /**
-     * Delete today's existing letter, then transition
+     * Delete today's existing LLM letter, then transition
      * `Reader -> Writing -> Reader/Error` with a fresh
      * generation. No-op while in flight.
+     *
+     * Only deletes LLM-driven letters (`provider != null`).
+     * On-device Phi-4 letters (v0.25.0-v0.25.6) are
+     * preserved — they are owned by Settings → Daily
+     * letter → Generate now, not by the LLM path. A
+     * user with no Groq key who taps Regenerate on a
+     * Phi-4 letter would otherwise lose data.
      */
     fun regenerate() {
         if (_state.value is LetterWriteState.Writing) return
         currentJob = viewModelScope.launch {
-            // Delete today's letter first (so the inbox
-            // reverts to "no letter yet for today" while
-            // the new one is being written).
-            letterStore.delete(LocalDate.now())
+            // Delete only the LLM letter (if any). Phi-4
+            // letters stay.
+            val todays = letterStore.letters.first().firstOrNull { it.date == LocalDate.now() }
+            if (todays?.provider != null) {
+                letterStore.delete(LocalDate.now())
+            }
             runGeneration(today = LocalDate.now(), isRegenerate = true)
         }
     }

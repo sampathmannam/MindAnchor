@@ -27,11 +27,10 @@ object LlmClientFactory {
         apiKey: String,
         model: String,
     ): LlmClient = when (provider) {
-        // Defer to NotImplementedLlmClient until GroqClient
-        // lands. The signature already takes (apiKey, model)
-        // so the GROQ branch is the only line that needs
-        // to change when the real impl arrives.
-        LlmProvider.GROQ -> NotImplementedLlmClient
+        LlmProvider.GROQ -> GroqClient(
+            apiKey = apiKey,
+            model = model,
+        )
 
         // Defensive: an unknown provider enum (a future
         // addition that hasn't shipped an impl yet) is

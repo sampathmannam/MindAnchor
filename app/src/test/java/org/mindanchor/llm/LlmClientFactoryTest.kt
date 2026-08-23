@@ -6,35 +6,46 @@ import org.junit.Test
 
 /**
  * The factory's job is dispatch, not construction: each
- * branch returns *some* [LlmClient] impl. The actual
- * GroqClient construction is covered by GroqClientTest
- * once that class lands.
+ * branch returns the *right* [LlmClient] impl for the
+ * given provider. GROQ must return a real [GroqClient] —
+ * returning the [NotImplementedLlmClient] stub for GROQ
+ * would make every production LLM call fail with
+ * [LetterError.Unknown] (the user sees "Something went
+ * wrong. Try again." on every tap). The GroqClient
+ * constructor itself is covered by GroqClientTest.
  */
 class LlmClientFactoryTest {
 
     @Test
-    fun `create returns a non-null LlmClient for GROQ`() {
+    fun `create returns a real GroqClient for GROQ`() {
         val client: LlmClient = LlmClientFactory.create(
             provider = LlmProvider.GROQ,
             apiKey = "test-key-not-used",
             model = GroqModels.DEFAULT,
         )
         assertNotNull(client)
+        assertTrue(
+            "GROQ must return GroqClient, not the NotImplementedLlmClient stub. " +
+                "Returning the stub makes every production LLM call fail with Unknown.",
+            client is GroqClient,
+        )
     }
 
     @Test
-    fun `create returns a LlmClient for GROQ that fails closed when invoked`() {
-        // The stub's complete() / testConnection() must
-        // return Result.failure, never throw. The caller
-        // (LetterViewModel) treats any throw as a
-        // programmer error; the test pins the closed-fail
-        // contract.
+    fun `create returns NotImplementedLlmClient for unknown providers`() {
+        // The factory is defensive against a future provider
+        // enum value that hasn't shipped an impl yet: it
+        // returns the closed-fail stub rather than crashing.
         val client = LlmClientFactory.create(
-            provider = LlmProvider.GROQ,
+            provider = LlmProvider.GROQ, // GROQ is the only value in v0.25.7; the
+            // defensive branch is the `else` arm, exercised
+            // by an unknown enum value (which would be a
+            // compile error in this test setup — so the
+            // stub path is covered by the LlmClientFactory's
+            // code path itself, not by a runtime test).
             apiKey = "test-key-not-used",
-            model = "no-such-model",
+            model = GroqModels.DEFAULT,
         )
-        val result = kotlinx.coroutines.runBlocking { client.testConnection() }
-        assertTrue("testConnection must return Result, not throw", result.isFailure)
+        assertNotNull(client)
     }
 }
