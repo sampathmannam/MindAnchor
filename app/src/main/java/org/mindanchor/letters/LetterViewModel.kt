@@ -2,7 +2,6 @@ package org.mindanchor.letters
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import java.time.LocalDate
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,6 +15,7 @@ import org.mindanchor.llm.LetterError
 import org.mindanchor.llm.LlmClient
 import org.mindanchor.llm.LlmClientFactory
 import org.mindanchor.llm.LlmPrefs
+import java.time.LocalDate
 
 /**
  * The state of the LLM-driven letter surface. [Idle] is
@@ -88,6 +88,12 @@ class LetterViewModel(
     private var currentJob: Job? = null
     private var cancelled: Boolean = false
 
+    /**
+     * Transition `Idle -> Writing -> Reader/Error` for today's
+     * date. No-op while a generation is already in flight
+     * (the `Writing` re-entry guard) — calling again would
+     * race the in-flight coroutine.
+     */
     fun generateToday() {
         if (_state.value is LetterWriteState.Writing) return // already in flight
         currentJob = viewModelScope.launch {
@@ -95,6 +101,11 @@ class LetterViewModel(
         }
     }
 
+    /**
+     * Delete today's existing letter, then transition
+     * `Reader -> Writing -> Reader/Error` with a fresh
+     * generation. No-op while in flight.
+     */
     fun regenerate() {
         if (_state.value is LetterWriteState.Writing) return
         currentJob = viewModelScope.launch {
@@ -106,6 +117,13 @@ class LetterViewModel(
         }
     }
 
+    /**
+     * Abort the in-flight generation. Sets the [cancelled]
+     * flag (so any soft-checked suspension point bails
+     * early) and hard-cancels the [currentJob] (so any
+     * uncancelled suspension point throws). State returns
+     * to `Idle`.
+     */
     fun cancel() {
         cancelled = true
         currentJob?.cancel()
@@ -113,6 +131,10 @@ class LetterViewModel(
         _state.value = LetterWriteState.Idle
     }
 
+    /**
+     * Dismiss the `Error` state. Returns to `Idle` so the
+     * user can tap `Write today's letter` again.
+     */
     fun acknowledgeError() {
         _state.value = LetterWriteState.Idle
     }
@@ -143,6 +165,7 @@ class LetterViewModel(
         if (cancelled) return // the cancel() may have raced with this
 
         val result = client.complete(request)
+        if (cancelled) return // the LLM call completed after cancel() — drop the result
         result.onSuccess { response ->
             val previous = letterStore.letters.first().firstOrNull { it.date == today }
             val letter = Letter(
@@ -154,6 +177,7 @@ class LetterViewModel(
                 completionTokens = response.completionTokens,
                 durationMs = response.durationMs,
             )
+            if (cancelled) return@onSuccess // save+log write would race the cancel()
             letterStore.save(letter)
             letterLog.append(
                 LetterLogEntry(

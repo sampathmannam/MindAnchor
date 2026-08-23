@@ -1,7 +1,6 @@
 package org.mindanchor.letters
 
 import androidx.test.core.app.ApplicationProvider
-import java.time.LocalDate
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -18,6 +17,7 @@ import org.mindanchor.llm.LlmPrefs
 import org.mindanchor.llm.LlmRequest
 import org.mindanchor.llm.LlmResponse
 import org.robolectric.RobolectricTestRunner
+import java.time.LocalDate
 
 /**
  * The state machine is the contract between the UI and
