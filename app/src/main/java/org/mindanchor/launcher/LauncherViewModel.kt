@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.mindanchor.data.AppRepository
+import org.mindanchor.data.CheckInPrefs
 import org.mindanchor.data.FrictionPrefs
 import org.mindanchor.data.LauncherPrefs
 import org.mindanchor.data.NotesPrefs
@@ -20,6 +21,11 @@ import org.mindanchor.data.SunsetPrefs
 import org.mindanchor.friction.LoopPhase
 import org.mindanchor.friction.OpenLoop
 import org.mindanchor.friction.PerAppSessionLength
+import org.mindanchor.letters.LetterGenerationLog
+import org.mindanchor.letters.LetterStore
+import org.mindanchor.letters.LetterViewModel
+import org.mindanchor.letters.LetterWriteState
+import org.mindanchor.llm.LlmPrefs
 import org.mindanchor.model.Note
 import org.mindanchor.model.NoteStore
 import org.mindanchor.reader.ReaderPrefs
@@ -528,4 +534,62 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun setOneThing(text: String?) {
         viewModelScope.launch { prefs.setOneThing(text) }
     }
+
+    // --- LLM letter state machine (v0.25.7 Task 13) --------------------
+    //
+    // The home surface's [HomeSurface] composable accepts a
+    // [LetterWriteState] + 5 callbacks (`onWriteToday`,
+    // `onRegenerate`, `onCancelWrite`, `onRetryError`,
+    // `onOpenLlmSettings`). Wiring those callbacks to a real
+    // [LetterViewModel] is the responsibility of this
+    // [LauncherViewModel]: the [LetterViewModel] class
+    // (`org.mindanchor.letters`) is a plain [androidx.lifecycle.ViewModel]
+    // (not [AndroidViewModel]) and requires 5 collaborator
+    // dependencies (`LlmPrefs`, `NotesPrefs`, `CheckInPrefs`,
+    // `LetterStore`, `LetterGenerationLog`) that the
+    // `viewModel()` Compose entry point cannot construct by
+    // reflection. The cleanest place to wire those is here,
+    // where the [Application] context is already available.
+    //
+    // We construct [letterVm] once and expose:
+    //  - [letterWriteState]: a passthrough of [LetterViewModel.state]
+    //    (the home root collects this with `collectAsState`).
+    //  - [generateToday] / [regenerate] / [cancel] / [acknowledgeError]:
+    //    thin delegates to [LetterViewModel] so the
+    //    [LauncherRoot] callback wiring stays one-liner clean.
+    //  - (`onOpenLlmSettings` is *not* a VM method — it is a UI
+    //    navigation only: the launcher routes to Settings from
+    //    the call site, not from the VM.)
+    //
+    // The dependencies are constructed against the same
+    // [Application] context this VM already uses for
+    // [notesPrefs] / [readerPrefs] / etc. — same DataStore
+    // source, same data, no duplication.
+    private val letterVm: LetterViewModel = LetterViewModel(
+        llmPrefs = LlmPrefs(application),
+        notesPrefs = notesPrefs,
+        checkInPrefs = CheckInPrefs(application),
+        letterStore = LetterStore(application),
+        letterLog = LetterGenerationLog(application),
+    )
+
+    /**
+     * The LLM letter write state, collected by [LauncherRoot]
+     * with `collectAsState` and threaded into the
+     * [org.mindanchor.letters.LetterScreen] call. Passthrough of
+     * [LetterViewModel.state]; the VM owns the transitions.
+     */
+    val letterWriteState: StateFlow<LetterWriteState> = letterVm.state
+
+    /** v0.25.7 (Task 13): start LLM generation for today's date. */
+    fun generateToday() = letterVm.generateToday()
+
+    /** v0.25.7 (Task 13): delete today's existing letter and regenerate. */
+    fun regenerate() = letterVm.regenerate()
+
+    /** v0.25.7 (Task 13): abort the in-flight LLM generation. */
+    fun cancelLetter() = letterVm.cancel()
+
+    /** v0.25.7 (Task 13): dismiss the LLM error state. */
+    fun acknowledgeLetterError() = letterVm.acknowledgeError()
 }

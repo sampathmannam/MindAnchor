@@ -64,13 +64,13 @@ import org.mindanchor.friction.GateContext
 import org.mindanchor.letters.Letter
 import org.mindanchor.letters.LetterScreen
 import org.mindanchor.letters.LetterStore
+import org.mindanchor.letters.LetterWriteState
 import org.mindanchor.model.Note
 import org.mindanchor.model.NoteActivity
 import org.mindanchor.reader.ReadingSize
 import org.mindanchor.report.ReportScreen
 import org.mindanchor.settings.SettingsScreen
 import org.mindanchor.vitals.PpgScreen
-import org.mindanchor.support.SupportActivity
 import org.mindanchor.ui.CalmBackground
 import org.mindanchor.ui.SkyContent
 import org.mindanchor.ui.rememberClockFormat
@@ -161,12 +161,25 @@ fun LauncherRoot(
     // reportCameFrom — selected date is null on the inbox, non-null
     // in the reader; cameFrom remembers where the user came from so
     // the inbox's back button returns there. Two entry points: the
-    // new "letters" TopEnd corner on the home surface, the (later)
+    // new "letter" TopEnd corner on the home surface, the (later)
     // Reading sub-section in Settings, and the letter notification
     // (Task 8), which writes letterDateSignal from HomeActivity.
     var letterSelectedDate by remember { mutableStateOf<LocalDate?>(null) }
     var letterCameFrom by remember { mutableStateOf(LauncherSurface.Home) }
     val context = LocalContext.current
+
+    // v0.25.7 (Task 13): the LLM letter write state
+    // (Idle / Writing / Reader / Error). Collected at
+    // [LauncherRoot] level — sibling to the `surface`
+    // dispatcher — so both the [LauncherSurface.Home]
+    // branch's [HomeSurface] call and the
+    // [LauncherSurface.Letter] branch's [LetterScreen]
+    // call can forward the same value without
+    // re-collecting. Driven by
+    // [org.mindanchor.letters.LetterViewModel]; the
+    // VM is constructed inside [LauncherViewModel] and
+    // exposed as [viewModel.letterWriteState].
+    val letterWriteState by viewModel.letterWriteState.collectAsState()
 
     // Pressing home while deep in the drawer or settings must land on the
     // home surface — otherwise the launcher "sticks" wherever you left it.
@@ -287,6 +300,13 @@ fun LauncherRoot(
     when (surface) {
         LauncherSurface.Home -> CalmBackground { sky ->
             val showIntroCallout by viewModel.showIntroCallout.collectAsState()
+            // v0.25.7 (Task 13): the LLM letter write state
+            // (Idle / Writing / Reader / Error) is collected
+            // once at the [LauncherRoot] level (see above)
+            // and forwarded here to the [HomeSurface] call.
+            // The [LauncherSurface.Letter] branch (below)
+            // also receives the same `letterWriteState`
+            // value — both surfaces see the same state.
             HomeSurface(
                 sky = sky,
                 favorites = state.favorites,
@@ -324,12 +344,16 @@ fun LauncherRoot(
                         context.startActivity(historyIntent)
                     }
                 },
-                // v0.25.2-A (Task 6): the "letters" TopEnd
+                // v0.25.2-A (Task 6): the "letter" TopEnd
                 // corner. Wired here so the lambda body has
                 // access to the letter state (selectedDate,
                 // cameFrom) and the surface dispatcher. The
                 // Settings entry will pass a sibling lambda
                 // with cameFrom = LauncherSurface.Settings.
+                //
+                // v0.25.7 (Task 13): the label is now
+                // singular ("letter", one per day), sourced
+                // from R.string.letter_singular.
                 onOpenLetters = {
                     letterSelectedDate = null
                     letterCameFrom = LauncherSurface.Home
@@ -337,6 +361,25 @@ fun LauncherRoot(
                 },
                 showIntroCallout = showIntroCallout,
                 onRecordLaunch = viewModel::recordHomeLaunch,
+                // v0.25.7 (Task 13): the LLM letter state
+                // machine is driven by
+                // [org.mindanchor.letters.LetterViewModel],
+                // which [LauncherViewModel] constructs and
+                // exposes as [viewModel.letterWriteState] +
+                // 4 helper methods. The [HomeSurface]
+                // forwards these to the
+                // [LauncherSurface.Letter] branch's
+                // [LetterScreen] call. The 5th callback,
+                // [onOpenLlmSettings], is a UI navigation
+                // only — it routes the user to Settings
+                // (where the Daily letter (LLM) sub-section
+                // lives); it does not touch the VM.
+                letterWriteState = letterWriteState,
+                onWriteToday = { viewModel.generateToday() },
+                onRegenerate = { viewModel.regenerate() },
+                onCancelWrite = { viewModel.cancelLetter() },
+                onRetryError = { viewModel.generateToday() },
+                onOpenLlmSettings = { surface = LauncherSurface.Settings },
             )
         }
 
@@ -416,6 +459,13 @@ fun LauncherRoot(
                 modelFits = modelFits.value,
                 date = letterSelectedDate,
                 size = letterSize,
+                // v0.25.7 (Task 13): the LLM letter write state
+                // is collected at the [LauncherRoot] level (see
+                // above) and forwarded here. The inbox /
+                // writing / reader / error states are driven by
+                // [LetterScreen] based on this value; the home
+                // surface does not render them.
+                writeState = letterWriteState,
                 // v0.25.3-WP-C: a row tap marks the letter as read so
                 // the Settings "Open inbox (N)" badge decrements.
                 // The mark is idempotent (Set semantics) and the write
@@ -433,6 +483,17 @@ fun LauncherRoot(
                 },
                 onDelete = { date -> letterScope.launch { letterStore.delete(date) } },
                 onSetSize = { size -> viewModel.setLetterSize(size) },
+                // v0.25.7 (Task 13): the LLM letter state machine
+                // callbacks. Wired at the [LauncherRoot] level to
+                // [org.mindanchor.letters.LetterViewModel] methods
+                // (exposed as [viewModel] helpers). `onOpenLlmSettings`
+                // is a UI navigation only (no VM method) — it routes
+                // the user to Settings → Reading → Daily letter (LLM).
+                onWriteToday = { viewModel.generateToday() },
+                onRegenerate = { viewModel.regenerate() },
+                onCancelWrite = { viewModel.cancelLetter() },
+                onRetryError = { viewModel.generateToday() },
+                onOpenLlmSettings = { surface = LauncherSurface.Settings },
             )
         }
     }
@@ -651,7 +712,7 @@ private fun noteTimeText(note: Note): String {
 
 // combinedClickable, for the long-press on a favourite.
 @OptIn(ExperimentalFoundationApi::class)
-@Suppress("FunctionNaming", "LongMethod", "LongParameterList")
+@Suppress("FunctionNaming", "LongMethod", "LongParameterList", "UnusedParameter")
 @Composable
 private fun HomeSurface(
     sky: SkyContent,
@@ -664,8 +725,9 @@ private fun HomeSurface(
      * v0.20.1 round 5: route to [org.mindanchor.model.NoteActivity].
      * Notes are a one-tap home-screen affordance for the
      * "I want to remember this" capture pattern (brief §A).
-     * TopEnd so it does not collide with TopStart (Support)
-     * or BottomStart (Digest) or BottomEnd (Settings).
+     * TopEnd so it does not collide with BottomStart
+     * (Digest) or BottomEnd (Settings). The TopStart
+     * (Support) corner was removed in v0.25.7 (Task 13).
      */
     onOpenNotes: () -> Unit = {},
     /**
@@ -683,7 +745,7 @@ private fun HomeSurface(
     /**
      * v0.25.2-A (Task 6): route to the
      * letter inbox + reader (LauncherSurface.Letter).
-     * Wired to the new "letters" TextButton at
+     * Wired to the new "letter" TextButton at
      * the top of the TopEnd Column (above notes
      * + history). Mirrors the [onOpenReport]
      * pattern: the lambda body lives at the
@@ -718,6 +780,50 @@ private fun HomeSurface(
      */
     showIntroCallout: Boolean = false,
     onRecordLaunch: () -> Unit = {},
+    /**
+     * v0.25.7 (Task 13): the LLM letter write state. Threaded through
+     * [HomeSurface] (with [LetterWriteState.Idle] as the default) so
+     * the [LauncherSurface.Letter] branch in [LauncherRoot] can forward
+     * the live [LetterWriteState] flow to [LetterScreen]. The home
+     * surface itself does not read this value — only the letter
+     * branch does — but the param lives on [HomeSurface] so the
+     * home / letter surfaces share the same callback plumbing.
+     */
+    letterWriteState: LetterWriteState = LetterWriteState.Idle,
+    /**
+     * v0.25.7 (Task 13): user action — write today's letter. Wired
+     * to [org.mindanchor.letters.LetterViewModel.generateToday] in
+     * [LauncherRoot]. Default no-op so existing call sites still
+     * compile.
+     */
+    onWriteToday: () -> Unit = {},
+    /**
+     * v0.25.7 (Task 13): user action — regenerate today's letter.
+     * Wired to [org.mindanchor.letters.LetterViewModel.regenerate]
+     * in [LauncherRoot]. Default no-op.
+     */
+    onRegenerate: () -> Unit = {},
+    /**
+     * v0.25.7 (Task 13): user action — cancel an in-flight letter
+     * generation. Wired to
+     * [org.mindanchor.letters.LetterViewModel.cancel] in
+     * [LauncherRoot]. Default no-op.
+     */
+    onCancelWrite: () -> Unit = {},
+    /**
+     * v0.25.7 (Task 13): user action — retry after an LLM error.
+     * Wired to [org.mindanchor.letters.LetterViewModel.generateToday]
+     * in [LauncherRoot] (same code path as the initial write).
+     * Default no-op.
+     */
+    onRetryError: () -> Unit = {},
+    /**
+     * v0.25.7 (Task 13): user action — open LLM settings (Provider
+     * / Model / API key). Wired to the Settings surface dispatcher
+     * in [LauncherRoot]; the user lands in the Daily letter (LLM)
+     * sub-section from there. Default no-op.
+     */
+    onOpenLlmSettings: () -> Unit = {},
 ) {
     val now = rememberMinuteTick()
     val clockFormat = rememberClockFormat()
@@ -834,8 +940,8 @@ private fun HomeSurface(
             // clock, the greeting, and the quick
             // notes card. The rest of the launcher
             // is reachable through the corner
-            // buttons (search, settings, support,
-            // letters, notes, history, digest).
+            // buttons (search, settings, letter,
+            // notes, history, digest).
             QuickNotesCard(
                 sky = sky,
                 recent = recentNotes,
@@ -921,57 +1027,27 @@ private fun HomeSurface(
         }
 
         val context = LocalContext.current
-        // Support is one tap from the home screen and never buried: during
-        // acute distress or dissociation, three taps and a scroll is too far.
-        //
-        // v0.20.9: statusBarsPadding on the top-corner
-        // buttons. The outer Box already has
-        // safeDrawingPadding which should keep the
-        // buttons clear of the status bar, but on a
-        // real phone with the soft keyboard up the
-        // status-bar inset was being eaten somewhere
-        // upstream and the "support" / "history"
-        // labels rendered behind the status-bar
-        // icons. The defensive fix is to ask for the
-        // status-bar inset on the buttons
-        // themselves; the doubled padding when
-        // safeDrawingPadding is working is small
-        // (~24dp on top of ~24dp) and not a real
-        // cost on a phone screen.
-        TextButton(
-            onClick = {
-                runCatching {
-                    context.startActivity(Intent(context, SupportActivity::class.java))
-                }
-            },
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .statusBarsPadding(),
-        ) {
-            Text(
-                text = stringResource(R.string.support_shortcut),
-                style = MaterialTheme.typography.labelMedium,
-                color = sky.textSecondary,
-            )
-        }
 
         // v0.20.1 round 5: notes + check-in history
         // entry points. TopEnd, so neither collides
-        // with TopStart (Support), BottomStart
-        // (Digest), or BottomEnd (Settings). One-tap,
-        // no scrolling. The brief: "I want to
-        // remember this" — the entry must be
-        // reachable the moment the user thinks it.
-        // Two stacked buttons (notes on top, history
-        // below) keep the home screen uncluttered
-        // without forcing the user into a menu.
+        // with BottomStart (Digest) or BottomEnd
+        // (Settings). One-tap, no scrolling. The
+        // brief: "I want to remember this" — the
+        // entry must be reachable the moment the
+        // user thinks it. Two stacked buttons
+        // (notes on top, history below) keep the
+        // home screen uncluttered without forcing
+        // the user into a menu.
         //
-        // v0.20.9: same statusBarsPadding as the
-        // support button on the other corner — see
-        // its KDoc for the rationale.
+        // v0.20.9: statusBarsPadding keeps the
+        // stacked buttons clear of the status bar.
+        // The TopStart (Support) corner was removed
+        // in v0.25.7 (Task 13); the statusBarsPadding
+        // stays as a defensive measure for keyboards
+        // / status-bar overlays.
         //
         // v0.25.2-A (Task 6): a third stacked button
-        // — "letters" — sits at the top of this
+        // — "letter" — sits at the top of this
         // Column, above notes + history. The
         // Column's existing 8dp end padding (Bug 6
         // fix from v0.25.1) already applies, so the
@@ -981,6 +1057,12 @@ private fun HomeSurface(
         // thing the launcher writes for the user —
         // it must be one tap from the home surface
         // the same way notes and history are.
+        //
+        // v0.25.7 (Task 13): the label is now
+        // singular ("letter", one per day), sourced
+        // from R.string.letter_singular. The
+        // v0.25.2-A label was "letters" (plural) and
+        // is removed.
         Column(
             modifier = Modifier
                 .align(Alignment.TopEnd)
@@ -998,7 +1080,7 @@ private fun HomeSurface(
                 .padding(end = 8.dp),
             horizontalAlignment = Alignment.End,
         ) {
-            TextButton(onClick = onOpenLetters) { Text("letters") }
+            TextButton(onClick = onOpenLetters) { Text(stringResource(R.string.letter_singular)) }
             TextButton(
                 onClick = onOpenNotes,
             ) {
