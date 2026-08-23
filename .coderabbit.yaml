@@ -1,0 +1,134 @@
+# CodeRabbit configuration for MindAnchor.
+#
+# MindAnchor is a Kotlin/Compose Android launcher with strict privacy
+# posture (no analytics, no cloud by default) and a focus on shipping
+# small, well-scoped fixes. The config below reflects that — we want
+# the reviewer to focus on real Kotlin / Compose / Android 17 issues
+# and on the privacy / safety contracts, not on style or license
+# boilerplate.
+#
+# Notes:
+#  * Free for OSS (the user has confirmed the org-level Pro Plus
+#    plan is active). The repo has < 10 stars today, so the
+#    auto-trigger is dormant; reviewers must be invoked
+#    explicitly with `@coderabbitai review` on each PR. This
+#    config does not change that gate but ensures the right
+#    files are in scope when it does run.
+#  * Profile: CHILL. The launcher's release cadence is small
+#    and the human reviewer (Sampath) is the project owner;
+#    CHILL keeps the bot's commentary proportional to that.
+
+# Profile choice (chill | assertive). The default UI profile is
+# "chill" which the Org UI already selects; pinning it here
+# means the config travels with the repo.
+profile: chill
+
+# Conversation
+conversation:
+  # Auto-resolve trivial threads the bot opens (e.g. whitespace
+  # nits) so the human review surface stays focused on the
+  # real findings. Anything the bot is unsure about stays open.
+  auto_resolve_threads: true
+
+# Reviews
+reviews:
+  # We don't want the bot to touch release notes, license
+  # headers, or the bundled APK artifacts that are checked
+  # in under the repo root for cross-device installs.
+  exclude_paths:
+    - "RELEASE_NOTES_*.md"
+    - "LICENSE"
+    - "CONTRIBUTING.md"
+    - "ABOUT.md"
+    - "README.md"
+    - "**/release_notes_*.md"
+    - "*.apk"
+
+  # Path filters. We DO want the bot to look at:
+  #  - app/src/main (production Kotlin / Compose / Android code)
+  #  - app/src/test  (unit tests, finding tests)
+  #  - app/src/androidTest (instrumentation tests)
+  #  - app/lint.xml, app/proguard-rules.pro, app/build.gradle.kts
+  #  - docs/PRIVACY.md (privacy policy)
+  # We do NOT want it to look at:
+  #  - the auto-generated MVI Gradle files
+  #  - the third_party/ directory
+  #  - the captured UI screenshots under verify_*/ or usability/
+  path_filters:
+    included:
+      - "app/src/main/**"
+      - "app/src/test/**"
+      - "app/src/androidTest/**"
+      - "app/lint.xml"
+      - "app/proguard-rules.pro"
+      - "app/build.gradle.kts"
+      - "app/src/main/res/values/strings.xml"
+      - "docs/PRIVACY.md"
+    excluded:
+      - "**/build/**"
+      - "**/.gradle/**"
+      - "**/.kotlin/**"
+      - "third_party/**"
+      - "fastlane/**"
+      - "**/*.png"
+      - "**/*.jpg"
+      - "**/*.webp"
+
+  # Pull the title and body into the review so the bot
+  # can frame the diff against the PR intent. The user
+  # writes short bullets; this just gives the bot a
+  # hint about what the human is trying to ship.
+  pull_request:
+    title_in_review: true
+    body_in_review: true
+
+  # Walk through each modified file at a level a senior reviewer
+  # would: focus on real bugs, contract changes, and privacy
+  # regressions. Skip style nits and formatting.
+  review_status: true
+  commit_status: true
+
+# Tools
+tools:
+  # Allow the bot to run static analysis if its plan supports
+  # it. MindAnchor's local lint task is `./gradlew :app:lintDebug`
+  # — keep this list narrow so the bot does not flood the
+  # pipeline.
+  static_analysis:
+    enabled: true
+    config:
+      shell_command_timeout: 600
+
+  # Pull request description is the user's contract with
+  # reviewers. If the body is empty, ask the bot to ignore
+  # the PR rather than guess.
+  pull_request:
+    description_placeholder: "MindAnchor change — describe the intent in 1-3 bullets."
+    ignore_pr_description_missing: true
+
+# Knowledge
+knowledge:
+  # Pull the project's house rules. MindAnchor's clinical-review
+  # gate and the v0.25.x release cadence are documented in
+  # SOTA-IMPROVEMENT-REPORT.md and docs/research/*.
+  github:
+    rules:
+      - path: "SOTA-IMPROVEMENT-REPORT.md"
+      - path: "docs/research/**"
+      - path: "docs/PRIVACY.md"
+
+  # Privacy contract reminders. MindAnchor explicitly does not
+  # call home, never sends analytics, and never writes back
+  # to Health Connect. The reviewer should flag any PR that
+  # breaks these.
+  extra:
+    - "MindAnchor must not add new network endpoints. If a
+      change introduces one, the privacy policy and
+      docs/PRIVACY.md must be updated in the same PR."
+    - "MindAnchor uses minSdk=33 and compileSdk=36; new
+      APIs must be available on both."
+    - "Kotlin 2.0+ is required; the project does not
+      support kapt or ksp-1.x processors."
+    - "BPD safety: copy that a distressed person might read
+      must avoid directive language and not number anything
+      as 'best' or 'recommended'."
