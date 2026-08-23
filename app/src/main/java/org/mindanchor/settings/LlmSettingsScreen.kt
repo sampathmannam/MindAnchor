@@ -7,8 +7,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
@@ -55,10 +53,17 @@ fun LlmSettingsScreen(viewModel: LlmSettingsViewModel) {
     val lastTestResult by viewModel.lastTestResult.collectAsState()
     val provider by viewModel.provider.collectAsState()
 
+    // The parent SettingsScreen already provides a vertical
+    // scroll container for the Reading group. v0.25.7 (Task 14
+    // drive-verify) caught a `Vertically scrollable component was
+    // measured with an infinity maximum height constraints` crash
+    // when this screen added its own `verticalScroll` inside the
+    // parent's `verticalScroll(Column)` — Compose disallows
+    // nested vertical scrolls with unbounded height. Removing the
+    // inner scroll; the parent's scroll carries the section.
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
             .padding(Spacing.Edge),
     ) {
         Text(
