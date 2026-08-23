@@ -34,41 +34,34 @@ conversation:
 reviews:
   # We don't want the bot to touch release notes, license
   # headers, or the bundled APK artifacts that are checked
-  # in under the repo root for cross-device installs.
-  exclude_paths:
-    - "RELEASE_NOTES_*.md"
-    - "LICENSE"
-    - "CONTRIBUTING.md"
-    - "ABOUT.md"
-    - "README.md"
-    - "**/release_notes_*.md"
-    - "*.apk"
-
-  # Path filters. We DO want the bot to look at:
-  #  - app/src/main (production Kotlin / Compose / Android code)
-  #  - app/src/test  (unit tests, finding tests)
-  #  - app/src/androidTest (instrumentation tests)
-  #  - app/lint.xml, app/proguard-rules.pro, app/build.gradle.kts
-  #  - docs/PRIVACY.md (privacy policy)
+  # in under the repo root for cross-device installs. The
+  # `!` prefix on a path_filter is an exclude; everything
+  # else is an include. Order matters - the first match
+  # wins, so list the more specific (include) patterns
+  # before the broad (exclude) ones.
   path_filters:
-    included:
-      - "app/src/main/**"
-      - "app/src/test/**"
-      - "app/src/androidTest/**"
-      - "app/lint.xml"
-      - "app/proguard-rules.pro"
-      - "app/build.gradle.kts"
-      - "app/src/main/res/values/strings.xml"
-      - "docs/PRIVACY.md"
-    excluded:
-      - "**/build/**"
-      - "**/.gradle/**"
-      - "**/.kotlin/**"
-      - "third_party/**"
-      - "fastlane/**"
-      - "**/*.png"
-      - "**/*.jpg"
-      - "**/*.webp"
+    - "app/src/main/**"
+    - "app/src/test/**"
+    - "app/src/androidTest/**"
+    - "app/lint.xml"
+    - "app/proguard-rules.pro"
+    - "app/build.gradle.kts"
+    - "docs/PRIVACY.md"
+    # Excludes - everything below is a "do not review" pattern.
+    - "!**/build/**"
+    - "!**/.gradle/**"
+    - "!**/.kotlin/**"
+    - "!third_party/**"
+    - "!fastlane/**"
+    - "!**/*.png"
+    - "!**/*.jpg"
+    - "!**/*.webp"
+    - "!.coderabbit.yaml"
+    - "!gradlew"
+    - "!gradlew.bat"
+    - "!RELEASE_NOTES_*.md"
+    - "!**/release_notes_*.md"
+    - "!*.apk"
 
   # Pull the title and body into the review so the bot
   # can frame the diff against the PR intent. The user
