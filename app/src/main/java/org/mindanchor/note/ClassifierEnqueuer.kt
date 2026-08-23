@@ -1,6 +1,7 @@
 package org.mindanchor.note
 
 import android.content.Context
+import androidx.core.content.edit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -151,7 +152,7 @@ class ClassifierEnqueuer(private val context: Context) {
                 if (untyped.isNotEmpty()) {
                     enqueueAll(untyped)
                 }
-                prefsForFlag.edit().putBoolean(UPGRADE_FLAG_KEY, true).apply()
+                prefsForFlag.edit { putBoolean(UPGRADE_FLAG_KEY, true) }
             }
         }
     }

@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.util.Log
+import androidx.core.content.edit
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
@@ -413,7 +414,7 @@ internal class TokenStore(private val prefs: SharedPreferences) {
      */
     fun write(token: String) {
         if (token.isBlank()) return
-        prefs.edit().putString(KEY_ACCESS_TOKEN, token).apply()
+        prefs.edit { putString(KEY_ACCESS_TOKEN, token) }
     }
 
     /**
@@ -422,7 +423,7 @@ internal class TokenStore(private val prefs: SharedPreferences) {
      * `@Before reset` (test isolation).
      */
     fun clear() {
-        prefs.edit().clear().apply()
+        prefs.edit { clear() }
     }
 
     companion object {

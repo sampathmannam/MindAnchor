@@ -2,6 +2,7 @@ package org.mindanchor.vitals.coros
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
@@ -50,18 +51,18 @@ open class CorosCredentialStore(context: Context) {
     }
 
     open fun write(email: String, password: String, region: String) {
-        prefs.edit()
-            .putString(KEY_EMAIL, email)
-            .putString(KEY_PASSWORD, password)
-            .putString(KEY_REGION, region)
-            .apply()
+        prefs.edit {
+            putString(KEY_EMAIL, email)
+            putString(KEY_PASSWORD, password)
+            putString(KEY_REGION, region)
+        }
     }
 
     open fun region(): String =
         prefs.getString(KEY_REGION, null) ?: DEFAULT_REGION
 
     open fun clear() {
-        prefs.edit().clear().apply()
+        prefs.edit { clear() }
     }
 
     companion object {

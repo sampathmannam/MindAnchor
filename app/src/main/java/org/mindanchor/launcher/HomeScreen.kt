@@ -1224,11 +1224,23 @@ private fun HomeSurface(
         // out of the way of the corner buttons while
         // still being readable.
         val snackbarHostState = remember { SnackbarHostState() }
+        // v0.25.11: capture the action label outside the
+        // LaunchedEffect — `stringResource` is @Composable and
+        // cannot run from a coroutine block. v0.25.10 hardcoded
+        // these literals, which tripped HardcodedText and left
+        // the matching <string> entries unreferenced.
+        val actionLabel = androidx.compose.ui.res.stringResource(
+            org.mindanchor.R.string.update_available_action,
+        )
         LaunchedEffect(availableUpdate) {
             val info = availableUpdate ?: return@LaunchedEffect
+            val message = context.getString(
+                org.mindanchor.R.string.update_available,
+                info.version,
+            )
             val result = snackbarHostState.showSnackbar(
-                message = "v${info.version} is on GitHub",
-                actionLabel = "Get it",
+                message = message,
+                actionLabel = actionLabel,
                 withDismissAction = true,
                 duration = SnackbarDuration.Short,
             )
