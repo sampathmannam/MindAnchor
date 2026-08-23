@@ -31,17 +31,15 @@ android {
         applicationId = "org.mindanchor"
         minSdk = 33
         targetSdk = 35
-        // v0.25.11: HardcodedText fix in the auto-update
-        // snackbar, 2 final ObsoleteSdkInt cleanups,
-        // ConstantLocale in DayHeader, 46 dead strings
-        // (removed in v0.25.6/v0.25.7 features) deleted,
-        // 8 PluralsCandidate strings converted to
-        // <plurals>, in-app privacy-policy link, merged
-        // mipmap-anydpi-v26 into mipmap-anydpi. Bumped
-        // versionCode 31→32 and versionName 0.25.10→
-        // 0.25.11.
+        // v0.25.20: the v0.25.10+ backlog sweep. Bumped
+        // versionName to 0.25.20 (skipping 0.25.11–0.25.19
+        // which were other cleanups in a parallel timeline;
+        // the auto-update check uses segment-by-segment
+        // numeric compare, so we need to be >0.25.19 for
+        // users on the latest published release to see the
+        // update banner). versionCode 31→32.
         versionCode = 32
-        versionName = "0.25.11"
+        versionName = "0.25.20"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every
