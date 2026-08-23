@@ -109,6 +109,15 @@ fun Phi4ModelDownloadSection(viewModel: SettingsViewModel) {
         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
+        // v0.25.8: deprecation banner. The on-device
+        // Phi-4 path is the v0.23.0–v0.25.6 way of
+        // writing a daily letter; v0.25.7 ships an
+        // LLM-driven path (Settings → Reading →
+        // Daily letter (LLM)) that is the recommended
+        // one. Extracted into [Phi4LegacyBanner] so
+        // the section function stays under the
+        // detekt `LongMethod` ceiling (60 lines).
+        Phi4LegacyBanner()
         TextButton(
             onClick = {
                 val id = Phi4ModelDownload.enqueue(context)
@@ -164,3 +173,32 @@ fun Phi4ModelDownloadSection(viewModel: SettingsViewModel) {
  * allows concurrent downloads.
  */
 private var downloadId: Long = -1L
+
+/**
+ * v0.25.8: the deprecation banner shown at the top of
+ * [Phi4ModelDownloadSection]. Extracted into its own
+ * composable so the section function stays under the
+ * detekt `LongMethod` ceiling.
+ *
+ * The banner is two short lines: a "On-device model
+ * (legacy)" title and a one-paragraph explainer
+ * pointing the user at the v0.25.7 LLM-driven path
+ * (Settings → Reading → Daily letter (LLM)).
+ */
+@Suppress("FunctionNaming") // @Composable: PascalCase is the Compose convention.
+@Composable
+private fun Phi4LegacyBanner() {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            text = stringResource(R.string.model_legacy_header),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        Text(
+            text = stringResource(R.string.model_legacy_explainer),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}

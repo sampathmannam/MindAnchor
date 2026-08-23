@@ -294,6 +294,21 @@
     <string name="model_download_use">Use this model</string>
     <string name="model_download_dismiss">Not now</string>
     <!--
+        v0.25.8: Phi-4 mini is a legacy on-device
+        narration path. v0.25.7 added an LLM-driven
+        path (Settings → Reading → Daily letter (LLM))
+        that is the recommended way to write a daily
+        letter. The on-device model still works for
+        existing users — letters already written by it
+        load and read back unchanged — but new users
+        are pointed at the LLM path by this banner.
+        Kept on a separate line so the original
+        "Download Phi-4 mini" button can be tapped by
+        anyone who still wants the local model.
+    -->
+    <string name="model_legacy_header">On-device model (legacy)</string>
+    <string name="model_legacy_explainer">The Phi-4 mini model was the v0.23.0–v0.25.6 way of writing a daily letter on this phone. The recommended path is now Settings → Reading → Daily letter (LLM), which uses a cloud model and a calmer voice. Letters already written by Phi-4 load and read back unchanged.</string>
+    <!--
         v0.24.0: opt-in daily letter. Reuses the
         v0.23.0 Phi-4 mini on-device engine; runs at
         user-chosen time; gated on the model being
