@@ -59,8 +59,9 @@ object Alarms {
      * an hour. That is survivable for the nightly report and wrong for a
      * batch the person deliberately placed at 18:00.
      */
+    // v0.25.9 (lint sweep): with minSdk=33, the SDK_INT < S check
+    // is always false. The early-return path is dead. Drop the guard.
     fun canBeExact(context: Context): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
         val manager = context.getSystemService(AlarmManager::class.java) ?: return false
         return runCatching { manager.canScheduleExactAlarms() }.getOrDefault(false)
     }

@@ -446,20 +446,20 @@ class GoingLightVpnService : VpnService() {
      * before [startForeground] — we create it
      * lazily.
      */
+    // v0.25.9 (lint sweep): with minSdk=33, the SDK_INT >= O check
+    // is always true. The conditional wrapper is dead. Inline the body.
     private fun buildNotification(): Notification {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            val existing = nm.getNotificationChannel(CHANNEL_ID)
-            if (existing == null) {
-                val channel = NotificationChannel(
-                    CHANNEL_ID,
-                    "Going Light",
-                    NotificationManager.IMPORTANCE_LOW,
-                )
-                channel.description = "Active Going Light window"
-                channel.setShowBadge(false)
-                nm.createNotificationChannel(channel)
-            }
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val existing = nm.getNotificationChannel(CHANNEL_ID)
+        if (existing == null) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Going Light",
+                NotificationManager.IMPORTANCE_LOW,
+            )
+            channel.description = "Active Going Light window"
+            channel.setShowBadge(false)
+            nm.createNotificationChannel(channel)
         }
         return Notification.Builder(this, CHANNEL_ID)
             .setContentTitle("Going Light is on")

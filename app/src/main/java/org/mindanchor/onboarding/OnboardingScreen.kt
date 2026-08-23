@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -49,7 +50,11 @@ import org.mindanchor.sunset.Chronotype
 fun OnboardingScreen(
     onDone: (Set<Goal>, Chronotype) -> Unit,
 ) {
-    var step by remember { mutableStateOf(0) }
+    // v0.25.9 (lint sweep): use mutableIntStateOf to avoid the
+    // autoboxing allocation per write. For a step counter that
+    // ticks twice a session the savings are invisible, but the
+    // intent is right and the lint is happy.
+    var step by remember { mutableIntStateOf(0) }
     var selected by remember { mutableStateOf(setOf<Goal>()) }
     var chronotype by remember { mutableStateOf(Chronotype.UNKNOWN) }
 

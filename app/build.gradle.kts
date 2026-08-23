@@ -15,6 +15,11 @@ android {
     // buildToolsVersion 36.0.0 is what installed compileSdk 36
     // ships with locally; the CI runner image installs the same
     // platform via the setup-android step.
+    // v0.25.9: AGP requires an exact build-tools version (the "+"
+    // suffix is not valid for `buildToolsVersion`, only for the
+    // externalNativeBuild { cmake { version = ... } } block).
+    // Pinned to 36.0.0. Comment at lines 16-17 above documents the
+    // version-shipping-with-CI image.
     buildToolsVersion = "36.0.0"
 
     // Pinned to the exact version .github/workflows/probe-ndk.yml proved
@@ -26,8 +31,12 @@ android {
         applicationId = "org.mindanchor"
         minSdk = 33
         targetSdk = 35
-        versionCode = 29
-        versionName = "0.23.0"
+        // v0.25.10: bigger release (auto-update + privacy + default-home
+        // callout + ProGuard keeps + 11 ObsoleteSdkInt cleanups + back-
+        // gesture TODO). Bumped versionCode 30→31 and versionName
+        // 0.25.9→0.25.10.
+        versionCode = 31
+        versionName = "0.25.10"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every

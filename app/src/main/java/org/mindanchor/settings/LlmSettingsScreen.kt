@@ -146,17 +146,25 @@ private fun SettingsRow(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 48.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        // v0.25.9 (P1-6): the previous `weight(1f)` on the label
+        // forced the label to fill all leftover width after the
+        // value, which made "Connection" wrap to "Conne" / "ction"
+        // when the value was a long error message. Sharing the row
+        // width 50/50 lets the value wrap instead of the label
+        // breaking mid-word. `verticalAlignment = Top` so the
+        // multi-line value aligns to the top of the label baseline.
+        verticalAlignment = Alignment.Top,
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).padding(top = 2.dp),
         )
         Text(
             text = value,
             style = MaterialTheme.typography.bodyMedium,
             color = valueColor,
+            modifier = Modifier.weight(1f),
         )
     }
 }
