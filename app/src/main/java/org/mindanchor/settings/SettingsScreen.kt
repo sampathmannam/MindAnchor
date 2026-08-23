@@ -56,8 +56,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.core.net.toUri
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -526,6 +528,13 @@ fun SettingsScreen(
     val viewModel: SettingsViewModel = viewModel()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    // v0.25.20 (deployability §privacy): the privacy
+    // policy URL is read once per composition. It is a
+    // string resource, not a runtime value, so the
+    // constant is safe to capture here. The Row below
+    // the "Check for updates" affordance renders the
+    // Open button against this URL.
+    val privacyUrl: String = stringResource(R.string.privacy_url)
     val activityLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { }
@@ -2800,6 +2809,45 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 32.dp),
             )
+
+            // v0.25.20: the in-app privacy policy link.
+            // R.string.privacy_url points at the raw
+            // docs/PRIVACY.md on GitHub so the user can
+            // see exactly what was committed; the
+            // CATEGORY_BROWSABLE intent flag is the
+            // standard escape hatch for ACTION_VIEW
+            // when a launcher would otherwise intercept
+            // the raw text. The link sits between
+            // about_text and the auto-update affordance
+            // so the order is: what this app is ->
+            // what it does with your data -> is it up
+            // to date.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.privacy_label),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    onClick = {
+                        runCatching {
+                            val intent = Intent(
+                                Intent.ACTION_VIEW,
+                                privacyUrl.toUri(),
+                            ).addCategory(Intent.CATEGORY_BROWSABLE)
+                            context.startActivity(intent)
+                        }
+                    },
+                    enabled = privacyUrl.isNotBlank(),
+                ) {
+                    Text(stringResource(R.string.privacy_open_action))
+                }
+            }
 
             // v0.25.9 (auto-update): the "Check for
             // updates" affordance. Always present; the

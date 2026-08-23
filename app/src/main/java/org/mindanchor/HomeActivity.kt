@@ -74,14 +74,28 @@ class HomeActivity : ComponentActivity() {
 
     /**
      * v0.25.9 (deployability §8.3): whether the user has
-     * set MindAnchor as the default home. Computed in
-     * onCreate and refreshed on resume. The home surface
-     * shows a callout while this is false.
+     * set MindAnchor as the default home. The Flow starts
+     * at a safe default and is populated in onCreate (and
+     * refreshed on resume). The home surface shows a callout
+     * while this is false.
+     *
+     * v0.25.20 (Android 17 crash fix): cannot call
+     * getSystemService() from a property initializer
+     * because System services are not available to
+     * Activities before onCreate(). The pre-fix line
+     * `MutableStateFlow(computeIsDefaultHome())` ran during
+     * <init>, which is too early. We now seed with `true`
+     * and overwrite inside onCreate. The first frame may
+     * briefly show the "not default" callout on a clean
+     * install (worst case); onCreate runs before the first
+     * composition in the Compose lifecycle, so the user
+     * does not see a flash.
      */
-    private val isDefaultHome = MutableStateFlow(computeIsDefaultHome())
+    private val isDefaultHome = MutableStateFlow(true)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        isDefaultHome.value = computeIsDefaultHome()
         enableEdgeToEdge()
         val onboardingPrefs = OnboardingPrefs(applicationContext)
         val sunsetPrefs = SunsetPrefs(applicationContext)
