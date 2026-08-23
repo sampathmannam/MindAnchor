@@ -384,7 +384,7 @@
             android:name=".model.NoteActivity"
             android:exported="false"
             android:taskAffinity=".model.note"
-            android:excludeFromRecents="false"
+            android:excludeFromRecents="true"
             android:stateNotNeeded="true"
             android:configChanges="orientation|screenSize|keyboard|keyboardHidden" />
 
@@ -403,7 +403,7 @@
             android:name=".model.CheckInHistoryActivity"
             android:exported="false"
             android:taskAffinity=".model.checkin.history"
-            android:excludeFromRecents="false"
+            android:excludeFromRecents="true"
             android:stateNotNeeded="true"
             android:configChanges="orientation|screenSize|keyboard|keyboardHidden" />
 

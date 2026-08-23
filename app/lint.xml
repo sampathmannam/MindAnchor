@@ -65,11 +65,11 @@
 
 
     <!--
-        PROMOTE. An unescaped apostrophe in a string value fails aapt with
-        "Can not extract resource", which names no string and points at a
-        merged file in the build directory. It cost a full CI round trip to
-        find one. Lint knows about this and can say which string.
+        v0.25.9: the previous "UnescapedEntity" check was a phantom id
+        (Lint does not recognise it) so it was silently a no-op and
+        Lint was emitting UnknownIssueId warnings. Deleted. The actual
+        unescaped-apostrophe check is enforced by a CI grep on
+        strings.xml rather than by Lint — see CI pre-commit hook.
     -->
-    <issue id="UnescapedEntity" severity="warning" />
 
 </lint>

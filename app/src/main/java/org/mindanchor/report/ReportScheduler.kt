@@ -175,8 +175,8 @@ object ReportScheduler {
             .nextRun(Instant.now(), ZoneId.systemDefault(), decision)
             .toEpochMilli()
         val pending = pendingIntent(context)
-        val canExact =
-            Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
+        // v0.25.9 (lint sweep): SDK_INT < S is always false. Simplify.
+        val canExact = alarmManager.canScheduleExactAlarms()
         // setAndAllowWhileIdle rather than setExact for the inexact path:
         // this does not need to land on the minute, and a report is
         // exactly the kind of thing Doze should be allowed to shift by a

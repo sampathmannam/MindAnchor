@@ -116,8 +116,8 @@ object SessionManager {
         activePackage = packageName
         activeArmedAt = System.currentTimeMillis()
         val triggerAt = System.currentTimeMillis() + minutes * 60_000
-        val canExact =
-            Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
+        // v0.25.9 (lint sweep): SDK_INT < S is always false. Simplify.
+        val canExact = alarmManager.canScheduleExactAlarms()
         if (canExact) {
             alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending)
         } else {

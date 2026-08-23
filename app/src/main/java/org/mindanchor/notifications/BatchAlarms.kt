@@ -45,8 +45,8 @@ object BatchAlarms {
             Intent(context, BatchReleaseReceiver::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val canExact =
-            Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
+        // v0.25.9 (lint sweep): SDK_INT < S is always false. Simplify.
+        val canExact = alarmManager.canScheduleExactAlarms()
         if (canExact) {
             alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending)
         } else {
@@ -116,7 +116,8 @@ class BootReceiver : BroadcastReceiver() {
 class ExactAlarmPermissionReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        // v0.25.9 (lint sweep): with minSdk=33, the SDK_INT < S check
+        // is always false. The early return was dead. Drop the guard.
         if (intent.action != AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED) {
             return
         }

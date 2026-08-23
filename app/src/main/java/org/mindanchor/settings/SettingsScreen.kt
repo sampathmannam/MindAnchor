@@ -144,8 +144,10 @@ private fun Modifier.bringIntoViewOnFocus(): Modifier {
  * matters for anyone with tremor or in distress, and nudging is what
  * people actually do to a bedtime.
  */
+// v0.25.9 (lint sweep): `timeNudgerRow` violated ComposableNaming.
+// Renamed to TimeNudgerRow.
 @Composable
-private fun timeNudgerRow(
+private fun TimeNudgerRow(
     label: String,
     /** The current value to display next to the label. */
     value: String,
@@ -1003,8 +1005,8 @@ fun SettingsScreen(
                         // still a call from the composable body.
                         // v0.20.9: the row now shows the
                         // slot label *and* the time on the
-                        // same line — see timeNudgerRow KDoc.
-                        timeNudgerRow(
+                        // same line — see TimeNudgerRow KDoc.
+                        TimeNudgerRow(
                             // v0.25.1: the time moved out of
                             // the label slot — `batching_time_slot`
                             // is just "Arrives at" now, and the
@@ -1033,30 +1035,30 @@ fun SettingsScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(top = 8.dp),
                         )
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                            TextButton(
-                                onClick = {
-                                    runCatching {
-                                        activityLauncher.launch(
-                                            Intent(
-                                                Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
-                                                Uri.fromParts("package", context.packageName, null),
-                                            ),
-                                        )
-                                    }
-                                },
-                                modifier = Modifier.padding(vertical = 4.dp),
-                            ) {
-                                // Trailing chevron so the affordance
-                                // reads as a button, not a label.
-                                // The launcher has no other right-arrow
-                                // icons; this is the one place the user
-                                // is being asked to leave the app, and
-                                // the cue is worth the one glyph.
-                                Text(
-                                    text = stringResource(R.string.exact_alarms_grant) + "  →",
-                                )
-                            }
+                        // v0.25.9 (lint sweep): with minSdk=33, the SDK_INT >= S
+                        // check is always true. The conditional wrapper is dead.
+                        TextButton(
+                            onClick = {
+                                runCatching {
+                                    activityLauncher.launch(
+                                        Intent(
+                                            Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                                            Uri.fromParts("package", context.packageName, null),
+                                        ),
+                                    )
+                                }
+                            },
+                            modifier = Modifier.padding(vertical = 4.dp),
+                        ) {
+                            // Trailing chevron so the affordance
+                            // reads as a button, not a label.
+                            // The launcher has no other right-arrow
+                            // icons; this is the one place the user
+                            // is being asked to leave the app, and
+                            // the cue is worth the one glyph.
+                            Text(
+                                text = stringResource(R.string.exact_alarms_grant) + "  →",
+                            )
                         }
                     }
 
@@ -1249,13 +1251,13 @@ fun SettingsScreen(
             // does not have to read "Quiet hours run
             // 22:00 to 07:00." and hold the start in
             // their head while reading the end.
-            timeNudgerRow(
+            TimeNudgerRow(
                 label = stringResource(R.string.sunset_starts),
                 value = sunsetStart.format(HOUR_MINUTE),
                 onEarlier = { viewModel.nudgeSunset(-30, 0) },
                 onLater = { viewModel.nudgeSunset(30, 0) },
             )
-            timeNudgerRow(
+            TimeNudgerRow(
                 label = stringResource(R.string.sunset_ends),
                 value = sunsetEnd.format(HOUR_MINUTE),
                 onEarlier = { viewModel.nudgeSunset(0, -30) },
@@ -2789,6 +2791,18 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 32.dp),
             )
+
+            // v0.25.9 (auto-update): the "Check for
+            // updates" affordance. Always present; the
+            // user can trigger an on-demand check from
+            // this screen, and a separate silent check
+            // runs at app start (see [HomeActivity]).
+            // The button shows the current version, then
+            // the latest status from the most recent
+            // check. The status row updates after each
+            // tap; the silent check at app start is
+            // best-effort and never blocks the launcher.
+            UpdateCheckSection()
 
             // v0.20.1 round 5 follow-up: Going Light
             // settings entry. The data layer

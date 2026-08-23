@@ -98,7 +98,42 @@
 
     <string name="digest_channel_name">Digest</string>
     <string name="digest_channel_description">One calm summary per batch of held notifications.</string>
-    <string name="digest_screen_title">digest</string>
+    <!--
+        v0.25.9 (P0-3): "digest" on its own was opaque — the user
+        did not know what it would do. The label now reads as a
+        button-shape (title-case, with a sub-label) so the launcher
+        is honest about what tapping it opens.
+    -->
+    <string name="digest_screen_title">Digest</string>
+    <string name="digest_sub_label">Held notifications, batched</string>
+    <!--
+        v0.25.9 (deployability §8.3): an alpha cohort
+        installs the app and never sees the calm palette
+        unless they set MindAnchor as the default home.
+        The callout is shown on the first 3 home-surface
+        displays after onboarding completes, while
+        isRoleHeld(ROLE_HOME) is false.
+    -->
+    <string name="set_default_home_callout">Make MindAnchor your home screen</string>
+    <string name="set_default_home_sub">Without this, the launcher never appears. One tap.</string>
+    <string name="set_default_home_action">Set as home</string>
+    <string name="set_default_home_dismiss">Not now</string>
+    <!--
+        v0.25.9 (auto-update): a snackbar shown after the
+        silent GitHub releases check finds a newer version.
+    -->
+    <string name="update_available">A newer version is available (v%1$s).</string>
+    <string name="update_available_action">Get it</string>
+    <string name="update_available_dismiss">Not now</string>
+    <!--
+        v0.25.9 (Settings → About): the "Check for updates"
+        button and its states.
+    -->
+    <string name="check_for_updates">Check for updates</string>
+    <string name="check_for_updates_idle">Up to date.</string>
+    <string name="check_for_updates_newer">v%1$s is available on GitHub.</string>
+    <string name="check_for_updates_failed">Could not check. Try again later.</string>
+    <string name="open_release">Open release</string>
     <string name="digest_waiting_count">%1$d waiting for the next batch</string>
     <string name="digest_release_now">Release now</string>
     <string name="digest_clear_released">Clear released</string>

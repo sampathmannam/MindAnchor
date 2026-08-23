@@ -145,8 +145,8 @@ object EmaScheduler {
         // (so the schedule cannot be learned and anticipated).
         val seed = today.toEpochDay().toInt()
         val times = EmaSchedule.promptTimes(wakeMinute, sleepMinute, perDay, seed)
-        val canExact =
-            Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
+        // v0.25.9 (lint sweep): SDK_INT < S is always false. Simplify.
+        val canExact = alarmManager.canScheduleExactAlarms()
 
         for (index in 0 until MAX_SLOTS) {
             val pending = promptPendingIntent(appContext, index)

@@ -1,7 +1,59 @@
-# No app-specific keep rules yet. Compose and AndroidX ship consumer rules.
-
-# The engine's JNI surface: native method names are the contract with
-# mindanchor_llama.cpp and must survive minification untouched.
+# JNI surface — the engine's native methods are the contract.
 -keepclasseswithmembernames,includedescriptorclasses class org.mindanchor.narrate.LlamaEngine {
     native <methods>;
 }
+
+# kotlinx-serialization: keep the generated $$serializer companions
+# and the @Serializable classes. The plugin emits the serializer for
+# every annotated class; minification breaks the reflective lookup.
+# Without this, every BackupCodec encode/decode and every GroqClient
+# response decode will hit MissingFieldException at runtime.
+-keepattributes *Annotation*, InnerClasses
+-dontnote kotlinx.serialization.AnnotationsKt
+-keepclassmembers class kotlinx.serialization.json.** {
+    *** Companion;
+}
+-keepclasseswithmembers class kotlinx.serialization.json.** {
+    kotlinx.serialization.KSerializer serializer(...);
+}
+-if @kotlinx.serialization.Serializable class **
+-keepclassmembers class <1> {
+    static <1>$Companion Companion;
+}
+-if @kotlinx.serialization.Serializable class ** {
+    static **$* *;
+}
+-keepclassmembers class <2>$<3> {
+    kotlinx.serialization.KSerializer serializer(...);
+}
+
+# OkHttp + Okio — the platform log detection and DNS reflection
+# cross classloader boundaries and break under R8 without these.
+-dontwarn okhttp3.internal.platform.**
+-dontwarn org.bouncycastle.**
+-dontwarn org.conscrypt.**
+-dontwarn org.openjsse.**
+
+# Tink (transitive via androidx.security:security-crypto). The
+# credential store and encrypted prefs read the registry reflectively.
+-keep class com.google.crypto.tink.** { *; }
+-dontwarn com.google.crypto.tink.**
+
+# kotlinx-coroutines internals used by the CameraX await() bridge.
+-keepnames class kotlinx.coroutines.internal.MainDispatcherFactory
+-keepnames class kotlinx.coroutines.CoroutineExceptionHandler
+-dontwarn kotlinx.coroutines.flow.**
+
+# Room (transitive) keeps its consumer rules but the @TypeConverters
+# under org.mindanchor.data.* are referenced by the generated DAO impls;
+# redundant keeps don't hurt and protect against the rare rename.
+-keep class org.mindanchor.data.** { *; }
+
+# Auto-update (v0.25.9+): Retrofit/OkHttp on the GitHub releases check
+# path needs the same OkHttp keeps as the rest of the app.
+-dontwarn retrofit2.**
+-dontwarn okhttp3.**
+
+# AppUpdateChecker (v0.25.9+): the GitHub releases JSON DTO is a
+# @Serializable data class; the $$serializer is needed.
+-keep class org.mindanchor.update.** { *; }

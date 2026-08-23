@@ -76,16 +76,11 @@ class CheckInActivity : ComponentActivity() {
         // to use the phone afterwards; we just
         // present our UI in front of the lock so
         // the prompt is visible.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-            setShowWhenLocked(true)
-            setTurnScreenOn(true)
-        } else {
-            @Suppress("DEPRECATION")
-            window.addFlags(
-                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON,
-            )
-        }
+        // v0.25.9 (lint sweep): with minSdk=33, the SDK_INT >= O_MR1
+        // check is always true. The else branch (deprecated window flags)
+        // is dead. Inline the if body.
+        setShowWhenLocked(true)
+        setTurnScreenOn(true)
 
         val prefs = CheckInPrefs(applicationContext)
 

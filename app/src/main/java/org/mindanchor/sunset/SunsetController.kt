@@ -74,8 +74,8 @@ object SunsetController {
             Intent(context, SunsetReceiver::class.java).setAction(action),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val canExact =
-            Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
+        // v0.25.9 (lint sweep): SDK_INT < S is always false. Simplify.
+        val canExact = alarmManager.canScheduleExactAlarms()
         if (canExact) {
             alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending)
         } else {

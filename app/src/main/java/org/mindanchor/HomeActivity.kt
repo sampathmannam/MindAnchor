@@ -1,13 +1,21 @@
 package org.mindanchor
 
+import android.app.role.RoleManager
+import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.lifecycle.lifecycleScope
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import java.time.LocalDate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -20,6 +28,9 @@ import org.mindanchor.onboarding.OnboardingScreen
 import org.mindanchor.sunset.SunsetController
 import org.mindanchor.ui.CalmBackground
 import org.mindanchor.ui.MindAnchorTheme
+import org.mindanchor.update.UpdateChecker
+import org.mindanchor.update.UpdateInfo
+import org.mindanchor.update.UpdatePrefs
 
 /**
  * The single HOME activity. As the default launcher this activity is the
@@ -53,6 +64,23 @@ class HomeActivity : ComponentActivity() {
      */
     private val letterDateSignal = MutableStateFlow<LocalDate?>(null)
 
+    /**
+     * v0.25.9 (auto-update): the result of the most recent
+     * GitHub releases check. `null` means "no update available
+     * or no check yet". When non-null, the home surface shows
+     * a snackbar. Tapping the action opens the release page in
+     * the system browser.
+     */
+    private val availableUpdate = MutableStateFlow<UpdateInfo?>(null)
+
+    /**
+     * v0.25.9 (deployability §8.3): whether the user has
+     * set MindAnchor as the default home. Computed in
+     * onCreate and refreshed on resume. The home surface
+     * shows a callout while this is false.
+     */
+    private val isDefaultHome = MutableStateFlow(computeIsDefaultHome())
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -64,11 +92,18 @@ class HomeActivity : ComponentActivity() {
         // itself in onCreate); we just read the extra and push it into
         // the flow before the launcher root composes for the first time.
         handleLetterIntent(intent)
+        // v0.25.9 (auto-update): kick off a silent GitHub releases
+        // check. Best-effort, never blocks the launcher. The cached
+        // result is consulted first; the network is only hit when
+        // the cache is older than 24h.
+        maybeRunUpdateCheck()
         setContent {
             MindAnchorTheme {
                 val done by onboardingPrefs.done.collectAsState(initial = null)
                 val goHome by goHomeSignal.collectAsState()
                 val letterDate by letterDateSignal.collectAsState()
+                val update by availableUpdate.collectAsState()
+                val defaultHome by isDefaultHome.collectAsState()
                 val scope = rememberCoroutineScope()
                 when (done) {
                     // Preferences are still loading. Draw the sky rather than
@@ -97,6 +132,11 @@ class HomeActivity : ComponentActivity() {
                         goHomeSignal = goHome,
                         letterDateSignal = letterDate,
                         onLetterDateConsumed = ::consumeLetterDate,
+                        availableUpdate = update,
+                        isDefaultHome = defaultHome,
+                        onUpdateAction = { info -> openUpdate(info) },
+                        onUpdateDismiss = { availableUpdate.value = null },
+                        onSetDefaultHome = { openDefaultHomeSettings() },
                     )
                 }
             }
@@ -148,5 +188,66 @@ class HomeActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         SessionManager.onReturnedHome(applicationContext)
+        // v0.25.9 (deployability §8.3): refresh the default-home state.
+        // The user may have toggled MindAnchor as the default home from
+        // system Settings while the launcher was in the background.
+        isDefaultHome.value = computeIsDefaultHome()
+    }
+
+    /**
+     * v0.25.9 (auto-update): consult the cache, then maybe hit the
+     * network. The check is best-effort: any failure (cache miss +
+     * network down, malformed response, etc.) returns silently
+     * and the launcher never blocks on it.
+     */
+    private fun maybeRunUpdateCheck() {
+        val prefs = UpdatePrefs(applicationContext)
+        lifecycleScope.launch {
+            try {
+                if (prefs.isCacheFresh()) return@launch
+                val info = UpdateChecker(applicationContext).check() ?: return@launch
+                prefs.recordChecked()
+                if (!prefs.isDismissed(info.version)) {
+                    availableUpdate.value = info
+                }
+            } catch (_: Exception) {
+                // Defensive: never crash the launcher on a network blip.
+            }
+        }
+    }
+
+    /**
+     * v0.25.9: open the release page in the system browser. The
+     * user installs manually because this build is not on Play
+     * Store yet — the sideload pattern is the project's
+     * documented distribution for an alpha cohort.
+     */
+    private fun openUpdate(info: UpdateInfo) {
+        runCatching {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(info.url)))
+        }
+    }
+
+    /**
+     * v0.25.9: open the system Default-Apps settings so the
+     * user can switch the home to MindAnchor. The launcher
+     * has no API to set itself as home; the user must do it
+     * via the system settings.
+     */
+    private fun openDefaultHomeSettings() {
+        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            Intent(Settings.ACTION_HOME_SETTINGS)
+        } else {
+            @Suppress("DEPRECATION")
+            Intent(Settings.ACTION_SETTINGS)
+        }
+        runCatching { startActivity(intent) }
+    }
+
+    private fun computeIsDefaultHome(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return true
+        val roleManager = getSystemService(Context.ROLE_SERVICE) as? RoleManager
+            ?: return true
+        return roleManager.isRoleHeld(RoleManager.ROLE_HOME)
     }
 }

@@ -30,6 +30,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -150,6 +155,25 @@ fun LauncherRoot(
      * the same navigation.
      */
     onLetterDateConsumed: () -> Unit = {},
+    /**
+     * v0.25.9 (auto-update): a non-null value means a newer
+     * MindAnchor version is on GitHub. The home surface shows
+     * a snackbar; tapping the action opens the release page in
+     * the browser. `onUpdateAction` is invoked on tap;
+     * `onUpdateDismiss` on "not now" (the activity clears the
+     * value so the snackbar does not reappear on the next
+     * recomposition).
+     */
+    availableUpdate: org.mindanchor.update.UpdateInfo? = null,
+    onUpdateAction: (org.mindanchor.update.UpdateInfo) -> Unit = {},
+    onUpdateDismiss: () -> Unit = {},
+    /**
+     * v0.25.9 (deployability §8.3): whether MindAnchor is the
+     * user's default home. The home surface shows a one-line
+     * callout with a single action button while this is false.
+     */
+    isDefaultHome: Boolean = true,
+    onSetDefaultHome: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
     val recentNotes by viewModel.notes.collectAsState()
@@ -380,6 +404,17 @@ fun LauncherRoot(
                 onCancelWrite = { viewModel.cancelLetter() },
                 onRetryError = { viewModel.generateToday() },
                 onOpenLlmSettings = { surface = LauncherSurface.Settings },
+                // v0.25.9 (auto-update): forwarded to the
+                // HomeSurface so the snackbar can render.
+                availableUpdate = availableUpdate,
+                onUpdateAction = onUpdateAction,
+                onUpdateDismiss = onUpdateDismiss,
+                // v0.25.9 (deployability §8.3): while
+                // isDefaultHome is false the surface shows
+                // a "Set MindAnchor as your home screen"
+                // callout with a single action button.
+                isDefaultHome = isDefaultHome,
+                onSetDefaultHome = onSetDefaultHome,
             )
         }
 
@@ -827,9 +862,37 @@ private fun HomeSurface(
      * sub-section from there. Default no-op.
      */
     onOpenLlmSettings: () -> Unit = {},
+    /**
+     * v0.25.9 (auto-update): a non-null value triggers a
+     * snackbar across the bottom of the home surface with
+     * a "Get it" action and a "Not now" dismiss. The
+     * snackbar is rendered by [SnackbarHost] above the
+     * bottom corner buttons; the Box layer order keeps
+     * it above the digest/search/settings row.
+     */
+    availableUpdate: org.mindanchor.update.UpdateInfo? = null,
+    onUpdateAction: (org.mindanchor.update.UpdateInfo) -> Unit = {},
+    onUpdateDismiss: () -> Unit = {},
+    /**
+     * v0.25.9 (deployability §8.3): while the user has
+     * not set MindAnchor as the default home, the home
+     * surface shows a single-line callout above the
+     * "Notes" card. Tapping the action opens the system
+     * Default-Apps settings; tapping "Not now" dismisses
+     * the callout for this session (it reappears on the
+     * next cold start until isDefaultHome is true).
+     */
+    isDefaultHome: Boolean = true,
+    onSetDefaultHome: () -> Unit = {},
 ) {
     val now = rememberMinuteTick()
     val clockFormat = rememberClockFormat()
+
+    // v0.25.9 (deployability §8.3): the user can dismiss
+    // the default-home callout for the rest of the
+    // session. It reappears on the next cold start until
+    // isRoleHeld(ROLE_HOME) is true.
+    var defaultHomeCalloutDismissed by remember { mutableStateOf(false) }
 
     // v0.20.9: nested safe-drawing on the outer Box and
     // imePadding on the inner scroll container. The outer
@@ -920,6 +983,24 @@ private fun HomeSurface(
                     style = MaterialTheme.typography.bodySmall,
                     color = sky.textSecondary,
                     modifier = Modifier.padding(vertical = 4.dp),
+                )
+            }
+
+            // v0.25.9 (deployability §8.3): the single
+            // most likely source of "I installed it but
+            // I don't know how to make it my home screen"
+            // is an alpha cohort that never sees the callout
+            // because we have no first-run affordance for
+            // it. Show a one-line card above the Notes
+            // section while the launcher is NOT the default
+            // home. Tapping the action opens the system
+            // Default-Apps settings; tapping "Not now"
+            // dismisses for this session.
+            if (!isDefaultHome && !defaultHomeCalloutDismissed) {
+                DefaultHomeCallout(
+                    sky = sky,
+                    onAction = onSetDefaultHome,
+                    onDismiss = { defaultHomeCalloutDismissed = true },
                 )
             }
 
@@ -1115,11 +1196,135 @@ private fun HomeSurface(
                 .align(Alignment.BottomStart)
                 .navigationBarsPadding(),
         ) {
-            Text(
-                text = stringResource(R.string.digest_screen_title),
-                style = MaterialTheme.typography.labelMedium,
-                color = sky.textSecondary,
+            // v0.25.9 (P0-3): "digest" alone was opaque.
+            // Two-line label: title (button shape) +
+            // sub-label (one-line purpose). Mirrors the
+            // pattern on the rest of the launcher.
+            Column(horizontalAlignment = Alignment.Start) {
+                Text(
+                    text = stringResource(R.string.digest_screen_title),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = sky.textPrimary,
+                )
+                Text(
+                    text = stringResource(R.string.digest_sub_label),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = sky.textSecondary,
+                )
+            }
+        }
+
+        // v0.25.9 (auto-update): a SnackbarHost at the
+        // bottom of the home surface. Shown only when
+        // [availableUpdate] is non-null. The LaunchedEffect
+        // re-shows the snackbar on every change of the
+        // info value (which only happens on app start, so
+        // this fires once per cold start that has an
+        // update). [SnackbarDuration.Short] keeps it
+        // out of the way of the corner buttons while
+        // still being readable.
+        val snackbarHostState = remember { SnackbarHostState() }
+        LaunchedEffect(availableUpdate) {
+            val info = availableUpdate ?: return@LaunchedEffect
+            val result = snackbarHostState.showSnackbar(
+                message = "v${info.version} is on GitHub",
+                actionLabel = "Get it",
+                withDismissAction = true,
+                duration = SnackbarDuration.Short,
             )
+            when (result) {
+                SnackbarResult.ActionPerformed -> onUpdateAction(info)
+                SnackbarResult.Dismissed -> onUpdateDismiss()
+            }
+        }
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                // Lift the snackbar above the bottom corner
+                // row (digest / search / settings) so the
+                // action button is not under the gesture
+                // bar.
+                .padding(bottom = 72.dp),
+        ) {
+            SnackbarHost(snackbarHostState) { data ->
+                Snackbar(
+                    snackbarData = data,
+                    containerColor = MaterialTheme.colorScheme.inverseSurface,
+                    contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+                    actionColor = MaterialTheme.colorScheme.inversePrimary,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * v0.25.9 (deployability §8.3): a single-line card
+ * that sits above the QuickNotesCard on the home
+ * surface while the user has not set MindAnchor as
+ * the default home. A one-tap "Set as home" action
+ * opens the system Default-Apps settings; a small
+ * "Not now" dismisses the callout for the rest of
+ * the session.
+ *
+ * The card uses the same quiet palette as the rest
+ * of the launcher (sky.textPrimary on a translucent
+ * fill). A heavy coloured chip would shout over the
+ * clock; the goal is to be readable, not loud.
+ */
+@Composable
+private fun DefaultHomeCallout(
+    sky: SkyContent,
+    onAction: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    androidx.compose.material3.Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 12.dp, bottom = 4.dp),
+        color = sky.textPrimary.copy(alpha = 0.08f),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Text(
+                text = androidx.compose.ui.res.stringResource(
+                    org.mindanchor.R.string.set_default_home_callout,
+                ),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = androidx.compose.ui.res.stringResource(
+                    org.mindanchor.R.string.set_default_home_sub,
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+            androidx.compose.foundation.layout.Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.End,
+            ) {
+                TextButton(onClick = onDismiss) {
+                    Text(
+                        text = androidx.compose.ui.res.stringResource(
+                            org.mindanchor.R.string.set_default_home_dismiss,
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                TextButton(onClick = onAction) {
+                    Text(
+                        text = androidx.compose.ui.res.stringResource(
+                            org.mindanchor.R.string.set_default_home_action,
+                        ),
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
         }
     }
 }

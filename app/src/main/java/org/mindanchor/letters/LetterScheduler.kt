@@ -102,15 +102,13 @@ object LetterScheduler {
     private fun schedule(context: Context, alarmManager: AlarmManager, at: LocalDateTime) {
         val triggerAt = at.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val pending = pendingIntent(context)
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-            val canExact = alarmManager.canScheduleExactAlarms()
-            if (canExact) {
-                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending)
-            } else {
-                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending)
-            }
-        } else {
+        // v0.25.9 (lint sweep): with minSdk=33, the SDK_INT >= S
+        // check is always true. The else branch (pre-S `setExact`
+        // without runtime permission) is dead. Inline the body.
+        if (alarmManager.canScheduleExactAlarms()) {
             alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending)
+        } else {
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending)
         }
     }
 
