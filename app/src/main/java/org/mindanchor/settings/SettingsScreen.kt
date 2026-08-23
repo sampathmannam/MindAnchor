@@ -1578,6 +1578,20 @@ fun SettingsScreen(
         }
 
         if (group == SettingsGroup.READING) {
+            // --- Daily letter (LLM) (v0.25.7) ---
+            //
+            // The LLM-driven daily letter path. BYOK: the
+            // user creates a free Groq account and pastes
+            // the key here. The Provider row shows "Groq"
+            // only (Anthropic is a v0.25.8+ follow-up). The
+            // Test connection button issues a 1-token "OK"
+            // completion; the cached result is shown in the
+            // Connection row above.
+            val llmVm: org.mindanchor.settings.LlmSettingsViewModel = viewModel()
+            org.mindanchor.settings.LlmSettingsScreen(llmVm)
+        }
+
+        if (group == SettingsGroup.READING) {
             // --- Reading size (v0.25.2-B) ---
             //
             // The A- / A / A+ control. Mirrors the segmented control

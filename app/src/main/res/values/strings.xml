@@ -828,6 +828,21 @@
     <string name="reading_size_explainer">How large the text reads on the letter. Large is the largest size that still fits every letter without clipping or hiding controls.</string>
 
     <!--
+        v0.25.7: Daily letter (LLM) — Settings → Reading →
+        Daily letter (LLM). BYOK path. The "Provider" row
+        shows GROQ only (Anthropic is v0.25.8+). The
+        "Connection" row reads the cached result of the
+        last "Test connection" tap.
+    -->
+    <string name="settings_llm_section">Daily letter (LLM)</string>
+    <string name="settings_llm_explainer">The launcher writes you one letter a day, in its own voice. Get a free key at console.groq.com.</string>
+    <string name="settings_llm_provider">Provider</string>
+    <string name="settings_llm_api_key">API key</string>
+    <string name="settings_llm_connection">Connection</string>
+    <string name="settings_llm_never_tested">Not tested</string>
+    <string name="settings_llm_test_connection">Test connection</string>
+
+    <!--
         v0.25.4: Google Drive backup (replaces v0.23.0 WebDAV).
         Opt-in (Settings → Reading → Google Drive). The
         launcher uses the narrowest "per-file" scope
