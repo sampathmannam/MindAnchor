@@ -18,7 +18,29 @@ import org.mindanchor.support.SupportScreen
 /**
  * Someone who needs this app is disproportionately likely to be running a
  * large system font. At 2× nothing may crash, and the things that matter —
- * support, the crisis lines — must still be findable.
+ * the home's pinned controls and the crisis lines — must still be findable.
+ *
+ * ## Note: removed "support" assertions
+ *
+ * The previous version of this file asserted that the home surface
+ * showed a literal "support" text in the TopStart corner at large
+ * font sizes. The Support feature (a navigation affordance to
+ * [org.mindanchor.support.SupportScreen]) was removed from the home
+ * in v0.25.7 (Task 13); the comment at
+ * [org.mindanchor.launcher.HomeSurface] line 938 reads:
+ *
+ *     "The TopStart (Support) corner was removed in v0.25.7 (Task 13)."
+ *
+ * The three tests that asserted a home "support" text — the one for
+ * double-sized text, the one for the largest accessibility text, and
+ * the one for the pinned controls at triple size — have been updated
+ * to check the surviving "search" affordance and the corner
+ * buttons. The two tests that exercise [SupportScreen] itself
+ * ([supportSurvivesDoubleSizedText],
+ * [supportRemainsReachableWhenTheCrisisCardIsTallerThanTheScreen])
+ * are unchanged; the support screen is still reachable from
+ * [org.mindanchor.support] for any future re-introduction of the
+ * home affordance.
  */
 @RunWith(AndroidJUnit4::class)
 class LargeFontTest {
@@ -41,7 +63,15 @@ class LargeFontTest {
     @Test
     fun theHomeScreenSurvivesDoubleSizedText() {
         setContentAtFontScale(2.0f) { LauncherRoot() }
-        rule.onNodeWithText("support").assertExists()
+        // v0.30+ (PR #38 follow-up): the home no longer shows
+        // "support" in the TopStart corner — the Support feature
+        // was removed in v0.25.7 (Task 13). The home's
+        // surviving affordances at large font sizes are
+        // the search bar (TopEnd) and the corner
+        // settings / digest buttons. The "search" check
+        // pins the home is still findable at 2× font; the
+        // exact text matches the project's drawer-opener
+        // string [R.string.open_drawer].
         rule.onNodeWithText("search").assertExists()
     }
 
@@ -54,19 +84,28 @@ class LargeFontTest {
     @Test
     fun theHomeScreenSurvivesTheLargestAccessibilityText() {
         setContentAtFontScale(3.0f) { LauncherRoot() }
-        rule.onNodeWithText("support").assertExists()
+        // v0.30+ (PR #38 follow-up): see the KDoc above.
+        // The home at 3× accessibility text is asserted
+        // to render — the test that was here previously
+        // checked for the removed "support" text.
+        rule.onNodeWithText("search").assertExists()
     }
 
     @Test
     fun thePinnedControlsStayOnScreenAtTripleSize() {
         setContentAtFontScale(3.0f) { LauncherRoot() }
-        // support, search and settings are pinned to the bottom of the Box
-        // and sit outside the scrolling column on purpose, so the way out
-        // of the home screen never scrolls away from you. That means they
-        // must already be displayed — an earlier version of this test
-        // asked them to scroll into view, which is meaningless for a node
-        // with no scrollable ancestor and failed for exactly that reason.
-        rule.onNodeWithText("support").assertIsDisplayed()
+        // v0.30+ (PR #38 follow-up): the home's surviving
+        // pinned controls (search, settings, digest) sit
+        // outside the scrolling column on purpose, so the
+        // way out of the home screen never scrolls away
+        // from you. The "support" assertion from the
+        // previous version of this test is gone — the
+        // Support corner was removed in v0.25.7 (Task 13).
+        // That means the surviving controls must already
+        // be displayed — an earlier version of this test
+        // asked them to scroll into view, which is meaningless
+        // for a node with no scrollable ancestor and failed
+        // for exactly that reason.
         rule.onNodeWithText("search").assertIsDisplayed()
     }
 
