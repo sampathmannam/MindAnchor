@@ -194,6 +194,35 @@
         android:supportsRtl="true">
 
         <!--
+            v0.26+ (spec Phase 1) — the moment-of-pause
+            activity. The system shows this after
+            unlock, before the [HomeActivity]. The
+            [PreHomeActivity] owns the morning
+            intention, the 3-second breath, the
+            doomscroll prompt, and the "Skip to
+            home" affordance. The [HomeActivity]
+            remains the always-on home; the
+            PreHome is a one-shot screen that
+            precedes it on cold start.
+
+            Orientation is deliberately not locked
+            (same reason as [HomeActivity]).
+        -->
+        <activity
+            android:name=".prehome.PreHomeActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:stateNotNeeded="true"
+            android:excludeFromRecents="true"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!--
             MindAnchor is a HOME app. The activity is also exported as a normal
             launcher entry so it can be opened and explored before being set
             as the default home.
