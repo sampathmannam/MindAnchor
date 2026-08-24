@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -152,8 +152,17 @@ private fun StepPriority(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(text = "What matters most?", fontWeight = FontWeight.SemiBold)
-        DearMan.Priority.values().forEach { p ->
-            AssistChip(
+        // CodeRabbit review 2026-08-24 (PR #38):
+        // the previous version used AssistChip with an
+        // ignored `picked` parameter — detekt flagged
+        // the unused parameter, and the chip's
+        // selected state never changed. Switched to
+        // FilterChip with `selected` bound to the
+        // current `picked` value; also replaced the
+        // deprecated `values()` with `entries`.
+        DearMan.Priority.entries.forEach { p ->
+            FilterChip(
+                selected = picked == p,
                 onClick = { onPick(p) },
                 label = { Text(text = p.label) },
                 modifier = Modifier.fillMaxWidth(),

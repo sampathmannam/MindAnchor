@@ -173,8 +173,21 @@ class AppWatchService : AccessibilityService() {
          * the wrap; an opt-in check gates the trigger
          * on the FrictionPrefs read).
          */
-        @Volatile
-        private var foregroundStartedAt: MutableMap<String, Long> = HashMap()
+        // CodeRabbit review 2026-08-24 (PR #38):
+        // the previous `HashMap` with `@Volatile` is
+        // not thread-safe — `@Volatile` only makes the
+        // reference visible across threads, but the
+        // map's put/remove are compound operations and
+        // can interleave. Switched to
+        // `ConcurrentHashMap`, matching the `allowances`
+        // map at line 208. The read-then-write sequence
+        // for the 30-min wrap check is still racy
+        // across coroutines, so the start time is
+        // captured on the event thread before the
+        // `scope.launch` below; the launch body uses
+        // the captured `now`, not a second read of the
+        // map.
+        private val foregroundStartedAt = java.util.concurrent.ConcurrentHashMap<String, Long>()
 
         /**
          * Whether the watcher is currently connected.

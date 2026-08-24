@@ -1899,8 +1899,18 @@ internal fun greetingFor(hour: Int, morning: String, day: String, evening: Strin
  * process is killed mid-dialog, the user re-opens
  * it with a long-press, which is the right cost.
  */
+@androidx.compose.runtime.Stable
 class DearManDialogState {
-    internal var visible: Boolean = false
+    // CodeRabbit review 2026-08-24 (PR #38): a plain
+    // Kotlin field is not snapshot state, so the
+    // long-press call to [show] did not schedule a
+    // recomposition and the dialog never opened. The
+    // KDoc already promised MutableState backing; the
+    // implementation was missing it. The class is
+    // now @Stable and the field is a [mutableStateOf]
+    // delegate. The delegate imports (getValue /
+    // setValue) are already present in this file.
+    internal var visible: Boolean by androidx.compose.runtime.mutableStateOf(false)
         private set
 
     fun show() { visible = true }

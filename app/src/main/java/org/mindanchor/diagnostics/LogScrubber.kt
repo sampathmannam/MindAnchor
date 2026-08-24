@@ -82,7 +82,13 @@ object LogScrubber {
      * redacted, not the surrounding record metadata.
      */
     private val NOTIFICATION_BODY: Pattern = Pattern.compile(
-        "(HeldNotification\\{[^}]*text=)([^,}]+)([,}])",
+        // CodeRabbit review 2026-08-24 (PR #38):
+        // the previous regex `([^,}]+)` stopped at the
+        // first comma. A real notification body
+        // (`Hey, are you free tonight?`) had only `Hey`
+        // redacted. The capture now runs to the next
+        // field terminator (`, <word>=` or `}`).
+        "(HeldNotification\\{[^}]*?text=)(.*?)(, [a-zA-Z]+=|\\})",
     )
 
     private const val PHONE_REDACTED = "[PHONE REDACTED]"

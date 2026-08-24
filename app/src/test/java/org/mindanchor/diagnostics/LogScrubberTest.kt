@@ -35,6 +35,25 @@ class LogScrubberTest {
     }
 
     @Test
+    fun `redacts held notification body that contains commas`() {
+        // CodeRabbit review 2026-08-24 (PR #38):
+        // the previous regex `([^,}]+)` stopped at the
+        // first comma. A real notification body
+        // (`Hey, are you free tonight?`) had only `Hey`
+        // redacted. The capture now runs to the next
+        // field terminator (`, <word>=` or `}`) so the
+        // whole body is redacted in one pass.
+        val before = "HeldNotification{id=2, packageName=com.example, " +
+            "appLabel=Example, title=Hi, text=Hey, are you free tonight?, " +
+            "postedAt=99}"
+        val after = LogScrubber.redact(before)
+        assertTrue(after.contains("[NOTIFICATION REDACTED]"))
+        assertTrue(!after.contains("Hey, are you free tonight?"))
+        assertTrue(!after.contains("are you free tonight"))
+        assertTrue(after.contains("postedAt=99"))
+    }
+
+    @Test
     fun `passes through ordinary log lines`() {
         val before = "Gate shown for com.example at index 0"
         val after = LogScrubber.redact(before)
