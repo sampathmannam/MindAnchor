@@ -743,9 +743,27 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
      * call it directly when the user picks manually.
      */
     fun saveBaEntry(mastery: String, pleasure: String) {
+        // CodeRabbit review 2026-08-24 (PR #38):
+        // LetterStore.save replaces any letter on the
+        // same date, so a BA entry on Monday would
+        // overwrite Monday's generated daily letter
+        // (and a gratitude entry on Monday would
+        // overwrite the BA entry). The protective-
+        // layer entries are now written to
+        // [org.mindanchor.letters.JournalStore], a
+        // separate DataStore keyed on (Kind, date),
+        // which keeps the four kinds independent of
+        // each other and of the daily letter.
         viewModelScope.launch {
-            org.mindanchor.letters.LetterStore(getApplication())
-                .saveBaEntry(java.time.LocalDate.now(), mastery, pleasure)
+            val cleanM = mastery.trim()
+            val cleanP = pleasure.trim()
+            if (cleanM.isEmpty() && cleanP.isEmpty()) return@launch
+            val body = "BA:${cleanM}|${cleanP}"
+            org.mindanchor.letters.JournalStore(getApplication()).save(
+                org.mindanchor.letters.JournalStore.Kind.BA,
+                java.time.LocalDate.now(),
+                body,
+            )
         }
     }
 
@@ -757,9 +775,18 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
      * letter stores the user's filled-in lines.
      */
     fun saveDearManScript(script: String) {
+        // CodeRabbit review 2026-08-24 (PR #38): see
+        // [saveBaEntry]. DEAR MAN scripts go to the
+        // same [org.mindanchor.letters.JournalStore]
+        // under [JournalStore.Kind.DEAR_MAN].
         viewModelScope.launch {
-            org.mindanchor.letters.LetterStore(getApplication())
-                .save(org.mindanchor.letters.Letter(date = java.time.LocalDate.now(), body = script))
+            val clean = script.trim()
+            if (clean.isEmpty()) return@launch
+            org.mindanchor.letters.JournalStore(getApplication()).save(
+                org.mindanchor.letters.JournalStore.Kind.DEAR_MAN,
+                java.time.LocalDate.now(),
+                clean,
+            )
         }
     }
 
@@ -771,16 +798,18 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
      * (Seligman 2005 active-constructive response).
      */
     fun saveGratitude(text: String) {
+        // CodeRabbit review 2026-08-24 (PR #38): see
+        // [saveBaEntry]. Gratitude entries go to the
+        // same [org.mindanchor.letters.JournalStore]
+        // under [JournalStore.Kind.GRATITUDE].
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return
         viewModelScope.launch {
-            org.mindanchor.letters.LetterStore(getApplication())
-                .save(
-                    org.mindanchor.letters.Letter(
-                        date = java.time.LocalDate.now(),
-                        body = trimmed,
-                    ),
-                )
+            org.mindanchor.letters.JournalStore(getApplication()).save(
+                org.mindanchor.letters.JournalStore.Kind.GRATITUDE,
+                java.time.LocalDate.now(),
+                trimmed,
+            )
         }
     }
 
@@ -792,16 +821,19 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
      * taps Save on the prompt card.
      */
     fun saveExpressiveWriting(text: String) {
+        // CodeRabbit review 2026-08-24 (PR #38): see
+        // [saveBaEntry]. Expressive-writing entries
+        // go to the same
+        // [org.mindanchor.letters.JournalStore] under
+        // [JournalStore.Kind.EXPRESSIVE_WRITING].
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return
         viewModelScope.launch {
-            org.mindanchor.letters.LetterStore(getApplication())
-                .save(
-                    org.mindanchor.letters.Letter(
-                        date = java.time.LocalDate.now(),
-                        body = trimmed,
-                    ),
-                )
+            org.mindanchor.letters.JournalStore(getApplication()).save(
+                org.mindanchor.letters.JournalStore.Kind.EXPRESSIVE_WRITING,
+                java.time.LocalDate.now(),
+                trimmed,
+            )
         }
     }
 
