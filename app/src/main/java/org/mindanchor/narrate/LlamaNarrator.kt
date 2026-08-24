@@ -80,7 +80,42 @@ class LlamaNarrator(private val context: Context) : GuardedNarrator() {
             String(bytes, Charsets.UTF_8)
         }
 
+    /**
+     * v0.27+ (Phase 2 G-3) — compassionate reframe of a
+     * Letter body. Uses the same engine and the same
+     * [seedFor] discipline as the report narration
+     * path: the same Letter produces the same reframe.
+     * Caller is responsible for running the output
+     * through [NarrationGuard] if the reframe is to
+     * land on the home surface; for a 1-3 line DBT
+     * wise-mind rewrite, the guard's 1,200-char ceiling
+     * is the only failure mode.
+     *
+     * The [systemPrompt] is the DBT wise-mind voice
+     * instruction — validate emotion first, then point
+     * to facts, then suggest a skill. Stable across
+     * calls. See [Reframer] for the full rationale.
+     */
+    suspend fun reframeLetterBody(letterBody: String): String? =
+        withContext(Dispatchers.IO) {
+            generate(system = WISE_MIND_SYSTEM, prompt = letterBody)
+        }
+
     companion object {
+
+        /**
+         * The DBT wise-mind system prompt. Stable across
+         * calls so the same letter produces the same
+         * reframe. Tuned for validate-then-suggest
+         * output. The 1,200-char ceiling is enforced
+         * by [NarrationGuard].
+         */
+        const val WISE_MIND_SYSTEM = "You are a DBT wise-mind voice. " +
+            "Reframe the user's journal entry in 1-3 short lines. " +
+            "Validate the emotion first, then point to the facts, " +
+            "then suggest a skill. Never diagnose. Never direct. " +
+            "Never tell the user what they should feel. The reframe " +
+            "is a tool, not an instruction."
         /**
          * Backstop, not a target. NarrationGuard's 1,200-character
          * ceiling is the real limit; a model that ignores "three to five

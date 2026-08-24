@@ -51,7 +51,7 @@ class EmaResearchCitationFindingTest {
         ).readText()
 
     @Test
-    fun `Ema.kt KDoc cites Russell 1980 (the two-axis model the prompts are built on)`() {
+    fun `Ema KDoc cites Russell 1980 (the two-axis model the prompts are built on)`() {
         assertTrue(
             "Ema.kt must cite Russell 1980 in its KDoc — the " +
                 "circumplex model is what the valence and arousal " +
@@ -64,7 +64,7 @@ class EmaResearchCitationFindingTest {
     }
 
     @Test
-    fun `Ema.kt KDoc cites Csikszentmihalyi and Shiffman (the methodology)`() {
+    fun `Ema KDoc cites Csikszentmihalyi and Shiffman (the methodology)`() {
         // The methodology anchors: Csikszentmihalyi &
         // Hunter 2003 for experience sampling, Shiffman
         // et al 2008 for ecological momentary

@@ -526,6 +526,34 @@
         anchor is caught at review time.
     -->
     <string name="ema_research_link">Russell\'s circumplex model (1980) — the same axes psychology research uses for momentary affect.</string>
+    <!--
+        v0.26+: the "What your check-ins show"
+        patterns dashboard. The strings are
+        four descriptive insights plus a
+        one-line "patterns appear after about
+        a week" empty state. The copy is
+        deliberately non-directive — no
+        "low", "concerning", or "depressed"
+        anywhere; no comparison to a norm; the
+        N-of-1 framing the rest of the
+        launcher uses is the design rule.
+        A pattern that does not meet its
+        threshold is omitted (not shown as
+        "not enough data"), so a user with
+        one week of check-ins sees fewer
+        patterns than a user with three
+        months, by the same shape.
+    -->
+    <string name="check_in_insights_section">What your check-ins show</string>
+    <string name="check_in_insights_empty">Patterns appear after about a week of check-ins.</string>
+    <string name="check_in_insights_trend_brighter">Last week felt a little brighter than the week before.</string>
+    <string name="check_in_insights_trend_rougher">Last week felt a little rougher than the week before.</string>
+    <string name="check_in_insights_trend_same">Last week felt about the same as the week before.</string>
+    <string name="check_in_insights_best_hours">Your best hours recently: morning. Your hardest: late evening.</string>
+    <string name="check_in_insights_coverage">You\'ve answered %1$d of %2$d prompts this week.</string>
+    <string name="check_in_insights_baseline_brighter">Today is a little brighter than your usual.</string>
+    <string name="check_in_insights_baseline_rougher">Today is a little rougher than your usual.</string>
+    <string name="check_in_insights_baseline_same">Today is about average for you.</string>
     <string name="ema_channel_name">Check-ins</string>
     <!--
         v0.26+: the channel description shown in
