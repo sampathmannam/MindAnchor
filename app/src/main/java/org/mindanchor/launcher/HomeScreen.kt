@@ -341,6 +341,18 @@ fun LauncherRoot(
                 onLongPress = { actionsFor = it },
                 recentNotes = recentNotes,
                 onAddQuickNote = viewModel::addQuickNote,
+                onAddCompassionateWrapNote = { event ->
+                    // v0.26+ (Phase 1 G-19) — write the
+                    // compassionate-wrap event to a Note
+                    // via the existing NoteClassifier pipeline.
+                    // The user tapped "Note" on the Snackbar;
+                    // the launcher owns the storage; the
+                    // notifier owns the trigger.
+                    viewModel.recordCompassionateWrap(event)
+                },
+                heldNotificationsDao = org.mindanchor.data.db.AnchorDatabase
+                    .get(context.applicationContext as android.app.Application)
+                    .heldNotifications(),
                 onOpenNotes = {
                     // v0.20.1 round 5: route to the
                     // notes activity. runCatching

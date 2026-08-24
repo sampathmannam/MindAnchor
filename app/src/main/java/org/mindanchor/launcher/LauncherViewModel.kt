@@ -16,6 +16,7 @@ import org.mindanchor.data.FrictionPrefs
 import org.mindanchor.data.LauncherPrefs
 import org.mindanchor.data.NotesPrefs
 import org.mindanchor.friction.FrictionBandit
+import org.mindanchor.friction.CompassionateWrapNotifier
 import org.mindanchor.friction.GateContext
 import org.mindanchor.data.SunsetPrefs
 import org.mindanchor.friction.LoopPhase
@@ -401,6 +402,31 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 Note(
                     id = nextNoteId(),
                     body = trimmed,
+                    createdAt = now,
+                    updatedAt = now,
+                ),
+            )
+        }
+    }
+
+    /**
+     * v0.26+ (Phase 1 G-19) — the user tapped "Note" on the
+     * compassionate-wrap Snackbar. Write the
+     * [CompassionateWrapNotifier.Event] to a Note so the
+     * user has a record of "I was on Instagram for 32
+     * minutes and I noted something about it." The
+     * notifier is the trigger; the launcher is the
+     * storage.
+     */
+    fun recordCompassionateWrap(event: CompassionateWrapNotifier.Event) {
+        val body = "I was on ${event.label} for ${event.minutesSpent} minutes. " +
+            "(auto-captured by MindAnchor compassionate wrap)"
+        val now = System.currentTimeMillis()
+        viewModelScope.launch {
+            notesPrefs.add(
+                Note(
+                    id = nextNoteId(),
+                    body = body,
                     createdAt = now,
                     updatedAt = now,
                 ),
