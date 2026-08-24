@@ -1231,6 +1231,56 @@ fun SettingsScreen(
                 checked = compassionateWrap,
                 onCheckedChange = { viewModel.setCompassionateWrapEnabled(it) },
             )
+
+            // v0.28+ (Phase 3 G-8) — the expressive-writing
+            // prompt. Pennebaker 1997 minimum-dosage
+            // 3-sentence entry point.
+            val expressiveWriting by viewModel.expressiveWritingEnabled.collectAsState()
+            SettingsRowSwitch(
+                title = stringResource(R.string.settings_expressive_writing_title),
+                subtitle = stringResource(R.string.settings_expressive_writing_subtitle),
+                checked = expressiveWriting,
+                onCheckedChange = { viewModel.setExpressiveWritingEnabled(it) },
+            )
+
+            // v0.28+ (Phase 3 G-26) — the wind-down card.
+            val windDown by viewModel.windDownEnabled.collectAsState()
+            SettingsRowSwitch(
+                title = stringResource(R.string.settings_wind_down_title),
+                subtitle = stringResource(R.string.settings_wind_down_subtitle),
+                checked = windDown,
+                onCheckedChange = { viewModel.setWindDownEnabled(it) },
+            )
+
+            // v0.28+ (Phase 3 G-29) — the gratitude card.
+            // Seligman 2005 active-constructive response.
+            val gratitude by viewModel.gratitudeEnabled.collectAsState()
+            SettingsRowSwitch(
+                title = stringResource(R.string.settings_gratitude_title),
+                subtitle = stringResource(R.string.settings_gratitude_subtitle),
+                checked = gratitude,
+                onCheckedChange = { viewModel.setGratitudeEnabled(it) },
+            )
+
+            // v0.29+ (Phase 4 G-6) — the push-up mode.
+            // Hauck 2020 anchor.
+            val pushUpMode by viewModel.pushUpModeEnabled.collectAsState()
+            SettingsRowSwitch(
+                title = stringResource(R.string.settings_push_up_mode_title),
+                subtitle = stringResource(R.string.settings_push_up_mode_subtitle),
+                checked = pushUpMode,
+                onCheckedChange = { viewModel.setPushUpModeEnabled(it) },
+            )
+
+            // v0.29+ (Phase 4 G-28) — the voice journal.
+            // whisper.cpp on-device, ~75 MB APK cost.
+            val voiceJournal by viewModel.voiceJournalEnabled.collectAsState()
+            SettingsRowSwitch(
+                title = stringResource(R.string.settings_voice_journal_title),
+                subtitle = stringResource(R.string.settings_voice_journal_subtitle),
+                checked = voiceJournal,
+                onCheckedChange = { viewModel.setVoiceJournalEnabled(it) },
+            )
         }
 
         if (group == SettingsGroup.PAUSES) {
@@ -3213,6 +3263,17 @@ fun SettingsScreen(
                     Text(stringResource(R.string.privacy_open_action))
                 }
             }
+
+            // v0.28+ (Phase 3 G-31) — the
+            // plain-language data-flow card. The full
+            // doc-track is in docs/CLINICAL_REVIEW.md
+            // §7; this Composable surfaces the same
+            // content in the in-app surface the user
+            // can reach in one tap. Mirrors
+            // R.string.privacy_url's role (the link
+            // above), but in-app rather than a browser
+            // hand-off.
+            org.mindanchor.launcher.PrivacyFlowCard()
 
             // v0.25.9 (auto-update): the "Check for
             // updates" affordance. Always present; the

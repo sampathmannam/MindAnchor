@@ -125,6 +125,16 @@
     <string name="settings_morning_compassion_subtitle">A 90-second moment, if you would like one. Neff 2003, Linardon 2020.</string>
     <string name="settings_compassionate_wrap_title">Compassionate wrap on long sessions</string>
     <string name="settings_compassionate_wrap_subtitle">A 1-tap offer after 30+ minutes on a single app. Never directive.</string>
+    <string name="settings_expressive_writing_title">Expressive-writing prompt</string>
+    <string name="settings_expressive_writing_subtitle">A 3-sentence Pennebaker 1997 entry point. The launcher offers it, you decide.</string>
+    <string name="settings_wind_down_title">Wind-down card</string>
+    <string name="settings_wind_down_subtitle">Warmer colour and lower volume after your wind-down time. If you would like, the wind-down is here.</string>
+    <string name="settings_gratitude_title">Gratitude card</string>
+    <string name="settings_gratitude_subtitle">A 1-tap field for the best moment today. Seligman 2005 active-constructive response.</string>
+    <string name="settings_push_up_mode_title">Push-up mode</string>
+    <string name="settings_push_up_mode_subtitle">N push-ups before a flagged app opens. Hauck 2020 anchor.</string>
+    <string name="settings_voice_journal_title">Voice journal</string>
+    <string name="settings_voice_journal_subtitle">Push-to-talk, on-device transcription. whisper.cpp, ~75 MB APK cost.</string>
     <string name="ba_prompt_save">Save for the weekend</string>
     <string name="ba_prompt_skip">Not today</string>
 

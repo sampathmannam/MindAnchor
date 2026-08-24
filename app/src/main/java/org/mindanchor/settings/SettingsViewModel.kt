@@ -329,6 +329,67 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { frictionPrefs.setCompassionateWrapEnabled(enabled) }
     }
 
+    /**
+     * v0.28+ (Phase 3 G-8) — the expressive-writing prompt toggle.
+     * Pennebaker 1997 (minimum-dosage 3-sentence entry point) is
+     * the evidence anchor. Default OFF — the project's
+     * opt-out-by-silence rule.
+     */
+    val expressiveWritingEnabled = frictionPrefs.expressiveWritingEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setExpressiveWritingEnabled(enabled: Boolean) {
+        viewModelScope.launch { frictionPrefs.setExpressiveWritingEnabled(enabled) }
+    }
+
+    /**
+     * v0.28+ (Phase 3 G-26) — the wind-down card toggle.
+     * When on, the home surface shows the wind-down card after
+     * the configured time (default 21:00). Default OFF.
+     */
+    val windDownEnabled = frictionPrefs.windDownEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setWindDownEnabled(enabled: Boolean) {
+        viewModelScope.launch { frictionPrefs.setWindDownEnabled(enabled) }
+    }
+
+    /**
+     * v0.28+ (Phase 3 G-29) — the gratitude card toggle.
+     * Seligman 2005 (active-constructive response RCT) is the
+     * evidence anchor. Default OFF.
+     */
+    val gratitudeEnabled = frictionPrefs.gratitudeEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setGratitudeEnabled(enabled: Boolean) {
+        viewModelScope.launch { frictionPrefs.setGratitudeEnabled(enabled) }
+    }
+
+    /**
+     * v0.29+ (Phase 4 G-6) — the push-up mode toggle.
+     * When on, opening a flagged app shows the push-up counter
+     * (Hauck 2020 anchor). Default OFF.
+     */
+    val pushUpModeEnabled = frictionPrefs.pushUpModeEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setPushUpModeEnabled(enabled: Boolean) {
+        viewModelScope.launch { frictionPrefs.setPushUpModeEnabled(enabled) }
+    }
+
+    /**
+     * v0.29+ (Phase 4 G-28) — the voice journal toggle.
+     * When on, the Anchor Note has a Record affordance. Default
+     * OFF.
+     */
+    val voiceJournalEnabled = frictionPrefs.voiceJournalEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setVoiceJournalEnabled(enabled: Boolean) {
+        viewModelScope.launch { frictionPrefs.setVoiceJournalEnabled(enabled) }
+    }
+
     // --- Going Light ---
 
     /**

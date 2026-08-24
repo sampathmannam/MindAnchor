@@ -95,6 +95,83 @@ class FrictionPrefs(private val context: Context) {
         context.dataStore.edit { it[goingLightConsentDismissedKey] = true }
     }
 
+    // v0.28+ (Phase 3 G-8) — the expressive-writing
+    // prompt. The user opts in; default is OFF.
+    // Pennebaker 1997 (minimum-dosage 3-sentence
+    // entry point) is the evidence anchor. The
+    // home surface shows the card on low-mood
+    // check-in days (the user explicitly asks for
+    // it, the launcher does not schedule it).
+    private val expressiveWritingEnabledKey =
+        booleanPreferencesKey("expressive_writing_enabled")
+    val expressiveWritingEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[expressiveWritingEnabledKey] ?: false
+    }
+    suspend fun setExpressiveWritingEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[expressiveWritingEnabledKey] = enabled }
+    }
+
+    // v0.28+ (Phase 3 G-26) — the wind-down card.
+    // The user opts in; default is OFF. Shown on
+    // the home surface after the configured
+    // wind-down time (default 21:00, overridable
+    // in Settings). The launcher applies the
+    // changes when the user taps Begin.
+    private val windDownEnabledKey =
+        booleanPreferencesKey("wind_down_enabled")
+    val windDownEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[windDownEnabledKey] ?: false
+    }
+    suspend fun setWindDownEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[windDownEnabledKey] = enabled }
+    }
+
+    // v0.28+ (Phase 3 G-29) — the gratitude
+    // card. The user opts in; default is OFF.
+    // Seligman 2005 (active-constructive response
+    // RCT) is the evidence anchor. The card
+    // writes to the Letters store (same pipeline
+    // as the DEAR MAN script).
+    private val gratitudeEnabledKey =
+        booleanPreferencesKey("gratitude_enabled")
+    val gratitudeEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[gratitudeEnabledKey] ?: false
+    }
+    suspend fun setGratitudeEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[gratitudeEnabledKey] = enabled }
+    }
+
+    // v0.29+ (Phase 4 G-6) — the push-up mode.
+    // The user opts in; default is OFF. When on,
+    // opening a flagged app shows the push-up
+    // counter and the user must complete N reps
+    // before the launcher lets the app open.
+    // Hauck 2020 (Sports Medicine, intense-exercise
+    // craving-reduction 30-50 min) is the evidence
+    // anchor.
+    private val pushUpModeEnabledKey =
+        booleanPreferencesKey("push_up_mode_enabled")
+    val pushUpModeEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[pushUpModeEnabledKey] ?: false
+    }
+    suspend fun setPushUpModeEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[pushUpModeEnabledKey] = enabled }
+    }
+
+    // v0.29+ (Phase 4 G-28) — the voice journal.
+    // The user opts in; default is OFF. Records
+    // audio on-device; whisper.cpp transcribes
+    // on-device. ~75 MB APK cost acknowledged in
+    // the Composable KDoc.
+    private val voiceJournalEnabledKey =
+        booleanPreferencesKey("voice_journal_enabled")
+    val voiceJournalEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[voiceJournalEnabledKey] ?: false
+    }
+    suspend fun setVoiceJournalEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[voiceJournalEnabledKey] = enabled }
+    }
+
     val flaggedApps: Flow<Set<String>> = context.dataStore.data.map { prefs ->
         prefs[flaggedKey] ?: emptySet()
     }

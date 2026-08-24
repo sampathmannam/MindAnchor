@@ -634,6 +634,65 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     val morningCompassionEnabled: StateFlow<Boolean> = frictionPrefs.morningCompassionEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
+    // v0.28+ (Phase 3 G-29, G-8, G-26) — the gratitude,
+    // expressive-writing, and wind-down ritual toggles.
+    // v0.29+ (Phase 4 G-6, G-28) — the push-up mode
+    // and voice journal toggles. Each card gates on
+    // its setting; the home surface reads these
+    // StateFlows.
+    val gratitudeEnabled: StateFlow<Boolean> = frictionPrefs.gratitudeEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val expressiveWritingEnabled: StateFlow<Boolean> = frictionPrefs.expressiveWritingEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val windDownEnabled: StateFlow<Boolean> = frictionPrefs.windDownEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val pushUpModeEnabled: StateFlow<Boolean> = frictionPrefs.pushUpModeEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val voiceJournalEnabled: StateFlow<Boolean> = frictionPrefs.voiceJournalEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    // v0.29+ (Phase 4 G-5) — the Sleep Lock state.
+    // The home surface shows the card when the user
+    // is inside the configured sleep window. The
+    // bedtime / waketime come from the existing
+    // SunsetPrefs. The Compose-only stub here is
+    // the post-grant UI; the DevicePolicyManager
+    // wiring is a follow-up.
+
+    /**
+     * The user's bedtime (e.g. "22:00") for the
+     * sleep-lock card. Empty string when SunsetPrefs
+     * has not been configured.
+     */
+    val sleepLockBedtime: StateFlow<String> = sunsetPrefs.startTime
+        .map { it.toString() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
+
+    /**
+     * The user's waketime (e.g. "07:00") for the
+     * sleep-lock card. Empty string when SunsetPrefs
+     * has not been configured.
+     */
+    val sleepLockWaketime: StateFlow<String> = sunsetPrefs.endTime
+        .map { it.toString() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
+
+    /**
+     * Whether the current minute is inside the user's
+     * configured sleep window. Pure derivation;
+     * delegated to [SunsetPrefs.isInWindow] (the
+     * midnight-crossing-safe static helper).
+     */
+    val inSleepWindow: StateFlow<Boolean> =
+        kotlinx.coroutines.flow.combine(sunsetPrefs.startTime, sunsetPrefs.endTime) { start, end ->
+            org.mindanchor.data.SunsetPrefs.isInWindow(java.time.LocalTime.now(), start, end)
+        }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
     /**
      * v0.26+ (Phase 1 G-22) — write a BA mastery/pleasure
      * pair to the Letters store with the `BA:` body
@@ -660,6 +719,48 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             org.mindanchor.letters.LetterStore(getApplication())
                 .save(org.mindanchor.letters.Letter(date = java.time.LocalDate.now(), body = script))
+        }
+    }
+
+    /**
+     * v0.28+ (Phase 3 G-29) — write a gratitude entry
+     * to the Letters store. The gratitude is a regular
+     * letter; the body is the user's one-or-two-sentence
+     * answer to "what was the best moment today?"
+     * (Seligman 2005 active-constructive response).
+     */
+    fun saveGratitude(text: String) {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            org.mindanchor.letters.LetterStore(getApplication())
+                .save(
+                    org.mindanchor.letters.Letter(
+                        date = java.time.LocalDate.now(),
+                        body = trimmed,
+                    ),
+                )
+        }
+    }
+
+    /**
+     * v0.28+ (Phase 3 G-8) — write a Pennebaker 1997
+     * expressive-writing entry. The same Letters
+     * pipeline as the gratitude card; the home
+     * surface calls this directly when the user
+     * taps Save on the prompt card.
+     */
+    fun saveExpressiveWriting(text: String) {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            org.mindanchor.letters.LetterStore(getApplication())
+                .save(
+                    org.mindanchor.letters.Letter(
+                        date = java.time.LocalDate.now(),
+                        body = trimmed,
+                    ),
+                )
         }
     }
 

@@ -190,6 +190,28 @@ fun LauncherRoot(
     val morningCompassionEnabledByState = viewModel.morningCompassionEnabled
     val goingLightScheduleByState = viewModel.goingLightSchedule
 
+    // v0.28+ (Phase 3 G-29, G-8, G-26) — the gratitude,
+    // expressive-writing, and wind-down ritual toggles.
+    // v0.29+ (Phase 4 G-6, G-28) — the push-up mode
+    // and voice journal toggles. Each card gates on
+    // its setting; the launcher view-model owns the
+    // write side (the save callbacks).
+    val gratitudeEnabledByState = viewModel.gratitudeEnabled
+    val expressiveWritingEnabledByState = viewModel.expressiveWritingEnabled
+    val windDownEnabledByState = viewModel.windDownEnabled
+    val pushUpModeEnabledByState = viewModel.pushUpModeEnabled
+    val voiceJournalEnabledByState = viewModel.voiceJournalEnabled
+
+    // v0.29+ (Phase 4 G-5) — the Sleep Lock state.
+    // The home surface shows the card when the user
+    // is inside the configured sleep window. The
+    // bedtime / waketime strings come from the
+    // existing SunsetPrefs (read by the launcher
+    // view-model). The on-device-only-Composable
+    // stub here is the post-grant UI; the
+    // DevicePolicyManager wiring is a follow-up.
+    val inSleepWindowByState = viewModel.inSleepWindow
+
     // v0.26+ (Phase 1 G-23) — the DEAR MAN dialog state
     // for the long-press affordance on the Anchor Note
     // title. The state is owned by the home surface, the
@@ -451,6 +473,59 @@ fun LauncherRoot(
                 // callout with a single action button.
                 isDefaultHome = isDefaultHome,
                 onSetDefaultHome = onSetDefaultHome,
+                // v0.28+ (Phase 3 G-29, G-8, G-26) — the
+                // gratitude, expressive-writing, and
+                // wind-down ritual cards. Each gates on its
+                // setting; the save callbacks write to the
+                // Letters store via the launcher
+                // view-model.
+                gratitudeEnabled = gratitudeEnabledByState.collectAsState().value,
+                onSaveGratitude = viewModel::saveGratitude,
+                onExpandGratitude = {
+                    // v0.28+ (Phase 3 G-29) — the
+                    // gratitude card's "Open full editor"
+                    // affordance routes the user to the
+                    // existing letter surface, same as
+                    // the onOpenLetters corner button.
+                    letterSelectedDate = null
+                    letterCameFrom = LauncherSurface.Home
+                    surface = LauncherSurface.Letter
+                },
+                expressiveWritingEnabled = expressiveWritingEnabledByState.collectAsState().value,
+                onSaveExpressiveWriting = viewModel::saveExpressiveWriting,
+                windDownEnabled = windDownEnabledByState.collectAsState().value,
+                onBeginWindDown = { /* launcher applies
+                    the wind-down (v0.28+ hook) */ },
+                onDismissWindDown = { /* v0.28+ session
+                    scope */ },
+                // v0.29+ (Phase 4 G-6, G-28) — the
+                // push-up mode and voice journal
+                // toggles. The Composable-only stubs
+                // are wired here; the actual ML Kit
+                // Pose Detection + whisper.cpp JNI
+                // bridges are follow-up commits.
+                pushUpModeEnabled = pushUpModeEnabledByState.collectAsState().value,
+                onPushUpsComplete = { /* launcher proceeds
+                    with the launch (v0.29+ hook) */ },
+                voiceJournalEnabled = voiceJournalEnabledByState.collectAsState().value,
+                onVoiceRecordStart = { /* launcher starts
+                    audio capture (v0.29+ hook) */ },
+                onVoiceRecordStop = { /* launcher stops
+                    audio capture (v0.29+ hook) */ },
+                onVoiceTranscribe = { /* launcher invokes
+                    whisper.cpp (v0.29+ hook) */ },
+                // v0.29+ (Phase 4 G-5) — the Sleep Lock
+                // card. Shown on the home surface when
+                // the user is inside the configured
+                // sleep window. The Composable-only
+                // stub is the post-grant UI; the
+                // DevicePolicyManager device-owner
+                // grant flow is a follow-up.
+                sleepLockBedtime = viewModel.sleepLockBedtime.collectAsState().value,
+                sleepLockWaketime = viewModel.sleepLockWaketime.collectAsState().value,
+                onSleepLockUnlock = { /* launcher dismisses
+                    the sleep lock (v0.29+ hook) */ },
+                inSleepWindow = inSleepWindowByState.collectAsState().value,
             )
         }
 
@@ -995,6 +1070,111 @@ private fun HomeSurface(
      */
     isDefaultHome: Boolean = true,
     onSetDefaultHome: () -> Unit = {},
+    /**
+     * v0.28+ (Phase 3 G-29) — whether the gratitude card
+     * should show on the home surface. True means the user
+     * has enabled the ritual in Settings.
+     */
+    gratitudeEnabled: Boolean = false,
+    /**
+     * v0.28+ (Phase 3 G-29) — the user saved a gratitude
+     * entry from the card. The launcher view-model writes
+     * the one-or-two-sentence text to the Letters store.
+     */
+    onSaveGratitude: (String) -> Unit = {},
+    /**
+     * v0.28+ (Phase 3 G-29) — the user long-pressed the
+     * gratitude card to open the full Letter editor. The
+     * launcher switches to the letter surface.
+     */
+    onExpandGratitude: () -> Unit = {},
+    /**
+     * v0.28+ (Phase 3 G-8) — whether the expressive-writing
+     * card should show on the home surface. True means the
+     * user has enabled the ritual in Settings.
+     */
+    expressiveWritingEnabled: Boolean = false,
+    /**
+     * v0.28+ (Phase 3 G-8) — the user saved an
+     * expressive-writing entry. The launcher view-model
+     * writes the 3-sentence text to the Letters store.
+     */
+    onSaveExpressiveWriting: (String) -> Unit = {},
+    /**
+     * v0.28+ (Phase 3 G-26) — whether the wind-down card
+     * should show on the home surface. The launcher
+     * applies the wind-down (warmer colour, lower volume)
+     * when the user taps Begin.
+     */
+    windDownEnabled: Boolean = false,
+    /**
+     * v0.28+ (Phase 3 G-26) — the user tapped Begin on the
+     * wind-down card. The launcher applies the wind-down
+     * changes.
+     */
+    onBeginWindDown: () -> Unit = {},
+    /**
+     * v0.28+ (Phase 3 G-26) — the user tapped Not now on
+     * the wind-down card. The card dismisses for this
+     * session; it reappears on the next home-surface open
+     * after the wind-down time.
+     */
+    onDismissWindDown: () -> Unit = {},
+    /**
+     * v0.29+ (Phase 4 G-6) — whether push-up mode is on.
+     * When on, opening a flagged app shows the push-up
+     * counter; the user must complete N reps before the
+     * app opens.
+     */
+    pushUpModeEnabled: Boolean = false,
+    /**
+     * v0.29+ (Phase 4 G-6) — the user completed N push-ups
+     * on the gate. The launcher proceeds with the
+     * launch.
+     */
+    onPushUpsComplete: () -> Unit = {},
+    /**
+     * v0.29+ (Phase 4 G-28) — whether voice journaling is
+     * on. The Anchor Note gets a Record affordance.
+     */
+    voiceJournalEnabled: Boolean = false,
+    /**
+     * v0.29+ (Phase 4 G-28) — the user tapped Record on
+     * the voice journal card. The launcher starts audio
+     * capture on-device.
+     */
+    onVoiceRecordStart: () -> Unit = {},
+    /**
+     * v0.29+ (Phase 4 G-28) — the user tapped Stop on
+     * the voice journal card. The launcher stops audio
+     * capture.
+     */
+    onVoiceRecordStop: () -> Unit = {},
+    /**
+     * v0.29+ (Phase 4 G-28) — the user tapped Transcribe
+     * on the voice journal card. The launcher invokes
+     * whisper.cpp on-device.
+     */
+    onVoiceTranscribe: () -> Unit = {},
+    /**
+     * v0.29+ (Phase 4 G-5) — the bedtime and waketime
+     * strings for the Sleep Lock card. The card is shown
+     * during the configured sleep window.
+     */
+    sleepLockBedtime: String = "",
+    sleepLockWaketime: String = "",
+    /**
+     * v0.29+ (Phase 4 G-5) — the user typed the unlock
+     * phrase. The launcher dismisses the sleep lock.
+     */
+    onSleepLockUnlock: () -> Unit = {},
+    /**
+     * v0.29+ (Phase 4 G-5) — whether the user is inside
+     * the configured sleep window. When true, the
+     * launcher shows the sleep lock card instead of the
+     * regular home surface.
+     */
+    inSleepWindow: Boolean = false,
 ) {
     val now = rememberMinuteTick()
     val clockFormat = rememberClockFormat()
@@ -1079,21 +1259,23 @@ private fun HomeSurface(
                 color = sky.textSecondary,
             )
 
-            // v0.22.0 (WP-10 step 2): the "what makes this
-            // different" callout. One line of small text
-            // pointing at the friction gate, shown for the
-            // first 3 launches and then never again. The
-            // recording fires on a side effect so the
-            // callout is one launch closer to hidden on
-            // every display, regardless of which side of
-            // the threshold this display is on.
+            // v0.29+ (Phase 4 G-13) — the "what this is, in
+            // one line" callout. The research-backed +
+            // on-device + your-data-never-leaves framing
+            // for the first 3 launches. The G-13 version
+            // is the polish over the v0.22.0 single-line
+            // callout: a small Card with the headline, the
+            // three-feature summary, and a "Got it"
+            // dismiss. The dismiss is session-scoped; the
+            // callout hides permanently once the user has
+            // seen it on 3 launches (existing
+            // LauncherPrefs.showIntroCallout gate, same as
+            // before).
             if (showIntroCallout) {
                 LaunchedEffect(Unit) { onRecordLaunch() }
-                Text(
-                    text = stringResource(R.string.intro_callout),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = sky.textSecondary,
-                    modifier = Modifier.padding(vertical = 4.dp),
+                OnboardingCalloutCard(
+                    onDismiss = { /* session-scoped; the
+                        callout hides on launch 3+ */ },
                 )
             }
 
@@ -1218,6 +1400,63 @@ private fun HomeSurface(
             CompassionateWrapHost(
                 onNote = onAddCompassionateWrapNote,
             )
+
+            // v0.28+ (Phase 3 G-29) — the gratitude
+            // card. Shown on the home surface when the
+            // user has enabled the ritual. The 1-tap
+            // text field saves to the Letters store as
+            // a regular letter; the long-press expands
+            // to the full Letter editor (the existing
+            // letter surface).
+            if (gratitudeEnabled) {
+                GratitudeCard(
+                    onSave = onSaveGratitude,
+                    onExpand = onExpandGratitude,
+                )
+            }
+
+            // v0.28+ (Phase 3 G-8) — the
+            // expressive-writing prompt. Shown on the
+            // home surface when the user has enabled
+            // the ritual. The Pennebaker 1997
+            // 3-sentence minimum-dosage entry point.
+            if (expressiveWritingEnabled) {
+                ExpressiveWritingCard(
+                    onSave = onSaveExpressiveWriting,
+                    onDismiss = { /* v0.28+ session
+                        scope */ },
+                )
+            }
+
+            // v0.28+ (Phase 3 G-26) — the wind-down
+            // card. Shown on the home surface when the
+            // user has enabled the ritual (and is
+            // inside the wind-down window, which the
+            // launcher view-model decides). The "Begin"
+            // action applies the wind-down; the
+            // "Not now" dismisses for this session.
+            if (windDownEnabled) {
+                WindDownCard(
+                    onBegin = onBeginWindDown,
+                    onDismiss = onDismissWindDown,
+                )
+            }
+
+            // v0.29+ (Phase 4 G-5) — the Sleep Lock
+            // card. Shown on the home surface during
+            // the configured sleep window. The
+            // 30-second typing + breath gate is the
+            // exit. The DevicePolicyManager
+            // device-owner grant flow is the
+            // follow-up; the Composable is the
+            // post-grant UI.
+            if (inSleepWindow) {
+                SleepLockCard(
+                    bedtime = sleepLockBedtime,
+                    waketime = sleepLockWaketime,
+                    onUnlock = { onSleepLockUnlock() },
+                )
+            }
 
             Column(
                 modifier = Modifier.padding(top = 40.dp),
