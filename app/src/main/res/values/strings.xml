@@ -82,6 +82,75 @@
     <string name="per_app_session_length_last_time_label">Like last time — %1$d min</string>
     <string name="per_app_session_length_forget_label">Forget this default</string>
 
+    <!--
+        v0.26+ (Phase 1 G-2) — the friction-bandit nightly-reset
+        worker. The user-visible name and description in the
+        system WorkManager settings panel. The wording is
+        clinical-review-passed: it names the surface honestly
+        ("friction bandit"), and the description says "the pause
+        stays fresh" rather than "the launcher adapts to you"
+        — the second phrase implies an intent the user has not
+        stated, the first describes a concrete behaviour.
+    -->
+    <string name="bandit_reset_name">Friction bandit nightly reset</string>
+    <string name="bandit_reset_description">Resets the dominant friction-bandit arm each night so the pause stays fresh.</string>
+
+    <!--
+        v0.26+ (Phase 1 G-22) — the behavioral-activation weekly
+        prompt surface. Shown Friday evening (configurable);
+        the user picks one mastery + one pleasure activity for
+        the weekend and the picks are saved as Letters with
+        type=BA. The wording is BPD-safe: validate-then-suggest
+        ("if it would help to pick …") not directive ("you should
+        pick …"). The mastery/pleasure pair is from Lewinsohn
+        et al. 1976 and Dimidjian et al. 2006 (BA), and the
+        on-screen copy is in the project's clinical-review
+        allowlist.
+    -->
+    <string name="ba_prompt_title">If it would help, pick one thing</string>
+    <string name="ba_prompt_mastery_label">One thing to make or do (mastery)</string>
+    <string name="ba_prompt_pleasure_label">One thing to enjoy (pleasure)</string>
+    <string name="ba_prompt_save">Save for the weekend</string>
+    <string name="ba_prompt_skip">Not today</string>
+
+    <!--
+        v0.26+ (Phase 1 G-21) — the morning self-compassion break.
+        The first thing the user sees on PreHome cold-start, after
+        a 90-second micro-protocol (breathing + soothing touch +
+        compassionate phrase, Neff 2003 / Linardon 2020). The
+        wording is validate-then-suggest, never directive; the
+        three exercise choices are clinical-review-passed and
+        live in the compassion-moment rotation.
+    -->
+    <string name="morning_compassion_title">A 90-second moment, if you would like one</string>
+    <string name="morning_compassion_skip">Not now</string>
+
+    <!--
+        v0.26+ (Phase 1 G-20) — the home-screen notification diet
+        card. Reports the number of held notifications released
+        in the last 7 days multiplied by the Mark 2005
+        23-minute-interruption-recovery cost. The wording is
+        factual, not celebratory: "released" is the same word
+        the digest UI uses, and "estimated" frames the
+        Mark 2005 figure as a heuristic, not a fact.
+    -->
+    <string name="diet_card_title">This week</string>
+    <string name="diet_card_demoted">%1$d notifications released</string>
+    <string name="diet_card_saved">%1$.1f hours of attention estimated saved</string>
+    <string name="diet_card_footnote">based on the 23-minute interruption-recovery cost (Mark 2005)</string>
+
+    <!--
+        v0.26+ (Phase 1 G-19) — the compassionate wrap on
+        app-close after a long session. The Snackbar copy is
+        factual, never judgemental: "you were on %1$s for %2$s,
+        if you would like to note anything" — not "you spent 30
+        minutes on Instagram" or "are you okay?". The settings
+        toggle controls whether the wrap fires at all.
+    -->
+    <string name="compassionate_wrap_snackbar">You were on %1$s for %2$s — note anything?</string>
+    <string name="compassionate_wrap_note_action">Note</string>
+    <string name="compassionate_wrap_dismiss_action">Dismiss</string>
+
     <string name="session_channel_name">Session timers</string>
     <string name="session_over_title">Your time in %1$s is up</string>
     <string name="session_over_text">Done, or a little longer?</string>
