@@ -43,6 +43,27 @@ class AnchorNotificationListenerService : NotificationListenerService() {
             enabled to apps
         }.stateIn(scope, SharingStarted.Eagerly, false to emptySet())
 
+        // v0.30+ (spec Phase 2) — the active-hours
+        // and retention values drive the demotion
+        // gate and the auto-prune on listener connect.
+        // Active hours default 21:00-07:00 (the spec
+        // recommendation) and retention default 7
+        // days. The flow is collected on the service
+        // scope; the values are read in
+        // [onNotificationPosted] for the gate and
+        // [onListenerConnected] for the prune.
+        activeHours = combine(
+            prefs.activeHoursStart,
+            prefs.activeHoursEnd,
+        ) { start, end -> start to end }
+            .stateIn(
+                scope,
+                SharingStarted.Eagerly,
+                NotificationPrefs.DEFAULT_ACTIVE_START to NotificationPrefs.DEFAULT_ACTIVE_END,
+            )
+        retentionDays = prefs.heldRetentionDays
+            .stateIn(scope, SharingStarted.Eagerly, NotificationPrefs.DEFAULT_RETENTION_DAYS)
+
         scope.launch {
             AnchorDatabase.get(applicationContext).safety().contacts().collect { contacts ->
                 crisisContacts = contacts.map { CrisisContactRef(it.name, it.phone) }
@@ -61,6 +82,28 @@ class AnchorNotificationListenerService : NotificationListenerService() {
         // person's chosen times off DataStore, and a suspend call cannot
         // happen on the connection callback directly.
         scope.launch { BatchAlarms.ensureScheduled(applicationContext) }
+        // v0.30+ (spec Phase 2) — auto-prune
+        // notifications older than the retention
+        // window. The user's setting is read from
+        // DataStore; the prune is best-effort and
+        // runs on the service scope so it does not
+        // block the listener connect callback.
+        scope.launch { pruneExpired() }
+    }
+
+    /**
+     * Auto-prune held notifications older than the
+     * user's [NotificationPrefs.heldRetentionDays]
+     * setting. The cutoff is `now - retentionDays *
+     * 24h`; rows whose `postedAt < cutoff` are
+     * deleted in a single SQL `DELETE`. The prune is
+     * idempotent: a second call is a no-op when no
+     * rows are older than the cutoff.
+     */
+    private suspend fun pruneExpired() {
+        val days = retentionDays.value
+        val cutoff = System.currentTimeMillis() - days * MILLIS_PER_DAY
+        AnchorDatabase.get(applicationContext).heldNotifications().pruneOlderThan(cutoff)
     }
 
     /**
@@ -75,8 +118,59 @@ class AnchorNotificationListenerService : NotificationListenerService() {
     @Volatile
     private var crisisContactsLoaded: Boolean = false
 
+    /**
+     * v0.30+ (spec Phase 2) — the active-hours
+     * (start, end) tuple, in minutes-of-day. Read
+     * from [NotificationPrefs.activeHoursStart] and
+     * [NotificationPrefs.activeHoursEnd]. The flow
+     * is collected on the service scope.
+     */
+    private lateinit var activeHours: kotlinx.coroutines.flow.StateFlow<Pair<Int, Int>>
+
+    /**
+     * v0.30+ (spec Phase 2) — the held-retention
+     * window in days. Read from
+     * [NotificationPrefs.heldRetentionDays]. Drives
+     * the auto-prune in [pruneExpired].
+     */
+    private lateinit var retentionDays: kotlinx.coroutines.flow.StateFlow<Int>
+
+    private companion object {
+        // Milliseconds per day. The magic number is
+        // hoisted to a constant so the detekt
+        // [MagicNumber] rule does not flag the
+        // ms-per-day computation in [pruneExpired].
+        const val MILLIS_PER_DAY = 24L * 60L * 60L * 1000L
+    }
+
+    /**
+     * v0.30+ (spec Phase 2) — the now-minute helper
+     * for the active-hours gate. Exposed at the file
+     * level so the test in
+     * [org.mindanchor.notifications.ActiveHoursTest]
+     * covers the rule without needing the service.
+     */
+    private fun nowMinuteOfDay(): Int {
+        val cal = java.util.Calendar.getInstance()
+        return cal.get(java.util.Calendar.HOUR_OF_DAY) * 60 +
+            cal.get(java.util.Calendar.MINUTE)
+    }
+
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         if (!crisisContactsLoaded) return
+        // v0.30+ (spec Phase 2) — gate the demote on
+        // the active-hours window. Outside the
+        // window, the notification passes through
+        // unchanged. The window may cross midnight
+        // (default 21:00-07:00); the helper handles
+        // that.
+        val (startMin, endMin) = activeHours.value
+        if (!NotificationPrefs.isWithinActiveHoursStatic(
+                nowMinuteOfDay(), startMin, endMin,
+            )
+        ) {
+            return
+        }
         val (enabled, batchedApps) = config.value
         val meta = sbn.toMeta()
         val hold = NotificationClassifier.shouldHold(

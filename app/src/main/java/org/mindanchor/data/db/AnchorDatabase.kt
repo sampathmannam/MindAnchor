@@ -71,6 +71,20 @@ interface HeldNotificationDao {
 
     @Query("DELETE FROM held_notifications WHERE releasedAt IS NOT NULL")
     suspend fun clearReleased()
+
+    /**
+     * v0.30+ (spec Phase 2) — auto-prune held
+     * notifications older than the [cutoff]
+     * epoch-millis timestamp. Called from
+     * [org.mindanchor.notifications.AnchorNotificationListenerService.onListenerConnected]
+     * with the cutoff derived from the user's
+     * `heldRetentionDays` setting. The DELETE
+     * returns the number of rows removed so the
+     * caller can log the prune without a separate
+     * count query.
+     */
+    @Query("DELETE FROM held_notifications WHERE postedAt < :cutoff")
+    suspend fun pruneOlderThan(cutoff: Long): Int
 }
 
 /** One completed WHO-5 wellbeing pulse (score 0–100). */
