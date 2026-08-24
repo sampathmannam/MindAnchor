@@ -143,4 +143,39 @@ class WellnessRepository(private val context: Context) {
         WellnessSignal.SLEEP_MINUTES -> null
         WellnessSignal.MINDFULNESS_MINUTES -> null
     }
+
+    /**
+     * The recent average nightly sleep in *hours*, over the
+     * trailing [days] days, read from the persisted
+     * [WellnessHistoryStore]. The friction bandit (Phase 1
+     * v0.26+ G-7) uses this as one of the contextual
+     * features that the policy sees at decision time — the
+     * literature (HeartSteps V2 Liao 2020; DIAMANTE
+     * Aguilera 2024) finds time-of-day and recent sleep
+     * duration the dominant engagement predictors, and the
+     * plan (§G-7) chose to add sleep rather than HRV per
+     * the Hovsepian 2025 *Sensors* finding that wearable
+     * HRV is a weak within-person signal.
+     *
+     * Returns `null` when the history is empty (a fresh
+     * install, or no watch paired yet) — the bandit treats
+     * null as "use the prior" and never blocks on a
+     * missing wellness signal.
+     *
+     * The value is in *hours*, not minutes, so the bandit
+     * context can be expressed in plain integers (the
+     * threshold 6.5h is the inverse of the 7h WHO
+     * recommended-floor floor). The minutes-to-hours
+     * conversion happens here, not at the call site.
+     */
+    suspend fun recentSleepHours(days: Int = 7): Double? = runCatching {
+        val cutoff = LocalDate.now().minusDays(days.toLong())
+        val recentSleepMinutes = runCatching { history.all() }
+            .getOrDefault(emptyList())
+            .filter { it.signal == WellnessSignal.SLEEP_MINUTES }
+            .filter { it.day >= cutoff }
+            .mapNotNull { it.value.takeIf { v -> v.isFinite() && v > 0.0 } }
+        if (recentSleepMinutes.isEmpty()) null
+        else recentSleepMinutes.average() / 60.0
+    }.getOrNull()
 }

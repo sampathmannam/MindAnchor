@@ -307,6 +307,19 @@ class FrictionPrefs(private val context: Context) {
      * tab-separated pair of `(alpha, beta)` per arm so the data
      * store stays text-only, in keeping with the
      * [GateLedger.encode] / [OpenLoop.encode] pattern.
+     *
+     * Sealed with the [SealedCodecs.frictionBandit] HMAC-SHA256
+     * layer (v0.26+, Phase 1 G-2). The bandit state is the
+     * launcher deciding *how hard to push*; a motivated user
+     * with root could otherwise rewrite the on-disk posteriors
+     * to pin the bandit to whichever arm biases the gate toward
+     * their preferred friction level, defeating the §5
+     * "intervention expiry" reset (which only resets one arm
+     * at a time, and only when called by the nightly deviation
+     * trigger). Sealing makes the on-disk form tamper-evident:
+     * a forged state fails the MAC and the bandit resets to
+     * the prior. The next legit `observe` produces a sealed
+     * record and the bandit learns from there.
      */
     val banditState: Flow<FrictionBandit.BanditState> =
         context.dataStore.data.map { decodeBandit(it[banditKey].orEmpty()) }
@@ -315,12 +328,38 @@ class FrictionPrefs(private val context: Context) {
         context.dataStore.edit { it[banditKey] = encodeBandit(state) }
     }
 
+    /**
+     * The §5 "intervention expiry" reset — see
+     * [FrictionBandit.resetDominant]. The reset is conservative
+     * (only the dominant arm is reset, the other arm's
+     * history is preserved) and is fired by the nightly
+     * deviation trigger when the dominant arm has not been
+     * doing its job for the configured threshold. Idempotent:
+     * calling it twice in a row is safe.
+     */
+    suspend fun resetBanditDominant() {
+        context.dataStore.edit { prefs ->
+            val current = decodeBandit(prefs[banditKey].orEmpty())
+            val reset = FrictionBandit.resetDominant(current)
+            prefs[banditKey] = encodeBandit(reset)
+        }
+    }
+
     private fun encodeBandit(state: FrictionBandit.BanditState): String =
-        "${state.full.alpha}\t${state.full.beta}\t${state.brief.alpha}\t${state.brief.beta}"
+        SealedCodecs.encodeBandit(
+            listOf(
+                state.full.alpha.toString(),
+                state.full.beta.toString(),
+                state.brief.alpha.toString(),
+                state.brief.beta.toString(),
+            ).joinToString("\t"),
+        )
 
     private fun decodeBandit(raw: String): FrictionBandit.BanditState {
         if (raw.isBlank()) return FrictionBandit.BanditState()
-        val parts = raw.split('\t')
+        val sealed = runCatching { SealedCodecs.decodeBandit(raw) }.getOrNull()
+            ?: return FrictionBandit.BanditState()
+        val parts = sealed.split('\t')
         if (parts.size < 4) return FrictionBandit.BanditState()
         val (fa, fb, ba, bb) = parts
         val fullAlpha = fa.toDoubleOrNull() ?: return FrictionBandit.BanditState()
