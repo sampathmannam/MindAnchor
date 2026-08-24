@@ -13,6 +13,16 @@ import kotlin.random.Random
  * policy as the minimum viable JITAI for an on-device, no-backend
  * launcher.
  *
+ * @see Liao P, Greenewald KE, Klasnja P, Murphy SA. (2020) Personalized
+ *      HeartSteps: A reinforcement learning algorithm for optimizing
+ *      physical activity. *Proc ACM IMWUT* 4(1):18.
+ *      DOI 10.1145/3381007
+ * @see Aguilera A, et al. (2024) Results From the Diabetes and Mental
+ *      Health Adaptive Notification Tracking and Evaluation (DIAMANTE)
+ *      Study. *JMIR* 26:e60834. DOI 10.2196/60834
+ * @see Mintz J, et al. (2020) A bandit framework for online learning in
+ *      recommendation systems. *Operations Research* 68(5):1493–1516.
+ *
  * What this class implements is the *pure-function* half — the
  * half that is testable without a device, an alarm, or a
  * network. The data plumbing (per-arm `(alpha, beta)` posteriors

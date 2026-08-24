@@ -151,3 +151,48 @@ directly rather than by looking at a running phone.
 Open an issue, or annotate this file directly. Findings that change
 behaviour should land as a change to the risk register above, so the
 reasoning stays attached to the decision rather than living in a thread.
+
+---
+
+## 7. Plain-language data-flow diagram (Settings → About)
+
+**Status:** Phase 0 doc-track. The actual Settings row ships with the
+Phase 0 PR that surfaces this section in `app/src/main/java/.../settings/SettingsScreen.kt`.
+The privacy promise is structural and is enforced by `PrivacyTest` and
+`NetworkCallsForbiddenTest` in the unit suite.
+
+### What the app holds on the device
+
+- The suicide safety plan and the phone numbers of the people you would call at your worst.
+- The text of the notifications you have read or chosen to read.
+- The mood history (your self-reported check-ins) and the WHO-5 Well-Being Index responses.
+- Letters you have written, notes you have saved, open cognitive loops you have parked.
+- Wearable data the launcher reads from Health Connect (heart rate, sleep, HRV, steps, mindfulness minutes) — **read only**, never written back.
+- The local-only decisions the launcher has made for you (per-app session lengths, if-then plans, batched-notification schedule, Going Light windows).
+
+### Where the data goes
+
+- **The phone.** Every byte of the above lives on the device, in the app's private storage, encrypted with the Android Keystore. Backup is **off** (`allowBackup="false"` in the manifest, plus the rules-file gate at `res/xml/backup_rules.xml` and `res/xml/data_extraction_rules.xml`). Device-to-device transfer is refused.
+- **The VPN interface.** Going Light runs a local VpnService that captures loopback traffic and decides forward-or-drop per packet, locally. The VPN never tunnels anywhere; the loopback interface is the only place the captured packet goes. `NetworkCallsForbiddenTest` enforces that no outbound network call ever leaves the app.
+- **The screen.** Everything you see is rendered from local data. There is no remote dashboard.
+
+### Where the data does **not** go
+
+- The phone's network. The `INTERNET` permission is held only because the VpnService API requires it; the runtime telemetry confirms zero outbound bytes.
+- A cloud backup. Explicitly disabled in the manifest and the rules files.
+- An analytics service. There is no analytics integration. There is no telemetry collection.
+- A device-to-device transfer. The cloud-sync and local-transfer flags are both `false`.
+- An LLM service. The on-device LLM (Phi-4) runs entirely on the device; the Groq cloud fallback exists in code but is disabled by the same network-call test.
+
+### What you can do
+
+- **Delete everything.** Settings → About → "Delete all my data" wipes the app's private storage and the wearable cache. The launcher reverts to the home screen; the system retains the launcher install.
+- **Export the on-device log.** Settings → About → "Share diagnostic log" produces a redacted text file. The redaction is a regex pass that strips phone numbers, e-mail addresses, and any string that matches the `body` field of a held notification; the rest is the app's own internal log.
+
+### What you should know
+
+- This app is a **wellness tool**, not a medical device. The WHO-5 and the WHO-5 bands are not diagnoses; they are facts the launcher can show you about how your self-report has changed over time. The app never interprets a score as a diagnosis.
+- The friction gate is **opt-in per app**. The launcher never blocks an app you have not asked it to gate.
+- The notifications the launcher holds are **held, not deleted**. The journal entry persists; the launcher shows the entry in the digest and never posts a copy of the original.
+- The Going Light VPN is **fail-closed**. If the per-packet decision function throws or the VPN loses its config, the launcher blocks traffic rather than lets it through.
+

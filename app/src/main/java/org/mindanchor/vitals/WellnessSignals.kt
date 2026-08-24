@@ -40,6 +40,16 @@ import java.time.LocalDate
  * nightly report but not surfaced as "wellness signals" on the home
  * card, where the screen is small and the number of named things
  * matters.
+ *
+ * @see Iglewicz B, Hoaglin DC. (1993) *How to Detect and Handle Outliers*
+ *      (ASQC Basic References in Quality Control: Statistical
+ *      Techniques, Volume 16, ISBN 0-87389-247-X). The reference for
+ *      median + MAD + 0.6745 normaliser that this app uses for every
+ *      robust z-score.
+ * @see Thayer JF, Lane RD. (2000) A model of neurovisceral integration
+ *      in emotion regulation and dysregulation. *J Affective Disorders*
+ *      61(3):201–216. DOI 10.1016/S0165-0327(00)00338-4. The basis for
+ *      using HRV as a per-person mental-health direction signal.
  */
 enum class WellnessSignal {
     HRV,

@@ -5,6 +5,11 @@ package org.mindanchor.pulse
  * validated — Topp et al. 2015). Five items, each answered 0–5; raw sum
  * 0–25 is multiplied by 4 for the standard 0–100 score.
  *
+ * @see Topp CW, Østergaard SD, Søndergaard S, Bech P. (2015) The WHO-5
+ *      Well-Being Index. *Psychother Psychosom* 84(3):167–176.
+ *      DOI 10.1159/000376585
+ * @see World Health Organization (1998) WHO DepCare programme document.
+ *
  * ## Banding
  *
  * Two cut-offs, both primary-source-cited in `docs/research/13`:
