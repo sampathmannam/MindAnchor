@@ -177,7 +177,7 @@ class NetworkCallsForbiddenTest {
      */
     private val llmBridgeFiles = setOf(
         "app/src/main/java/org/mindanchor/llm/LlmClient.kt",
-        "app/src/main/java/org/mindanchor/llm/GroqClient.kt",
+        "app/src/main/java/org/mindanchor/llm/OpenAiCompatibleClient.kt",
         "app/src/main/java/org/mindanchor/llm/LlmClientFactory.kt",
         "app/src/main/java/org/mindanchor/llm/LlmPrefs.kt",
         "app/src/main/java/org/mindanchor/llm/LetterContext.kt",
@@ -288,7 +288,8 @@ class NetworkCallsForbiddenTest {
         "java.net.SocketTimeoutException",
         "java.io.IOException",
         // SSLSocketFactory is the standard way to assert
-        // HTTPS-only (GroqClient's call builder pins TLS).
+        // HTTPS-only (OpenAiCompatibleClient's call builder
+        // pins TLS).
         "javax.net.ssl.SSLSocketFactory",
     )
 

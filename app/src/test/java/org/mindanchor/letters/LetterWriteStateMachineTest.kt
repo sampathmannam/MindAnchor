@@ -14,6 +14,7 @@ import org.mindanchor.data.NotesPrefs
 import org.mindanchor.llm.LetterError
 import org.mindanchor.llm.LlmClient
 import org.mindanchor.llm.LlmPrefs
+import org.mindanchor.llm.LlmProvider
 import org.mindanchor.llm.LlmRequest
 import org.mindanchor.llm.LlmResponse
 import org.robolectric.RobolectricTestRunner
@@ -115,7 +116,7 @@ class LetterWriteStateMachineTest {
             "It was a quiet Tuesday.\n\nThe note sat there.\n\nWhat was the loudest thing?",
             reader.letter.body,
         )
-        assertEquals("groq", reader.letter.provider)
+        assertEquals(LlmProvider.GOOGLE_AI_STUDIO.name.lowercase(), reader.letter.provider)
         assertEquals(100, reader.letter.promptTokens)
         assertEquals(50, reader.letter.completionTokens)
     }
