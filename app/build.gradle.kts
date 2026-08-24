@@ -31,13 +31,20 @@ android {
         applicationId = "org.mindanchor"
         minSdk = 33
         targetSdk = 35
-        // v0.26.0: the protective-layer Phase 1 release.
-        // The 4-phase "Smart Adaptation" add-on from the
-        // 2026-08-23 deep-research output, narrowed to the
-        // research-anchored gaps the user said the project
-        // already had data plumbing for. versionCode 32→33.
-        versionCode = 33
-        versionName = "0.26.0"
+        // v0.68.0: LLM multi-provider picker (PR #38).
+        // Replaces the v0.25.7 single-provider Groq path
+        // with Google AI Studio (free, no credit card) +
+        // OpenRouter (free, 20+ free models on one key) +
+        // Groq (paid, kept for users with an existing key).
+        // The Settings → Reading → Daily letter (LLM)
+        // section grows a FlowRow of FilterChips with a
+        // "✓ Free" suffix on free providers, and a new
+        // "Get a [free] {provider} API key" OutlinedButton
+        // that launches Intent.ACTION_VIEW on the active
+        // provider's signupUrl — the smooth path from the
+        // LLM section to a pasted key. versionCode 35→92.
+        versionCode = 92
+        versionName = "0.68.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every

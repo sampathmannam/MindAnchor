@@ -1,3 +1,30 @@
+v0.68.0 — LLM multi-provider picker + free-tier defaults
+
+What's new:
+
+* Daily letter (LLM) provider picker: Settings → Reading → Daily letter (LLM) now exposes a FlowRow of FilterChips — Google AI Studio, OpenRouter, Groq. Free providers carry a "✓ Free" suffix.
+* Google AI Studio is the new default (free, no credit card, one-tap Google sign-up via aistudio.google.com/app/apikey). The OpenAI-compatible endpoint is wired under generativelanguage.googleapis.com/v1beta/openai/.
+* OpenRouter added as a second free option (one key across 20+ free models via openrouter.ai/keys — Llama, Mistral, Qwen, Gemma).
+* Groq kept for users with an existing key (paid, console.groq.com/keys).
+* "Get a [free] {provider} API key" OutlinedButton in the LLM section launches Intent.ACTION_VIEW on the active provider's signupUrl. Lands on Google / OpenRouter / Groq sign-in, then on the key-creation page — one tap from the LLM section to a pasted key.
+* Switching provider resets the saved model to the new provider's defaultModel if the current model isn't in the new provider's suggestedModels. Cross-provider model ids would 404; the reset prevents that.
+* LlmProvider is a config enum carrying displayName, signupUrl, baseUrl, defaultModel, isFree, suggestedModels. Adding a fourth provider is a one-row enum change — no factory edit, no string edit, no UI edit.
+* OpenAiCompatibleClient replaces GroqClient. All three providers expose the same OpenAI-compatible /chat/completions wire format, so a single parametrized OkHttp client backs them. GroqClient is a typealias for back-compat.
+* LlmClientFactory is a one-line dispatch via LlmProvider.baseUrl. The v0.25.7 NotImplementedLlmClient stub is removed; Kotlin's exhaustiveness check enforces coverage.
+
+Verifications:
+
+* :app:assembleDebug, :app:testDebugUnitTest, :app:lintDebug — all green.
+* 1239/1239 unit tests pass (was 1240/1240 in v0.25.7; GroqClientTest removed, LlmClientFactoryTest + LlmPrefsTest + LlmSettingsTest + LetterWriteStateMachineTest updated for the multi-provider shape).
+* NetworkCallsForbiddenTest: 8/8 — llmBridgeFiles entry moves from GroqClient.kt to OpenAiCompatibleClient.kt (size pin stays at 5).
+* No new network endpoints (the LLM path remains opt-in BYOK; the Google AI Studio / OpenRouter / Groq baseUrls are the new permission surface, all listed in the allowlist).
+* No clinical-review-gated wording changed.
+
+Build artifacts:
+
+* app/build/outputs/apk/release/app-release-unsigned.apk
+* app/build/outputs/apk/debug/app-debug.apk
+
 v0.26.0 — the protective layer release
 
 What's new:
