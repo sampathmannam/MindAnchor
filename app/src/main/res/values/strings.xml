@@ -1048,23 +1048,32 @@
         "Connection" row reads the cached result of the
         last "Test connection" tap.
     -->
-    <string name="settings_llm_section">Daily letter (LLM)</string>
+        <string name="settings_llm_section">Daily letter (LLM)</string>
     <!--
-        v0.25.9 (P0-4): the LLM section is the path the
-        daily letter actually uses. The previous explainer
-        assumed the user already knew what a Groq key was.
-        Fresh users hit this section with a "Connection
-        failed" state and no onboarding — they bail out.
-        The new copy names the dependency ("a small AI from
-        Groq"), gives the time cost ("2 minutes, free"), and
-        makes the first action obvious.
+        v0.26+ (multi-provider): the explainer
+        introduces the three options and points
+        to the in-app "Get API key" button for the
+        smoothest path. Google AI Studio and
+        OpenRouter are free with no credit card;
+        Groq is for an existing key.
     -->
-    <string name="settings_llm_explainer">Want the daily letter? It is written by a small AI, in the launcher\'s own voice. You will need a free key from Groq — sign-up takes about 2 minutes at console.groq.com. Paste the key below, then tap Test connection.</string>
+    <string name="settings_llm_explainer">Want the daily letter? It is written by a small AI, in the launcher\'s own voice. Pick a provider below, tap the key button to grab a free key in a browser, paste it back, then tap Test connection.</string>
     <string name="settings_llm_provider">Provider</string>
     <string name="settings_llm_api_key">API key</string>
     <string name="settings_llm_connection">Connection</string>
     <string name="settings_llm_never_tested">Not tested</string>
     <string name="settings_llm_test_connection">Test connection</string>
+    <!--
+        v0.26+ (multi-provider): the "Get API key"
+        button copy. The free variant leads with
+        "free" because that is the point — the
+        user is one tap from a key with no payment,
+        no card, no install. The non-free variant
+        is honest about the provider name without
+        selling it.
+    -->
+    <string name="settings_llm_get_key_free">Get a free %1$s API key</string>
+    <string name="settings_llm_get_key">Get a %1$s API key</string>
 
     <!--
         v0.25.4: Google Drive backup (replaces v0.23.0 WebDAV).

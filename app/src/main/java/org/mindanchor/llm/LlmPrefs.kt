@@ -10,34 +10,16 @@ import kotlinx.coroutines.flow.map
 
 private val Context.letterLlmDataStore by preferencesDataStore(name = "letter_llm")
 
-/**
- * The result of the last "Test connection" tap in Settings →
- * Reading → Daily letter (LLM). [success] drives the status
- * row's icon and color; [message] is the line shown beneath
- * the row label; [testedAtMillis] is rendered as a relative
- * timestamp ("2 minutes ago") in the row.
- */
 data class LlmTestResult(
     val success: Boolean,
     val message: String,
     val testedAtMillis: Long,
 ) {
     companion object {
-        /** Empty result for a fresh install. */
         val NONE = LlmTestResult(success = false, message = "", testedAtMillis = 0L)
     }
 }
 
-/**
- * The BYOK API key + provider + model selection, stored
- * in a *separate* DataStore file (letter_llm.preferences_pb)
- * so the key doesn't sit next to the rest of the launcher's
- * settings. Threat model: the device, not the Windows
- * account. [EncryptedSharedPreferences] is the documented
- * upgrade path for a follow-up; not enabled by default
- * because the launcher's other settings live in plain
- * DataStore and the key is the only sensitive value.
- */
 class LlmPrefs(private val context: Context) {
 
     private val providerKey = stringPreferencesKey("provider")
@@ -49,8 +31,10 @@ class LlmPrefs(private val context: Context) {
 
     val provider: Flow<LlmProvider> = context.letterLlmDataStore.data.map { prefs ->
         when (prefs[providerKey]) {
+            LlmProvider.GOOGLE_AI_STUDIO.name -> LlmProvider.GOOGLE_AI_STUDIO
+            LlmProvider.OPENROUTER.name -> LlmProvider.OPENROUTER
             LlmProvider.GROQ.name -> LlmProvider.GROQ
-            else -> LlmProvider.GROQ
+            else -> LlmProvider.GOOGLE_AI_STUDIO
         }
     }
 
@@ -59,7 +43,7 @@ class LlmPrefs(private val context: Context) {
     }
 
     val model: Flow<String> = context.letterLlmDataStore.data.map { prefs ->
-        prefs[modelKey] ?: GroqModels.DEFAULT
+        prefs[modelKey] ?: LlmProvider.GOOGLE_AI_STUDIO.defaultModel
     }
 
     val lastTestResult: Flow<LlmTestResult> = context.letterLlmDataStore.data.map { prefs ->
@@ -89,10 +73,6 @@ class LlmPrefs(private val context: Context) {
         }
     }
 
-    /**
-     * Clears every key. Test-only — same pattern as
-     * [org.mindanchor.letters.LetterStore.reset] (v0.25.5).
-     */
     internal suspend fun reset() {
         context.letterLlmDataStore.edit { it.clear() }
     }

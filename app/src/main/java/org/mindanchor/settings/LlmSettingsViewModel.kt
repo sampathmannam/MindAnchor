@@ -5,28 +5,16 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import org.mindanchor.llm.GroqModels
 import org.mindanchor.llm.LetterError
 import org.mindanchor.llm.LlmClientFactory
 import org.mindanchor.llm.LlmPrefs
 import org.mindanchor.llm.LlmProvider
 import org.mindanchor.llm.LlmTestResult
 
-/**
- * Backs the Settings → Reading → Daily letter (LLM)
- * section. Thin wrapper over [LlmPrefs]: the
- * [provider] / [apiKey] / [model] / [lastTestResult] are
- * direct flows; [testConnection] is the one piece of
- * business logic.
- *
- * Uses [AndroidViewModel] (not the plain `ViewModel`) so
- * [LlmPrefs] can be constructed with an [Application]
- * context — the DataStore extension delegate it owns only
- * resolves on a real [android.content.Context], not the
- * one [ViewModel] would otherwise provide.
- */
 class LlmSettingsViewModel(application: Application) : AndroidViewModel(application) {
 
     private val llmPrefs = LlmPrefs(application)
@@ -34,7 +22,7 @@ class LlmSettingsViewModel(application: Application) : AndroidViewModel(applicat
     val provider: StateFlow<LlmProvider> = llmPrefs.provider.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = LlmProvider.GROQ,
+        initialValue = LlmProvider.GOOGLE_AI_STUDIO,
     )
 
     val apiKey: StateFlow<String> = llmPrefs.apiKey.stateIn(
@@ -46,7 +34,7 @@ class LlmSettingsViewModel(application: Application) : AndroidViewModel(applicat
     val model: StateFlow<String> = llmPrefs.model.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = GroqModels.DEFAULT,
+        initialValue = LlmProvider.GOOGLE_AI_STUDIO.defaultModel,
     )
 
     val lastTestResult: StateFlow<LlmTestResult> = llmPrefs.lastTestResult.stateIn(
@@ -54,6 +42,16 @@ class LlmSettingsViewModel(application: Application) : AndroidViewModel(applicat
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = LlmTestResult.NONE,
     )
+
+    val signupUrl: StateFlow<String> = provider.map { it.signupUrl }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = LlmProvider.GOOGLE_AI_STUDIO.signupUrl,
+    )
+
+    fun setProvider(p: LlmProvider) {
+        viewModelScope.launch { setProviderNow(p) }
+    }
 
     fun setApiKey(key: String) {
         viewModelScope.launch { setApiKeyNow(key) }
@@ -63,16 +61,14 @@ class LlmSettingsViewModel(application: Application) : AndroidViewModel(applicat
         viewModelScope.launch { setModelNow(model) }
     }
 
-    /**
-     * Suspend seam for the test layer — see [LlmSettingsTest].
-     * The public [setApiKey] wraps this in `viewModelScope.launch`,
-     * which uses `Dispatchers.Main.immediate` and suspends on
-     * DataStore's internal `Dispatchers.IO`. A test's `runBlocking`
-     * block can't wait for that chain, so the test calls this
-     * internal function directly to observe the write synchronously.
-     * Same pattern as [org.mindanchor.letters.LetterViewModel.runGeneration]
-     * (Task 11).
-     */
+    internal suspend fun setProviderNow(p: LlmProvider) {
+        val currentModel = llmPrefs.model.first()
+        if (currentModel !in p.suggestedModels) {
+            llmPrefs.setModel(p.defaultModel)
+        }
+        llmPrefs.setProvider(p)
+    }
+
     internal suspend fun setApiKeyNow(key: String) {
         llmPrefs.setApiKey(key)
     }
@@ -81,17 +77,6 @@ class LlmSettingsViewModel(application: Application) : AndroidViewModel(applicat
         llmPrefs.setModel(model)
     }
 
-    /**
-     * Fires one "OK" completion against the currently
-     * selected provider / key / model and writes the
-     * result back to [lastTestResult]. The section's
-     * status row reads [lastTestResult] — it does not
-     * observe the call as it runs. The success message
-     * is `Connected · PROVIDER · MODEL`; the failure
-     * message is `Failed: <userMessage>` so a wrong key
-     * or a rate-limit shows the same line the Letter
-     * surface shows on the same error.
-     */
     fun testConnection() {
         viewModelScope.launch {
             val key = apiKey.value
@@ -103,7 +88,7 @@ class LlmSettingsViewModel(application: Application) : AndroidViewModel(applicat
                 onSuccess = {
                     LlmTestResult(
                         success = true,
-                        message = "Connected · ${p.name} · $m",
+                        message = "Connected · ${p.displayName} · $m",
                         testedAtMillis = System.currentTimeMillis(),
                     )
                 },
