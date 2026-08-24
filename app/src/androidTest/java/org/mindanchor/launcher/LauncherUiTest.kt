@@ -13,8 +13,27 @@ import org.junit.runner.RunWith
 import org.mindanchor.ui.MindAnchorTheme
 
 /**
- * The launcher's own surfaces, driven on a device: the sky renders, support
- * is reachable in one tap, and the drawer both opens and comes back.
+ * The launcher's own surfaces, driven on a device: the sky renders
+ * and the drawer both opens and comes back.
+ *
+ * ## Note: removed `supportIsOneTapFromHome`
+ *
+ * The previous version of this file had a
+ * `supportIsOneTapFromHome` test that asserted the home surface
+ * showed a literal "support" text in the TopStart corner. The
+ * Support feature (a navigation affordance to the support screen)
+ * was removed in v0.25.7 (Task 13); the comment at
+ * [org.mindanchor.launcher.HomeSurface] line 938 reads:
+ *
+ *     "The TopStart (Support) corner was removed in v0.25.7 (Task 13)."
+ *
+ * The removal of the feature did not delete the test, so the
+ * `supportIsOneTapFromHome` case had been failing on CI ever
+ * since. v0.30+ removes the test. The KDoc on
+ * [org.mindanchor.launcher.HomeSurface] still names the four
+ * surviving corner buttons (Notes, digest, settings, search)
+ * and the support screen remains reachable from
+ * [org.mindanchor.support] for any future re-introduction.
  */
 @RunWith(AndroidJUnit4::class)
 class LauncherUiTest {
@@ -37,13 +56,6 @@ class LauncherUiTest {
         rule.onNodeWithText("search").assertIsDisplayed()
         rule.onNodeWithText("settings").assertIsDisplayed()
         rule.onNodeWithText("digest").assertIsDisplayed()
-    }
-
-    @Test
-    fun supportIsOneTapFromHome() {
-        launchHome()
-        // Not behind a menu, not below the fold.
-        rule.onNodeWithText("support").assertIsDisplayed()
     }
 
     @Test
