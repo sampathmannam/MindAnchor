@@ -61,7 +61,25 @@ class Reframer(private val context: Context) {
     suspend fun reframe(letterBody: String): String = withContext(Dispatchers.IO) {
         val llm = LlamaNarrator(context)
         val out = llm.reframeLetterBody(letterBody)
-        if (!out.isNullOrBlank()) return@withContext out.trim()
+        // CodeRabbit review 2026-08-24 of PR #38: the
+        // previous version only checked for null /
+        // blank, and the KDoc at
+        // [LlamaNarrator.reframeLetterBody] says
+        // "Caller is responsible for running the
+        // output through [NarrationGuard]". The 1-3
+        // line, 1,200-character limits are enforced in
+        // the guard, not in the LLM itself, so a
+        // model that ignores "three to five
+        // sentences" needs to be rejected here. The
+        // guard's [Accepted.text] is the trimmed but
+        // otherwise-untouched body; a [Rejected]
+        // verdict falls through to the template.
+        if (!out.isNullOrBlank()) {
+            val verdict = NarrationGuard.judge(out)
+            if (verdict is NarrationGuard.Verdict.Accepted) {
+                return@withContext verdict.text
+            }
+        }
         templateReframe(letterBody)
     }
 
