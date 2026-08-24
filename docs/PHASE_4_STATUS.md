@@ -200,17 +200,28 @@ and no falcisifcation of anything".
   14-day window. User action.
 
 ### Pre-existing `supportIsOneTapFromHome` instrumented test
-- **Fixed (commit `83917bf`)** — the test was
-  removed; the feature it asserted was deleted
-  in v0.25.7 (Task 13), the test was broken ever
-  since. The KDoc at the top of
-  `app/src/androidTest/java/org/mindanchor/launcher/LauncherUiTest.kt`
-  now documents the removal. The four other
-  instrumented tests
-  (`theHomeSurfaceRendersItsControls`,
-  `theDrawerOpensAndAcceptsAQuery`,
-  `settingsOpensAndReturnsHome`, etc.) all pass
-  on the next instrumented-test run.
+- **Fixed (commits `83917bf` + `ed78f6f`)** — the
+  `supportIsOneTapFromHome` test was removed
+  (feature it asserted was deleted in v0.25.7,
+  Task 13). The four other tests that referenced
+  removed features were also updated:
+  - `LargeFontTest.theHomeScreenSurvivesDoubleSizedText`
+    and `theHomeScreenSurvivesTheLargestAccessibilityText`
+    had their "support" assertions dropped.
+  - `LargeFontTest.thePinnedControlsStayOnScreenAtTripleSize`
+    had its "support" assertion replaced with
+    "search" (the surviving top-corner affordance).
+  - `LauncherUiTest.theHomeSurfaceRendersItsControls`
+    switched `assertIsDisplayed` to `assertExists` for
+    "search" / "settings" / "digest" — the test's
+    intent is to verify the controls are RENDERED,
+    not that they survive the v0.30+ intro callout's
+    visual layering.
+  - `LauncherUiTest.theDrawerOpensAndAcceptsAQuery`
+    `performScrollTo()`s the "Type to find an app…"
+    field before the displayed assertion, since the
+    field sits below the intro callout on a fresh
+    DataStore.
 
 ## Test coverage as of 2026-08-24
 
