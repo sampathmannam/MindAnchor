@@ -699,13 +699,23 @@ fun SettingsScreen(
                 titleRes = R.string.settings_group_measuring,
                 descriptionRes = R.string.settings_group_measuring_desc,
                 marked = GoalMap.isChosen(SettingsSection.SLEEP, goals) ||
-                    GoalMap.isChosen(SettingsSection.PULSE, goals),
+                    GoalMap.isChosen(SettingsSection.HEALTH_CONNECT, goals),
                 onClick = { group = SettingsGroup.MEASURING },
             )
             GroupRow(
                 titleRes = R.string.settings_group_reading,
                 descriptionRes = R.string.settings_group_reading_desc,
-                marked = GoalMap.isChosen(SettingsSection.PULSE, goals),
+                // v0.26+ (pulse removal): PULSE was the only
+                // goal-mapped section in READING. With pulse
+                // removed, no onboarding goal maps here, so
+                // the group is never marked. The READING
+                // items (letters, reading size, report,
+                // corpus, model, ema) are not goal-mapped
+                // individually either, which means the
+                // marker was a single-purpose hook for the
+                // pulse feature. Removed in the same pass
+                // that removed pulse.
+                marked = false,
                 onClick = { group = SettingsGroup.READING },
             )
             GroupRow(
@@ -1646,27 +1656,6 @@ fun SettingsScreen(
             }
         }
 
-        if (group == SettingsGroup.MEASURING) {
-            // --- Wellbeing pulse (F7) ---
-            SectionHeading(R.string.pulse_section, SettingsSection.PULSE, goals)
-            Text(
-                text = stringResource(R.string.pulse_section_explainer),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            TextButton(
-                onClick = {
-                    runCatching {
-                        context.startActivity(
-                            Intent(context, org.mindanchor.pulse.PulseActivity::class.java),
-                        )
-                    }
-                },
-            ) {
-                Text(stringResource(R.string.pulse_take))
-            }
-        }
-
         if (group == SettingsGroup.READING) {
             // --- Daily letter (v0.25.2-A) ---
             //
@@ -1686,7 +1675,7 @@ fun SettingsScreen(
             // `unreadCount > 0` for the same reason — a button
             // that says "Open inbox (0)" reads as a stat
             // rather than an affordance.
-            SectionHeading(R.string.letters_section, SettingsSection.PULSE, goals)
+            SectionHeading(R.string.letters_section, null, goals)
             Text(
                 text = stringResource(R.string.letters_explainer),
                 style = MaterialTheme.typography.bodySmall,
@@ -1779,7 +1768,7 @@ fun SettingsScreen(
             // not yet opened a letter can still pick a size. The
             // A- / A / A+ labels are locale-safe and RTL-safe; the
             // control is the same on every device, every locale.
-            SectionHeading(R.string.reading_size_section, SettingsSection.PULSE, goals)
+            SectionHeading(R.string.reading_size_section, null, goals)
             Text(
                 text = stringResource(R.string.reading_size_explainer),
                 style = MaterialTheme.typography.bodySmall,
@@ -1816,7 +1805,7 @@ fun SettingsScreen(
             // up what the research says the thing measured actually is. See
             // ReportComposer for why it never joins those two together, and
             // ReportScheduler for why an ordinary, quiet night is success too.
-            SectionHeading(R.string.report_section, SettingsSection.PULSE, goals)
+            SectionHeading(R.string.report_section, null, goals)
             Text(
                 text = stringResource(R.string.report_explainer),
                 style = MaterialTheme.typography.bodySmall,
@@ -1878,7 +1867,7 @@ fun SettingsScreen(
             // an update; the research should not have to wait on one, nor be
             // limited to what one person thought to include. See CorpusImport
             // for why an import merges rather than replaces.
-            SectionHeading(R.string.corpus_section, SettingsSection.PULSE, goals)
+            SectionHeading(R.string.corpus_section, null, goals)
             Text(
                 text = stringResource(R.string.corpus_explainer),
                 style = MaterialTheme.typography.bodySmall,
@@ -1963,7 +1952,7 @@ fun SettingsScreen(
             // does not yet make any writing happen; it records the file and,
             // exactly like ModelSlot was built to, reports honestly whether
             // this phone has enough memory to run it once an engine exists.
-            SectionHeading(R.string.model_section, SettingsSection.PULSE, goals)
+            SectionHeading(R.string.model_section, null, goals)
             Text(
                 text = stringResource(R.string.model_explainer),
                 style = MaterialTheme.typography.bodySmall,
@@ -2048,7 +2037,7 @@ fun SettingsScreen(
             // of taps a day rather than a fortnightly instrument. The count
             // is stated plainly and never as a target — a skipped prompt is
             // normal, not a shortfall, so nothing here is styled as a streak.
-            SectionHeading(R.string.ema_section, SettingsSection.PULSE, goals)
+            SectionHeading(R.string.ema_section, null, goals)
             Text(
                 text = stringResource(R.string.ema_explainer),
                 style = MaterialTheme.typography.bodySmall,

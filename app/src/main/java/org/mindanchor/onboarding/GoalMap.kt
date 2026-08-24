@@ -11,7 +11,6 @@ enum class SettingsSection {
     WATCH,
     SUNSET,
     SLEEP,
-    PULSE,
     /**
      * v0.20.4: the Health Connect permission flow. Lives under
      * [Goal.MEASUREMENT] so a person who said "I want to track this
@@ -31,6 +30,16 @@ enum class SettingsSection {
      * mobile-internet traffic, not just notifications.
      */
     GOING_LIGHT,
+    /**
+     * v0.26+: the "What your check-ins show" insights
+     * section. Lives in READING rather than MEASURING
+     * because it reads the existing momentary-check-in
+     * data the user has already collected — it does not
+     * collect anything new. No onboarding goal currently
+     * maps to it; the marker is a no-op until a future
+     * goal starts pointing here.
+     */
+    CHECK_IN_INSIGHTS,
 }
 
 /**
@@ -96,7 +105,7 @@ object GoalMap {
                     SettingsSection.GOING_LIGHT,
                 )
 
-                Goal.MEASUREMENT -> setOf(SettingsSection.PULSE, SettingsSection.HEALTH_CONNECT)
+                Goal.MEASUREMENT -> setOf(SettingsSection.HEALTH_CONNECT)
             }
         }.toSet()
 

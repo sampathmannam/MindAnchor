@@ -182,6 +182,20 @@ fun LauncherRoot(
     var actionsFor by remember { mutableStateOf<DisplayApp?>(null) }
     var gateFor by remember { mutableStateOf<DisplayApp?>(null) }
 
+    // v0.26+ (Phase 1 G-22, G-21, G-1) — the protective
+    // layer rituals' read-side state. Each card gates on
+    // its setting, and Going Light gates on the schedule
+    // + VpnService.prepare() (handled inside the Composable).
+    val baPromptEnabledByState = viewModel.baPromptEnabled
+    val morningCompassionEnabledByState = viewModel.morningCompassionEnabled
+    val goingLightScheduleByState = viewModel.goingLightSchedule
+
+    // v0.26+ (Phase 1 G-23) — the DEAR MAN dialog state
+    // for the long-press affordance on the Anchor Note
+    // title. The state is owned by the home surface, the
+    // save callback is owned by the launcher view-model.
+    val dearManDialogState = remember { DearManDialogState() }
+
     // v0.25.2-A (Task 6): the letter inbox + reader. Same shape as
     // reportCameFrom — selected date is null on the inbox, non-null
     // in the reader; cameFrom remembers where the user came from so
@@ -353,6 +367,15 @@ fun LauncherRoot(
                 heldNotificationsDao = org.mindanchor.data.db.AnchorDatabase
                     .get(context.applicationContext as android.app.Application)
                     .heldNotifications(),
+                goingLightSchedule = goingLightScheduleByState.collectAsState().value,
+                onGoingLightConsentDismissed = viewModel::dismissGoingLightConsent,
+                morningCompassionEnabled = morningCompassionEnabledByState.collectAsState().value,
+                baPromptEnabled = baPromptEnabledByState.collectAsState().value,
+                onSaveBaEntry = { mastery, pleasure ->
+                    viewModel.saveBaEntry(mastery, pleasure)
+                },
+                dearManDialogState = dearManDialogState,
+                onSaveDearManScript = viewModel::saveDearManScript,
                 onOpenNotes = {
                     // v0.20.1 round 5: route to the
                     // notes activity. runCatching
@@ -619,11 +642,13 @@ fun LauncherRoot(
  * brief is explicit that it is not).
  */
 @Composable
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 private fun QuickNotesCard(
     sky: SkyContent,
     recent: List<Note>,
     onSave: (String) -> Unit,
     onOpenAll: () -> Unit,
+    onLongPressTitle: (() -> Unit)? = null,
 ) {
     var draft by remember { mutableStateOf("") }
     // A small haptic tick on save, so the user feels
@@ -643,6 +668,14 @@ private fun QuickNotesCard(
             text = stringResource(R.string.quick_notes_section),
             style = MaterialTheme.typography.titleMedium,
             color = sky.textSecondary,
+            modifier = if (onLongPressTitle != null) {
+                Modifier.combinedClickable(
+                    onClick = {},
+                    onLongClick = { onLongPressTitle() },
+                )
+            } else {
+                Modifier
+            },
         )
         // v0.20.9: bringIntoViewOnFocus so the quick-notes
         // input is not covered by the keyboard. The card is
@@ -839,6 +872,51 @@ private fun HomeSurface(
      * DAO in [LauncherRoot].
      */
     heldNotificationsDao: org.mindanchor.data.db.HeldNotificationDao? = null,
+    /**
+     * v0.26+ (Phase 1 G-1) — the Going Light schedule for
+     * the [GoingLightConsentCard]. The card shows when
+     * the schedule is enabled but the OS-level VpnService
+     * consent has not yet been granted.
+     */
+    goingLightSchedule: org.mindanchor.friction.GoingLightSchedule =
+        org.mindanchor.friction.GoingLightSchedule(),
+    /**
+     * v0.26+ (Phase 1 G-1) — the user dismissed the Going
+     * Light consent card; mark the dismissal so the card
+     * does not re-appear on every home-surface open.
+     */
+    onGoingLightConsentDismissed: () -> Unit = {},
+    /**
+     * v0.26+ (Phase 1 G-21) — whether the morning
+     * self-compassion break should show on the home
+     * surface. True means the user has enabled the
+     * ritual in Settings.
+     */
+    morningCompassionEnabled: Boolean = false,
+    /**
+     * v0.26+ (Phase 1 G-22) — whether the BA weekly prompt
+     * should show on the home surface. True means the user
+     * has enabled the ritual in Settings.
+     */
+    baPromptEnabled: Boolean = false,
+    /**
+     * v0.26+ (Phase 1 G-22) — the user saved a BA entry
+     * from the picker. The launcher view-model writes the
+     * mastery/pleasure pair to [org.mindanchor.letters.LetterStore.saveBaEntry].
+     */
+    onSaveBaEntry: (mastery: String, pleasure: String) -> Unit = { _, _ -> },
+    /**
+     * v0.26+ (Phase 1 G-23) — the DEAR MAN dialog state.
+     * The home surface owns the state; the launcher
+     * view-model owns the save callback.
+     */
+    dearManDialogState: DearManDialogState = remember { DearManDialogState() },
+    /**
+     * v0.26+ (Phase 1 G-23) — the user saved a DEAR MAN
+     * script. The launcher view-model writes the
+     * rule-based script to [org.mindanchor.letters.LetterStore.save].
+     */
+    onSaveDearManScript: (String) -> Unit = {},
     /**
      * v0.22.0 (WP-10 step 2): the "what makes this different"
      * callout. Renders a single line of small text below
@@ -1064,7 +1142,64 @@ private fun HomeSurface(
                 recent = recentNotes,
                 onSave = onAddQuickNote,
                 onOpenAll = onOpenNotes,
+                onLongPressTitle = dearManDialogState::show,
             )
+
+            // v0.26+ (Phase 1 G-1) — the Going Light consent
+            // card. Shows when the schedule is enabled but
+            // the OS-level VpnService consent has not been
+            // granted yet. The card itself decides when to
+            // show (returns null otherwise) so the call
+            // site is a no-op when the consent is in place.
+            GoingLightConsentCard(
+                schedule = goingLightSchedule,
+                onDismiss = onGoingLightConsentDismissed,
+            )
+
+            // v0.26+ (Phase 1 G-21) — the morning
+            // self-compassion break. Shown on the home
+            // surface when the user has enabled the
+            // ritual; the user dismisses or starts the
+            // 90-second protocol from the card. The
+            // "Begin" action is a no-op for v0.26.0; the
+            // CompassionMoment rotation is the v0.27+
+            // hook.
+            if (morningCompassionEnabled) {
+                MorningCompassionCard(
+                    onStart = { /* v0.27+ */ },
+                    onSkip = { /* v0.27+ */ },
+                )
+            }
+
+            // v0.26+ (Phase 1 G-22) — the BA weekly
+            // picker. Shown when the user has enabled
+            // the ritual; the user picks mastery +
+            // pleasure or skips. Save is a no-op in
+            // v0.26.0 (the save hook is in the launcher
+            // view-model and the home surface calls
+            // onSaveBaEntry).
+            if (baPromptEnabled) {
+                BaPickerCard(
+                    onSave = { mastery, pleasure ->
+                        onSaveBaEntry(mastery, pleasure)
+                    },
+                    onSkip = { /* v0.27+ */ },
+                )
+            }
+
+            // v0.26+ (Phase 1 G-23) — the DEAR MAN / GIVE / FAST
+            // dialog. Long-press the Anchor Note title to open.
+            // The script is rule-based (no LLM) and saved as a
+            // Letter via onSaveDearManScript.
+            if (dearManDialogState.visible) {
+                DearManDialog(
+                    onDismiss = { dearManDialogState.dismiss() },
+                    onSave = { script ->
+                        onSaveDearManScript(script)
+                        dearManDialogState.dismiss()
+                    },
+                )
+            }
 
             // v0.26+ (Phase 1 G-20) — the notification diet card.
             // Reports the trailing-7-day released count and the
@@ -1450,3 +1585,24 @@ internal fun greetingFor(hour: Int, morning: String, day: String, evening: Strin
         in 12..17 -> day
         else -> evening
     }
+
+/**
+ * v0.26+ (Phase 1 G-23) — the show/hide state of the
+ * DEAR MAN / GIVE / FAST dialog on the home surface.
+ * The home surface owns the state; the launcher
+ * view-model owns the save callback.
+ *
+ * Default constructor uses [remember]-style
+ * [androidx.compose.runtime.MutableState] so a single
+ * instance survives recomposition but not process
+ * death. The dialog is a one-shot trigger; if the
+ * process is killed mid-dialog, the user re-opens
+ * it with a long-press, which is the right cost.
+ */
+class DearManDialogState {
+    internal var visible: Boolean = false
+        private set
+
+    fun show() { visible = true }
+    fun dismiss() { visible = false }
+}

@@ -571,7 +571,7 @@
     <string name="plan_interruptions">• Notification batching (settings): chosen apps go quiet and arrive together three times a day. People always come through.</string>
     <string name="plan_compulsive">• Long-press any app and choose \"Add a pause\" — a breath and an intention before it opens.</string>
     <string name="plan_sleep">• Sunset mode + sleep rhythm (settings): priority-only nights and a view of how regular your sleep is.</string>
-    <string name="plan_measurement">• The wellbeing pulse (settings): a 2-minute check-in every two weeks, scored honestly.</string>
+    <string name="plan_measurement">• Wearable + check-in (settings): a watch or ring for HR / sleep / steps, and a one-tap prompt a few times a day.</string>
     <string name="plan_none">Explore at your own pace — every feature lives in settings and long-press menus, all off by default.</string>
     <string name="onboarding_begin">begin</string>
     <!--
@@ -596,47 +596,19 @@
     <string name="chronotype_unknown">Not set</string>
     <string name="plan_chronotype">• Wind-down default set for your hours: %1$s</string>
 
-    <string name="pulse_section">Wellbeing pulse</string>
     <!--
-        This used to say "It's how you — and MindAnchor — know honestly
-        whether any of this is helping." MindAnchor knows nothing of the
-        sort: docs/CLINICAL_REVIEW.md §66 makes never interpreting a score
-        a deliberate invariant, so the app shows the numbers and the
-        change between them and stops there. Claiming a judgement it is
-        built not to make was the one dishonest sentence in this screen.
+        v0.26+ (pulse removal): the wellbeing pulse and all
+        related strings are removed. See git history for
+        the deleted set (pulse_section,
+        pulse_section_explainer, pulse_take, pulse_title,
+        pulse_intro, pulse_scale_hint, pulse_save,
+        pulse_result, pulse_open_support, pulse_band_*,
+        pulse_*_history, pulse_channel_name,
+        pulse_reminder_*, and the who5_items string-array).
+        The user's request (2026-08-24) was "not necessary";
+        the redesign is in the check-ins area, not the
+        pulse area.
     -->
-    <string name="pulse_section_explainer">A 2-minute WHO-5 check-in every two weeks. It keeps an honest record, in your own words and numbers, of whether any of this is helping — the reading of it stays yours.</string>
-    <string name="pulse_take">Take the pulse</string>
-    <string name="pulse_title">How have the last two weeks felt?</string>
-    <string name="pulse_intro">Five statements, answered 0 (at no time) to 5 (all of the time). This is a self-check, not a diagnosis.</string>
-    <string name="pulse_scale_hint">0 = at no time · 5 = all of the time</string>
-    <string name="pulse_save">Save</string>
-    <string name="pulse_result">Your score: %1$d/100</string>
-    <!-- The legacy "scores in this range" line is retained for callers
-         that import it directly. The presentation in PulseScreen now
-         uses one of the band_* lines below; the wording in each is
-         per docs/research/13 (Topp 2015; WHO 1998; Parker 2020 JMIR
-         mHealth lived-experience findings). -->
-    <string name="pulse_open_support">Open support</string>
-    <string name="pulse_band_okay">In the higher range. The WHO-5 is not a diagnosis — it is a check-in on the last two weeks. Trends over time are more useful than any single number.</string>
-    <string name="pulse_band_low">In the lower range — the kind of result that often shows up under a lot of stress or strain. Not a diagnosis, and it does not mean anything is wrong with you. Your people and your plan are one tap away whenever you want them. If this has been going on for a couple of weeks or more, talking to a GP can be a useful next step.</string>
-    <string name="pulse_band_very_low">In the lowest range the WHO describes — the level of well-being often seen in people who are going through a really hard time. The WHO-5 is not a diagnosis; only a clinician can make that call. Given how much you are carrying, it might be worth talking to someone you trust or a GP. Your people are one tap away.</string>
-    <string name="pulse_band_incomplete">A few items are unanswered. Save only when you have answered all five.</string>
-    <string name="pulse_after_disclaimer">MindAnchor is a wellness tool, not a clinical service. A low reading does not mean you are unwell.</string>
-    <string name="pulse_history_up">A meaningful lift from the one before.</string>
-    <string name="pulse_history_down">A meaningful drop from the one before.</string>
-    <string name="pulse_history">History</string>
-    <!--
-        The history was a bare list of ISO dates and scores, which made a
-        person do the subtraction themselves across a fortnight's gap.
-        The change is arithmetic on two numbers they produced — not a
-        reading of them — so it is shown, unlabelled and unexplained.
-        Nothing here says whether a direction is good.
-    -->
-    <string name="pulse_history_line">%1$s — %2$d/100</string>
-    <string name="pulse_channel_name">Wellbeing pulse</string>
-    <string name="pulse_reminder_title">Two weeks since your last pulse</string>
-    <string name="pulse_reminder_text">Two minutes, whenever suits you.</string>
 
 
     <string name="notes_shortcut">notes</string>
@@ -1053,12 +1025,4 @@
     <string name="drive_forgot">Forgot the account. The remote copy is still in your Drive; turn the bridge back on any time.</string>
     <string name="drive_auto_sync_notes">Auto-back up new notes</string>
     <string name="drive_auto_sync_letters">Auto-back up new letters</string>
-
-    <string-array name="who5_items">
-        <item>I have felt cheerful and in good spirits</item>
-        <item>I have felt calm and relaxed</item>
-        <item>I have felt active and vigorous</item>
-        <item>I woke up feeling fresh and rested</item>
-        <item>My daily life has been filled with things that interest me</item>
-    </string-array>
 </resources>

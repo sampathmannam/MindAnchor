@@ -5,7 +5,6 @@ import android.content.Context
 import android.os.Build
 import org.mindanchor.model.EmaScheduler
 import org.mindanchor.notifications.BatchAlarms
-import org.mindanchor.pulse.PulseReminder
 import org.mindanchor.report.ReportScheduler
 import org.mindanchor.sunset.SunsetController
 
@@ -16,11 +15,13 @@ import org.mindanchor.sunset.SunsetController
  *
  * Alarms do not survive a reboot, and until this existed the list of what
  * to put back lived only inside `BootReceiver` — where it had drifted.
- * Batch releases, sunset and the nightly report were re-armed; the
- * check-in prompts and the fortnightly pulse reminder were not. Both of
- * those simply stopped after a restart and came back only if the person
- * happened to open the screen that arms them, which is not a thing anyone
- * would think to do about a feature that had gone quiet.
+ * Batch releases, sunset, the nightly report, and the check-in
+ * prompts are re-armed here. (The 2026-08-24 release removed the
+ * fortnightly pulse scheduler; this function used to call it as a
+ * fifth entry. The original list-of-five bug — see git history — was
+ * that two of the five were not being re-armed; the re-arm contract
+ * now covers the remaining four and the missing-alarm class of bug
+ * is closed for them.)
  *
  * A missing alarm is the worst shape of bug this app can have: nothing
  * fails, nothing is logged, a feature just never speaks again and the
@@ -28,10 +29,10 @@ import org.mindanchor.sunset.SunsetController
  *
  * ## Idempotence is the contract
  *
- * Everything here must be safe to call repeatedly. That is why
- * [PulseReminder.ensureScheduled] counts from the last pulse rather than
- * from now — re-arming a "fourteen days from today" alarm on every boot
- * would walk it forward forever on a phone that restarts often.
+ * Every scheduler here is safe to call repeatedly. Re-arming on every
+ * boot does not drift the firing times because each scheduler reads
+ * the user's own window / cadence from prefs at arm time and bases
+ * the next fire on that, not on now().
  */
 object Alarms {
 
@@ -46,7 +47,6 @@ object Alarms {
         runCatching { SunsetController.ensureScheduled(app) }
         runCatching { ReportScheduler.ensureScheduled(app) }
         runCatching { EmaScheduler.ensureScheduled(app) }
-        runCatching { PulseReminder.ensureScheduled(app) }
     }
 
     /**

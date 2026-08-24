@@ -618,4 +618,60 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     /** v0.25.7 (Task 13): dismiss the LLM error state. */
     fun acknowledgeLetterError() = letterVm.acknowledgeError()
+
+    // v0.26+ (Phase 1 G-22, G-21, G-1) — the
+    // protective-layer ritual read-side state. Each
+    // gate is a settings toggle; the home-surface
+    // cards gate on these flows. Default OFF is the
+    // project's opt-out-by-silence rule.
+    val goingLightSchedule: StateFlow<org.mindanchor.friction.GoingLightSchedule> =
+        frictionPrefs.goingLightSchedule
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), org.mindanchor.friction.GoingLightSchedule())
+
+    val baPromptEnabled: StateFlow<Boolean> = frictionPrefs.baPromptEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val morningCompassionEnabled: StateFlow<Boolean> = frictionPrefs.morningCompassionEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /**
+     * v0.26+ (Phase 1 G-22) — write a BA mastery/pleasure
+     * pair to the Letters store with the `BA:` body
+     * prefix and `ba-prompt` provider tag. The Friday-
+     * evening scheduler triggers this from the BA
+     * prompt Composable; the home surface can also
+     * call it directly when the user picks manually.
+     */
+    fun saveBaEntry(mastery: String, pleasure: String) {
+        viewModelScope.launch {
+            org.mindanchor.letters.LetterStore(getApplication())
+                .saveBaEntry(java.time.LocalDate.now(), mastery, pleasure)
+        }
+    }
+
+    /**
+     * v0.26+ (Phase 1 G-23) — write a DEAR MAN / GIVE /
+     * FAST script to the Letters store as a regular
+     * letter. The script is the rule-based output of
+     * [org.mindanchor.friction.DearMan.scriptFor]; the
+     * letter stores the user's filled-in lines.
+     */
+    fun saveDearManScript(script: String) {
+        viewModelScope.launch {
+            org.mindanchor.letters.LetterStore(getApplication())
+                .save(org.mindanchor.letters.Letter(date = java.time.LocalDate.now(), body = script))
+        }
+    }
+
+    /**
+     * v0.26+ (Phase 1 G-1) — the user dismissed the
+     * Going Light consent card. Marks the dismissal
+     * so the card does not re-appear on every home-
+     * surface open.
+     */
+    fun dismissGoingLightConsent() {
+        viewModelScope.launch {
+            frictionPrefs.dismissGoingLightConsent()
+        }
+    }
 }

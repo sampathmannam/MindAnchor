@@ -57,15 +57,15 @@ class GoalMapTest {
     }
 
     @Test
-    fun `measurement points at the pulse and the wearable section`() {
-        // v0.20.4: the wearable (Health Connect) section is
-        // also a measurement surface — the N-of-1 wellness
-        // signals are read here, not in the pulse section.
-        // The goal maps to both, so a person who said
-        // "I want to track" gets a marked section wherever
-        // they look.
+    fun `measurement points at the wearable section`() {
+        // v0.26+ (pulse removal): the WHO-5 pulse feature
+        // was removed, so MEASUREMENT now maps only to
+        // HEALTH_CONNECT. The wearable (Health Connect)
+        // section remains the measurement surface — the
+        // N-of-1 wellness signals are read here, not in
+        // a separate pulse section.
         assertEquals(
-            setOf(SettingsSection.PULSE, SettingsSection.HEALTH_CONNECT),
+            setOf(SettingsSection.HEALTH_CONNECT),
             GoalMap.sectionsFor(setOf(Goal.MEASUREMENT)),
         )
     }

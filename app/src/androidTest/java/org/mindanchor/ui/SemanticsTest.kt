@@ -29,7 +29,6 @@ import org.mindanchor.launcher.DisplayApp
 import org.mindanchor.launcher.LauncherRoot
 import org.mindanchor.model.EmaScreen
 import org.mindanchor.onboarding.OnboardingScreen
-import org.mindanchor.pulse.PulseScreen
 import org.mindanchor.report.ReportScreen
 import org.mindanchor.settings.SettingsScreen
 import org.mindanchor.support.SupportScreen
@@ -185,8 +184,10 @@ class SemanticsTest {
 
     @Test
     fun pulse() {
-        set { PulseScreen(onClose = {}) }
-        walk("pulse")
+        // v0.26+ (pulse removal): the WHO-5
+        // pulse feature was removed; the
+        // walk entry is dropped because the
+        // surface no longer ships.
     }
 
     @Test

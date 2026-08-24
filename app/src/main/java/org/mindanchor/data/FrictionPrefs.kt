@@ -79,6 +79,22 @@ class FrictionPrefs(private val context: Context) {
         context.dataStore.edit { it[compassionateWrapEnabledKey] = enabled }
     }
 
+    // v0.26+ (Phase 1 G-1) — the Going Light consent
+    // card dismissal. Persisted so the card does not
+    // re-appear on every home-surface open after the
+    // user dismisses it once. The OS-level VpnService
+    // consent is re-checked on every home-surface open
+    // — the dismissal is a UI affordance, not a
+    // permission grant.
+    private val goingLightConsentDismissedKey =
+        booleanPreferencesKey("going_light_consent_dismissed")
+    val goingLightConsentDismissed: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[goingLightConsentDismissedKey] ?: false
+    }
+    suspend fun dismissGoingLightConsent() {
+        context.dataStore.edit { it[goingLightConsentDismissedKey] = true }
+    }
+
     val flaggedApps: Flow<Set<String>> = context.dataStore.data.map { prefs ->
         prefs[flaggedKey] ?: emptySet()
     }

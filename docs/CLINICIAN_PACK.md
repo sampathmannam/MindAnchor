@@ -73,31 +73,23 @@ These reach a person about their own mind, sleep or mood, possibly on a bad day.
 - **`plan_interruptions`** — • Notification batching (settings): chosen apps go quiet and arrive together three times a day. People always come through.
 - **`plan_compulsive`** — • Long-press any app and choose "Add a pause" — a breath and an intention before it opens.
 - **`plan_sleep`** — • Sunset mode + sleep rhythm (settings): priority-only nights and a view of how regular your sleep is.
-- **`plan_measurement`** — • The wellbeing pulse (settings): a 2-minute check-in every two weeks, scored honestly.
+- **`plan_measurement`** — • Wearable + check-in (settings): a watch or ring for HR / sleep / steps, and a one-tap prompt a few times a day.
 - **`plan_none`** — Explore at your own pace — every feature lives in settings and long-press menus, all off by default.
-- **`pulse_section`** — Wellbeing pulse
-- **`pulse_section_explainer`** — A 2-minute WHO-5 check-in every two weeks. It keeps an honest record, in your own words and numbers, of whether any of this is helping — the reading of it stays yours.
-- **`pulse_take`** — Take the pulse
-- **`pulse_title`** — How have the last two weeks felt?
-- **`pulse_intro`** — Five statements, answered 0 (at no time) to 5 (all of the time). This is a self-check, not a diagnosis.
-- **`pulse_scale_hint`** — 0 = at no time · 5 = all of the time
-- **`pulse_save`** — Save
-- **`pulse_result`** — Your score: %1$d/100
-- **`pulse_low_note`** — Scores in this range are common when things are heavy. Your people and your plan are one tap from the home screen whenever you want them.
-- **`pulse_open_support`** — Open support
-- **`pulse_band_okay`** — In the higher range. The WHO-5 is not a diagnosis — it is a check-in on the last two weeks. Trends over time are more useful than any single number.
-- **`pulse_band_low`** — In the lower range — the kind of result that often shows up under a lot of stress or strain. Not a diagnosis, and it does not mean anything is wrong with you. Your people and your plan are one tap away whenever you want them. If this has been going on for a couple of weeks or more, talking to a GP can be a useful next step.
-- **`pulse_band_very_low`** — In the lowest range the WHO describes — the level of well-being often seen in people who are going through a really hard time. The WHO-5 is not a diagnosis; only a clinician can make that call. Given how much you are carrying, it might be worth talking to someone you trust or a GP. Your people are one tap away.
-- **`pulse_band_incomplete`** — A few items are unanswered. Save only when you have answered all five.
-- **`pulse_after_disclaimer`** — MindAnchor is a wellness tool, not a clinical service. A low reading does not mean you are unwell.
-- **`pulse_history_up`** — A meaningful lift from the one before.
-- **`pulse_history_down`** — A meaningful drop from the one before.
-- **`pulse_history`** — History
-- **`pulse_history_line`** — %1$s — %2$d/100
-- **`pulse_history_change`** — %1$s since the one before
-- **`pulse_channel_name`** — Wellbeing pulse
-- **`pulse_reminder_title`** — Two weeks since your last pulse
-- **`pulse_reminder_text`** — Two minutes, whenever suits you.
+
+<!--
+    v0.26+ (pulse removal): the wellbeing pulse and all
+    related strings were removed. See git history for
+    the deleted set (pulse_section,
+    pulse_section_explainer, pulse_take, pulse_title,
+    pulse_intro, pulse_scale_hint, pulse_save,
+    pulse_result, pulse_low_note, pulse_open_support,
+    pulse_band_*, pulse_after_disclaimer,
+    pulse_history_*, pulse_history_change,
+    pulse_channel_name, pulse_reminder_*). The user
+    request on 2026-08-24 was "not necessary"; the
+    check-in redesign lives in the ema_* / moment-*
+    area instead.
+-->
 - **`support_shortcut`** — support
 - **`support_section`** — Your people and your plan
 - **`support_section_explainer`** — Somewhere to write down what helps, and the people you would want to talk to. Yours to fill in, whenever you feel like it.
