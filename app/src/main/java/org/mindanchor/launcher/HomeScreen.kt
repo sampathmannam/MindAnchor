@@ -212,6 +212,14 @@ fun LauncherRoot(
     // DevicePolicyManager wiring is a follow-up.
     val inSleepWindowByState = viewModel.inSleepWindow
 
+    // v0.28+ (Phase 3 G-25) — the n-of-1 weekly
+    // patterns. Read from the same ReportStore
+    // the nightly report writes to. The home
+    // surface gates on `isNotEmpty()` so a
+    // fresh install (no nightly report yet)
+    // shows nothing.
+    val weeklyPatternsByState = viewModel.weeklyPatterns
+
     // v0.26+ (Phase 1 G-23) — the DEAR MAN dialog state
     // for the long-press affordance on the Anchor Note
     // title. The state is owned by the home surface, the
@@ -526,6 +534,25 @@ fun LauncherRoot(
                 onSleepLockUnlock = { /* launcher dismisses
                     the sleep lock (v0.29+ hook) */ },
                 inSleepWindow = inSleepWindowByState.collectAsState().value,
+                // v0.28+ (Phase 3 G-25) — the n-of-1
+                // weekly patterns. Read from the
+                // latest nightly report. The card
+                // hides when the list is empty.
+                weeklyPatterns = weeklyPatternsByState.collectAsState().value,
+                onDismissWeeklyPatterns = {
+                    // Session-scoped dismiss; the
+                    // card reappears on the next
+                    // home-surface open if new
+                    // patterns arrive. The launcher
+                    // view-model exposes a hook
+                    // (dismissWeeklyPatterns) for a
+                    // future persisted dismiss; for
+                    // now the Composable's
+                    // `onDismiss` is the only
+                    // surface and the launcher
+                    // view-model hook is a no-op.
+                    viewModel.dismissWeeklyPatterns()
+                },
             )
         }
 
@@ -1175,6 +1202,19 @@ private fun HomeSurface(
      * regular home surface.
      */
     inSleepWindow: Boolean = false,
+    /**
+     * v0.28+ (Phase 3 G-25) — the n-of-1 weekly
+     * patterns. The card is shown on the home
+     * surface when the latest nightly report
+     * found at least one Signal/Label pair that
+     * survived the LinkFinder significance
+     * test. Empty list = card hidden. The
+     * `onDismiss` is session-scoped: the
+     * card reappears on the next home-surface
+     * open if new patterns arrive.
+     */
+    weeklyPatterns: List<org.mindanchor.report.Pattern> = emptyList(),
+    onDismissWeeklyPatterns: () -> Unit = {},
 ) {
     val now = rememberMinuteTick()
     val clockFormat = rememberClockFormat()
@@ -1455,6 +1495,27 @@ private fun HomeSurface(
                     bedtime = sleepLockBedtime,
                     waketime = sleepLockWaketime,
                     onUnlock = { onSleepLockUnlock() },
+                )
+            }
+
+            // v0.28+ (Phase 3 G-25) — the n-of-1
+            // weekly patterns card. The card is
+            // hidden when the latest nightly
+            // report found no patterns; the
+            // gating is `patterns.isNotEmpty()`,
+            // not the existing 14-day floor
+            // (the patterns are pre-filtered by
+            // PatternFinder to the
+            // survived-significance set, so a
+            // non-empty list already passed the
+            // bar). The one-sentence composer is
+            // the project's direction-bands
+            // family: never "good" or "bad",
+            // never causal, n-of-1 framing.
+            if (weeklyPatterns.isNotEmpty()) {
+                NOfOnePatternsCard(
+                    patterns = weeklyPatterns,
+                    onDismiss = onDismissWeeklyPatterns,
                 )
             }
 

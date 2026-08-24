@@ -67,6 +67,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val prefs = LauncherPrefs(application)
     private val sunsetPrefs = SunsetPrefs(application)
     private val frictionPrefs = FrictionPrefs(application)
+    private val reportStore = org.mindanchor.report.ReportStore(application)
     private val wellnessRepository = org.mindanchor.vitals.WellnessRepository(application)
     private val readerPrefs = ReaderPrefs(application)
     /**
@@ -654,6 +655,42 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     val voiceJournalEnabled: StateFlow<Boolean> = frictionPrefs.voiceJournalEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    // v0.28+ (Phase 3 G-25) — the n-of-1 weekly
+    // patterns. Read from the same ReportStore the
+    // nightly report writes to (the patterns
+    // themselves are computed by
+    // [org.mindanchor.report.PatternFinder] in the
+    // nightly ReportScheduler; the home surface
+    // shows whatever the latest report found).
+    // The card is the "once a week" affordance —
+    // the user can dismiss with "Thanks" for the
+    // session; the card reappears on the next
+    // home-surface open if the next report has new
+    // patterns (different signal/label pair) or if
+    // the same pair's medians shifted materially.
+    // The card gates on `isNotEmpty()` so a fresh
+    // install with no nightly report yet shows
+    // nothing.
+    val weeklyPatterns: StateFlow<List<org.mindanchor.report.Pattern>> =
+        reportStore.stored
+            .map { it?.patterns.orEmpty() }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
+     * Dismiss the n-of-1 patterns card for this session.
+     * The card reappears on the next home-surface open if
+     * new patterns arrive; for now, a no-op (the
+     * session-scoped Compose state is the only dismiss
+     * surface).
+     */
+    fun dismissWeeklyPatterns() {
+        // session-scoped dismiss lives in the Composable
+        // (remember { mutableStateOf(...) }), so this hook
+        // is a no-op for now. The launcher view-model
+        // owns the read side; the home surface owns the
+        // dismiss state.
+    }
 
     // v0.29+ (Phase 4 G-5) — the Sleep Lock state.
     // The home surface shows the card when the user
