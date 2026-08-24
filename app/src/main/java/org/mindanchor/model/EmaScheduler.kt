@@ -253,11 +253,12 @@ object EmaScheduler {
      * missed.
      *
      * v0.26+ banner upgrade — the previous
-     * IMPORTANCE_LOW channel was silent in the
-     * shade, so the user never saw the prompt.
-     * The new channel is IMPORTANCE_DEFAULT
-     * (heads-up banner) with no sound and no
-     * vibration. Sound is off because a check-in
+     * v1 channel was set to the lowest
+     * silent importance, so the user never
+     * saw the prompt. The new channel is
+     * IMPORTANCE_DEFAULT (heads-up banner)
+     * with no sound and no vibration. Sound
+     * is off because a check-in
      * prompt is not a summons; vibration is off
      * for the same reason and because the existing
      * quiet-hours window is the one place we know
