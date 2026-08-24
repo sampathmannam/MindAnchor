@@ -8,6 +8,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.StateFlow
@@ -278,6 +279,200 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             )
             if (moved) SunsetController.ensureScheduled(getApplication())
         }
+    }
+
+    // --- Phase 1 v0.26+ protective layer (G-22, G-21, G-19) ---
+
+    /**
+     * v0.26+ (G-22) — the behavioural-activation weekly-prompt
+     * setting. When on, the Friday-evening PreHome surface
+     * offers "Pick one mastery + one pleasure activity".
+     * The Dimidjian 2006 (BA RCT, N=241) is the evidence
+     * anchor. Default OFF — the project's opt-out-by-silence
+     * rule.
+     */
+    val baPromptEnabled = frictionPrefs.baPromptEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setBaPromptEnabled(enabled: Boolean) {
+        viewModelScope.launch { frictionPrefs.setBaPromptEnabled(enabled) }
+    }
+
+    /**
+     * v0.26+ (G-21) — the morning self-compassion break
+     * setting. When on, the home surface shows the
+     * 90-second ritual as the first thing the user sees
+     * on PreHome cold-start. The Neff 2003 / Linardon 2020
+     * meta (27 RCTs of smartphone-based self-compassion
+     * apps, g=0.31 self-compassion) is the evidence anchor.
+     * Default OFF.
+     */
+    val morningCompassionEnabled = frictionPrefs.morningCompassionEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setMorningCompassionEnabled(enabled: Boolean) {
+        viewModelScope.launch { frictionPrefs.setMorningCompassionEnabled(enabled) }
+    }
+
+    /**
+     * v0.26+ (G-19) — the compassionate-wrap setting. When
+     * on, AppWatchService posts a Snackbar offer
+     * ("You were on Instagram for 32 minutes — note
+     * anything?") when the user closes a doomscroll app
+     * after 30+ minutes. The Snackbar is a 1-tap offer,
+     * never a judgment. Default OFF.
+     */
+    val compassionateWrapEnabled = frictionPrefs.compassionateWrapEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setCompassionateWrapEnabled(enabled: Boolean) {
+        viewModelScope.launch { frictionPrefs.setCompassionateWrapEnabled(enabled) }
+    }
+
+    // --- Going Light ---
+
+    /**
+     * The user's Going Light schedule — see
+     * [org.mindanchor.friction.GoingLightSchedule]. A surface read
+     * of the FrictionPrefs-backed flow so the settings UI can show
+     * the live state and so the toggle is round-trip stable.
+     */
+    val goingLightSchedule: StateFlow<org.mindanchor.friction.GoingLightSchedule> =
+        frictionPrefs.goingLightSchedule
+            .stateIn(
+                viewModelScope,
+                SharingStarted.WhileSubscribed(5_000),
+                org.mindanchor.friction.GoingLightSchedule(),
+            )
+
+    /**
+     * Whether the user has granted the OS-level VPN consent that
+     * [org.mindanchor.goinglight.GoingLightVpnService] needs.
+     * Re-checked on every call (the user can revoke from system
+     * settings without this app being told).
+     */
+    fun hasGoingLightConsent(): Boolean =
+        org.mindanchor.goinglight.GoingLightConsent.hasConsent(getApplication())
+
+    /**
+     * The Intent the OS expects the launching Activity to start
+     * `forResult` for the consent dialog, or null when consent is
+     * already in place. The settings Composable is the host — the
+     * wrapper does not start activities.
+     */
+    fun prepareGoingLightConsent(): android.content.Intent? =
+        org.mindanchor.goinglight.GoingLightConsent.prepareConsent(getApplication())
+
+    /**
+     * Persist the user's choice and arm the Going Light scheduler.
+     *
+     * If [enabled] is true, the schedule is widened to "every day"
+     * the first time (the Castelo 2025 protocol is a daily window;
+     * the user can narrow it later from a follow-up UI). The
+     * VpnService start is *not* triggered here — that fires from
+     * the scheduler at the next transition, by which time the
+     * user has either granted the OS consent or the system
+     * rejection will surface to them. This split keeps "turn it
+     * on" decoupled from "the phone is now intercepting traffic",
+     * which is the only ordering the consent dialog allows.
+     */
+    fun setGoingLightEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            val current = frictionPrefs.goingLightSchedule.first()
+            val updated = if (enabled) {
+                current.copy(
+                    enabled = true,
+                    activeDays = if (current.activeDays.isEmpty()) {
+                        java.time.DayOfWeek.values().toSet()
+                    } else {
+                        current.activeDays
+                    },
+                )
+            } else {
+                current.copy(enabled = false)
+            }
+            frictionPrefs.setGoingLightSchedule(updated)
+            val ctx = getApplication<Application>()
+            if (enabled) {
+                org.mindanchor.goinglight.GoingLightScheduler.enable(ctx, updated)
+            } else {
+                org.mindanchor.goinglight.GoingLightScheduler.disable(ctx)
+            }
+        }
+    }
+
+    // --- "Try it now" sunset trial ---
+
+    /**
+     * The wind-down trial the user can run from settings to see what
+     * the quiet hours actually feel like, without waiting for 22:00.
+     *
+     * The flow: save the current interruption filter, apply the
+     * priority-only filter SunsetController would apply at the start
+     * of the window, hold for 60 seconds, then revert. Grayscale
+     * is engaged only when the user has already opted into grey
+     * nights *and* the permission is in place, so a one-off trial
+     * never silently turns the screen grey for someone who never
+     * asked for that.
+     *
+     * Idempotent: a second tap while a trial is running is a
+     * no-op (the [sunsetTrialState] guard rejects the re-entry).
+     * The state is observable so the UI can show "Trial running,
+     * 45 s left" rather than a switch that just looks off.
+     */
+    private val _sunsetTrialState = MutableStateFlow<SunsetTrialState>(SunsetTrialState.Idle)
+    val sunsetTrialState: StateFlow<SunsetTrialState> = _sunsetTrialState.asStateFlow()
+
+    fun startSunsetTrial(durationSeconds: Int = 60) {
+        if (_sunsetTrialState.value !is SunsetTrialState.Idle) return
+        val ctx = getApplication<Application>()
+        val manager = ctx.getSystemService(NotificationManager::class.java) ?: return
+        if (!manager.isNotificationPolicyAccessGranted) return
+        viewModelScope.launch {
+            val previous = manager.currentInterruptionFilter
+            // Apply the same filter SunsetController applies at start.
+            SunsetController.applyFilter(ctx, priorityOnly = true)
+            // Greyscale only when the user has opted into grey nights
+            // and the OS permission is in place. Without both, the
+            // trial still shows the interruption change, which is the
+            // main thing the user is trying to feel.
+            val greyNights = sunsetPrefs.isGrayscaleAtNight()
+            val greyGranted = org.mindanchor.grayscale.Grayscale.isGranted(ctx)
+            val greyOn = greyNights && greyGranted
+            if (greyOn) org.mindanchor.grayscale.Grayscale.set(ctx, true)
+            _sunsetTrialState.value = SunsetTrialState.Running(
+                previousFilter = previous,
+                greyscaleOn = greyOn,
+                remainingSeconds = durationSeconds,
+            )
+            var remaining = durationSeconds
+            while (remaining > 0) {
+                kotlinx.coroutines.delay(1_000)
+                remaining -= 1
+                val now = _sunsetTrialState.value
+                if (now !is SunsetTrialState.Running) return@launch
+                _sunsetTrialState.value = now.copy(remainingSeconds = remaining)
+            }
+            // Revert.
+            SunsetController.applyFilter(ctx, priorityOnly = false)
+            if (greyOn) org.mindanchor.grayscale.Grayscale.set(ctx, false)
+            _sunsetTrialState.value = SunsetTrialState.Idle
+        }
+    }
+
+    /**
+     * The user aborted the trial early. Reverts immediately and
+     * drops back to idle so a fresh "try it now" is possible.
+     */
+    fun cancelSunsetTrial() {
+        val current = _sunsetTrialState.value as? SunsetTrialState.Running ?: return
+        val ctx = getApplication<Application>()
+        SunsetController.applyFilter(ctx, priorityOnly = current.previousFilter ==
+            NotificationManager.INTERRUPTION_FILTER_PRIORITY)
+        if (current.greyscaleOn) {
+            org.mindanchor.grayscale.Grayscale.set(ctx, false)
+        }
+        _sunsetTrialState.value = SunsetTrialState.Idle
     }
 
     /**
@@ -1052,3 +1247,20 @@ data class CorpusImportReport(
     val truncated: Boolean = false,
     val unreadable: Boolean = false,
 )
+
+/**
+ * The state of the "Try it now" sunset trial surfaced to the
+ * settings UI. [Idle] is the default; [Running] carries the
+ * previous interruption filter (so revert knows where to go
+ * back to) and the remaining countdown so the user can see
+ * the trial ticking down rather than staring at a switch that
+ * looks off.
+ */
+sealed class SunsetTrialState {
+    object Idle : SunsetTrialState()
+    data class Running(
+        val previousFilter: Int,
+        val greyscaleOn: Boolean,
+        val remainingSeconds: Int,
+    ) : SunsetTrialState()
+}

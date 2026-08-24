@@ -4,11 +4,13 @@ import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.content.Intent
 import android.view.accessibility.AccessibilityEvent
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.mindanchor.data.FrictionPrefs
 
@@ -67,6 +69,46 @@ class AppWatchService : AccessibilityService() {
         // app that is already open. Without this the pause would reappear
         // over somebody mid-use rather than at the moment they arrived.
         if (opened == lastForeground) return
+
+        // v0.26+ (Phase 1 G-19) — compassionate wrap. The user has
+        // left the previous foreground app; if it was non-self,
+        // non-launcher, and was foreground for 30+ minutes, post
+        // the wrap event to the notifier. The notifier hands it
+        // to the home-surface Snackbar.
+        val previous = lastForeground
+        val now = System.currentTimeMillis()
+        scope.launch {
+            val prefs = FrictionPrefs(applicationContext)
+            if (prefs.compassionateWrapEnabled.first() &&
+                previous != null &&
+                previous != packageName &&
+                // v0.26+ fix: defaultLauncher returns
+                // String?, so the safe-call form is
+                // required. Treating a null launcher as
+                // "previous is not the launcher" is the
+                // conservative choice — we cannot know it
+                // is, so we do not suppress the wrap.
+                !(defaultLauncher(this@AppWatchService)?.contains(previous) ?: false)
+            ) {
+                val startedAt = foregroundStartedAt[previous]
+                if (startedAt != null) {
+                    val minutes = TimeUnit.MILLISECONDS.toMinutes(now - startedAt)
+                    if (minutes >= WRAP_THRESHOLD_MINUTES) {
+                        CompassionateWrapNotifier.post(
+                            CompassionateWrapNotifier.Event(
+                                packageName = previous,
+                                label = CompassionateWrapNotifier.labelFor(applicationContext, previous),
+                                minutesSpent = minutes,
+                            ),
+                        )
+                    }
+                }
+            }
+            // Track the new foreground for the next transition.
+            if (previous != null) foregroundStartedAt.remove(previous)
+            foregroundStartedAt[opened] = now
+        }
+
         lastForeground = opened
 
         if (!WatchPolicy.shouldGate(
@@ -75,7 +117,7 @@ class AppWatchService : AccessibilityService() {
                 self = packageName,
                 launcher = defaultLauncher(this),
                 allowance = allowanceFor(opened),
-                now = System.currentTimeMillis(),
+                now = now,
             )
         ) {
             return
@@ -104,6 +146,35 @@ class AppWatchService : AccessibilityService() {
     }
 
     companion object {
+
+        /**
+         * v0.26+ (Phase 1 G-19) — the foreground-time threshold
+         * for the compassionate wrap. The 30-minute minimum is
+         * the per-person median for "this is not a quick check"
+         * — under 30 minutes the user is genuinely checking
+         * something (a DM, a calendar entry, a sale email);
+         * over 30 minutes the session is a candidate for the
+         * "would you like to note anything?" offer. The 30-min
+         * floor is the same threshold the bedtime-procrastination
+         * literature (Scullin 2018; Mark 2005 23-min
+         * interruption-recovery cost) uses for "session has
+         * crossed the line".
+         */
+        private const val WRAP_THRESHOLD_MINUTES = 30L
+
+        /**
+         * The package-name to foreground-started-at map for
+         * the compassionate-wrap trigger. Cleared on
+         * foreground change. Process-lifetime only — a
+         * fresh launch has no history and the wrap
+         * therefore does not fire on the first session
+         * of a fresh install, which is the right
+         * behaviour (the user has not yet opted in to
+         * the wrap; an opt-in check gates the trigger
+         * on the FrictionPrefs read).
+         */
+        @Volatile
+        private var foregroundStartedAt: MutableMap<String, Long> = HashMap()
 
         /**
          * Whether the watcher is currently connected.

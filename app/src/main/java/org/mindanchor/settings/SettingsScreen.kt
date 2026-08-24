@@ -669,7 +669,8 @@ fun SettingsScreen(
                 marked = GoalMap.isChosen(SettingsSection.BATCHING, goals) ||
                     GoalMap.isChosen(SettingsSection.SUNSET, goals) ||
                     GoalMap.isChosen(SettingsSection.GRAYSCALE, goals) ||
-                    GoalMap.isChosen(SettingsSection.OWNER, goals),
+                    GoalMap.isChosen(SettingsSection.OWNER, goals) ||
+                    GoalMap.isChosen(SettingsSection.GOING_LIGHT, goals),
                 onClick = { group = SettingsGroup.QUIET },
             )
             GroupRow(
@@ -1208,8 +1209,55 @@ fun SettingsScreen(
         }
 
         if (group == SettingsGroup.QUIET) {
-            // --- Sunset mode (F4) ---
+            // --- QUIET-group status row (v0.26+) ---
+            //
+            // The QUIET group spans three independent features
+            // (sunset, enforced, colour) plus Going Light. Until
+            // v0.26+ the user had to read each section to know
+            // what was on. This row states the three that have
+            // an in-app or adb-gated state in one glance so
+            // the screen stops reading as a stack of half-built
+            // toggles. Going Light is intentionally omitted —
+            // it is visible a few screens below, and the row
+            // is for the triad the user toggles from here.
+            //
+            // The keys are read fresh on every resume via
+            // permissionEpoch so a user who runs the adb
+            // command and comes back here sees the new state
+            // without restarting the app.
+            val isOwner = remember(permissionEpoch) { DeviceOwner.isDeviceOwner(context) }
+            val grayscaleGranted = remember(permissionEpoch) { Grayscale.isGranted(context) }
             val sunsetEnabled by viewModel.sunsetEnabled.collectAsState()
+            Column(modifier = Modifier.padding(top = 8.dp, bottom = 16.dp)) {
+                Text(
+                    text = stringResource(R.string.quiet_status_label),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = stringResource(
+                        if (sunsetEnabled) R.string.quiet_status_sunset_on
+                        else R.string.quiet_status_sunset_off,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Text(
+                    text = stringResource(
+                        if (isOwner) R.string.quiet_status_enforced_on
+                        else R.string.quiet_status_enforced_off,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Text(
+                    text = stringResource(
+                        if (grayscaleGranted) R.string.quiet_status_colour_on
+                        else R.string.quiet_status_colour_off,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+
+            // --- Sunset mode (F4) ---
             SectionHeading(R.string.sunset_section, SettingsSection.SUNSET, goals)
             Text(
                 text = stringResource(R.string.sunset_explainer),
@@ -1310,6 +1358,50 @@ fun SettingsScreen(
                         modifier = Modifier.weight(1f),
                     )
                     Switch(checked = sunsetEnabled, onCheckedChange = null)
+                }
+
+                // "Try it now" trial (v0.26+). The wind-down
+                // toggle is invisible without a feedback
+                // loop — the user cannot tell at 10am
+                // whether the feature is doing what they
+                // expect at 22:00. The trial runs the
+                // priority-only interruption filter for
+                // 60 seconds, shows a countdown, and
+                // reverts. Greyscale is engaged only when
+                // the user has opted into grey nights AND
+                // the OS permission is in place; a
+                // one-off trial never silently turns the
+                // screen grey for someone who never asked
+                // for that. The button is the
+                // trust-but-verify affordance for the
+                // whole QUIET group.
+                val trial by viewModel.sunsetTrialState.collectAsState()
+                when (val t = trial) {
+                    is SunsetTrialState.Idle -> {
+                        TextButton(
+                            onClick = { viewModel.startSunsetTrial() },
+                            modifier = Modifier.padding(top = 4.dp),
+                        ) {
+                            Text(stringResource(R.string.try_it_now))
+                        }
+                    }
+                    is SunsetTrialState.Running -> {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = stringResource(R.string.try_it_now_running, t.remainingSeconds),
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f),
+                            )
+                            TextButton(onClick = { viewModel.cancelSunsetTrial() }) {
+                                Text(stringResource(R.string.try_it_now_stop))
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -2573,6 +2665,25 @@ fun SettingsScreen(
             // through. That is the point, and also why it is buried this far
             // down, gated behind a factory reset, and reversible from here.
             SectionHeading(R.string.owner_section, SettingsSection.OWNER, goals)
+            // v0.26+: the "Needs a computer once" chip.
+            // Without it, the section reads as a
+            // half-built toggle — the user looks for the
+            // switch and finds an adb command. The chip
+            // states the constraint up front so the
+            // command below is read as the *whole* of
+            // what the section does, not as a missing
+            // affordance.
+            Text(
+                text = stringResource(R.string.needs_computer_once),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            Text(
+                text = stringResource(R.string.needs_computer_why),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Text(
                 text = stringResource(R.string.owner_explainer),
                 style = MaterialTheme.typography.bodySmall,
@@ -2643,6 +2754,22 @@ fun SettingsScreen(
             // run, once, from a computer — and works fine forever if nobody
             // ever does.
             SectionHeading(R.string.grayscale_section, SettingsSection.GRAYSCALE, goals)
+            // v0.26+: the same "Needs a computer once"
+            // chip as the Enforced section above. The
+            // adb requirement is a constraint, not a
+            // missing affordance; the chip is the
+            // affordance that names the constraint.
+            Text(
+                text = stringResource(R.string.needs_computer_once),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            Text(
+                text = stringResource(R.string.needs_computer_why),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Text(
                 text = stringResource(R.string.grayscale_explainer),
                 style = MaterialTheme.typography.bodySmall,
@@ -2861,43 +2988,114 @@ fun SettingsScreen(
             // best-effort and never blocks the launcher.
             UpdateCheckSection()
 
-            // v0.20.1 round 5 follow-up: Going Light
-            // settings entry. The data layer
-            // (FrictionPrefs.goingLightSchedule) is
-            // already wired and the VpnService is
-            // implemented; the *enabling* surface
-            // and the *first-time copy* are pending
-            // the v0.20.2 follow-up (the first-time
-            // copy is clinical-review-gated per the
-            // B+K gate, and the OS-level VPN
-            // permission dialog is a one-time
-            // consent the user must see in context).
-            //
-            // What ships in v0.20.1 round 5: a
-            // neutral section heading + explainer
-            // that tells the user the feature
-            // exists and that the *enabling* is on
-            // the way. The string is not
-            // clinical-review-gated wording; it
-            // describes what the feature will do,
-            // not how it will be presented to the
-            // user the first time they turn it on.
-            Text(
-                text = stringResource(R.string.going_light_section),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
-            )
+            // Going Light (v0.26+). The v0.20.1 round 5
+            // placeholder ("Available in v0.20.2") lived
+            // here for five minor versions — the data
+            // layer (FrictionPrefs.goingLightSchedule) was
+            // wired, the VpnService and scheduler were
+            // implemented, but the enabling surface was
+            // never built. v0.26+ replaces the placeholder
+            // with the real toggle, the first-time VPN
+            // consent flow, and a live status line that
+            // tells the user whether the schedule is on
+            // and what the next window is.
+            SectionHeading(R.string.going_light_section, SettingsSection.GOING_LIGHT, goals)
             Text(
                 text = stringResource(R.string.going_light_explainer),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = stringResource(R.string.going_light_coming_soon),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
             )
+            val goingLightSchedule by viewModel.goingLightSchedule.collectAsState()
+            val goingLightOn = goingLightSchedule.enabled
+            val goingLightStatusText = if (goingLightOn) {
+                stringResource(
+                    R.string.going_light_status_on,
+                    "%02d:%02d".format(goingLightSchedule.startTime.hour, goingLightSchedule.startTime.minute),
+                    "%02d:%02d".format(goingLightSchedule.endTime.hour, goingLightSchedule.endTime.minute),
+                )
+            } else {
+                stringResource(R.string.going_light_status_off)
+            }
+            // The first-time consent flow. The OS VPN
+            // dialog only fires from an Activity; this
+            // Composable is always hosted in one. The
+            // launcher returns whether the user granted
+            // or refused; on grant we persist and arm
+            // the schedule, on refuse the toggle snaps
+            // back. The same launcher re-arms on every
+            // ON_RESUME via permissionEpoch, so revoking
+            // the OS consent from system settings and
+            // returning here is honoured.
+            var goingLightConsentPending by remember { mutableStateOf(false) }
+            val consentLauncher =
+                rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.StartActivityForResult(),
+                ) { _ ->
+                    // The OS does not deliver a "granted"
+                    // boolean directly; the only signal is
+                    // that VpnService.prepare() returns null
+                    // after consent. Re-check, then arm.
+                    if (viewModel.hasGoingLightConsent()) {
+                        viewModel.setGoingLightEnabled(true)
+                    }
+                    goingLightConsentPending = false
+                }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .toggleable(value = goingLightOn, role = Role.Switch) { wantOn ->
+                        if (wantOn) {
+                            if (viewModel.hasGoingLightConsent()) {
+                                viewModel.setGoingLightEnabled(true)
+                            } else {
+                                goingLightConsentPending = true
+                            }
+                        } else {
+                            viewModel.setGoingLightEnabled(false)
+                        }
+                    }
+                    .padding(top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = goingLightStatusText,
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(checked = goingLightOn, onCheckedChange = null)
+            }
+            if (goingLightConsentPending) {
+                AlertDialog(
+                    onDismissRequest = { goingLightConsentPending = false },
+                    title = { Text(stringResource(R.string.going_light_consent_title)) },
+                    text = { Text(stringResource(R.string.going_light_consent_body)) },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            val intent = viewModel.prepareGoingLightConsent()
+                            if (intent != null) {
+                                consentLauncher.launch(intent)
+                            } else {
+                                // The OS flipped the
+                                // consent state between
+                                // the user opening the
+                                // dialog and tapping
+                                // "Grant". Treat as
+                                // granted.
+                                viewModel.setGoingLightEnabled(true)
+                                goingLightConsentPending = false
+                            }
+                        }) {
+                            Text(stringResource(R.string.going_light_consent_grant))
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { goingLightConsentPending = false }) {
+                            Text(stringResource(R.string.going_light_consent_dismiss))
+                        }
+                    },
+                )
+            }
         }
     }
 }

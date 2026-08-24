@@ -21,6 +21,16 @@ enum class SettingsSection {
     HEALTH_CONNECT,
     OWNER,
     GRAYSCALE,
+    /**
+     * v0.26+: the Going Light section. Sits in the QUIET
+     * group alongside [SUNSET], [OWNER], and [GRAYSCALE].
+     * A person who said [Goal.SLEEP] or
+     * [Goal.COMPULSIVE_APPS] is the audience — Going Light
+     * is the Castelo 2025 content-blocker that targets
+     * the same hours as [SUNSET] but reaches for the
+     * mobile-internet traffic, not just notifications.
+     */
+    GOING_LIGHT,
 }
 
 /**
@@ -57,7 +67,18 @@ object GoalMap {
                 // The pause itself is set per app by long-pressing it, not
                 // in settings. What settings holds for this struggle is
                 // where the pause applies and whether it can be enforced.
-                Goal.COMPULSIVE_APPS -> setOf(SettingsSection.WATCH, SettingsSection.OWNER)
+                Goal.COMPULSIVE_APPS -> setOf(
+                    SettingsSection.WATCH,
+                    SettingsSection.OWNER,
+                    // v0.26+: Going Light is the
+                    // Castelo 2025 content-blocker. A
+                    // person who named compulsive apps
+                    // is the natural audience for the
+                    // feature that cuts mobile-internet
+                    // traffic during the hours they
+                    // chose.
+                    SettingsSection.GOING_LIGHT,
+                )
 
                 // Grayscale belongs here rather than under a "colour"
                 // heading of its own: its strongest evidenced use is
@@ -67,6 +88,12 @@ object GoalMap {
                     SettingsSection.SUNSET,
                     SettingsSection.SLEEP,
                     SettingsSection.GRAYSCALE,
+                    // v0.26+: Going Light targets the
+                    // same hours as SUNSET but reaches
+                    // for the mobile-internet traffic
+                    // (Castelo 2025). A person who
+                    // named sleep is the audience.
+                    SettingsSection.GOING_LIGHT,
                 )
 
                 Goal.MEASUREMENT -> setOf(SettingsSection.PULSE, SettingsSection.HEALTH_CONNECT)
