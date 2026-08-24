@@ -3275,6 +3275,47 @@ fun SettingsScreen(
             // hand-off.
             org.mindanchor.launcher.PrivacyFlowCard()
 
+            // v0.26+ (spec Phase 3) — the Healthy
+            // defaults walkthrough. Shows the user's
+            // current default apps (browser, SMS,
+            // email, dialer) and offers a one-tap
+            // "Change" button that deep-links to the
+            // system default-apps settings. The
+            // recommendations are presented as
+            // "we like this" — not "you should
+            // switch". The launcher does not
+            // auto-install, does not nag, and does not
+            // score.
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = "Healthy defaults",
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = "Browser, SMS, email, dialer. We like the privacy-respecting ones. You pick.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                TextButton(
+                    onClick = {
+                        runCatching {
+                            val intent = android.content.Intent(
+                                android.provider.Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS,
+                            ).addCategory(android.content.Intent.CATEGORY_BROWSABLE)
+                            context.startActivity(intent)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Open system defaults")
+                }
+            }
+
             // v0.25.9 (auto-update): the "Check for
             // updates" affordance. Always present; the
             // user can trigger an on-demand check from
