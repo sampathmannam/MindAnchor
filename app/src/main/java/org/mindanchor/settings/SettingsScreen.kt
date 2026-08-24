@@ -88,6 +88,7 @@ import org.mindanchor.vitals.coros.CorosSyncWorker
 import org.mindanchor.ui.NatureScene
 import java.text.NumberFormat
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
@@ -154,6 +155,18 @@ private fun Modifier.bringIntoViewOnFocus(): Modifier {
             }
         }
 }
+
+/**
+ * v0.30+ (spec Phase 2) — format a minutes-of-day
+ * value as a `HH:MM` string. The `Locale.ROOT` is
+ * the right call: the active-hours and retention
+ * dials are user-locale-agnostic (the literal `:` is
+ * the only separator the project should care about),
+ * and the detekt `ImplicitDefaultLocale` rule flags
+ * any `String.format(...)` without a locale.
+ */
+private fun formatMinutesOfDay(minutesOfDay: Int): String =
+    String.format(Locale.ROOT, "%02d:%02d", minutesOfDay / 60, minutesOfDay % 60)
 
 /**
  * A half-hour stepper for one end of the quiet hours.
@@ -1140,6 +1153,65 @@ fun SettingsScreen(
                             Switch(checked = packageName in batchedApps, onCheckedChange = null)
                         }
                     }
+
+                    // v0.30+ (spec Phase 2) — the active-hours
+                    // window. Notifications from the
+                    // batched set are only held inside this
+                    // window; outside it, they pass through
+                    // unchanged. Default 21:00 to 07:00
+                    // (the spec recommendation). The
+                    // midnight-crossing case is handled in
+                    // [NotificationPrefs.isWithinActiveHoursStatic].
+                    val activeStart by viewModel.activeHoursStart.collectAsState()
+                    val activeEnd by viewModel.activeHoursEnd.collectAsState()
+                    Text(
+                        text = stringResource(R.string.settings_active_hours_subtitle),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                    TimeNudgerRow(
+                        label = stringResource(R.string.settings_active_hours_start_label),
+                        value = formatMinutesOfDay(activeStart),
+                        onEarlier = {
+                            viewModel.setActiveHours(activeStart - 30, activeEnd)
+                        },
+                        onLater = {
+                            viewModel.setActiveHours(activeStart + 30, activeEnd)
+                        },
+                    )
+                    TimeNudgerRow(
+                        label = stringResource(R.string.settings_active_hours_end_label),
+                        value = formatMinutesOfDay(activeEnd),
+                        onEarlier = {
+                            viewModel.setActiveHours(activeStart, activeEnd - 30)
+                        },
+                        onLater = {
+                            viewModel.setActiveHours(activeStart, activeEnd + 30)
+                        },
+                    )
+
+                    // v0.30+ (spec Phase 2) — the held-retention
+                    // window in days. Held notifications older
+                    // than this are pruned on listener connect.
+                    // The slider (stepper) goes 1..30; default 7.
+                    val retentionDays by viewModel.heldRetentionDays.collectAsState()
+                    Text(
+                        text = stringResource(R.string.settings_held_retention_subtitle),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                    TimeNudgerRow(
+                        label = stringResource(R.string.settings_held_retention_label),
+                        value = "$retentionDays",
+                        onEarlier = {
+                            viewModel.setHeldRetentionDays(retentionDays - 1)
+                        },
+                        onLater = {
+                            viewModel.setHeldRetentionDays(retentionDays + 1)
+                        },
+                    )
                 }
             }
         }

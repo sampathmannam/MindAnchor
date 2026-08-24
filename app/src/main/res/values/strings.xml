@@ -141,6 +141,9 @@
     <string name="settings_active_hours_subtitle">When MindAnchor demotes notifications from the held-for-later list. Default 21:00-07:00 (overnight). Outside this window, notifications pass through unchanged.</string>
     <string name="settings_held_retention_title">Held-notification retention (days)</string>
     <string name="settings_held_retention_subtitle">How long a held notification stays in the held-for-later list before being auto-pruned. Default 7 days.</string>
+    <string name="settings_active_hours_start_label">Active from</string>
+    <string name="settings_active_hours_end_label">Active until</string>
+    <string name="settings_held_retention_label">Retention (days)</string>
     <string name="ba_prompt_save">Save for the weekend</string>
     <string name="ba_prompt_skip">Not today</string>
 
