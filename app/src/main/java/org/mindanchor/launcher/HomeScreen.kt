@@ -58,6 +58,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import org.mindanchor.friction.CompassionateWrapNotifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
@@ -807,6 +808,26 @@ private fun HomeSurface(
     recentNotes: List<Note> = emptyList(),
     onAddQuickNote: (String) -> Unit = {},
     /**
+     * v0.26+ (Phase 1 G-19) — the user tapped "Note" on the
+     * compassionate-wrap Snackbar. Wired in [LauncherRoot]
+     * to write the [CompassionateWrapNotifier.Event] to a
+     * Note via [org.mindanchor.model.NoteClassifier]. The
+     * home surface owns the trigger; the launcher
+     * view-model owns the storage.
+     */
+    onAddCompassionateWrapNote: (CompassionateWrapNotifier.Event) -> Unit = {},
+    /**
+     * v0.26+ (Phase 1 G-20) — the held-notifications DAO
+     * for the [HomeDietCard]. The card's data layer is the
+     * `releasedCountSince(since)` query (added in
+     * commit `75029c8`). The DAO is the read-side; the
+     * [AnchorNotificationListenerService] is the write
+     * side. Default null so existing call sites still
+     * compile; the launcher view-model wires the real
+     * DAO in [LauncherRoot].
+     */
+    heldNotificationsDao: org.mindanchor.data.db.HeldNotificationDao? = null,
+    /**
      * v0.22.0 (WP-10 step 2): the "what makes this different"
      * callout. Renders a single line of small text below
      * the greeting for the first
@@ -1031,6 +1052,24 @@ private fun HomeSurface(
                 recent = recentNotes,
                 onSave = onAddQuickNote,
                 onOpenAll = onOpenNotes,
+            )
+
+            // v0.26+ (Phase 1 G-20) — the notification diet card.
+            // Reports the trailing-7-day released count and the
+            // Mark 2005 23-minute-interruption-recovery cost.
+            // The card hides itself on a fresh install (zero
+            // released) — never pre-fill with zeros.
+            heldNotificationsDao?.let { HomeDietCard(dao = it) }
+
+            // v0.26+ (Phase 1 G-19) — the compassionate-wrap
+            // Snackbar host. AppWatchService posts events to
+            // CompassionateWrapNotifier when the user closes a
+            // doomscroll app after 30+ minutes; the host
+            // shows the Snackbar with Note / Dismiss actions.
+            // The Note action writes the event to a Note via
+            // the launcher view-model.
+            CompassionateWrapHost(
+                onNote = onAddCompassionateWrapNote,
             )
 
             Column(

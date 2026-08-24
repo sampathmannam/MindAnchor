@@ -277,11 +277,27 @@
     <string name="goals_none">You have not named anything yet. You do not have to.</string>
     <string name="goals_done">Done</string>
     <string name="goal_marker">One of yours</string>
-    <string name="watch_section">Where the pause applies</string>
-    <string name="watch_explainer">On its own, the pause only appears when you open an app from this screen. Tapping a notification, swiping through recents or following a link goes straight in — which is most of how a phone actually gets used. Turning this on means the pause applies however you arrive.</string>
-    <string name="watch_cannot_read">Android calls this an accessibility service, and that sounds worse than it is. It is set up so it cannot read your screen — not messages, not passwords, not what you are looking at. It is told the name of the app that came to the front, and nothing else. Android enforces that, not us.</string>
-    <string name="watch_on">On. The pause applies however you open an app.</string>
-    <string name="watch_off">Off. The pause only applies from this screen.</string>
+    <!--
+        v0.26+: rewritten for clarity. The previous wording
+        assumed the reader already knew what "the pause"
+        referred to and that "this screen" was unambiguous.
+        A first-time reader does not — "this screen" can read
+        as the settings screen, the device, or the OS — and
+        the long, dense three-sentence structure lost them.
+        The new wording opens by defining the pause in
+        concrete terms ("a 'still want to open?' screen
+        before the app opens"), then states where it
+        currently fires and what turning it on changes. The
+        privacy reassurance is unchanged in substance but
+        trimmed so the section matches the explainer length
+        of the other settings sections (batching,
+        compassion, sleep, etc.).
+    -->
+    <string name="watch_section">Where the pause appears</string>
+    <string name="watch_explainer">When you mark an app for a pause, this app shows a \"still want to open?\" screen before the app opens. This is about where that screen appears. Right now: only when you open an app from this home screen — not from a notification, recents, or a link. Turn this on to make it appear however you arrive.</string>
+    <string name="watch_cannot_read">This is an Android accessibility service. It can only see the name of the app that came to the front — not your screen, your messages, or your passwords. Android enforces that, not us.</string>
+    <string name="watch_on">On. Pause appears however you open an app.</string>
+    <string name="watch_off">Off. Pause appears only when you open an app from this home screen.</string>
     <string name="watch_turn_on">Turn this on</string>
     <string name="watch_manage">Turn this off</string>
     <string name="watch_service_label">MindAnchor pause</string>

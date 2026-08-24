@@ -156,11 +156,11 @@ Interruptions the app itself creates. The test: does the wording ask, or does it
 - **`stale_line`** — %1$s — shown %2$d times, and you went in every time.
 - **`stale_keep`** — Keep it
 - **`stale_drop`** — Let it go
-- **`watch_section`** — Where the pause applies
-- **`watch_explainer`** — On its own, the pause only appears when you open an app from this screen. Tapping a notification, swiping through recents or following a link goes straight in — which is most of how a phone actually gets used. Turning this on means the pause applies however you arrive.
-- **`watch_cannot_read`** — Android calls this an accessibility service, and that sounds worse than it is. It is set up so it cannot read your screen — not messages, not passwords, not what you are looking at. It is told the name of the app that came to the front, and nothing else. Android enforces that, not us.
-- **`watch_on`** — On. The pause applies however you open an app.
-- **`watch_off`** — Off. The pause only applies from this screen.
+- **`watch_section`** — Where the pause appears
+- **`watch_explainer`** — When you mark an app for a pause, this app shows a \"still want to open?\" screen before the app opens. This is about where that screen appears. Right now: only when you open an app from this home screen — not from a notification, recents, or a link. Turn this on to make it appear however you arrive.
+- **`watch_cannot_read`** — This is an Android accessibility service. It can only see the name of the app that came to the front — not your screen, your messages, or your passwords. Android enforces that, not us.
+- **`watch_on`** — On. Pause appears however you open an app.
+- **`watch_off`** — Off. Pause appears only when you open an app from this home screen.
 - **`watch_turn_on`** — Turn this on
 - **`watch_manage`** — Turn this off
 - **`watch_service_label`** — MindAnchor pause
