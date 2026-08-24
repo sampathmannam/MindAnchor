@@ -110,6 +110,21 @@
     <string name="ba_prompt_title">If it would help, pick one thing</string>
     <string name="ba_prompt_mastery_label">One thing to make or do (mastery)</string>
     <string name="ba_prompt_pleasure_label">One thing to enjoy (pleasure)</string>
+
+    <!--
+        v0.26+ (Phase 1 G-22, G-21, G-19) — the protective-
+        layer ritual settings. Three opt-in toggles, all
+        default OFF (the project's opt-out-by-silence
+        rule). The titles and subtitles are the same
+        validate-then-suggest family the home-surface
+        cards use: "if it would help" — never "you should".
+    -->
+    <string name="settings_ba_prompt_title">Friday-evening BA prompt</string>
+    <string name="settings_ba_prompt_subtitle">If it would help, pick one mastery and one pleasure activity for the weekend.</string>
+    <string name="settings_morning_compassion_title">Morning self-compassion break</string>
+    <string name="settings_morning_compassion_subtitle">A 90-second moment, if you would like one. Neff 2003, Linardon 2020.</string>
+    <string name="settings_compassionate_wrap_title">Compassionate wrap on long sessions</string>
+    <string name="settings_compassionate_wrap_subtitle">A 1-tap offer after 30+ minutes on a single app. Never directive.</string>
     <string name="ba_prompt_save">Save for the weekend</string>
     <string name="ba_prompt_skip">Not today</string>
 
@@ -818,6 +833,25 @@
     <string name="health_connect_status_partial" tools:ignore="PluralsCandidate">Reading %1$d of %2$d signal types from your watch. Tap to change.</string>
     <string name="health_connect_status_full" tools:ignore="PluralsCandidate">All %1$d signal types connected.</string>
     <string name="health_connect_launch_failed">Couldn\'t open Health Connect. The app may be missing, disabled, or may not have responded in time. Check it is installed and enabled, then try again.</string>
+    <!--
+        v0.26+: the SDK\'s permission contract is the canonical
+        path, but it can fail silently when the Health Connect
+        provider on the phone is broken, half-installed, or
+        background-restricted. The button now tries the SDK
+        launcher first, then a direct intent to the Health
+        Connect app, then the Play Store listing as a last
+        resort. The new strings below name each step.
+    -->
+    <string name="health_connect_open_app_action">Open Health Connect</string>
+    <string name="health_connect_install_action">Install Health Connect</string>
+    <string name="health_connect_why_header">Why isn\'t this working?</string>
+    <string name="health_connect_why_intro">Three things can keep the button above from doing anything. Tap each to expand.</string>
+    <string name="health_connect_why_disabled_title">Health Connect is installed but disabled</string>
+    <string name="health_connect_why_disabled_body">Open Android Settings → Apps → Health Connect → Enable. A provider that is installed but disabled reports \"available\" to the SDK but cannot open its permission dialog.</string>
+    <string name="health_connect_why_installed_title">Health Connect is not installed</string>
+    <string name="health_connect_why_installed_body">Some phone makers and some Android builds ship without the Health Connect app. Install \"Health Connect by Google\" from the Play Store, then come back here and tap Connect again.</string>
+    <string name="health_connect_why_outdated_title">Health Connect is too old</string>
+    <string name="health_connect_why_outdated_body">This app targets Health Connect 1.1.0. If the phone has an older provider, the permission request is rejected with no error. Update Health Connect from the Play Store.</string>
     <string name="health_connect_button_connect">Connect to your watch</string>
     <string name="health_connect_button_change">Change what is shared</string>
     <string name="health_connect_what_reads_header">What this app reads</string>

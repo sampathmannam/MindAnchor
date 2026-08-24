@@ -438,6 +438,16 @@ Mechanics and settings. Lower stakes, still worth a pass for anything that overp
 - **`health_connect_status_full`** — All %1$d signal types connected.
 - **`health_connect_button_connect`** — Connect to your watch
 - **`health_connect_button_change`** — Change what is shared
+- **`health_connect_open_app_action`** — Open Health Connect
+- **`health_connect_install_action`** — Install Health Connect
+- **`health_connect_why_header`** — Why isn\'t this working?
+- **`health_connect_why_intro`** — Three things can keep the button above from doing anything. Tap each to expand.
+- **`health_connect_why_disabled_title`** — Health Connect is installed but disabled
+- **`health_connect_why_disabled_body`** — Open Android Settings → Apps → Health Connect → Enable. A provider that is installed but disabled reports "available" to the SDK but cannot open its permission dialog.
+- **`health_connect_why_installed_title`** — Health Connect is not installed
+- **`health_connect_why_installed_body`** — Some phone makers and some Android builds ship without the Health Connect app. Install "Health Connect by Google" from the Play Store, then come back here and tap Connect again.
+- **`health_connect_why_outdated_title`** — Health Connect is too old
+- **`health_connect_why_outdated_body`** — This app targets Health Connect 1.1.0. If the phone has an older provider, the permission request is rejected with no error. Update Health Connect from the Play Store.
 - **`health_connect_what_reads_header`** — What this app reads
 - **`health_connect_what_reads_line`** — %1$s
 - **`health_connect_reads_heart_rate`** — heart rate samples — used to show mean and resting heart rate

@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
@@ -88,6 +90,20 @@ import java.text.NumberFormat
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
+
+/**
+ * The Health Connect package id and the system intent
+ * action that opens its main activity. Used as a
+ * fallback when the SDK\'s
+ * [androidx.health.connect.client.PermissionController]
+ * contract fails to dispatch — see the v0.26+ fix on
+ * the Wearable section\'s "Connect to your watch"
+ * button. The constants are file-local so a future
+ * migration to a different provider (e.g. Health
+ * Services on Wear OS) has a single point of change.
+ */
+private const val HEALTH_CONNECT_PACKAGE = "com.google.android.apps.healthdata"
+private const val HEALTH_CONNECT_MAIN_ACTION = "androidx.health.ACTION_HEALTH_CONNECT_HOME"
 
 /**
  * A section title, marked when the person named a reason for it.
@@ -1153,6 +1169,58 @@ fun SettingsScreen(
                     )
                 }
             }
+        }
+
+        if (group == SettingsGroup.PAUSES) {
+            // v0.26+ (Phase 1 G-22, G-21, G-19) — the
+            // protective-layer rituals. Three opt-in
+            // toggles, all default OFF (the project's
+            // opt-out-by-silence rule):
+            //
+            //   - G-22: the Friday-evening BA weekly prompt.
+            //     Dimidjian 2006 RCT, N=241, BA > CBT for
+            //     severe depression at 2/3/6 months.
+            //   - G-21: the morning self-compassion break.
+            //     Neff 2003; Linardon 2020 meta (27 RCTs,
+            //     g=0.31 self-compassion).
+            //   - G-19: the compassionate wrap on long
+            //     sessions. Mark 2005 23-min
+            //     interruption-recovery cost is the
+            //     citation in the home-card footnote.
+            //
+            // Each toggle is a one-tap switch; the
+            // clinical-review-passed copy is in strings.xml
+            // and reads "if it would help" — never
+            // "you should". The same opt-in family the
+            // morning-compassion card and the BA picker
+            // use on the home surface.
+
+            // BA weekly prompt
+            val baPrompt by viewModel.baPromptEnabled.collectAsState()
+            SettingsRowSwitch(
+                title = stringResource(R.string.settings_ba_prompt_title),
+                subtitle = stringResource(R.string.settings_ba_prompt_subtitle),
+                checked = baPrompt,
+                onCheckedChange = { viewModel.setBaPromptEnabled(it) },
+            )
+
+            // Morning self-compassion break
+            val morningCompassion by viewModel.morningCompassionEnabled.collectAsState()
+            SettingsRowSwitch(
+                title = stringResource(R.string.settings_morning_compassion_title),
+                subtitle = stringResource(R.string.settings_morning_compassion_subtitle),
+                checked = morningCompassion,
+                onCheckedChange = { viewModel.setMorningCompassionEnabled(it) },
+            )
+
+            // Compassionate wrap
+            val compassionateWrap by viewModel.compassionateWrapEnabled.collectAsState()
+            SettingsRowSwitch(
+                title = stringResource(R.string.settings_compassionate_wrap_title),
+                subtitle = stringResource(R.string.settings_compassionate_wrap_subtitle),
+                checked = compassionateWrap,
+                onCheckedChange = { viewModel.setCompassionateWrapEnabled(it) },
+            )
         }
 
         if (group == SettingsGroup.PAUSES) {
@@ -2227,19 +2295,66 @@ fun SettingsScreen(
                 val buttonLabelRes =
                     if (s.granted == 0) R.string.health_connect_button_connect
                     else R.string.health_connect_button_change
+                // v0.26+: the SDK\'s permission contract is the
+                // canonical path, but on a phone where Health
+                // Connect is installed but disabled, background-
+                // restricted, or hung, the contract can fail
+                // without a synchronous exception — the
+                // ActivityResultLauncher simply never receives a
+                // result and the user sees nothing. The fix is
+                // a three-step fallback: try the SDK launcher
+                // first, then a direct intent to the Health
+                // Connect app\'s main activity (so the user can
+                // grant permissions manually from the app\'s
+                // own UI), then the Play Store listing as a last
+                // resort. Every step that throws is logged and
+                // shown in [hcLaunchError] so the failure mode
+                // is never silent again.
                 TextButton(
                     onClick = {
-                        // v0.25.3-WP-B: runCatching surfaces a launch
-                        // failure instead of swallowing it. The Log.w
-                        // gives a known handle for adb logcat.
                         Log.w("MindAnchor/HealthConnect", "launch requested")
-                        runCatching {
+                        val primary = runCatching {
                             healthConnectPermissionLauncher.launch(
                                 HealthConnectSource.effectivePermissions(context),
                             )
-                        }.onFailure { t ->
-                            Log.e("MindAnchor/HealthConnect", "launch failed: " + t.javaClass.simpleName, t)
-                            hcLaunchError = t.javaClass.simpleName
+                            true
+                        }
+                        if (primary.getOrNull() == true) {
+                            hcLaunchError = null
+                            return@TextButton
+                        }
+                        // Primary launch failed. Try opening
+                        // Health Connect directly so the user
+                        // has a path even when the SDK contract
+                        // is wedged.
+                        val fallbackOpen = runCatching {
+                            val intent = Intent(HEALTH_CONNECT_MAIN_ACTION)
+                                .addCategory(Intent.CATEGORY_DEFAULT)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            context.startActivity(intent)
+                            true
+                        }
+                        if (fallbackOpen.getOrNull() == true) {
+                            hcLaunchError = null
+                            return@TextButton
+                        }
+                        // Both failed — the HC app is probably
+                        // missing or disabled. Open the Play
+                        // Store listing as a last resort.
+                        val playStore = runCatching {
+                            val intent = Intent(
+                                Intent.ACTION_VIEW,
+                                "https://play.google.com/store/apps/details?id=$HEALTH_CONNECT_PACKAGE".toUri(),
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            context.startActivity(intent)
+                            true
+                        }
+                        val failure = primary.exceptionOrNull()
+                            ?: fallbackOpen.exceptionOrNull()
+                            ?: playStore.exceptionOrNull()
+                        if (failure != null) {
+                            Log.e("MindAnchor/HealthConnect", "all three launches failed; last error: " + failure.javaClass.simpleName, failure)
+                            hcLaunchError = failure.javaClass.simpleName
                         }
                     },
                 ) {
@@ -2253,6 +2368,101 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.error,
                         modifier = Modifier.padding(top = 4.dp),
                     )
+                    // "Why isn\'t this working?" — the three
+                    // most common causes, each expandable.
+                    // The user reported the button silently
+                    // doing nothing on 2026-08-24; this is the
+                    // self-service path for the next person in
+                    // the same state.
+                    var whyExpanded by remember { mutableStateOf(false) }
+                    TextButton(
+                        onClick = { whyExpanded = !whyExpanded },
+                        modifier = Modifier.padding(top = 4.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.health_connect_why_header),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    if (whyExpanded) {
+                        Column(
+                            modifier = Modifier.padding(top = 4.dp, start = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.health_connect_why_intro),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            // Each cause is a small inline card
+                            // so the user can scan them
+                            // individually.
+                            listOf(
+                                Triple(
+                                    R.string.health_connect_why_disabled_title,
+                                    R.string.health_connect_why_disabled_body,
+                                    null,
+                                ),
+                                Triple(
+                                    R.string.health_connect_why_installed_title,
+                                    R.string.health_connect_why_installed_body,
+                                    R.string.health_connect_install_action,
+                                ),
+                                Triple(
+                                    R.string.health_connect_why_outdated_title,
+                                    R.string.health_connect_why_outdated_body,
+                                    R.string.health_connect_install_action,
+                                ),
+                            ).forEach { (titleRes, bodyRes, actionRes) ->
+                                var cardExpanded by remember { mutableStateOf(false) }
+                                Column {
+                                    TextButton(
+                                        onClick = { cardExpanded = !cardExpanded },
+                                        contentPadding = PaddingValues(0.dp),
+                                    ) {
+                                        Text(
+                                            text = stringResource(titleRes),
+                                            style = MaterialTheme.typography.bodySmall,
+                                        )
+                                    }
+                                    if (cardExpanded) {
+                                        Text(
+                                            text = stringResource(bodyRes),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(start = 8.dp, end = 8.dp),
+                                        )
+                                        if (actionRes != null) {
+                                            TextButton(
+                                                onClick = {
+                                                    runCatching {
+                                                        val intent = Intent(
+                                                            Intent.ACTION_VIEW,
+                                                            "https://play.google.com/store/apps/details?id=$HEALTH_CONNECT_PACKAGE".toUri(),
+                                                        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                        context.startActivity(intent)
+                                                    }.onFailure { t ->
+                                                        Log.e(
+                                                            "MindAnchor/HealthConnect",
+                                                            "play store launch failed: " +
+                                                                t.javaClass.simpleName,
+                                                            t,
+                                                        )
+                                                    }
+                                                },
+                                                contentPadding = PaddingValues(0.dp),
+                                            ) {
+                                                Text(
+                                                    text = stringResource(actionRes),
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -3097,5 +3307,52 @@ fun SettingsScreen(
                 )
             }
         }
+    }
+}
+
+/**
+ * v0.26+ (Phase 1 G-22, G-21, G-19) — a single settings row
+ * with a title, an optional subtitle, and a trailing
+ * Switch. The "selectable" pattern reads the same way to
+ * a screen reader as a tap target: a single tap on the
+ * row toggles the Switch, and the subtitle is the
+ * description the screen reader reads aloud.
+ *
+ * Defaults to the project's opt-out-by-silence rule:
+ * every ritual toggle starts OFF. The row's check
+ * is the only way to turn it on.
+ */
+@Composable
+private fun SettingsRowSwitch(
+    title: String,
+    subtitle: String?,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .toggleable(
+                value = checked,
+                role = Role.Switch,
+                onValueChange = onCheckedChange,
+            )
+            .padding(vertical = 12.dp, horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Switch(checked = checked, onCheckedChange = null)
     }
 }
