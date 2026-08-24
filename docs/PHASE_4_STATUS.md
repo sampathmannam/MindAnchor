@@ -59,8 +59,13 @@ and no falcisifcation of anything".
     retention cutoff on `onListenerConnected` via
     the new `HeldNotificationDao.pruneOlderThan`.
   - `SettingsViewModel` exposes the new StateFlows
-    and setter methods; the Settings row is a
-    follow-up.
+    and setter methods.
+  - `SettingsScreen` adds the active-hours start /
+    end and held-retention rows under the
+    BATCHING section. The existing
+    `TimeNudgerRow` Composable is reused; the
+    retention counter is a `TimeNudgerRow` with a
+    numeric value.
   - `ActiveHoursTest` (6 cases) pins the rule.
 
 ### Spec Phase 3 — Healthy defaults walkthrough
@@ -228,6 +233,8 @@ docs/PHASE_4_STATUS.md  (this file)
 ## Commits landed in this session (2026-08-24)
 
 ```
+20c3bac docs: regenerate CLINICIAN_PACK.md (active-hours + retention stepper rows)
+a0e0df0 feat(settings): active-hours + retention stepper rows (spec Phase 2)
 8903ab7 feat(settings): SettingsViewModel surface for active-hours + retention
 b2c85e0 feat(notifications): wire active-hours gate + retention auto-prune (spec Phase 2)
 289c96e feat(notifications): active-hours + held-retention spec Phase 2 (G-2)
