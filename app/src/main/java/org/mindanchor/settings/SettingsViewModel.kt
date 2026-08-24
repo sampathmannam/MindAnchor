@@ -53,6 +53,8 @@ import org.mindanchor.vitals.coros.CorosSyncWorker
 import org.mindanchor.vitals.coros.CorosVitalSource
 import java.time.LocalDate
 
+@androidx.annotation.OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+@Suppress("LargeClass")
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
 
     private val prefs = NotificationPrefs(application)
@@ -403,6 +405,52 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setPrehomeEnabled(enabled: Boolean) {
         viewModelScope.launch { frictionPrefs.setPrehomeEnabled(enabled) }
+    }
+
+    /**
+     * v0.30+ (spec Phase 2) — the active-hours
+     * window for notification curate. The
+     * [AnchorNotificationListenerService] demotes
+     * notifications from the doomscroll set only
+     * inside this window; outside it, notifications
+     * pass through unchanged. Default 21:00-07:00
+     * (the spec's recommendation).
+     */
+    private val notificationPrefs = org.mindanchor.data.NotificationPrefs(
+        application,
+    )
+    val activeHoursStart = notificationPrefs.activeHoursStart
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            org.mindanchor.data.NotificationPrefs.DEFAULT_ACTIVE_START,
+        )
+    val activeHoursEnd = notificationPrefs.activeHoursEnd
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            org.mindanchor.data.NotificationPrefs.DEFAULT_ACTIVE_END,
+        )
+
+    fun setActiveHours(startMinutes: Int, endMinutes: Int) {
+        viewModelScope.launch {
+            notificationPrefs.setActiveHours(startMinutes, endMinutes)
+        }
+    }
+
+    /**
+     * v0.30+ (spec Phase 2) — the held-retention
+     * window in days. Held notifications older than
+     * this are pruned on listener connect. Default
+     * 7 days (the spec's recommendation).
+     */
+    val heldRetentionDays = notificationPrefs.heldRetentionDays
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 7)
+
+    fun setHeldRetentionDays(days: Int) {
+        viewModelScope.launch {
+            notificationPrefs.setHeldRetentionDays(days)
+        }
     }
 
     // --- Going Light ---
