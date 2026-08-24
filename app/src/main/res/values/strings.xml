@@ -513,6 +513,19 @@
     <string name="ema_count" tools:ignore="PluralsCandidate">%1$d check-ins so far.</string>
     <string name="ema_learning">Still learning your normal.</string>
     <string name="ema_settled">It has enough to work with, so it asks less now.</string>
+    <!--
+        v0.26+: a single-line research anchor for
+        the check-in design. The full citations
+        (Russell 1980; Csikszentmihalyi & Hunter
+        2003; Shiffman, Stone & Hufford 2008) are
+        in the Ema.kt KDoc. The user-facing line
+        is one sentence: cite the model, not the
+        apps own paraphrase of the model. The
+        finding-test pins the citation so a
+        wording pass that drops the evidence
+        anchor is caught at review time.
+    -->
+    <string name="ema_research_link">Russell\'s circumplex model (1980) — the same axes psychology research uses for momentary affect.</string>
     <string name="ema_channel_name">Check-ins</string>
     <!--
         v0.26+: the channel description shown in

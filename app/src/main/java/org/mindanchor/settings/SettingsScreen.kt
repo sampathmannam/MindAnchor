@@ -2033,15 +2033,36 @@ fun SettingsScreen(
         if (group == SettingsGroup.MEASURING) {
             // --- Check-ins (EMA) ---
             //
-            // The other half of "Labels" alongside the pulse above: a handful
-            // of taps a day rather than a fortnightly instrument. The count
-            // is stated plainly and never as a target — a skipped prompt is
-            // normal, not a shortfall, so nothing here is styled as a streak.
+            // A handful of taps a day rather than a
+            // fortnightly instrument. The count is
+            // stated plainly and never as a target
+            // — a skipped prompt is normal, not a
+            // shortfall, so nothing here is styled
+            // as a streak.
+            //
+            // v0.26+ (user request): the research
+            // anchor is shown on the screen, not
+            // only in the code. The one-line
+            // ema_research_link string cites the
+            // model the two axes come from (Russell
+            // 1980). The full citations — Russell
+            // 1980, Csikszentmihalyi & Hunter 2003,
+            // Shiffman, Stone & Hufford 2008 —
+            // are in the Ema.kt KDoc and pinned by
+            // a finding test so a future re-design
+            // that drops the evidence anchor is
+            // caught at review time.
             SectionHeading(R.string.ema_section, null, goals)
             Text(
                 text = stringResource(R.string.ema_explainer),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = stringResource(R.string.ema_research_link),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
             )
             val emaEnabled by viewModel.emaEnabled.collectAsState()
             Row(
