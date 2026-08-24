@@ -390,6 +390,21 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { frictionPrefs.setVoiceJournalEnabled(enabled) }
     }
 
+    /**
+     * v0.30+ (spec Phase 1) — the PreHome
+     * moment-of-pause opt-in. Default OFF. The
+     * PreHomeActivity self-skips to HomeActivity
+     * when this is false, so the launcher is
+     * always-on for the always-on home unless the
+     * user has explicitly asked for the pause.
+     */
+    val prehomeEnabled = frictionPrefs.prehomeEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setPrehomeEnabled(enabled: Boolean) {
+        viewModelScope.launch { frictionPrefs.setPrehomeEnabled(enabled) }
+    }
+
     // --- Going Light ---
 
     /**

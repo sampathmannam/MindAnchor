@@ -1281,6 +1281,23 @@ fun SettingsScreen(
                 checked = voiceJournal,
                 onCheckedChange = { viewModel.setVoiceJournalEnabled(it) },
             )
+
+            // v0.30+ (spec Phase 1) — the PreHome
+            // moment-of-pause opt-in. Default OFF
+            // per the project's opt-out-by-silence
+            // rule; the launcher is the always-on
+            // home unless the user asks for the
+            // pause. The PreHomeActivity self-skips
+            // to HomeActivity when this is false, so
+            // the launcher is unchanged for users who
+            // never opt in.
+            val prehome by viewModel.prehomeEnabled.collectAsState()
+            SettingsRowSwitch(
+                title = stringResource(R.string.settings_prehome_title),
+                subtitle = stringResource(R.string.settings_prehome_subtitle),
+                checked = prehome,
+                onCheckedChange = { viewModel.setPrehomeEnabled(it) },
+            )
         }
 
         if (group == SettingsGroup.PAUSES) {

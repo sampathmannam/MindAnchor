@@ -135,6 +135,8 @@
     <string name="settings_push_up_mode_subtitle">N push-ups before a flagged app opens. Hauck 2020 anchor.</string>
     <string name="settings_voice_journal_title">Voice journal</string>
     <string name="settings_voice_journal_subtitle">Push-to-talk, on-device transcription. whisper.cpp, ~75 MB APK cost.</string>
+    <string name="settings_prehome_title">PreHome moment-of-pause</string>
+    <string name="settings_prehome_subtitle">A moment of breath and intention between unlock and the home. Off by default; the launcher is the always-on home unless you opt in.</string>
     <string name="ba_prompt_save">Save for the weekend</string>
     <string name="ba_prompt_skip">Not today</string>
 
