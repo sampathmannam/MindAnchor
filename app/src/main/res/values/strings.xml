@@ -514,6 +514,16 @@
     <string name="ema_learning">Still learning your normal.</string>
     <string name="ema_settled">It has enough to work with, so it asks less now.</string>
     <string name="ema_channel_name">Check-ins</string>
+    <!--
+        v0.26+: the channel description shown in
+        Android Settings → Apps → MindAnchor →
+        Notifications. The previous v1 channel had
+        none; an empty description there makes the
+        channel look "unconfigured" to a careful
+        reader. One sentence, descriptive of the
+        behaviour, no marketing.
+    -->
+    <string name="ema_channel_description">A short, one-tap check-in at random times. Tap to answer; ignore if now is not the time.</string>
     <string name="ppg_section">Heart rhythm</string>
     <string name="ppg_explainer">Many watches measure heart-rate variability and never hand it over — it stays inside the maker\'s own app, and it cannot be worked out from heart rate alone. So this measures it directly, from your fingertip. It also means it still works if you change watch, or aren\'t wearing one.</string>
     <string name="ppg_how">Rest your index finger over the rear camera and the flash, covering both. Hold still, breathe normally, and stay off the phone for about 90 seconds. Sitting, before you get up, is the most comparable time of day.</string>

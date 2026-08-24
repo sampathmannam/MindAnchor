@@ -304,10 +304,6 @@
             android:exported="false" />
 
         <activity
-            android:name=".pulse.PulseActivity"
-            android:exported="false" />
-
-        <activity
             android:name=".support.SupportActivity"
             android:exported="false" />
 
@@ -448,10 +444,6 @@
 
         <receiver
             android:name=".sunset.SunsetReceiver"
-            android:exported="false" />
-
-        <receiver
-            android:name=".pulse.PulseReminderReceiver"
             android:exported="false" />
 
         <!--
