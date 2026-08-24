@@ -23,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -93,16 +94,40 @@ class PreHomeActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val intentionRepo = MorningIntentionRepository(applicationContext)
-        val doomscrollList = DoomscrollList(applicationContext)
+        // v0.30+ (spec Phase 1) — the PreHome is
+        // opt-in (default OFF per the project's
+        // opt-out-by-silence rule). When the user
+        // has not enabled the moment-of-pause
+        // surface, self-skip to HomeActivity on
+        // first composition so the launcher behaves
+        // exactly as before.
+        val prehomeEnabled = org.mindanchor.data.FrictionPrefs(applicationContext)
+            .prehomeEnabled
+        val scope = lifecycleScope
         setContent {
             MindAnchorTheme {
                 CalmBackground { _ ->
-                    PreHomeSurface(
-                        intentions = intentionRepo,
-                        doomscrollList = doomscrollList,
-                        onSkipToHome = ::launchHome,
+                    val enabled by prehomeEnabled.collectAsState(
+                        initial = false,
                     )
+                    LaunchedEffect(enabled) {
+                        if (!enabled) {
+                            // The user has not opted
+                            // into the moment-of-pause.
+                            // Self-skip to the home
+                            // immediately so the
+                            // launcher is the
+                            // always-on home.
+                            launchHome()
+                        }
+                    }
+                    if (enabled) {
+                        PreHomeSurface(
+                            intentions = MorningIntentionRepository(applicationContext),
+                            doomscrollList = DoomscrollList(applicationContext),
+                            onSkipToHome = ::launchHome,
+                        )
+                    }
                 }
             }
         }

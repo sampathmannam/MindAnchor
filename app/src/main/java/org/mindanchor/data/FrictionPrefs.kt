@@ -172,6 +172,27 @@ class FrictionPrefs(private val context: Context) {
         context.dataStore.edit { it[voiceJournalEnabledKey] = enabled }
     }
 
+    // v0.30+ (spec Phase 1) — the PreHome
+    // moment-of-pause activity. The user opts in;
+    // default is OFF. The opt-in is per the
+    // project's opt-out-by-silence rule: a
+    // launcher that changes the cold-start
+    // experience is a launcher fighting the user
+    // when not asked. When the flag is OFF, the
+    // system HOME intent still points to the
+    // PreHomeActivity (the manifest wiring) but
+    // the activity self-skips to HomeActivity on
+    // first composition; the toggle gates the
+    // moment-of-pause surface itself.
+    private val prehomeEnabledKey =
+        booleanPreferencesKey("prehome_enabled")
+    val prehomeEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[prehomeEnabledKey] ?: false
+    }
+    suspend fun setPrehomeEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[prehomeEnabledKey] = enabled }
+    }
+
     val flaggedApps: Flow<Set<String>> = context.dataStore.data.map { prefs ->
         prefs[flaggedKey] ?: emptySet()
     }
