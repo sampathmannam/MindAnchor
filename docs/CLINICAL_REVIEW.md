@@ -196,3 +196,126 @@ The privacy promise is structural and is enforced by `PrivacyTest` and
 - The notifications the launcher holds are **held, not deleted**. The journal entry persists; the launcher shows the entry in the digest and never posts a copy of the original.
 - The Going Light VPN is **fail-closed**. If the per-packet decision function throws or the VPN loses its config, the launcher blocks traffic rather than lets it through.
 
+---
+
+## 8. Phase 1 clinical-review audit (G-15, 2026-08-24)
+
+Status of the four R-items in §4 of this review, after the
+Phase 0 audit (commit `166c545` of the `v0.26-prep/phase-0-audit`
+branch) and the Phase 1 data-plumbing commits (`121aa4a`,
+`50d293b`, `75029c8`, `e30be1c`, `f38e22b`, `3d8b153` of
+`v0.26-prep/phase-1`). A clinician sign-off is still
+required before each R-row is marked closed; the audit
+below is the self-attestation the project's own rule
+(`docs/research/22-10-of-10-roadmap.md` WP-1) requires.
+
+### R2 — partial safety plan: "Save anyway / Keep editing" choice
+
+**Current state.** The SupportViewModel saves the
+plan with `dao.savePlan(plan.copy(updatedAt = …))` —
+no validation that all required fields are filled.
+A user who taps "Save" on a half-written plan will
+get a row in `safety_plans` with empty fields, and
+the support screen will read that empty row back.
+The plan is the document someone in crisis would
+hand to a friend or a 911 operator; an empty plan
+is worse than no plan.
+
+**Audit gap.** No required-field validation in
+`SupportScreen.kt`'s save path. The plan saves even
+when every field is blank.
+
+**Required fix.** The save button must show a
+"Save anyway / Keep editing" choice when at least
+one of the required fields (warning signs, coping
+strategies, support contacts, safe places) is
+empty. The choice is the same clinical-review-passed
+copy the project already uses for the partial
+support plan field set. Recorded as `R2-pending-clinician-sign-off`.
+
+### R3 — low WHO-5: support-card offer
+
+**Current state.** The home surface does not have
+a low-WHO-5 card. The WHO-5 pulse cadence tapers
+7→10→14 days (Topp 2015), and the report
+`docs/research/22-10-of-10-roadmap.md` WP-9 records
+the `WHO-5 distress UNMEASURED` row. A low score
+is the most important moment for a support-card
+offer, and the offer is missing.
+
+**Audit gap.** No automatic low-WHO-5 surface. The
+user must remember to open the Support screen.
+
+**Required fix.** When a WHO-5 score crosses the
+LOW band (≤ 28, the Topp 2015 cut-off), the home
+surface shows a "If it would help" card with the
+Support screen one tap away. The copy is the same
+validate-then-suggest family as the morning-
+compassion break and the BA picker. Recorded as
+`R3-pending-clinician-sign-off`.
+
+### R4 — TIPP contraindications wording
+
+**Current state.** The TIPP skill is the DBT
+distress-tolerance crisis-survival protocol
+(Temperature, Intense exercise, Paced breathing,
+Paired muscle relaxation). Linehan 1993
+documents the four contraindications:
+   1. *Temperature* — cardiovascular conditions
+      (vasovagal sensitivity, Raynaud's).
+   2. *Intense exercise* — cardiac conditions,
+      recent surgery, pregnancy.
+   3. *Paced breathing* — pulmonary conditions
+      (COPD), low blood pressure.
+   4. *Paired muscle relaxation* — none absolute;
+      relative in low-back pain or acute injury.
+
+**Audit gap.** The four contraindications are
+NOT in the user-facing copy. The TIPP card surface
+will land in Phase 3 (per the v0.26+ plan), and
+the wording pass is the first gate.
+
+**Required fix.** Phase 3 TIPP card must show the
+four contraindications before the user picks a
+TIPP exercise, with a single-screen clinical-review
+pass. Recorded as `R4-pending-clinician-sign-off`.
+
+### R6 — support one-tap from home, never behind a menu
+
+**Current state.** The Support screen is at
+`org.mindanchor.support.SupportActivity` and is
+reachable from Settings → About. The home
+surface does NOT have a one-tap Support entry.
+A user in crisis who opens the launcher and
+swipes to the home should reach Support in
+one tap, not Settings → About → Support.
+
+**Audit gap.** No one-tap Support entry on the
+home surface. The path is Settings → About
+→ Support, which is two taps behind a menu.
+
+**Required fix.** Add a Support entry to the
+home surface drawer / overflow menu. The
+clinical-review-passed copy is the same
+"if it would help" family. Recorded as
+`R6-pending-clinician-sign-off`.
+
+### Phase 1 R5 — batching-safety evidence
+
+**Status.** Same as in §4. The 2-week live test
+(G-36) is the source of evidence; the row is
+updated after the test. The commit `cdbfc47`
+on `main` carries the test plan; the log is
+`docs/qa/real-2-week-log.md`.
+
+### Sign-off
+
+A clinician sign-off is the gate for closing
+R2, R3, R4, R6. The R5 row is closed by the
+2-week live test. No code in
+`v0.26-prep/phase-1` ships to a real user
+before all five rows are closed; the
+`docs/research/17-pre-merge-ci-gate.md`
+gate enforces this.
+
+
