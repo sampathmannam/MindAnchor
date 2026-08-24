@@ -185,6 +185,7 @@ object CheckInPatterns {
         // rather than a delivered count.
         val last7Start = today.minusDays(7)
         val last7 = moments.filter { dateOf(it) >= last7Start && dateOf(it) < today }
+        if (last7.isEmpty()) return null
         val expectedPerDay = expectedPromptsPerDay(moments.size)
         val expected = expectedPerDay * 7
         if (expected == 0) return null
@@ -223,15 +224,18 @@ object CheckInPatterns {
         val windowStart = today.minusDays(BASELINE_MIN_DAYS.toLong())
         val baseline = moments.filter { dateOf(it) >= windowStart && dateOf(it) < today }
         if (baseline.size < BASELINE_MIN_COUNT) return null
-        // The mean of recent days is the
-        // "today" value. A future commit can
-        // group by day and take the latest day
-        // rather than the trailing-1-day mean;
-        // for the v1 surface, the trailing-1-day
-        // mean is the same data the user sees
-        // on the home card and the closest
-        // "today" the engine can produce.
-        val todayValue = moments.filter { dateOf(it) == today.minusDays(1) }
+        // The "today" value is the mean
+        // valence of the user's most recent
+        // answered day — the day with the
+        // latest timestamp among [Moment]s.
+        // We do not require the moment to be
+        // on a specific date because the user
+        // may have answered yesterday, the
+        // day before, or earlier; the engine
+        // works against the data, not the
+        // wall clock.
+        val mostRecentDay = moments.maxOfOrNull { dateOf(it) } ?: return null
+        val todayValue = moments.filter { dateOf(it) == mostRecentDay }
             .map { it.valence }
         if (todayValue.isEmpty()) return null
         val todayMean = todayValue.average()

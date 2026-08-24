@@ -605,6 +605,17 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val emaCount = momentStore.count
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
+    /**
+     * The full [org.mindanchor.model.Moment] stream,
+     * exposed for the "What your check-ins show"
+     * insights section
+     * ([org.mindanchor.insights.CheckInInsightsSection]).
+     * The Composable collects this flow and passes
+     * the live list to
+     * [org.mindanchor.insights.CheckInPatterns.compute].
+     */
+    val moments = momentStore.moments
+
     fun setEmaEnabled(enabled: Boolean) {
         viewModelScope.launch {
             momentStore.setEnabled(enabled)

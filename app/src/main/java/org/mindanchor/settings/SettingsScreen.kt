@@ -2109,6 +2109,24 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+
+            // v0.26+: the "What your check-ins show"
+            // insights section. The text-only patterns
+            // dashboard the user asked for on 2026-08-24.
+            // The section is gated on [emaEnabled] so a
+            // user with the toggle off does not see a
+            // section that cannot update. The engine
+            // ([org.mindanchor.insights.CheckInPatterns])
+            // is a pure function over the user's
+            // collected [org.mindanchor.model.Moment]s;
+            // the wording is in strings.xml and
+            // pinned by a finding test.
+            org.mindanchor.insights.CheckInInsightsSection(
+                momentStore = org.mindanchor.model.MomentStore(
+                    context.applicationContext,
+                ),
+                isEnabled = emaEnabled,
+            )
         }
 
         if (group == SettingsGroup.MEASURING) {

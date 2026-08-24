@@ -38,9 +38,13 @@ class CheckInPatternsTest {
     }
 
     @Test
-    fun `one data point returns no insights (below all thresholds)`() {
-        val oneMoment = listOf(m(valence = 4, day = today.minusDays(1)))
-        assertTrue(CheckInPatterns.compute(oneMoment, today).isEmpty())
+    fun `one data point from 30 days ago returns no insights (below all thresholds)`() {
+        // A moment from well outside every
+        // window (the trailing 7 and 14 days
+        // and the per-day required by
+        // coverage). Nothing should surface.
+        val oneOldMoment = listOf(m(valence = 4, day = today.minusDays(30)))
+        assertTrue(CheckInPatterns.compute(oneOldMoment, today).isEmpty())
     }
 
     @Test
@@ -123,13 +127,14 @@ class CheckInPatternsTest {
 
     @Test
     fun `coverage returns the answered count and the expected denominator`() {
-        // 5 answered in the trailing 7 days;
-        // total moments is 30, so
-        // expectedPromptsPerDay is 2, so
-        // expected is 14.
+        // 5 answered in the trailing 7 days
+        // (days 1-5), and 25 answered in the
+        // 8-30 days before. Total = 30, so
+        // expectedPromptsPerDay is 2 (>= 30
+        // case), so expected is 14.
         val moments = mutableListOf<Moment>()
         for (i in 1..5) moments += m(valence = 4, day = today.minusDays(i.toLong()))
-        for (i in 6..30) moments += m(valence = 4, day = today.minusDays(i.toLong()))
+        for (i in 8..30) moments += m(valence = 4, day = today.minusDays(i.toLong()))
         val insights = CheckInPatterns.compute(moments, today)
         val cov = insights.filterIsInstance<Insight.Coverage>().single()
         assertEquals(5, cov.answered)
@@ -138,13 +143,26 @@ class CheckInPatternsTest {
 
     @Test
     fun `vs baseline returns SAME when today's value is within half a MAD of the median`() {
-        // Build a 14-day baseline with median
-        // 3 and a tight MAD. The "today"
-        // (yesterday) value is also 3, well
-        // inside 0.5 MAD.
+        // 14-day baseline shaped to give a
+        // robust median of 3 and a non-zero
+        // MAD. The pattern below (cycles of
+        // 1, 2, 3, 4, 5) yields median 3 and
+        // MAD 1 — half the deviations are 0
+        // and the other half are 1 or 2, so
+        // the median deviation is 1. The
+        // "today" value (a moment dated today
+        // itself, which sits outside the
+        // trailing-14-day baseline window) is
+        // also 3 — well inside 0.5 MAD.
+        val pattern = listOf(1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4)
         val moments = mutableListOf<Moment>()
-        for (i in 2..15) moments += m(valence = 3, day = today.minusDays(i.toLong()))
-        moments += m(valence = 3, day = today.minusDays(1))
+        for (i in 1..14) {
+            moments += m(
+                valence = pattern[i - 1],
+                day = today.minusDays(i.toLong()),
+            )
+        }
+        moments += m(valence = 3, day = today)
         val insights = CheckInPatterns.compute(moments, today)
         val vs = insights.filterIsInstance<Insight.VsBaseline>().single()
         assertEquals(TrendDirection.SAME, vs.direction)
@@ -152,11 +170,20 @@ class CheckInPatternsTest {
 
     @Test
     fun `vs baseline returns BRIGHTER when today's value is more than half a MAD above the median`() {
-        // Baseline is 3 with a tight MAD; today
-        // is 5. The z is large positive.
+        // Same baseline as the SAME test
+        // (median 3, MAD 1). Today is 5,
+        // which is 2.0 MADs above the median
+        // — well above the 0.5 MAD threshold
+        // for "brighter".
+        val pattern = listOf(1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4)
         val moments = mutableListOf<Moment>()
-        for (i in 2..15) moments += m(valence = 3, day = today.minusDays(i.toLong()))
-        moments += m(valence = 5, day = today.minusDays(1))
+        for (i in 1..14) {
+            moments += m(
+                valence = pattern[i - 1],
+                day = today.minusDays(i.toLong()),
+            )
+        }
+        moments += m(valence = 5, day = today)
         val insights = CheckInPatterns.compute(moments, today)
         val vs = insights.filterIsInstance<Insight.VsBaseline>().single()
         assertEquals(TrendDirection.BRIGHTER, vs.direction)

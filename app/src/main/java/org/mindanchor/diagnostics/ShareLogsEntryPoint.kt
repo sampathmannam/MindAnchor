@@ -35,10 +35,19 @@ object ShareLogsEntryPoint {
      * so the user can pick a recipient (email,
      * messaging, drive, etc.) without the app
      * having to enumerate.
+     *
+     * v0.28+ (Phase 3 G-35): the share intent surfaces
+     * a *scrubbed* sibling of the current log, not
+     * the log itself. [LogScrubber] redacts phone
+     * numbers, email addresses, and held-notification
+     * bodies before the URI is shared. The original
+     * log is never modified.
      */
     fun buildShareIntent(context: Context, logFile: File): Intent {
+        val scrubbed = File(logFile.parentFile, "log-scrubbed.txt")
+        LogScrubber.scrubTo(logFile, scrubbed)
         val authority = context.packageName + ".fileprovider"
-        val uri = FileProvider.getUriForFile(context, authority, logFile)
+        val uri = FileProvider.getUriForFile(context, authority, scrubbed)
         val send = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
             putExtra(Intent.EXTRA_STREAM, uri)
