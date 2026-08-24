@@ -1,0 +1,35 @@
+v0.26.0 — the protective layer release
+
+What's new:
+
+* Friction bandit: per-app posteriors persist across reboots; nightly WorkManager reset.
+* Notification diet card: trailing-7-day release count, Mark 2005 23-min cost.
+* Morning self-compassion break: 90-second ritual, opt-in.
+* BA weekly prompt: mastery + pleasure picker, Dimidjian 2006 anchor.
+* Compassionate wrap: 30-min session → 1-tap offer, Snackbar + auto-captured Note.
+* DEAR MAN / GIVE / FAST: long-press Anchor Note, Linehan 1993 anchor.
+* Going Light v1.1: first-time consent card.
+* On-device LLM compassionate reframe: long-press any Letter.
+* n-of-1 weekly pattern discovery: one-sentence composer, 14-day floor.
+* Wind-down mode: warm colour temperature after 21:00, opt-in.
+* Expressive writing prompt: 3-sentence Pennebaker 1997 entry point.
+* Privacy flow card: 4 sections, plain language.
+* TIPP crisis-survival card: 4 options + clinical-review-passed contraindications.
+* Log scrubber: phone/email/held-notification body redaction before share.
+* Clinical-review gate: CI test for the clinical-review wordlist.
+
+Bug fixes:
+
+* Manifest: removed dead PulseActivity + PulseReminderReceiver references.
+* Friction: per-arm posterior persistence is now HMAC-SHA256 sealed (no hand-edit).
+
+Verifications:
+
+* :app:assembleDebug, :app:testDebugUnitTest, :app:lintDebug — all green.
+* No new network endpoints.
+* No clinical-review-gated wording changed (R2/R3/R4/R6 are R-pending-clinician-sign-off).
+
+Build artifacts:
+
+* app/build/outputs/apk/release/app-release-unsigned.apk
+* app/build/outputs/apk/debug/app-debug.apk
