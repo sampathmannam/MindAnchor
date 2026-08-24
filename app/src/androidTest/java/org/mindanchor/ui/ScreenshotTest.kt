@@ -22,7 +22,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mindanchor.launcher.LauncherRoot
 import org.mindanchor.onboarding.OnboardingScreen
-import org.mindanchor.pulse.PulseScreen
 import org.mindanchor.report.ReportScreen
 import org.mindanchor.settings.SettingsScreen
 import org.mindanchor.support.SupportScreen
@@ -144,7 +143,12 @@ class ScreenshotTest {
     fun support() = shoot("support") { SupportScreen(onClose = {}) }
 
     @Test
-    fun pulse() = shoot("pulse") { PulseScreen(onClose = {}) }
+    fun pulse() {
+        // v0.26+ (pulse removal): the WHO-5
+        // pulse feature was removed; the
+        // screenshot entry is dropped because
+        // the surface no longer ships.
+    }
 
     @Test
     fun settings() = shoot("settings") {

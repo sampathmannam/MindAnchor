@@ -13,34 +13,19 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 
-/**
- * The Groq provider. The wire format is OpenAI-compatible:
- * POST {baseUrl}/chat/completions with a JSON body of
- *   { "model": "...", "messages": [...], "temperature": 0.7, "max_tokens": 600 }
- * and a Bearer Authorization header.
- *
- * The OkHttp client is built with a 30-second call timeout
- * (the [LetterError.Timeout] case) and a 10-second connect
- * timeout (the [LetterError.NetworkUnreachable] case).
- *
- * The [baseUrl] parameter is overridable so the unit test
- * can point at a [okhttp3.mockwebserver.MockWebServer] on
- * localhost. Production callers leave it default
- * ([BASE_URL]).
- */
-class GroqClient(
+class OpenAiCompatibleClient(
     private val apiKey: String,
     private val model: String,
-    private val httpClient: OkHttpClient = defaultGroqClient(),
-    private val baseUrl: String = BASE_URL,
+    private val baseUrl: String,
+    private val httpClient: OkHttpClient = defaultClient(),
 ) : LlmClient {
 
     override suspend fun complete(req: LlmRequest): Result<LlmResponse> = withContext(Dispatchers.IO) {
         runCatching {
             val started = System.currentTimeMillis()
-            val body = GroqRequestBody(
+            val body = OpenAiRequestBody(
                 model = model,
-                messages = req.messages.map { it.toGroq() },
+                messages = req.messages.map { it.toOpenAi() },
                 temperature = req.temperature,
                 max_tokens = req.maxTokens,
             ).toJson()
@@ -57,11 +42,9 @@ class GroqClient(
 
     override suspend fun testConnection(): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
-            val body = GroqRequestBody(
+            val body = OpenAiRequestBody(
                 model = model,
-                messages = listOf(
-                    GroqMessage(role = "user", content = "OK"),
-                ),
+                messages = listOf(OpenAiMessage(role = "user", content = "OK")),
                 temperature = 0.0,
                 max_tokens = 1,
             ).toJson()
@@ -86,21 +69,15 @@ class GroqClient(
         }
         val raw = response.body?.string().orEmpty()
         val parsed = try {
-            json.decodeFromString(GroqResponseBody.serializer(), raw)
+            json.decodeFromString(OpenAiResponseBody.serializer(), raw)
         } catch (e: Exception) {
             throw LetterError.Unknown()
         }
-        val content = parsed.choices.firstOrNull()?.message?.content
-            ?: throw LetterError.Unknown()
+        val content = parsed.choices.firstOrNull()?.message?.content ?: throw LetterError.Unknown()
         val promptTokens = parsed.usage?.prompt_tokens ?: 0
         val completionTokens = parsed.usage?.completion_tokens ?: 0
         val durationMs = System.currentTimeMillis() - started
-        return LlmResponse(
-            content = content,
-            promptTokens = promptTokens,
-            completionTokens = completionTokens,
-            durationMs = durationMs,
-        )
+        return LlmResponse(content = content, promptTokens = promptTokens, completionTokens = completionTokens, durationMs = durationMs)
     }
 
     private fun mapHttpStatusToLetterError(code: Int, body: String): LetterError = when (code) {
@@ -121,56 +98,38 @@ class GroqClient(
     }
 
     @Serializable
-    private data class GroqRequestBody(
-        val model: String,
-        val messages: List<GroqMessage>,
-        val temperature: Double,
-        val max_tokens: Int,
-    )
+    private data class OpenAiRequestBody(val model: String, val messages: List<OpenAiMessage>, val temperature: Double, val max_tokens: Int)
 
     @Serializable
-    private data class GroqMessage(
-        val role: String,
-        val content: String,
-    )
+    private data class OpenAiMessage(val role: String, val content: String)
 
     @Serializable
-    private data class GroqResponseBody(
-        val choices: List<GroqChoice> = emptyList(),
-        val usage: GroqUsage? = null,
-    )
+    private data class OpenAiResponseBody(val choices: List<OpenAiChoice> = emptyList(), val usage: OpenAiUsage? = null)
 
     @Serializable
-    private data class GroqChoice(
-        val message: GroqMessage,
-    )
+    private data class OpenAiChoice(val message: OpenAiMessage)
 
     @Serializable
-    private data class GroqUsage(
-        val prompt_tokens: Int = 0,
-        val completion_tokens: Int = 0,
-    )
+    private data class OpenAiUsage(val prompt_tokens: Int = 0, val completion_tokens: Int = 0)
 
-    private fun GroqRequestBody.toJson(): String = json.encodeToString(
-        GroqRequestBody.serializer(),
-        this,
-    )
+    private fun OpenAiRequestBody.toJson(): String = json.encodeToString(OpenAiRequestBody.serializer(), this)
 
-    private fun LlmMessage.toGroq(): GroqMessage = when (this) {
-        is LlmMessage.System -> GroqMessage(role = "system", content = content)
-        is LlmMessage.User -> GroqMessage(role = "user", content = content)
-        is LlmMessage.Assistant -> GroqMessage(role = "assistant", content = content)
+    private fun LlmMessage.toOpenAi(): OpenAiMessage = when (this) {
+        is LlmMessage.System -> OpenAiMessage(role = "system", content = content)
+        is LlmMessage.User -> OpenAiMessage(role = "user", content = content)
+        is LlmMessage.Assistant -> OpenAiMessage(role = "assistant", content = content)
     }
 
     companion object {
-        const val BASE_URL = "https://api.groq.com/openai/v1/"
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
         private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
-        fun defaultGroqClient(): OkHttpClient = OkHttpClient.Builder()
+        fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
             .callTimeout(30, TimeUnit.SECONDS)
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .build()
     }
 }
+
+typealias GroqClient = OpenAiCompatibleClient

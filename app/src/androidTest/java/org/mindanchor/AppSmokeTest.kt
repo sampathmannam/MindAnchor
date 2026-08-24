@@ -7,7 +7,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mindanchor.digest.DigestActivity
-import org.mindanchor.pulse.PulseActivity
 import org.mindanchor.support.SupportActivity
 
 /**
@@ -54,13 +53,6 @@ class AppSmokeTest {
     @Test
     fun digestActivityOpens() {
         ActivityScenario.launch(DigestActivity::class.java).use { scenario ->
-            assertEquals(Lifecycle.State.RESUMED, scenario.state)
-        }
-    }
-
-    @Test
-    fun pulseActivityOpens() {
-        ActivityScenario.launch(PulseActivity::class.java).use { scenario ->
             assertEquals(Lifecycle.State.RESUMED, scenario.state)
         }
     }

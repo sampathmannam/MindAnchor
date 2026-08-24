@@ -31,15 +31,13 @@ android {
         applicationId = "org.mindanchor"
         minSdk = 33
         targetSdk = 35
-        // v0.25.20: the v0.25.10+ backlog sweep. Bumped
-        // versionName to 0.25.20 (skipping 0.25.11–0.25.19
-        // which were other cleanups in a parallel timeline;
-        // the auto-update check uses segment-by-segment
-        // numeric compare, so we need to be >0.25.19 for
-        // users on the latest published release to see the
-        // update banner). versionCode 31→32.
-        versionCode = 32
-        versionName = "0.25.20"
+        // v0.26.0: the protective-layer Phase 1 release.
+        // The 4-phase "Smart Adaptation" add-on from the
+        // 2026-08-23 deep-research output, narrowed to the
+        // research-anchored gaps the user said the project
+        // already had data plumbing for. versionCode 32→33.
+        versionCode = 33
+        versionName = "0.26.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every

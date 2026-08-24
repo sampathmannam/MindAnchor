@@ -98,7 +98,7 @@ object LetterContext {
         )
 
         return LlmRequest(
-            model = GroqModels.DEFAULT,
+            model = LlmProvider.GOOGLE_AI_STUDIO.defaultModel,
             messages = listOf(
                 LlmMessage.System(LetterPrompt.SYSTEM_PROMPT),
                 LlmMessage.User(userPrompt),

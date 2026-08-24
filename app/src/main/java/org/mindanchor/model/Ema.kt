@@ -3,6 +3,60 @@ package org.mindanchor.model
 import java.time.LocalTime
 
 /**
+ * The momentary-affect assessment that powers the
+ * "Ask me how I am" check-ins.
+ *
+ * ## What the design is grounded in
+ *
+ * v0.26+ (user request 2026-08-24):
+ * the check-in design now wears its evidence
+ * anchor. The two axes (valence × arousal) and
+ * the prompt cadence (scattered, signal-contingent,
+ * tapered) are not inventions — they are the
+ * standard momentary-assessment instrument
+ * described in:
+ *
+ *  - Russell, J. A. (1980). A circumplex model of
+ *    affect. *Journal of Personality and Social
+ *    Psychology, 39*(6), 1161–1178.
+ *    The two axes this file prompts on.
+ *  - Csikszentmihalyi, M., & Hunter, J. (2003).
+ *    Happiness in everyday life: The uses of
+ *    experience sampling. *Journal of Happiness
+ *    Studies, 4*(2), 185–199.
+ *    The methodology: in-the-moment, in-context,
+ *    signal-contingent, not retrospective.
+ *  - Shiffman, S., Stone, A. A., & Hufford, M. R.
+ *    (2008). Ecological momentary assessment. *
+ *    Annual Review of Clinical Psychology, 4*, 1–32.
+ *    The design rules: short, random within
+ *    blocks, low burden, no retrospective
+ *    reconstruction.
+ *
+ * The "Why is this here?" question on the settings
+ * screen is answered in the same language: a one-line
+ * string that points the user to Russell 1980 rather
+ * than describing the model in our own words. The
+ * detail above is the contract this file makes with
+ * anyone who wants to verify the design — a
+ * finding-test pins the citation so a future
+ * re-design that drops the evidence anchor is
+ * caught at review time.
+ *
+ * ## What the design deliberately does not do
+ *
+ * Per the v0.26+ scope, this file does not score
+ * the moments, does not compare them to a norm,
+ * and does not produce a single composite "mood"
+ * number. The patterns dashboard
+ * ([org.mindanchor.insights.CheckInPatterns]) reads
+ * the raw moments and surfaces descriptive
+ * comparisons against the user's own baseline, in
+ * the same N-of-1 framing the rest of the launcher
+ * uses.
+ */
+
+/**
  * A moment, as reported by the person living it.
  *
  * Two axes rather than one, following the circumplex model that most

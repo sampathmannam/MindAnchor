@@ -9,12 +9,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
-/**
- * Round-trip the BYOK API key + provider + model through
- * the real DataStore. The test uses Robolectric so the
- * DataStore extension delegate can resolve a real
- * Android Context (the unit-test JVM doesn't have one).
- */
 @RunWith(RobolectricTestRunner::class)
 class LlmPrefsTest {
 
@@ -27,8 +21,8 @@ class LlmPrefsTest {
     }
 
     @Test
-    fun `default provider is GROQ`() = runBlocking {
-        assertEquals(LlmProvider.GROQ, prefs.provider.first())
+    fun `default provider is GOOGLE_AI_STUDIO`() = runBlocking {
+        assertEquals(LlmProvider.GOOGLE_AI_STUDIO, prefs.provider.first())
     }
 
     @Test
@@ -37,27 +31,39 @@ class LlmPrefsTest {
     }
 
     @Test
-    fun `default model is GroqModels DEFAULT`() = runBlocking {
-        assertEquals(GroqModels.DEFAULT, prefs.model.first())
+    fun `default model is the recommended provider's default`() = runBlocking {
+        assertEquals(
+            LlmProvider.GOOGLE_AI_STUDIO.defaultModel,
+            prefs.model.first(),
+        )
     }
 
     @Test
     fun `setApiKey then read returns the same key`() = runBlocking {
-        prefs.setApiKey("gsk_test_abc123")
-        assertEquals("gsk_test_abc123", prefs.apiKey.first())
+        prefs.setApiKey("test-key-abc")
+        assertEquals("test-key-abc", prefs.apiKey.first())
     }
 
     @Test
     fun `setModel then read returns the same model`() = runBlocking {
-        prefs.setModel(GroqModels.LLAMA_8B)
-        assertEquals(GroqModels.LLAMA_8B, prefs.model.first())
+        val newModel = LlmProvider.GOOGLE_AI_STUDIO.suggestedModels[1]
+        prefs.setModel(newModel)
+        assertEquals(newModel, prefs.model.first())
+    }
+
+    @Test
+    fun `setProvider round-trips for all three values`() = runBlocking {
+        for (p in LlmProvider.values()) {
+            prefs.setProvider(p)
+            assertEquals(p, prefs.provider.first())
+        }
     }
 
     @Test
     fun `setLastTestResult then read returns the same result`() = runBlocking {
         val result = LlmTestResult(
             success = true,
-            message = "Connected · Groq · llama-3.3-70b",
+            message = "Connected · Google AI Studio · gemini-2.0-flash",
             testedAtMillis = 1_700_000_000_000L,
         )
         prefs.setLastTestResult(result)
@@ -67,7 +73,7 @@ class LlmPrefsTest {
 
     @Test
     fun `clear wipes the api key and the test result`() = runBlocking {
-        prefs.setApiKey("gsk_to_be_cleared")
+        prefs.setApiKey("key-to-clear")
         prefs.setLastTestResult(LlmTestResult(true, "ok", 1L))
         prefs.reset()
         assertEquals("", prefs.apiKey.first())

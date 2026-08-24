@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
@@ -88,6 +90,20 @@ import java.text.NumberFormat
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
+
+/**
+ * The Health Connect package id and the system intent
+ * action that opens its main activity. Used as a
+ * fallback when the SDK\'s
+ * [androidx.health.connect.client.PermissionController]
+ * contract fails to dispatch — see the v0.26+ fix on
+ * the Wearable section\'s "Connect to your watch"
+ * button. The constants are file-local so a future
+ * migration to a different provider (e.g. Health
+ * Services on Wear OS) has a single point of change.
+ */
+private const val HEALTH_CONNECT_PACKAGE = "com.google.android.apps.healthdata"
+private const val HEALTH_CONNECT_MAIN_ACTION = "androidx.health.ACTION_HEALTH_CONNECT_HOME"
 
 /**
  * A section title, marked when the person named a reason for it.
@@ -669,7 +685,8 @@ fun SettingsScreen(
                 marked = GoalMap.isChosen(SettingsSection.BATCHING, goals) ||
                     GoalMap.isChosen(SettingsSection.SUNSET, goals) ||
                     GoalMap.isChosen(SettingsSection.GRAYSCALE, goals) ||
-                    GoalMap.isChosen(SettingsSection.OWNER, goals),
+                    GoalMap.isChosen(SettingsSection.OWNER, goals) ||
+                    GoalMap.isChosen(SettingsSection.GOING_LIGHT, goals),
                 onClick = { group = SettingsGroup.QUIET },
             )
             GroupRow(
@@ -682,13 +699,23 @@ fun SettingsScreen(
                 titleRes = R.string.settings_group_measuring,
                 descriptionRes = R.string.settings_group_measuring_desc,
                 marked = GoalMap.isChosen(SettingsSection.SLEEP, goals) ||
-                    GoalMap.isChosen(SettingsSection.PULSE, goals),
+                    GoalMap.isChosen(SettingsSection.HEALTH_CONNECT, goals),
                 onClick = { group = SettingsGroup.MEASURING },
             )
             GroupRow(
                 titleRes = R.string.settings_group_reading,
                 descriptionRes = R.string.settings_group_reading_desc,
-                marked = GoalMap.isChosen(SettingsSection.PULSE, goals),
+                // v0.26+ (pulse removal): PULSE was the only
+                // goal-mapped section in READING. With pulse
+                // removed, no onboarding goal maps here, so
+                // the group is never marked. The READING
+                // items (letters, reading size, report,
+                // corpus, model, ema) are not goal-mapped
+                // individually either, which means the
+                // marker was a single-purpose hook for the
+                // pulse feature. Removed in the same pass
+                // that removed pulse.
+                marked = false,
                 onClick = { group = SettingsGroup.READING },
             )
             GroupRow(
@@ -1155,6 +1182,108 @@ fun SettingsScreen(
         }
 
         if (group == SettingsGroup.PAUSES) {
+            // v0.26+ (Phase 1 G-22, G-21, G-19) — the
+            // protective-layer rituals. Three opt-in
+            // toggles, all default OFF (the project's
+            // opt-out-by-silence rule):
+            //
+            //   - G-22: the Friday-evening BA weekly prompt.
+            //     Dimidjian 2006 RCT, N=241, BA > CBT for
+            //     severe depression at 2/3/6 months.
+            //   - G-21: the morning self-compassion break.
+            //     Neff 2003; Linardon 2020 meta (27 RCTs,
+            //     g=0.31 self-compassion).
+            //   - G-19: the compassionate wrap on long
+            //     sessions. Mark 2005 23-min
+            //     interruption-recovery cost is the
+            //     citation in the home-card footnote.
+            //
+            // Each toggle is a one-tap switch; the
+            // clinical-review-passed copy is in strings.xml
+            // and reads "if it would help" — never
+            // "you should". The same opt-in family the
+            // morning-compassion card and the BA picker
+            // use on the home surface.
+
+            // BA weekly prompt
+            val baPrompt by viewModel.baPromptEnabled.collectAsState()
+            SettingsRowSwitch(
+                title = stringResource(R.string.settings_ba_prompt_title),
+                subtitle = stringResource(R.string.settings_ba_prompt_subtitle),
+                checked = baPrompt,
+                onCheckedChange = { viewModel.setBaPromptEnabled(it) },
+            )
+
+            // Morning self-compassion break
+            val morningCompassion by viewModel.morningCompassionEnabled.collectAsState()
+            SettingsRowSwitch(
+                title = stringResource(R.string.settings_morning_compassion_title),
+                subtitle = stringResource(R.string.settings_morning_compassion_subtitle),
+                checked = morningCompassion,
+                onCheckedChange = { viewModel.setMorningCompassionEnabled(it) },
+            )
+
+            // Compassionate wrap
+            val compassionateWrap by viewModel.compassionateWrapEnabled.collectAsState()
+            SettingsRowSwitch(
+                title = stringResource(R.string.settings_compassionate_wrap_title),
+                subtitle = stringResource(R.string.settings_compassionate_wrap_subtitle),
+                checked = compassionateWrap,
+                onCheckedChange = { viewModel.setCompassionateWrapEnabled(it) },
+            )
+
+            // v0.28+ (Phase 3 G-8) — the expressive-writing
+            // prompt. Pennebaker 1997 minimum-dosage
+            // 3-sentence entry point.
+            val expressiveWriting by viewModel.expressiveWritingEnabled.collectAsState()
+            SettingsRowSwitch(
+                title = stringResource(R.string.settings_expressive_writing_title),
+                subtitle = stringResource(R.string.settings_expressive_writing_subtitle),
+                checked = expressiveWriting,
+                onCheckedChange = { viewModel.setExpressiveWritingEnabled(it) },
+            )
+
+            // v0.28+ (Phase 3 G-26) — the wind-down card.
+            val windDown by viewModel.windDownEnabled.collectAsState()
+            SettingsRowSwitch(
+                title = stringResource(R.string.settings_wind_down_title),
+                subtitle = stringResource(R.string.settings_wind_down_subtitle),
+                checked = windDown,
+                onCheckedChange = { viewModel.setWindDownEnabled(it) },
+            )
+
+            // v0.28+ (Phase 3 G-29) — the gratitude card.
+            // Seligman 2005 active-constructive response.
+            val gratitude by viewModel.gratitudeEnabled.collectAsState()
+            SettingsRowSwitch(
+                title = stringResource(R.string.settings_gratitude_title),
+                subtitle = stringResource(R.string.settings_gratitude_subtitle),
+                checked = gratitude,
+                onCheckedChange = { viewModel.setGratitudeEnabled(it) },
+            )
+
+            // v0.29+ (Phase 4 G-6) — the push-up mode.
+            // Hauck 2020 anchor.
+            val pushUpMode by viewModel.pushUpModeEnabled.collectAsState()
+            SettingsRowSwitch(
+                title = stringResource(R.string.settings_push_up_mode_title),
+                subtitle = stringResource(R.string.settings_push_up_mode_subtitle),
+                checked = pushUpMode,
+                onCheckedChange = { viewModel.setPushUpModeEnabled(it) },
+            )
+
+            // v0.29+ (Phase 4 G-28) — the voice journal.
+            // whisper.cpp on-device, ~75 MB APK cost.
+            val voiceJournal by viewModel.voiceJournalEnabled.collectAsState()
+            SettingsRowSwitch(
+                title = stringResource(R.string.settings_voice_journal_title),
+                subtitle = stringResource(R.string.settings_voice_journal_subtitle),
+                checked = voiceJournal,
+                onCheckedChange = { viewModel.setVoiceJournalEnabled(it) },
+            )
+        }
+
+        if (group == SettingsGroup.PAUSES) {
             // --- Where the pause applies ---
             //
             // The pause used to exist only inside this launcher, which meant it
@@ -1208,8 +1337,55 @@ fun SettingsScreen(
         }
 
         if (group == SettingsGroup.QUIET) {
-            // --- Sunset mode (F4) ---
+            // --- QUIET-group status row (v0.26+) ---
+            //
+            // The QUIET group spans three independent features
+            // (sunset, enforced, colour) plus Going Light. Until
+            // v0.26+ the user had to read each section to know
+            // what was on. This row states the three that have
+            // an in-app or adb-gated state in one glance so
+            // the screen stops reading as a stack of half-built
+            // toggles. Going Light is intentionally omitted —
+            // it is visible a few screens below, and the row
+            // is for the triad the user toggles from here.
+            //
+            // The keys are read fresh on every resume via
+            // permissionEpoch so a user who runs the adb
+            // command and comes back here sees the new state
+            // without restarting the app.
+            val isOwner = remember(permissionEpoch) { DeviceOwner.isDeviceOwner(context) }
+            val grayscaleGranted = remember(permissionEpoch) { Grayscale.isGranted(context) }
             val sunsetEnabled by viewModel.sunsetEnabled.collectAsState()
+            Column(modifier = Modifier.padding(top = 8.dp, bottom = 16.dp)) {
+                Text(
+                    text = stringResource(R.string.quiet_status_label),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = stringResource(
+                        if (sunsetEnabled) R.string.quiet_status_sunset_on
+                        else R.string.quiet_status_sunset_off,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Text(
+                    text = stringResource(
+                        if (isOwner) R.string.quiet_status_enforced_on
+                        else R.string.quiet_status_enforced_off,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Text(
+                    text = stringResource(
+                        if (grayscaleGranted) R.string.quiet_status_colour_on
+                        else R.string.quiet_status_colour_off,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+
+            // --- Sunset mode (F4) ---
             SectionHeading(R.string.sunset_section, SettingsSection.SUNSET, goals)
             Text(
                 text = stringResource(R.string.sunset_explainer),
@@ -1310,6 +1486,50 @@ fun SettingsScreen(
                         modifier = Modifier.weight(1f),
                     )
                     Switch(checked = sunsetEnabled, onCheckedChange = null)
+                }
+
+                // "Try it now" trial (v0.26+). The wind-down
+                // toggle is invisible without a feedback
+                // loop — the user cannot tell at 10am
+                // whether the feature is doing what they
+                // expect at 22:00. The trial runs the
+                // priority-only interruption filter for
+                // 60 seconds, shows a countdown, and
+                // reverts. Greyscale is engaged only when
+                // the user has opted into grey nights AND
+                // the OS permission is in place; a
+                // one-off trial never silently turns the
+                // screen grey for someone who never asked
+                // for that. The button is the
+                // trust-but-verify affordance for the
+                // whole QUIET group.
+                val trial by viewModel.sunsetTrialState.collectAsState()
+                when (val t = trial) {
+                    is SunsetTrialState.Idle -> {
+                        TextButton(
+                            onClick = { viewModel.startSunsetTrial() },
+                            modifier = Modifier.padding(top = 4.dp),
+                        ) {
+                            Text(stringResource(R.string.try_it_now))
+                        }
+                    }
+                    is SunsetTrialState.Running -> {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = stringResource(R.string.try_it_now_running, t.remainingSeconds),
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f),
+                            )
+                            TextButton(onClick = { viewModel.cancelSunsetTrial() }) {
+                                Text(stringResource(R.string.try_it_now_stop))
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1486,27 +1706,6 @@ fun SettingsScreen(
             }
         }
 
-        if (group == SettingsGroup.MEASURING) {
-            // --- Wellbeing pulse (F7) ---
-            SectionHeading(R.string.pulse_section, SettingsSection.PULSE, goals)
-            Text(
-                text = stringResource(R.string.pulse_section_explainer),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            TextButton(
-                onClick = {
-                    runCatching {
-                        context.startActivity(
-                            Intent(context, org.mindanchor.pulse.PulseActivity::class.java),
-                        )
-                    }
-                },
-            ) {
-                Text(stringResource(R.string.pulse_take))
-            }
-        }
-
         if (group == SettingsGroup.READING) {
             // --- Daily letter (v0.25.2-A) ---
             //
@@ -1526,7 +1725,7 @@ fun SettingsScreen(
             // `unreadCount > 0` for the same reason — a button
             // that says "Open inbox (0)" reads as a stat
             // rather than an affordance.
-            SectionHeading(R.string.letters_section, SettingsSection.PULSE, goals)
+            SectionHeading(R.string.letters_section, null, goals)
             Text(
                 text = stringResource(R.string.letters_explainer),
                 style = MaterialTheme.typography.bodySmall,
@@ -1619,7 +1818,7 @@ fun SettingsScreen(
             // not yet opened a letter can still pick a size. The
             // A- / A / A+ labels are locale-safe and RTL-safe; the
             // control is the same on every device, every locale.
-            SectionHeading(R.string.reading_size_section, SettingsSection.PULSE, goals)
+            SectionHeading(R.string.reading_size_section, null, goals)
             Text(
                 text = stringResource(R.string.reading_size_explainer),
                 style = MaterialTheme.typography.bodySmall,
@@ -1656,7 +1855,7 @@ fun SettingsScreen(
             // up what the research says the thing measured actually is. See
             // ReportComposer for why it never joins those two together, and
             // ReportScheduler for why an ordinary, quiet night is success too.
-            SectionHeading(R.string.report_section, SettingsSection.PULSE, goals)
+            SectionHeading(R.string.report_section, null, goals)
             Text(
                 text = stringResource(R.string.report_explainer),
                 style = MaterialTheme.typography.bodySmall,
@@ -1718,7 +1917,7 @@ fun SettingsScreen(
             // an update; the research should not have to wait on one, nor be
             // limited to what one person thought to include. See CorpusImport
             // for why an import merges rather than replaces.
-            SectionHeading(R.string.corpus_section, SettingsSection.PULSE, goals)
+            SectionHeading(R.string.corpus_section, null, goals)
             Text(
                 text = stringResource(R.string.corpus_explainer),
                 style = MaterialTheme.typography.bodySmall,
@@ -1803,7 +2002,7 @@ fun SettingsScreen(
             // does not yet make any writing happen; it records the file and,
             // exactly like ModelSlot was built to, reports honestly whether
             // this phone has enough memory to run it once an engine exists.
-            SectionHeading(R.string.model_section, SettingsSection.PULSE, goals)
+            SectionHeading(R.string.model_section, null, goals)
             Text(
                 text = stringResource(R.string.model_explainer),
                 style = MaterialTheme.typography.bodySmall,
@@ -1884,15 +2083,36 @@ fun SettingsScreen(
         if (group == SettingsGroup.MEASURING) {
             // --- Check-ins (EMA) ---
             //
-            // The other half of "Labels" alongside the pulse above: a handful
-            // of taps a day rather than a fortnightly instrument. The count
-            // is stated plainly and never as a target — a skipped prompt is
-            // normal, not a shortfall, so nothing here is styled as a streak.
-            SectionHeading(R.string.ema_section, SettingsSection.PULSE, goals)
+            // A handful of taps a day rather than a
+            // fortnightly instrument. The count is
+            // stated plainly and never as a target
+            // — a skipped prompt is normal, not a
+            // shortfall, so nothing here is styled
+            // as a streak.
+            //
+            // v0.26+ (user request): the research
+            // anchor is shown on the screen, not
+            // only in the code. The one-line
+            // ema_research_link string cites the
+            // model the two axes come from (Russell
+            // 1980). The full citations — Russell
+            // 1980, Csikszentmihalyi & Hunter 2003,
+            // Shiffman, Stone & Hufford 2008 —
+            // are in the Ema.kt KDoc and pinned by
+            // a finding test so a future re-design
+            // that drops the evidence anchor is
+            // caught at review time.
+            SectionHeading(R.string.ema_section, null, goals)
             Text(
                 text = stringResource(R.string.ema_explainer),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = stringResource(R.string.ema_research_link),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
             )
             val emaEnabled by viewModel.emaEnabled.collectAsState()
             Row(
@@ -1938,6 +2158,24 @@ fun SettingsScreen(
                 ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            // v0.26+: the "What your check-ins show"
+            // insights section. The text-only patterns
+            // dashboard the user asked for on 2026-08-24.
+            // The section is gated on [emaEnabled] so a
+            // user with the toggle off does not see a
+            // section that cannot update. The engine
+            // ([org.mindanchor.insights.CheckInPatterns])
+            // is a pure function over the user's
+            // collected [org.mindanchor.model.Moment]s;
+            // the wording is in strings.xml and
+            // pinned by a finding test.
+            org.mindanchor.insights.CheckInInsightsSection(
+                momentStore = org.mindanchor.model.MomentStore(
+                    context.applicationContext,
+                ),
+                isEnabled = emaEnabled,
             )
         }
 
@@ -2135,19 +2373,66 @@ fun SettingsScreen(
                 val buttonLabelRes =
                     if (s.granted == 0) R.string.health_connect_button_connect
                     else R.string.health_connect_button_change
+                // v0.26+: the SDK\'s permission contract is the
+                // canonical path, but on a phone where Health
+                // Connect is installed but disabled, background-
+                // restricted, or hung, the contract can fail
+                // without a synchronous exception — the
+                // ActivityResultLauncher simply never receives a
+                // result and the user sees nothing. The fix is
+                // a three-step fallback: try the SDK launcher
+                // first, then a direct intent to the Health
+                // Connect app\'s main activity (so the user can
+                // grant permissions manually from the app\'s
+                // own UI), then the Play Store listing as a last
+                // resort. Every step that throws is logged and
+                // shown in [hcLaunchError] so the failure mode
+                // is never silent again.
                 TextButton(
                     onClick = {
-                        // v0.25.3-WP-B: runCatching surfaces a launch
-                        // failure instead of swallowing it. The Log.w
-                        // gives a known handle for adb logcat.
                         Log.w("MindAnchor/HealthConnect", "launch requested")
-                        runCatching {
+                        val primary = runCatching {
                             healthConnectPermissionLauncher.launch(
                                 HealthConnectSource.effectivePermissions(context),
                             )
-                        }.onFailure { t ->
-                            Log.e("MindAnchor/HealthConnect", "launch failed: " + t.javaClass.simpleName, t)
-                            hcLaunchError = t.javaClass.simpleName
+                            true
+                        }
+                        if (primary.getOrNull() == true) {
+                            hcLaunchError = null
+                            return@TextButton
+                        }
+                        // Primary launch failed. Try opening
+                        // Health Connect directly so the user
+                        // has a path even when the SDK contract
+                        // is wedged.
+                        val fallbackOpen = runCatching {
+                            val intent = Intent(HEALTH_CONNECT_MAIN_ACTION)
+                                .addCategory(Intent.CATEGORY_DEFAULT)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            context.startActivity(intent)
+                            true
+                        }
+                        if (fallbackOpen.getOrNull() == true) {
+                            hcLaunchError = null
+                            return@TextButton
+                        }
+                        // Both failed — the HC app is probably
+                        // missing or disabled. Open the Play
+                        // Store listing as a last resort.
+                        val playStore = runCatching {
+                            val intent = Intent(
+                                Intent.ACTION_VIEW,
+                                "https://play.google.com/store/apps/details?id=$HEALTH_CONNECT_PACKAGE".toUri(),
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            context.startActivity(intent)
+                            true
+                        }
+                        val failure = primary.exceptionOrNull()
+                            ?: fallbackOpen.exceptionOrNull()
+                            ?: playStore.exceptionOrNull()
+                        if (failure != null) {
+                            Log.e("MindAnchor/HealthConnect", "all three launches failed; last error: " + failure.javaClass.simpleName, failure)
+                            hcLaunchError = failure.javaClass.simpleName
                         }
                     },
                 ) {
@@ -2161,6 +2446,101 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.error,
                         modifier = Modifier.padding(top = 4.dp),
                     )
+                    // "Why isn\'t this working?" — the three
+                    // most common causes, each expandable.
+                    // The user reported the button silently
+                    // doing nothing on 2026-08-24; this is the
+                    // self-service path for the next person in
+                    // the same state.
+                    var whyExpanded by remember { mutableStateOf(false) }
+                    TextButton(
+                        onClick = { whyExpanded = !whyExpanded },
+                        modifier = Modifier.padding(top = 4.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.health_connect_why_header),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    if (whyExpanded) {
+                        Column(
+                            modifier = Modifier.padding(top = 4.dp, start = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.health_connect_why_intro),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            // Each cause is a small inline card
+                            // so the user can scan them
+                            // individually.
+                            listOf(
+                                Triple(
+                                    R.string.health_connect_why_disabled_title,
+                                    R.string.health_connect_why_disabled_body,
+                                    null,
+                                ),
+                                Triple(
+                                    R.string.health_connect_why_installed_title,
+                                    R.string.health_connect_why_installed_body,
+                                    R.string.health_connect_install_action,
+                                ),
+                                Triple(
+                                    R.string.health_connect_why_outdated_title,
+                                    R.string.health_connect_why_outdated_body,
+                                    R.string.health_connect_install_action,
+                                ),
+                            ).forEach { (titleRes, bodyRes, actionRes) ->
+                                var cardExpanded by remember { mutableStateOf(false) }
+                                Column {
+                                    TextButton(
+                                        onClick = { cardExpanded = !cardExpanded },
+                                        contentPadding = PaddingValues(0.dp),
+                                    ) {
+                                        Text(
+                                            text = stringResource(titleRes),
+                                            style = MaterialTheme.typography.bodySmall,
+                                        )
+                                    }
+                                    if (cardExpanded) {
+                                        Text(
+                                            text = stringResource(bodyRes),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(start = 8.dp, end = 8.dp),
+                                        )
+                                        if (actionRes != null) {
+                                            TextButton(
+                                                onClick = {
+                                                    runCatching {
+                                                        val intent = Intent(
+                                                            Intent.ACTION_VIEW,
+                                                            "https://play.google.com/store/apps/details?id=$HEALTH_CONNECT_PACKAGE".toUri(),
+                                                        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                        context.startActivity(intent)
+                                                    }.onFailure { t ->
+                                                        Log.e(
+                                                            "MindAnchor/HealthConnect",
+                                                            "play store launch failed: " +
+                                                                t.javaClass.simpleName,
+                                                            t,
+                                                        )
+                                                    }
+                                                },
+                                                contentPadding = PaddingValues(0.dp),
+                                            ) {
+                                                Text(
+                                                    text = stringResource(actionRes),
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -2573,6 +2953,25 @@ fun SettingsScreen(
             // through. That is the point, and also why it is buried this far
             // down, gated behind a factory reset, and reversible from here.
             SectionHeading(R.string.owner_section, SettingsSection.OWNER, goals)
+            // v0.26+: the "Needs a computer once" chip.
+            // Without it, the section reads as a
+            // half-built toggle — the user looks for the
+            // switch and finds an adb command. The chip
+            // states the constraint up front so the
+            // command below is read as the *whole* of
+            // what the section does, not as a missing
+            // affordance.
+            Text(
+                text = stringResource(R.string.needs_computer_once),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            Text(
+                text = stringResource(R.string.needs_computer_why),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Text(
                 text = stringResource(R.string.owner_explainer),
                 style = MaterialTheme.typography.bodySmall,
@@ -2643,6 +3042,22 @@ fun SettingsScreen(
             // run, once, from a computer — and works fine forever if nobody
             // ever does.
             SectionHeading(R.string.grayscale_section, SettingsSection.GRAYSCALE, goals)
+            // v0.26+: the same "Needs a computer once"
+            // chip as the Enforced section above. The
+            // adb requirement is a constraint, not a
+            // missing affordance; the chip is the
+            // affordance that names the constraint.
+            Text(
+                text = stringResource(R.string.needs_computer_once),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            Text(
+                text = stringResource(R.string.needs_computer_why),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Text(
                 text = stringResource(R.string.grayscale_explainer),
                 style = MaterialTheme.typography.bodySmall,
@@ -2849,6 +3264,58 @@ fun SettingsScreen(
                 }
             }
 
+            // v0.28+ (Phase 3 G-31) — the
+            // plain-language data-flow card. The full
+            // doc-track is in docs/CLINICAL_REVIEW.md
+            // §7; this Composable surfaces the same
+            // content in the in-app surface the user
+            // can reach in one tap. Mirrors
+            // R.string.privacy_url's role (the link
+            // above), but in-app rather than a browser
+            // hand-off.
+            org.mindanchor.launcher.PrivacyFlowCard()
+
+            // v0.26+ (spec Phase 3) — the Healthy
+            // defaults walkthrough. Shows the user's
+            // current default apps (browser, SMS,
+            // email, dialer) and offers a one-tap
+            // "Change" button that deep-links to the
+            // system default-apps settings. The
+            // recommendations are presented as
+            // "we like this" — not "you should
+            // switch". The launcher does not
+            // auto-install, does not nag, and does not
+            // score.
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = "Healthy defaults",
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = "Browser, SMS, email, dialer. We like the privacy-respecting ones. You pick.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                TextButton(
+                    onClick = {
+                        runCatching {
+                            val intent = android.content.Intent(
+                                android.provider.Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS,
+                            ).addCategory(android.content.Intent.CATEGORY_BROWSABLE)
+                            context.startActivity(intent)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Open system defaults")
+                }
+            }
+
             // v0.25.9 (auto-update): the "Check for
             // updates" affordance. Always present; the
             // user can trigger an on-demand check from
@@ -2861,43 +3328,161 @@ fun SettingsScreen(
             // best-effort and never blocks the launcher.
             UpdateCheckSection()
 
-            // v0.20.1 round 5 follow-up: Going Light
-            // settings entry. The data layer
-            // (FrictionPrefs.goingLightSchedule) is
-            // already wired and the VpnService is
-            // implemented; the *enabling* surface
-            // and the *first-time copy* are pending
-            // the v0.20.2 follow-up (the first-time
-            // copy is clinical-review-gated per the
-            // B+K gate, and the OS-level VPN
-            // permission dialog is a one-time
-            // consent the user must see in context).
-            //
-            // What ships in v0.20.1 round 5: a
-            // neutral section heading + explainer
-            // that tells the user the feature
-            // exists and that the *enabling* is on
-            // the way. The string is not
-            // clinical-review-gated wording; it
-            // describes what the feature will do,
-            // not how it will be presented to the
-            // user the first time they turn it on.
-            Text(
-                text = stringResource(R.string.going_light_section),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
-            )
+            // Going Light (v0.26+). The v0.20.1 round 5
+            // placeholder ("Available in v0.20.2") lived
+            // here for five minor versions — the data
+            // layer (FrictionPrefs.goingLightSchedule) was
+            // wired, the VpnService and scheduler were
+            // implemented, but the enabling surface was
+            // never built. v0.26+ replaces the placeholder
+            // with the real toggle, the first-time VPN
+            // consent flow, and a live status line that
+            // tells the user whether the schedule is on
+            // and what the next window is.
+            SectionHeading(R.string.going_light_section, SettingsSection.GOING_LIGHT, goals)
             Text(
                 text = stringResource(R.string.going_light_explainer),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = stringResource(R.string.going_light_coming_soon),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
             )
+            val goingLightSchedule by viewModel.goingLightSchedule.collectAsState()
+            val goingLightOn = goingLightSchedule.enabled
+            val goingLightStatusText = if (goingLightOn) {
+                stringResource(
+                    R.string.going_light_status_on,
+                    "%02d:%02d".format(goingLightSchedule.startTime.hour, goingLightSchedule.startTime.minute),
+                    "%02d:%02d".format(goingLightSchedule.endTime.hour, goingLightSchedule.endTime.minute),
+                )
+            } else {
+                stringResource(R.string.going_light_status_off)
+            }
+            // The first-time consent flow. The OS VPN
+            // dialog only fires from an Activity; this
+            // Composable is always hosted in one. The
+            // launcher returns whether the user granted
+            // or refused; on grant we persist and arm
+            // the schedule, on refuse the toggle snaps
+            // back. The same launcher re-arms on every
+            // ON_RESUME via permissionEpoch, so revoking
+            // the OS consent from system settings and
+            // returning here is honoured.
+            var goingLightConsentPending by remember { mutableStateOf(false) }
+            val consentLauncher =
+                rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.StartActivityForResult(),
+                ) { _ ->
+                    // The OS does not deliver a "granted"
+                    // boolean directly; the only signal is
+                    // that VpnService.prepare() returns null
+                    // after consent. Re-check, then arm.
+                    if (viewModel.hasGoingLightConsent()) {
+                        viewModel.setGoingLightEnabled(true)
+                    }
+                    goingLightConsentPending = false
+                }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .toggleable(value = goingLightOn, role = Role.Switch) { wantOn ->
+                        if (wantOn) {
+                            if (viewModel.hasGoingLightConsent()) {
+                                viewModel.setGoingLightEnabled(true)
+                            } else {
+                                goingLightConsentPending = true
+                            }
+                        } else {
+                            viewModel.setGoingLightEnabled(false)
+                        }
+                    }
+                    .padding(top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = goingLightStatusText,
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(checked = goingLightOn, onCheckedChange = null)
+            }
+            if (goingLightConsentPending) {
+                AlertDialog(
+                    onDismissRequest = { goingLightConsentPending = false },
+                    title = { Text(stringResource(R.string.going_light_consent_title)) },
+                    text = { Text(stringResource(R.string.going_light_consent_body)) },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            val intent = viewModel.prepareGoingLightConsent()
+                            if (intent != null) {
+                                consentLauncher.launch(intent)
+                            } else {
+                                // The OS flipped the
+                                // consent state between
+                                // the user opening the
+                                // dialog and tapping
+                                // "Grant". Treat as
+                                // granted.
+                                viewModel.setGoingLightEnabled(true)
+                                goingLightConsentPending = false
+                            }
+                        }) {
+                            Text(stringResource(R.string.going_light_consent_grant))
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { goingLightConsentPending = false }) {
+                            Text(stringResource(R.string.going_light_consent_dismiss))
+                        }
+                    },
+                )
+            }
         }
+    }
+}
+
+/**
+ * v0.26+ (Phase 1 G-22, G-21, G-19) — a single settings row
+ * with a title, an optional subtitle, and a trailing
+ * Switch. The "selectable" pattern reads the same way to
+ * a screen reader as a tap target: a single tap on the
+ * row toggles the Switch, and the subtitle is the
+ * description the screen reader reads aloud.
+ *
+ * Defaults to the project's opt-out-by-silence rule:
+ * every ritual toggle starts OFF. The row's check
+ * is the only way to turn it on.
+ */
+@Composable
+private fun SettingsRowSwitch(
+    title: String,
+    subtitle: String?,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .toggleable(
+                value = checked,
+                role = Role.Switch,
+                onValueChange = onCheckedChange,
+            )
+            .padding(vertical = 12.dp, horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Switch(checked = checked, onCheckedChange = null)
     }
 }

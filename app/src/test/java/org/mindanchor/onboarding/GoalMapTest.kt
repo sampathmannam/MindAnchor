@@ -24,41 +24,64 @@ class GoalMapTest {
     }
 
     @Test
-    fun `compulsive apps points at where the pause applies and at enforcement`() {
+    fun `compulsive apps points at where the pause applies, at enforcement, and at the Going Light content-blocker`() {
+        // v0.26+: Going Light (Castelo 2025 content-blocker)
+        // is the natural follow-on for a person who named
+        // compulsive apps. The mapping adds it to the set;
+        // the test name grew to match.
         assertEquals(
-            setOf(SettingsSection.WATCH, SettingsSection.OWNER),
+            setOf(
+                SettingsSection.WATCH,
+                SettingsSection.OWNER,
+                SettingsSection.GOING_LIGHT,
+            ),
             GoalMap.sectionsFor(setOf(Goal.COMPULSIVE_APPS)),
         )
     }
 
     @Test
-    fun `sleep points at the quiet hours, the rhythm view and the grey screen`() {
+    fun `sleep points at the quiet hours, the rhythm view, the grey screen, and Going Light`() {
+        // v0.26+: Going Light targets the same hours as
+        // SUNSET but reaches for the mobile-internet
+        // traffic (Castelo 2025). A person who named
+        // sleep is the audience.
         assertEquals(
-            setOf(SettingsSection.SUNSET, SettingsSection.SLEEP, SettingsSection.GRAYSCALE),
+            setOf(
+                SettingsSection.SUNSET,
+                SettingsSection.SLEEP,
+                SettingsSection.GRAYSCALE,
+                SettingsSection.GOING_LIGHT,
+            ),
             GoalMap.sectionsFor(setOf(Goal.SLEEP)),
         )
     }
 
     @Test
-    fun `measurement points at the pulse and the wearable section`() {
-        // v0.20.4: the wearable (Health Connect) section is
-        // also a measurement surface — the N-of-1 wellness
-        // signals are read here, not in the pulse section.
-        // The goal maps to both, so a person who said
-        // "I want to track" gets a marked section wherever
-        // they look.
+    fun `measurement points at the wearable section`() {
+        // v0.26+ (pulse removal): the WHO-5 pulse feature
+        // was removed, so MEASUREMENT now maps only to
+        // HEALTH_CONNECT. The wearable (Health Connect)
+        // section remains the measurement surface — the
+        // N-of-1 wellness signals are read here, not in
+        // a separate pulse section.
         assertEquals(
-            setOf(SettingsSection.PULSE, SettingsSection.HEALTH_CONNECT),
+            setOf(SettingsSection.HEALTH_CONNECT),
             GoalMap.sectionsFor(setOf(Goal.MEASUREMENT)),
         )
     }
 
     @Test
     fun `several struggles combine rather than one winning`() {
+        // v0.26+: SLEEP now also maps to GOING_LIGHT, so
+        // the INTERRUPTIONS + SLEEP combination is
+        // BATCHING (INTERRUPTIONS) + SUNSET/SLEEP/
+        // GRAYSCALE/GOING_LIGHT (SLEEP) = 5 sections,
+        // not 4.
         val sections = GoalMap.sectionsFor(setOf(Goal.INTERRUPTIONS, Goal.SLEEP))
         assertTrue(SettingsSection.BATCHING in sections)
         assertTrue(SettingsSection.SUNSET in sections)
-        assertEquals(4, sections.size)
+        assertTrue(SettingsSection.GOING_LIGHT in sections)
+        assertEquals(5, sections.size)
     }
 
     @Test

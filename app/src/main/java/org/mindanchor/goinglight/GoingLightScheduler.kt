@@ -43,6 +43,18 @@ private fun nowAsFrictionLocalDateTime(): LocalDateTime {
  * VpnService. The receiver then re-arms itself at the
  * next transition.
  *
+ * @see Castelo N, Kushlev K, Ward AF, Esterman M, Reiner PB. (2025)
+ *      Blocking mobile internet on smartphones improves sustained
+ *      attention, mental health, and subjective well-being.
+ *      *PNAS Nexus* 4(2):pgaf017. DOI 10.1093/pnasnexus/pgaf017.
+ *      The RCT behind the entire Going Light feature: N=467,
+ *      2 weeks of mobile-internet block, *d~z~* = 0.57 mental
+ *      health (larger than the meta-analytic effect of
+ *      antidepressants), *d~z~* = 0.46 SWB, *d~z~* = 0.24 sustained
+ *      attention (≈ 10 years of age-related decline reversal),
+ *      91% improved on at least one outcome, sustained at 4 weeks
+ *      after the block ended.
+ *
  * @wording-reviewed — the user-visible "Going Light is
  * now active" / "Going Light is now off" notifications
  * (the follow-up Composable) are clinical-review-required.

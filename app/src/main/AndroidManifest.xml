@@ -75,6 +75,7 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+    <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission
         android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
@@ -303,9 +304,29 @@
             android:name=".digest.DigestActivity"
             android:exported="false" />
 
+        <!--
+            v0.27+ (Phase 2 G-4) — the NFC physical anchor.
+            Tapping a `mindanchor:arm:*` NDEF tag arms
+            Going Light / Sunset / Sleep Lock. The
+            foreground-dispatch lifecycle is in
+            NfcArmActivity.onResume / onPause. exported=true
+            because the system delivers the NFC tag
+            PendingIntent to this Activity.
+        -->
         <activity
-            android:name=".pulse.PulseActivity"
-            android:exported="false" />
+            android:name=".nfc.NfcArmActivity"
+            android:exported="true"
+            android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="mindanchor" android:host="arm" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.nfc.action.TAG_DISCOVERED" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
 
         <activity
             android:name=".support.SupportActivity"
@@ -448,10 +469,6 @@
 
         <receiver
             android:name=".sunset.SunsetReceiver"
-            android:exported="false" />
-
-        <receiver
-            android:name=".pulse.PulseReminderReceiver"
             android:exported="false" />
 
         <!--

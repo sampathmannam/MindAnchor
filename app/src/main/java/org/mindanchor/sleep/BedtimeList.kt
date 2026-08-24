@@ -38,6 +38,14 @@ enum class BedtimePhase {
  *   list, the faster the onset — on average ~9 min gain, comparable
  *   to prescription sleep-aid effect sizes.
  *
+ * @see Scullin MK, Krueger ML, Ballard HK, Pruett N, Bliwise DL. (2018)
+ *      The effects of bedtime writing on difficulty falling asleep.
+ *      *J Exp Psychol Gen* 147(1):139–146. DOI 10.1037/xge0000374
+ * @see Masicampo EJ, Baumeister RF. (2011) Consider it done! Plan making
+ *      can eliminate the cognitive effects of unfulfilled goals.
+ *      *J Pers Soc Psychol* 101(4):667–683. DOI 10.1037/a0024192
+ *      (mechanism: externalising the plan closes the Zeigarnik open loop)
+ *
  * The mechanism is **Zeigarnik + Masicampo & Baumeister 2011**: an
  * unfinished task intrudes on cognition, but *writing a plan* for the
  * task removes the intrusion as effectively as finishing the task

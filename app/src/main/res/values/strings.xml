@@ -82,6 +82,100 @@
     <string name="per_app_session_length_last_time_label">Like last time — %1$d min</string>
     <string name="per_app_session_length_forget_label">Forget this default</string>
 
+    <!--
+        v0.26+ (Phase 1 G-2) — the friction-bandit nightly-reset
+        worker. The user-visible name and description in the
+        system WorkManager settings panel. The wording is
+        clinical-review-passed: it names the surface honestly
+        ("friction bandit"), and the description says "the pause
+        stays fresh" rather than "the launcher adapts to you"
+        — the second phrase implies an intent the user has not
+        stated, the first describes a concrete behaviour.
+    -->
+    <string name="bandit_reset_name">Friction bandit nightly reset</string>
+    <string name="bandit_reset_description">Resets the dominant friction-bandit arm each night so the pause stays fresh.</string>
+
+    <!--
+        v0.26+ (Phase 1 G-22) — the behavioral-activation weekly
+        prompt surface. Shown Friday evening (configurable);
+        the user picks one mastery + one pleasure activity for
+        the weekend and the picks are saved as Letters with
+        type=BA. The wording is BPD-safe: validate-then-suggest
+        ("if it would help to pick …") not directive ("you should
+        pick …"). The mastery/pleasure pair is from Lewinsohn
+        et al. 1976 and Dimidjian et al. 2006 (BA), and the
+        on-screen copy is in the project's clinical-review
+        allowlist.
+    -->
+    <string name="ba_prompt_title">If it would help, pick one thing</string>
+    <string name="ba_prompt_mastery_label">One thing to make or do (mastery)</string>
+    <string name="ba_prompt_pleasure_label">One thing to enjoy (pleasure)</string>
+
+    <!--
+        v0.26+ (Phase 1 G-22, G-21, G-19) — the protective-
+        layer ritual settings. Three opt-in toggles, all
+        default OFF (the project's opt-out-by-silence
+        rule). The titles and subtitles are the same
+        validate-then-suggest family the home-surface
+        cards use: "if it would help" — never "you should".
+    -->
+    <string name="settings_ba_prompt_title">Friday-evening BA prompt</string>
+    <string name="settings_ba_prompt_subtitle">If it would help, pick one mastery and one pleasure activity for the weekend.</string>
+    <string name="settings_morning_compassion_title">Morning self-compassion break</string>
+    <string name="settings_morning_compassion_subtitle">A 90-second moment, if you would like one. Neff 2003, Linardon 2020.</string>
+    <string name="settings_compassionate_wrap_title">Compassionate wrap on long sessions</string>
+    <string name="settings_compassionate_wrap_subtitle">A 1-tap offer after 30+ minutes on a single app. Never directive.</string>
+    <string name="settings_expressive_writing_title">Expressive-writing prompt</string>
+    <string name="settings_expressive_writing_subtitle">A 3-sentence Pennebaker 1997 entry point. The launcher offers it, you decide.</string>
+    <string name="settings_wind_down_title">Wind-down card</string>
+    <string name="settings_wind_down_subtitle">Warmer colour and lower volume after your wind-down time. If you would like, the wind-down is here.</string>
+    <string name="settings_gratitude_title">Gratitude card</string>
+    <string name="settings_gratitude_subtitle">A 1-tap field for the best moment today. Seligman 2005 active-constructive response.</string>
+    <string name="settings_push_up_mode_title">Push-up mode</string>
+    <string name="settings_push_up_mode_subtitle">N push-ups before a flagged app opens. Hauck 2020 anchor.</string>
+    <string name="settings_voice_journal_title">Voice journal</string>
+    <string name="settings_voice_journal_subtitle">Push-to-talk, on-device transcription. whisper.cpp, ~75 MB APK cost.</string>
+    <string name="ba_prompt_save">Save for the weekend</string>
+    <string name="ba_prompt_skip">Not today</string>
+
+    <!--
+        v0.26+ (Phase 1 G-21) — the morning self-compassion break.
+        The first thing the user sees on PreHome cold-start, after
+        a 90-second micro-protocol (breathing + soothing touch +
+        compassionate phrase, Neff 2003 / Linardon 2020). The
+        wording is validate-then-suggest, never directive; the
+        three exercise choices are clinical-review-passed and
+        live in the compassion-moment rotation.
+    -->
+    <string name="morning_compassion_title">A 90-second moment, if you would like one</string>
+    <string name="morning_compassion_skip">Not now</string>
+
+    <!--
+        v0.26+ (Phase 1 G-20) — the home-screen notification diet
+        card. Reports the number of held notifications released
+        in the last 7 days multiplied by the Mark 2005
+        23-minute-interruption-recovery cost. The wording is
+        factual, not celebratory: "released" is the same word
+        the digest UI uses, and "estimated" frames the
+        Mark 2005 figure as a heuristic, not a fact.
+    -->
+    <string name="diet_card_title">This week</string>
+    <string name="diet_card_demoted">%1$d notifications released</string>
+    <string name="diet_card_saved">%1$.1f hours of attention estimated saved</string>
+    <string name="diet_card_footnote">based on the 23-minute interruption-recovery cost (Mark 2005)</string>
+
+    <!--
+        v0.26+ (Phase 1 G-19) — the compassionate wrap on
+        app-close after a long session. The Snackbar copy is
+        factual, never judgemental: "you were on %1$s for %2$s,
+        if you would like to note anything" — not "you spent 30
+        minutes on Instagram" or "are you okay?". The settings
+        toggle controls whether the wrap fires at all.
+    -->
+    <string name="compassionate_wrap_snackbar">You were on %1$s for %2$s — note anything?</string>
+    <string name="compassionate_wrap_note_action">Note</string>
+    <string name="compassionate_wrap_dismiss_action">Dismiss</string>
+
     <string name="session_channel_name">Session timers</string>
     <string name="session_over_title">Your time in %1$s is up</string>
     <string name="session_over_text">Done, or a little longer?</string>
@@ -208,11 +302,27 @@
     <string name="goals_none">You have not named anything yet. You do not have to.</string>
     <string name="goals_done">Done</string>
     <string name="goal_marker">One of yours</string>
-    <string name="watch_section">Where the pause applies</string>
-    <string name="watch_explainer">On its own, the pause only appears when you open an app from this screen. Tapping a notification, swiping through recents or following a link goes straight in — which is most of how a phone actually gets used. Turning this on means the pause applies however you arrive.</string>
-    <string name="watch_cannot_read">Android calls this an accessibility service, and that sounds worse than it is. It is set up so it cannot read your screen — not messages, not passwords, not what you are looking at. It is told the name of the app that came to the front, and nothing else. Android enforces that, not us.</string>
-    <string name="watch_on">On. The pause applies however you open an app.</string>
-    <string name="watch_off">Off. The pause only applies from this screen.</string>
+    <!--
+        v0.26+: rewritten for clarity. The previous wording
+        assumed the reader already knew what "the pause"
+        referred to and that "this screen" was unambiguous.
+        A first-time reader does not — "this screen" can read
+        as the settings screen, the device, or the OS — and
+        the long, dense three-sentence structure lost them.
+        The new wording opens by defining the pause in
+        concrete terms ("a 'still want to open?' screen
+        before the app opens"), then states where it
+        currently fires and what turning it on changes. The
+        privacy reassurance is unchanged in substance but
+        trimmed so the section matches the explainer length
+        of the other settings sections (batching,
+        compassion, sleep, etc.).
+    -->
+    <string name="watch_section">Where the pause appears</string>
+    <string name="watch_explainer">When you mark an app for a pause, this app shows a \"still want to open?\" screen before the app opens. This is about where that screen appears. Right now: only when you open an app from this home screen — not from a notification, recents, or a link. Turn this on to make it appear however you arrive.</string>
+    <string name="watch_cannot_read">This is an Android accessibility service. It can only see the name of the app that came to the front — not your screen, your messages, or your passwords. Android enforces that, not us.</string>
+    <string name="watch_on">On. Pause appears however you open an app.</string>
+    <string name="watch_off">Off. Pause appears only when you open an app from this home screen.</string>
     <string name="watch_turn_on">Turn this on</string>
     <string name="watch_manage">Turn this off</string>
     <string name="watch_service_label">MindAnchor pause</string>
@@ -413,7 +523,58 @@
     <string name="ema_count" tools:ignore="PluralsCandidate">%1$d check-ins so far.</string>
     <string name="ema_learning">Still learning your normal.</string>
     <string name="ema_settled">It has enough to work with, so it asks less now.</string>
+    <!--
+        v0.26+: a single-line research anchor for
+        the check-in design. The full citations
+        (Russell 1980; Csikszentmihalyi & Hunter
+        2003; Shiffman, Stone & Hufford 2008) are
+        in the Ema.kt KDoc. The user-facing line
+        is one sentence: cite the model, not the
+        apps own paraphrase of the model. The
+        finding-test pins the citation so a
+        wording pass that drops the evidence
+        anchor is caught at review time.
+    -->
+    <string name="ema_research_link">Russell\'s circumplex model (1980) — the same axes psychology research uses for momentary affect.</string>
+    <!--
+        v0.26+: the "What your check-ins show"
+        patterns dashboard. The strings are
+        four descriptive insights plus a
+        one-line "patterns appear after about
+        a week" empty state. The copy is
+        deliberately non-directive — no
+        "low", "concerning", or "depressed"
+        anywhere; no comparison to a norm; the
+        N-of-1 framing the rest of the
+        launcher uses is the design rule.
+        A pattern that does not meet its
+        threshold is omitted (not shown as
+        "not enough data"), so a user with
+        one week of check-ins sees fewer
+        patterns than a user with three
+        months, by the same shape.
+    -->
+    <string name="check_in_insights_section">What your check-ins show</string>
+    <string name="check_in_insights_empty">Patterns appear after about a week of check-ins.</string>
+    <string name="check_in_insights_trend_brighter">Last week felt a little brighter than the week before.</string>
+    <string name="check_in_insights_trend_rougher">Last week felt a little rougher than the week before.</string>
+    <string name="check_in_insights_trend_same">Last week felt about the same as the week before.</string>
+    <string name="check_in_insights_best_hours">Your best hours recently: morning. Your hardest: late evening.</string>
+    <string name="check_in_insights_coverage">You\'ve answered %1$d of %2$d prompts this week.</string>
+    <string name="check_in_insights_baseline_brighter">Today is a little brighter than your usual.</string>
+    <string name="check_in_insights_baseline_rougher">Today is a little rougher than your usual.</string>
+    <string name="check_in_insights_baseline_same">Today is about average for you.</string>
     <string name="ema_channel_name">Check-ins</string>
+    <!--
+        v0.26+: the channel description shown in
+        Android Settings → Apps → MindAnchor →
+        Notifications. The previous v1 channel had
+        none; an empty description there makes the
+        channel look "unconfigured" to a careful
+        reader. One sentence, descriptive of the
+        behaviour, no marketing.
+    -->
+    <string name="ema_channel_description">A short, one-tap check-in at random times. Tap to answer; ignore if now is not the time.</string>
     <string name="ppg_section">Heart rhythm</string>
     <string name="ppg_explainer">Many watches measure heart-rate variability and never hand it over — it stays inside the maker\'s own app, and it cannot be worked out from heart rate alone. So this measures it directly, from your fingertip. It also means it still works if you change watch, or aren\'t wearing one.</string>
     <string name="ppg_how">Rest your index finger over the rear camera and the flash, covering both. Hold still, breathe normally, and stay off the phone for about 90 seconds. Sitting, before you get up, is the most comparable time of day.</string>
@@ -471,7 +632,7 @@
     <string name="plan_interruptions">• Notification batching (settings): chosen apps go quiet and arrive together three times a day. People always come through.</string>
     <string name="plan_compulsive">• Long-press any app and choose \"Add a pause\" — a breath and an intention before it opens.</string>
     <string name="plan_sleep">• Sunset mode + sleep rhythm (settings): priority-only nights and a view of how regular your sleep is.</string>
-    <string name="plan_measurement">• The wellbeing pulse (settings): a 2-minute check-in every two weeks, scored honestly.</string>
+    <string name="plan_measurement">• Wearable + check-in (settings): a watch or ring for HR / sleep / steps, and a one-tap prompt a few times a day.</string>
     <string name="plan_none">Explore at your own pace — every feature lives in settings and long-press menus, all off by default.</string>
     <string name="onboarding_begin">begin</string>
     <!--
@@ -496,47 +657,19 @@
     <string name="chronotype_unknown">Not set</string>
     <string name="plan_chronotype">• Wind-down default set for your hours: %1$s</string>
 
-    <string name="pulse_section">Wellbeing pulse</string>
     <!--
-        This used to say "It's how you — and MindAnchor — know honestly
-        whether any of this is helping." MindAnchor knows nothing of the
-        sort: docs/CLINICAL_REVIEW.md §66 makes never interpreting a score
-        a deliberate invariant, so the app shows the numbers and the
-        change between them and stops there. Claiming a judgement it is
-        built not to make was the one dishonest sentence in this screen.
+        v0.26+ (pulse removal): the wellbeing pulse and all
+        related strings are removed. See git history for
+        the deleted set (pulse_section,
+        pulse_section_explainer, pulse_take, pulse_title,
+        pulse_intro, pulse_scale_hint, pulse_save,
+        pulse_result, pulse_open_support, pulse_band_*,
+        pulse_*_history, pulse_channel_name,
+        pulse_reminder_*, and the who5_items string-array).
+        The user's request (2026-08-24) was "not necessary";
+        the redesign is in the check-ins area, not the
+        pulse area.
     -->
-    <string name="pulse_section_explainer">A 2-minute WHO-5 check-in every two weeks. It keeps an honest record, in your own words and numbers, of whether any of this is helping — the reading of it stays yours.</string>
-    <string name="pulse_take">Take the pulse</string>
-    <string name="pulse_title">How have the last two weeks felt?</string>
-    <string name="pulse_intro">Five statements, answered 0 (at no time) to 5 (all of the time). This is a self-check, not a diagnosis.</string>
-    <string name="pulse_scale_hint">0 = at no time · 5 = all of the time</string>
-    <string name="pulse_save">Save</string>
-    <string name="pulse_result">Your score: %1$d/100</string>
-    <!-- The legacy "scores in this range" line is retained for callers
-         that import it directly. The presentation in PulseScreen now
-         uses one of the band_* lines below; the wording in each is
-         per docs/research/13 (Topp 2015; WHO 1998; Parker 2020 JMIR
-         mHealth lived-experience findings). -->
-    <string name="pulse_open_support">Open support</string>
-    <string name="pulse_band_okay">In the higher range. The WHO-5 is not a diagnosis — it is a check-in on the last two weeks. Trends over time are more useful than any single number.</string>
-    <string name="pulse_band_low">In the lower range — the kind of result that often shows up under a lot of stress or strain. Not a diagnosis, and it does not mean anything is wrong with you. Your people and your plan are one tap away whenever you want them. If this has been going on for a couple of weeks or more, talking to a GP can be a useful next step.</string>
-    <string name="pulse_band_very_low">In the lowest range the WHO describes — the level of well-being often seen in people who are going through a really hard time. The WHO-5 is not a diagnosis; only a clinician can make that call. Given how much you are carrying, it might be worth talking to someone you trust or a GP. Your people are one tap away.</string>
-    <string name="pulse_band_incomplete">A few items are unanswered. Save only when you have answered all five.</string>
-    <string name="pulse_after_disclaimer">MindAnchor is a wellness tool, not a clinical service. A low reading does not mean you are unwell.</string>
-    <string name="pulse_history_up">A meaningful lift from the one before.</string>
-    <string name="pulse_history_down">A meaningful drop from the one before.</string>
-    <string name="pulse_history">History</string>
-    <!--
-        The history was a bare list of ISO dates and scores, which made a
-        person do the subtraction themselves across a fortnight's gap.
-        The change is arithmetic on two numbers they produced — not a
-        reading of them — so it is shown, unlabelled and unexplained.
-        Nothing here says whether a direction is good.
-    -->
-    <string name="pulse_history_line">%1$s — %2$d/100</string>
-    <string name="pulse_channel_name">Wellbeing pulse</string>
-    <string name="pulse_reminder_title">Two weeks since your last pulse</string>
-    <string name="pulse_reminder_text">Two minutes, whenever suits you.</string>
 
 
     <string name="notes_shortcut">notes</string>
@@ -620,20 +753,54 @@
     <string name="privacy_open_action" tools:ignore="UnusedResources">Open</string>
 
     <!--
-        v0.20.1 round 5 follow-up: Going Light
-        settings entry. The toggle itself is a
-        placeholder (the feature ships in v0.20.2
-        with proper clinical review of the
-        first-time copy). The strings below are
-        neutral and do not require clinical
-        review; the *first-time copy* the user
-        sees when they enable Going Light is
-        clinical-review-gated and ships in the
-        v0.20.2 follow-up.
+        Going Light settings entry (v0.26+).
+
+        The placeholder card from v0.20.1 round 5 ("Available in
+        v0.20.2") was a come-back-later affordance that was never
+        followed up. v0.26+ wires the real toggle: the section
+        heading, the explainer, a status line that tells the user
+        whether the feature is on and what the next window is, and
+        the first-time consent copy that the system VPN dialog
+        sits behind.
+
+        The first-time copy (going_light_consent_title /
+        going_light_consent_body) is clinical-review-gated — the
+        wording is the *only* surface that names what Going Light
+        is to a person who has never seen it. The explainer
+        (going_light_explainer) is the neutral description and is
+        not gated.
     -->
     <string name="going_light_section">Going Light</string>
-    <string name="going_light_explainer">Blocks chosen apps during a time window you set. The first time you turn it on, your phone will need a one-time VPN permission.</string>
-    <string name="going_light_coming_soon">Available in v0.20.2.</string>
+    <string name="going_light_explainer">Blocks mobile-internet content during a window you set — Castelo 2025 found this is the single biggest sustained-attention gain the category offers. The first time you turn it on, your phone will ask once for a system permission; you can take it back any time.</string>
+    <string name="going_light_status_off">Off</string>
+    <string name="going_light_status_on">On — windows: %1$s to %2$s</string>
+    <string name="going_light_consent_title">Going Light needs a one-time system permission.</string>
+    <string name="going_light_consent_body">It blocks mobile-internet content during a window you choose. The system will ask once; you can take it back any time from settings.</string>
+    <string name="going_light_consent_grant">Grant permission</string>
+    <string name="going_light_consent_dismiss">Not now</string>
+
+    <!--
+        QUIET-group status row + adb-required chips + "Try it now"
+        button (v0.26+). The three status lines give the user a
+        single glance at what's running so the screen stops
+        reading as half-built. The chip on each adb-required
+        section is the visual cue that the section needs a
+        computer once, not a tap in the app. The "Try it now"
+        button is the feedback loop for the wind-down toggle: a
+        60-second trial rather than a wait until 22:00.
+    -->
+    <string name="quiet_status_label">Currently</string>
+    <string name="quiet_status_sunset_on">Sunset: on</string>
+    <string name="quiet_status_sunset_off">Sunset: off</string>
+    <string name="quiet_status_enforced_on">Enforced: on</string>
+    <string name="quiet_status_enforced_off">Enforced: off (needs device owner)</string>
+    <string name="quiet_status_colour_on">Colour: on</string>
+    <string name="quiet_status_colour_off">Colour: off (needs system permission)</string>
+    <string name="needs_computer_once">Needs a computer once</string>
+    <string name="needs_computer_why">This is a setting Android will not let an app grant to itself. It is on purpose; the bar keeps the setting safe.</string>
+    <string name="try_it_now">Try it now (60 s)</string>
+    <string name="try_it_now_running">Trial running — %1$d s left</string>
+    <string name="try_it_now_stop">Stop trial</string>
 
     <!--
         v0.20.1 round 5: notes + check-in. The
@@ -699,6 +866,25 @@
     <string name="health_connect_status_partial" tools:ignore="PluralsCandidate">Reading %1$d of %2$d signal types from your watch. Tap to change.</string>
     <string name="health_connect_status_full" tools:ignore="PluralsCandidate">All %1$d signal types connected.</string>
     <string name="health_connect_launch_failed">Couldn\'t open Health Connect. The app may be missing, disabled, or may not have responded in time. Check it is installed and enabled, then try again.</string>
+    <!--
+        v0.26+: the SDK\'s permission contract is the canonical
+        path, but it can fail silently when the Health Connect
+        provider on the phone is broken, half-installed, or
+        background-restricted. The button now tries the SDK
+        launcher first, then a direct intent to the Health
+        Connect app, then the Play Store listing as a last
+        resort. The new strings below name each step.
+    -->
+    <string name="health_connect_open_app_action">Open Health Connect</string>
+    <string name="health_connect_install_action">Install Health Connect</string>
+    <string name="health_connect_why_header">Why isn\'t this working?</string>
+    <string name="health_connect_why_intro">Three things can keep the button above from doing anything. Tap each to expand.</string>
+    <string name="health_connect_why_disabled_title">Health Connect is installed but disabled</string>
+    <string name="health_connect_why_disabled_body">Open Android Settings → Apps → Health Connect → Enable. A provider that is installed but disabled reports \"available\" to the SDK but cannot open its permission dialog.</string>
+    <string name="health_connect_why_installed_title">Health Connect is not installed</string>
+    <string name="health_connect_why_installed_body">Some phone makers and some Android builds ship without the Health Connect app. Install \"Health Connect by Google\" from the Play Store, then come back here and tap Connect again.</string>
+    <string name="health_connect_why_outdated_title">Health Connect is too old</string>
+    <string name="health_connect_why_outdated_body">This app targets Health Connect 1.1.0. If the phone has an older provider, the permission request is rejected with no error. Update Health Connect from the Play Store.</string>
     <string name="health_connect_button_connect">Connect to your watch</string>
     <string name="health_connect_button_change">Change what is shared</string>
     <string name="health_connect_what_reads_header">What this app reads</string>
@@ -862,23 +1048,32 @@
         "Connection" row reads the cached result of the
         last "Test connection" tap.
     -->
-    <string name="settings_llm_section">Daily letter (LLM)</string>
+        <string name="settings_llm_section">Daily letter (LLM)</string>
     <!--
-        v0.25.9 (P0-4): the LLM section is the path the
-        daily letter actually uses. The previous explainer
-        assumed the user already knew what a Groq key was.
-        Fresh users hit this section with a "Connection
-        failed" state and no onboarding — they bail out.
-        The new copy names the dependency ("a small AI from
-        Groq"), gives the time cost ("2 minutes, free"), and
-        makes the first action obvious.
+        v0.26+ (multi-provider): the explainer
+        introduces the three options and points
+        to the in-app "Get API key" button for the
+        smoothest path. Google AI Studio and
+        OpenRouter are free with no credit card;
+        Groq is for an existing key.
     -->
-    <string name="settings_llm_explainer">Want the daily letter? It is written by a small AI, in the launcher\'s own voice. You will need a free key from Groq — sign-up takes about 2 minutes at console.groq.com. Paste the key below, then tap Test connection.</string>
+    <string name="settings_llm_explainer">Want the daily letter? It is written by a small AI, in the launcher\'s own voice. Pick a provider below, tap the key button to grab a free key in a browser, paste it back, then tap Test connection.</string>
     <string name="settings_llm_provider">Provider</string>
     <string name="settings_llm_api_key">API key</string>
     <string name="settings_llm_connection">Connection</string>
     <string name="settings_llm_never_tested">Not tested</string>
     <string name="settings_llm_test_connection">Test connection</string>
+    <!--
+        v0.26+ (multi-provider): the "Get API key"
+        button copy. The free variant leads with
+        "free" because that is the point — the
+        user is one tap from a key with no payment,
+        no card, no install. The non-free variant
+        is honest about the provider name without
+        selling it.
+    -->
+    <string name="settings_llm_get_key_free">Get a free %1$s API key</string>
+    <string name="settings_llm_get_key">Get a %1$s API key</string>
 
     <!--
         v0.25.4: Google Drive backup (replaces v0.23.0 WebDAV).
@@ -900,12 +1095,4 @@
     <string name="drive_forgot">Forgot the account. The remote copy is still in your Drive; turn the bridge back on any time.</string>
     <string name="drive_auto_sync_notes">Auto-back up new notes</string>
     <string name="drive_auto_sync_letters">Auto-back up new letters</string>
-
-    <string-array name="who5_items">
-        <item>I have felt cheerful and in good spirits</item>
-        <item>I have felt calm and relaxed</item>
-        <item>I have felt active and vigorous</item>
-        <item>I woke up feeling fresh and rested</item>
-        <item>My daily life has been filled with things that interest me</item>
-    </string-array>
 </resources>

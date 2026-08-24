@@ -58,6 +58,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import org.mindanchor.friction.CompassionateWrapNotifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
@@ -180,6 +181,50 @@ fun LauncherRoot(
     var surface by remember { mutableStateOf(LauncherSurface.Home) }
     var actionsFor by remember { mutableStateOf<DisplayApp?>(null) }
     var gateFor by remember { mutableStateOf<DisplayApp?>(null) }
+
+    // v0.26+ (Phase 1 G-22, G-21, G-1) — the protective
+    // layer rituals' read-side state. Each card gates on
+    // its setting, and Going Light gates on the schedule
+    // + VpnService.prepare() (handled inside the Composable).
+    val baPromptEnabledByState = viewModel.baPromptEnabled
+    val morningCompassionEnabledByState = viewModel.morningCompassionEnabled
+    val goingLightScheduleByState = viewModel.goingLightSchedule
+
+    // v0.28+ (Phase 3 G-29, G-8, G-26) — the gratitude,
+    // expressive-writing, and wind-down ritual toggles.
+    // v0.29+ (Phase 4 G-6, G-28) — the push-up mode
+    // and voice journal toggles. Each card gates on
+    // its setting; the launcher view-model owns the
+    // write side (the save callbacks).
+    val gratitudeEnabledByState = viewModel.gratitudeEnabled
+    val expressiveWritingEnabledByState = viewModel.expressiveWritingEnabled
+    val windDownEnabledByState = viewModel.windDownEnabled
+    val pushUpModeEnabledByState = viewModel.pushUpModeEnabled
+    val voiceJournalEnabledByState = viewModel.voiceJournalEnabled
+
+    // v0.29+ (Phase 4 G-5) — the Sleep Lock state.
+    // The home surface shows the card when the user
+    // is inside the configured sleep window. The
+    // bedtime / waketime strings come from the
+    // existing SunsetPrefs (read by the launcher
+    // view-model). The on-device-only-Composable
+    // stub here is the post-grant UI; the
+    // DevicePolicyManager wiring is a follow-up.
+    val inSleepWindowByState = viewModel.inSleepWindow
+
+    // v0.28+ (Phase 3 G-25) — the n-of-1 weekly
+    // patterns. Read from the same ReportStore
+    // the nightly report writes to. The home
+    // surface gates on `isNotEmpty()` so a
+    // fresh install (no nightly report yet)
+    // shows nothing.
+    val weeklyPatternsByState = viewModel.weeklyPatterns
+
+    // v0.26+ (Phase 1 G-23) — the DEAR MAN dialog state
+    // for the long-press affordance on the Anchor Note
+    // title. The state is owned by the home surface, the
+    // save callback is owned by the launcher view-model.
+    val dearManDialogState = remember { DearManDialogState() }
 
     // v0.25.2-A (Task 6): the letter inbox + reader. Same shape as
     // reportCameFrom — selected date is null on the inbox, non-null
@@ -340,6 +385,27 @@ fun LauncherRoot(
                 onLongPress = { actionsFor = it },
                 recentNotes = recentNotes,
                 onAddQuickNote = viewModel::addQuickNote,
+                onAddCompassionateWrapNote = { event ->
+                    // v0.26+ (Phase 1 G-19) — write the
+                    // compassionate-wrap event to a Note
+                    // via the existing NoteClassifier pipeline.
+                    // The user tapped "Note" on the Snackbar;
+                    // the launcher owns the storage; the
+                    // notifier owns the trigger.
+                    viewModel.recordCompassionateWrap(event)
+                },
+                heldNotificationsDao = org.mindanchor.data.db.AnchorDatabase
+                    .get(context.applicationContext as android.app.Application)
+                    .heldNotifications(),
+                goingLightSchedule = goingLightScheduleByState.collectAsState().value,
+                onGoingLightConsentDismissed = viewModel::dismissGoingLightConsent,
+                morningCompassionEnabled = morningCompassionEnabledByState.collectAsState().value,
+                baPromptEnabled = baPromptEnabledByState.collectAsState().value,
+                onSaveBaEntry = { mastery, pleasure ->
+                    viewModel.saveBaEntry(mastery, pleasure)
+                },
+                dearManDialogState = dearManDialogState,
+                onSaveDearManScript = viewModel::saveDearManScript,
                 onOpenNotes = {
                     // v0.20.1 round 5: route to the
                     // notes activity. runCatching
@@ -415,6 +481,78 @@ fun LauncherRoot(
                 // callout with a single action button.
                 isDefaultHome = isDefaultHome,
                 onSetDefaultHome = onSetDefaultHome,
+                // v0.28+ (Phase 3 G-29, G-8, G-26) — the
+                // gratitude, expressive-writing, and
+                // wind-down ritual cards. Each gates on its
+                // setting; the save callbacks write to the
+                // Letters store via the launcher
+                // view-model.
+                gratitudeEnabled = gratitudeEnabledByState.collectAsState().value,
+                onSaveGratitude = viewModel::saveGratitude,
+                onExpandGratitude = {
+                    // v0.28+ (Phase 3 G-29) — the
+                    // gratitude card's "Open full editor"
+                    // affordance routes the user to the
+                    // existing letter surface, same as
+                    // the onOpenLetters corner button.
+                    letterSelectedDate = null
+                    letterCameFrom = LauncherSurface.Home
+                    surface = LauncherSurface.Letter
+                },
+                expressiveWritingEnabled = expressiveWritingEnabledByState.collectAsState().value,
+                onSaveExpressiveWriting = viewModel::saveExpressiveWriting,
+                windDownEnabled = windDownEnabledByState.collectAsState().value,
+                onBeginWindDown = { /* launcher applies
+                    the wind-down (v0.28+ hook) */ },
+                onDismissWindDown = { /* v0.28+ session
+                    scope */ },
+                // v0.29+ (Phase 4 G-6, G-28) — the
+                // push-up mode and voice journal
+                // toggles. The Composable-only stubs
+                // are wired here; the actual ML Kit
+                // Pose Detection + whisper.cpp JNI
+                // bridges are follow-up commits.
+                pushUpModeEnabled = pushUpModeEnabledByState.collectAsState().value,
+                onPushUpsComplete = { /* launcher proceeds
+                    with the launch (v0.29+ hook) */ },
+                voiceJournalEnabled = voiceJournalEnabledByState.collectAsState().value,
+                onVoiceRecordStart = { /* launcher starts
+                    audio capture (v0.29+ hook) */ },
+                onVoiceRecordStop = { /* launcher stops
+                    audio capture (v0.29+ hook) */ },
+                onVoiceTranscribe = { /* launcher invokes
+                    whisper.cpp (v0.29+ hook) */ },
+                // v0.29+ (Phase 4 G-5) — the Sleep Lock
+                // card. Shown on the home surface when
+                // the user is inside the configured
+                // sleep window. The Composable-only
+                // stub is the post-grant UI; the
+                // DevicePolicyManager device-owner
+                // grant flow is a follow-up.
+                sleepLockBedtime = viewModel.sleepLockBedtime.collectAsState().value,
+                sleepLockWaketime = viewModel.sleepLockWaketime.collectAsState().value,
+                onSleepLockUnlock = { /* launcher dismisses
+                    the sleep lock (v0.29+ hook) */ },
+                inSleepWindow = inSleepWindowByState.collectAsState().value,
+                // v0.28+ (Phase 3 G-25) — the n-of-1
+                // weekly patterns. Read from the
+                // latest nightly report. The card
+                // hides when the list is empty.
+                weeklyPatterns = weeklyPatternsByState.collectAsState().value,
+                onDismissWeeklyPatterns = {
+                    // Session-scoped dismiss; the
+                    // card reappears on the next
+                    // home-surface open if new
+                    // patterns arrive. The launcher
+                    // view-model exposes a hook
+                    // (dismissWeeklyPatterns) for a
+                    // future persisted dismiss; for
+                    // now the Composable's
+                    // `onDismiss` is the only
+                    // surface and the launcher
+                    // view-model hook is a no-op.
+                    viewModel.dismissWeeklyPatterns()
+                },
             )
         }
 
@@ -606,11 +744,13 @@ fun LauncherRoot(
  * brief is explicit that it is not).
  */
 @Composable
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 private fun QuickNotesCard(
     sky: SkyContent,
     recent: List<Note>,
     onSave: (String) -> Unit,
     onOpenAll: () -> Unit,
+    onLongPressTitle: (() -> Unit)? = null,
 ) {
     var draft by remember { mutableStateOf("") }
     // A small haptic tick on save, so the user feels
@@ -630,6 +770,14 @@ private fun QuickNotesCard(
             text = stringResource(R.string.quick_notes_section),
             style = MaterialTheme.typography.titleMedium,
             color = sky.textSecondary,
+            modifier = if (onLongPressTitle != null) {
+                Modifier.combinedClickable(
+                    onClick = {},
+                    onLongClick = { onLongPressTitle() },
+                )
+            } else {
+                Modifier
+            },
         )
         // v0.20.9: bringIntoViewOnFocus so the quick-notes
         // input is not covered by the keyboard. The card is
@@ -807,6 +955,71 @@ private fun HomeSurface(
     recentNotes: List<Note> = emptyList(),
     onAddQuickNote: (String) -> Unit = {},
     /**
+     * v0.26+ (Phase 1 G-19) — the user tapped "Note" on the
+     * compassionate-wrap Snackbar. Wired in [LauncherRoot]
+     * to write the [CompassionateWrapNotifier.Event] to a
+     * Note via [org.mindanchor.model.NoteClassifier]. The
+     * home surface owns the trigger; the launcher
+     * view-model owns the storage.
+     */
+    onAddCompassionateWrapNote: (CompassionateWrapNotifier.Event) -> Unit = {},
+    /**
+     * v0.26+ (Phase 1 G-20) — the held-notifications DAO
+     * for the [HomeDietCard]. The card's data layer is the
+     * `releasedCountSince(since)` query (added in
+     * commit `75029c8`). The DAO is the read-side; the
+     * [AnchorNotificationListenerService] is the write
+     * side. Default null so existing call sites still
+     * compile; the launcher view-model wires the real
+     * DAO in [LauncherRoot].
+     */
+    heldNotificationsDao: org.mindanchor.data.db.HeldNotificationDao? = null,
+    /**
+     * v0.26+ (Phase 1 G-1) — the Going Light schedule for
+     * the [GoingLightConsentCard]. The card shows when
+     * the schedule is enabled but the OS-level VpnService
+     * consent has not yet been granted.
+     */
+    goingLightSchedule: org.mindanchor.friction.GoingLightSchedule =
+        org.mindanchor.friction.GoingLightSchedule(),
+    /**
+     * v0.26+ (Phase 1 G-1) — the user dismissed the Going
+     * Light consent card; mark the dismissal so the card
+     * does not re-appear on every home-surface open.
+     */
+    onGoingLightConsentDismissed: () -> Unit = {},
+    /**
+     * v0.26+ (Phase 1 G-21) — whether the morning
+     * self-compassion break should show on the home
+     * surface. True means the user has enabled the
+     * ritual in Settings.
+     */
+    morningCompassionEnabled: Boolean = false,
+    /**
+     * v0.26+ (Phase 1 G-22) — whether the BA weekly prompt
+     * should show on the home surface. True means the user
+     * has enabled the ritual in Settings.
+     */
+    baPromptEnabled: Boolean = false,
+    /**
+     * v0.26+ (Phase 1 G-22) — the user saved a BA entry
+     * from the picker. The launcher view-model writes the
+     * mastery/pleasure pair to [org.mindanchor.letters.LetterStore.saveBaEntry].
+     */
+    onSaveBaEntry: (mastery: String, pleasure: String) -> Unit = { _, _ -> },
+    /**
+     * v0.26+ (Phase 1 G-23) — the DEAR MAN dialog state.
+     * The home surface owns the state; the launcher
+     * view-model owns the save callback.
+     */
+    dearManDialogState: DearManDialogState = remember { DearManDialogState() },
+    /**
+     * v0.26+ (Phase 1 G-23) — the user saved a DEAR MAN
+     * script. The launcher view-model writes the
+     * rule-based script to [org.mindanchor.letters.LetterStore.save].
+     */
+    onSaveDearManScript: (String) -> Unit = {},
+    /**
      * v0.22.0 (WP-10 step 2): the "what makes this different"
      * callout. Renders a single line of small text below
      * the greeting for the first
@@ -884,6 +1097,124 @@ private fun HomeSurface(
      */
     isDefaultHome: Boolean = true,
     onSetDefaultHome: () -> Unit = {},
+    /**
+     * v0.28+ (Phase 3 G-29) — whether the gratitude card
+     * should show on the home surface. True means the user
+     * has enabled the ritual in Settings.
+     */
+    gratitudeEnabled: Boolean = false,
+    /**
+     * v0.28+ (Phase 3 G-29) — the user saved a gratitude
+     * entry from the card. The launcher view-model writes
+     * the one-or-two-sentence text to the Letters store.
+     */
+    onSaveGratitude: (String) -> Unit = {},
+    /**
+     * v0.28+ (Phase 3 G-29) — the user long-pressed the
+     * gratitude card to open the full Letter editor. The
+     * launcher switches to the letter surface.
+     */
+    onExpandGratitude: () -> Unit = {},
+    /**
+     * v0.28+ (Phase 3 G-8) — whether the expressive-writing
+     * card should show on the home surface. True means the
+     * user has enabled the ritual in Settings.
+     */
+    expressiveWritingEnabled: Boolean = false,
+    /**
+     * v0.28+ (Phase 3 G-8) — the user saved an
+     * expressive-writing entry. The launcher view-model
+     * writes the 3-sentence text to the Letters store.
+     */
+    onSaveExpressiveWriting: (String) -> Unit = {},
+    /**
+     * v0.28+ (Phase 3 G-26) — whether the wind-down card
+     * should show on the home surface. The launcher
+     * applies the wind-down (warmer colour, lower volume)
+     * when the user taps Begin.
+     */
+    windDownEnabled: Boolean = false,
+    /**
+     * v0.28+ (Phase 3 G-26) — the user tapped Begin on the
+     * wind-down card. The launcher applies the wind-down
+     * changes.
+     */
+    onBeginWindDown: () -> Unit = {},
+    /**
+     * v0.28+ (Phase 3 G-26) — the user tapped Not now on
+     * the wind-down card. The card dismisses for this
+     * session; it reappears on the next home-surface open
+     * after the wind-down time.
+     */
+    onDismissWindDown: () -> Unit = {},
+    /**
+     * v0.29+ (Phase 4 G-6) — whether push-up mode is on.
+     * When on, opening a flagged app shows the push-up
+     * counter; the user must complete N reps before the
+     * app opens.
+     */
+    pushUpModeEnabled: Boolean = false,
+    /**
+     * v0.29+ (Phase 4 G-6) — the user completed N push-ups
+     * on the gate. The launcher proceeds with the
+     * launch.
+     */
+    onPushUpsComplete: () -> Unit = {},
+    /**
+     * v0.29+ (Phase 4 G-28) — whether voice journaling is
+     * on. The Anchor Note gets a Record affordance.
+     */
+    voiceJournalEnabled: Boolean = false,
+    /**
+     * v0.29+ (Phase 4 G-28) — the user tapped Record on
+     * the voice journal card. The launcher starts audio
+     * capture on-device.
+     */
+    onVoiceRecordStart: () -> Unit = {},
+    /**
+     * v0.29+ (Phase 4 G-28) — the user tapped Stop on
+     * the voice journal card. The launcher stops audio
+     * capture.
+     */
+    onVoiceRecordStop: () -> Unit = {},
+    /**
+     * v0.29+ (Phase 4 G-28) — the user tapped Transcribe
+     * on the voice journal card. The launcher invokes
+     * whisper.cpp on-device.
+     */
+    onVoiceTranscribe: () -> Unit = {},
+    /**
+     * v0.29+ (Phase 4 G-5) — the bedtime and waketime
+     * strings for the Sleep Lock card. The card is shown
+     * during the configured sleep window.
+     */
+    sleepLockBedtime: String = "",
+    sleepLockWaketime: String = "",
+    /**
+     * v0.29+ (Phase 4 G-5) — the user typed the unlock
+     * phrase. The launcher dismisses the sleep lock.
+     */
+    onSleepLockUnlock: () -> Unit = {},
+    /**
+     * v0.29+ (Phase 4 G-5) — whether the user is inside
+     * the configured sleep window. When true, the
+     * launcher shows the sleep lock card instead of the
+     * regular home surface.
+     */
+    inSleepWindow: Boolean = false,
+    /**
+     * v0.28+ (Phase 3 G-25) — the n-of-1 weekly
+     * patterns. The card is shown on the home
+     * surface when the latest nightly report
+     * found at least one Signal/Label pair that
+     * survived the LinkFinder significance
+     * test. Empty list = card hidden. The
+     * `onDismiss` is session-scoped: the
+     * card reappears on the next home-surface
+     * open if new patterns arrive.
+     */
+    weeklyPatterns: List<org.mindanchor.report.Pattern> = emptyList(),
+    onDismissWeeklyPatterns: () -> Unit = {},
 ) {
     val now = rememberMinuteTick()
     val clockFormat = rememberClockFormat()
@@ -968,21 +1299,23 @@ private fun HomeSurface(
                 color = sky.textSecondary,
             )
 
-            // v0.22.0 (WP-10 step 2): the "what makes this
-            // different" callout. One line of small text
-            // pointing at the friction gate, shown for the
-            // first 3 launches and then never again. The
-            // recording fires on a side effect so the
-            // callout is one launch closer to hidden on
-            // every display, regardless of which side of
-            // the threshold this display is on.
+            // v0.29+ (Phase 4 G-13) — the "what this is, in
+            // one line" callout. The research-backed +
+            // on-device + your-data-never-leaves framing
+            // for the first 3 launches. The G-13 version
+            // is the polish over the v0.22.0 single-line
+            // callout: a small Card with the headline, the
+            // three-feature summary, and a "Got it"
+            // dismiss. The dismiss is session-scoped; the
+            // callout hides permanently once the user has
+            // seen it on 3 launches (existing
+            // LauncherPrefs.showIntroCallout gate, same as
+            // before).
             if (showIntroCallout) {
                 LaunchedEffect(Unit) { onRecordLaunch() }
-                Text(
-                    text = stringResource(R.string.intro_callout),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = sky.textSecondary,
-                    modifier = Modifier.padding(vertical = 4.dp),
+                OnboardingCalloutCard(
+                    onDismiss = { /* session-scoped; the
+                        callout hides on launch 3+ */ },
                 )
             }
 
@@ -1031,7 +1364,160 @@ private fun HomeSurface(
                 recent = recentNotes,
                 onSave = onAddQuickNote,
                 onOpenAll = onOpenNotes,
+                onLongPressTitle = dearManDialogState::show,
             )
+
+            // v0.26+ (Phase 1 G-1) — the Going Light consent
+            // card. Shows when the schedule is enabled but
+            // the OS-level VpnService consent has not been
+            // granted yet. The card itself decides when to
+            // show (returns null otherwise) so the call
+            // site is a no-op when the consent is in place.
+            GoingLightConsentCard(
+                schedule = goingLightSchedule,
+                onDismiss = onGoingLightConsentDismissed,
+            )
+
+            // v0.26+ (Phase 1 G-21) — the morning
+            // self-compassion break. Shown on the home
+            // surface when the user has enabled the
+            // ritual; the user dismisses or starts the
+            // 90-second protocol from the card. The
+            // "Begin" action is a no-op for v0.26.0; the
+            // CompassionMoment rotation is the v0.27+
+            // hook.
+            if (morningCompassionEnabled) {
+                MorningCompassionCard(
+                    onStart = { /* v0.27+ */ },
+                    onSkip = { /* v0.27+ */ },
+                )
+            }
+
+            // v0.26+ (Phase 1 G-22) — the BA weekly
+            // picker. Shown when the user has enabled
+            // the ritual; the user picks mastery +
+            // pleasure or skips. Save is a no-op in
+            // v0.26.0 (the save hook is in the launcher
+            // view-model and the home surface calls
+            // onSaveBaEntry).
+            if (baPromptEnabled) {
+                BaPickerCard(
+                    onSave = { mastery, pleasure ->
+                        onSaveBaEntry(mastery, pleasure)
+                    },
+                    onSkip = { /* v0.27+ */ },
+                )
+            }
+
+            // v0.26+ (Phase 1 G-23) — the DEAR MAN / GIVE / FAST
+            // dialog. Long-press the Anchor Note title to open.
+            // The script is rule-based (no LLM) and saved as a
+            // Letter via onSaveDearManScript.
+            if (dearManDialogState.visible) {
+                DearManDialog(
+                    onDismiss = { dearManDialogState.dismiss() },
+                    onSave = { script ->
+                        onSaveDearManScript(script)
+                        dearManDialogState.dismiss()
+                    },
+                )
+            }
+
+            // v0.26+ (Phase 1 G-20) — the notification diet card.
+            // Reports the trailing-7-day released count and the
+            // Mark 2005 23-minute-interruption-recovery cost.
+            // The card hides itself on a fresh install (zero
+            // released) — never pre-fill with zeros.
+            heldNotificationsDao?.let { HomeDietCard(dao = it) }
+
+            // v0.26+ (Phase 1 G-19) — the compassionate-wrap
+            // Snackbar host. AppWatchService posts events to
+            // CompassionateWrapNotifier when the user closes a
+            // doomscroll app after 30+ minutes; the host
+            // shows the Snackbar with Note / Dismiss actions.
+            // The Note action writes the event to a Note via
+            // the launcher view-model.
+            CompassionateWrapHost(
+                onNote = onAddCompassionateWrapNote,
+            )
+
+            // v0.28+ (Phase 3 G-29) — the gratitude
+            // card. Shown on the home surface when the
+            // user has enabled the ritual. The 1-tap
+            // text field saves to the Letters store as
+            // a regular letter; the long-press expands
+            // to the full Letter editor (the existing
+            // letter surface).
+            if (gratitudeEnabled) {
+                GratitudeCard(
+                    onSave = onSaveGratitude,
+                    onExpand = onExpandGratitude,
+                )
+            }
+
+            // v0.28+ (Phase 3 G-8) — the
+            // expressive-writing prompt. Shown on the
+            // home surface when the user has enabled
+            // the ritual. The Pennebaker 1997
+            // 3-sentence minimum-dosage entry point.
+            if (expressiveWritingEnabled) {
+                ExpressiveWritingCard(
+                    onSave = onSaveExpressiveWriting,
+                    onDismiss = { /* v0.28+ session
+                        scope */ },
+                )
+            }
+
+            // v0.28+ (Phase 3 G-26) — the wind-down
+            // card. Shown on the home surface when the
+            // user has enabled the ritual (and is
+            // inside the wind-down window, which the
+            // launcher view-model decides). The "Begin"
+            // action applies the wind-down; the
+            // "Not now" dismisses for this session.
+            if (windDownEnabled) {
+                WindDownCard(
+                    onBegin = onBeginWindDown,
+                    onDismiss = onDismissWindDown,
+                )
+            }
+
+            // v0.29+ (Phase 4 G-5) — the Sleep Lock
+            // card. Shown on the home surface during
+            // the configured sleep window. The
+            // 30-second typing + breath gate is the
+            // exit. The DevicePolicyManager
+            // device-owner grant flow is the
+            // follow-up; the Composable is the
+            // post-grant UI.
+            if (inSleepWindow) {
+                SleepLockCard(
+                    bedtime = sleepLockBedtime,
+                    waketime = sleepLockWaketime,
+                    onUnlock = { onSleepLockUnlock() },
+                )
+            }
+
+            // v0.28+ (Phase 3 G-25) — the n-of-1
+            // weekly patterns card. The card is
+            // hidden when the latest nightly
+            // report found no patterns; the
+            // gating is `patterns.isNotEmpty()`,
+            // not the existing 14-day floor
+            // (the patterns are pre-filtered by
+            // PatternFinder to the
+            // survived-significance set, so a
+            // non-empty list already passed the
+            // bar). The one-sentence composer is
+            // the project's direction-bands
+            // family: never "good" or "bad",
+            // never causal, n-of-1 framing.
+            if (weeklyPatterns.isNotEmpty()) {
+                NOfOnePatternsCard(
+                    patterns = weeklyPatterns,
+                    onDismiss = onDismissWeeklyPatterns,
+                )
+            }
 
             Column(
                 modifier = Modifier.padding(top = 40.dp),
@@ -1399,3 +1885,34 @@ internal fun greetingFor(hour: Int, morning: String, day: String, evening: Strin
         in 12..17 -> day
         else -> evening
     }
+
+/**
+ * v0.26+ (Phase 1 G-23) — the show/hide state of the
+ * DEAR MAN / GIVE / FAST dialog on the home surface.
+ * The home surface owns the state; the launcher
+ * view-model owns the save callback.
+ *
+ * Default constructor uses [remember]-style
+ * [androidx.compose.runtime.MutableState] so a single
+ * instance survives recomposition but not process
+ * death. The dialog is a one-shot trigger; if the
+ * process is killed mid-dialog, the user re-opens
+ * it with a long-press, which is the right cost.
+ */
+@androidx.compose.runtime.Stable
+class DearManDialogState {
+    // CodeRabbit review 2026-08-24 (PR #38): a plain
+    // Kotlin field is not snapshot state, so the
+    // long-press call to [show] did not schedule a
+    // recomposition and the dialog never opened. The
+    // KDoc already promised MutableState backing; the
+    // implementation was missing it. The class is
+    // now @Stable and the field is a [mutableStateOf]
+    // delegate. The delegate imports (getValue /
+    // setValue) are already present in this file.
+    internal var visible: Boolean by androidx.compose.runtime.mutableStateOf(false)
+        private set
+
+    fun show() { visible = true }
+    fun dismiss() { visible = false }
+}

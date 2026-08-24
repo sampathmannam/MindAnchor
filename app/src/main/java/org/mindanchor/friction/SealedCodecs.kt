@@ -386,4 +386,62 @@ object SealedCodecs {
      */
     fun encodeCheckIns(value: CheckInState): String =
         checkIns.encode(CheckInStore.encode(value.checkIns))
+
+    /**
+     * The sealed friction-bandit-state codec. codecId is
+     * "friction_bandit_state".
+     *
+     * The bandit state is four Doubles — the two-arm Beta
+     * posteriors — encoded as one tab-separated string.
+     * Sealing matters here: a motivated user with root
+     * could otherwise rewrite the on-disk posteriors and
+     * pin the bandit to whichever arm biases the gate
+     * toward their preferred friction level, defeating
+     * the §5 "intervention expiry" reset (which only
+     * resets one arm at a time, and only when called
+     * by the nightly deviation trigger).
+     *
+     * The integrity layer makes the on-disk form
+     * tamper-evident: a forged state fails the MAC and
+     * falls back to the prior (bandit starts fresh).
+     * The next legit observe produces a sealed record
+     * and the bandit learns from there.
+     */
+    val frictionBandit: IntegritySealedCodec = IntegritySealedCodec(
+        inner = object : Codec<String> {
+            override fun encode(value: String): String = value
+            override fun decode(encoded: String): String = encoded
+        },
+        codecId = "friction_bandit_state",
+        keyProvider = { keyProvider() ?: throw IllegalStateException("Keystore unavailable") },
+        // The reset value is the BanditState() default — two
+        // arms with PRIOR_ALPHA/PRIOR_BETA (1.0/1.0) — encoded
+        // as four tab-separated 1.0 doubles. A blank disk or a
+        // corrupted disk both read as the prior, which is the
+        // bandit-starting state documented in
+        // [FrictionBandit.PRIOR_ALPHA] / [FrictionBandit.PRIOR_BETA].
+        resetValue = "1.0\t1.0\t1.0\t1.0",
+    )
+
+    /**
+     * Helper: decode the on-disk string for the friction
+     * bandit state via the sealed codec, returning the
+     * raw four-Double encoding on any failure. The
+     * caller (`FrictionPrefs.decodeBanditState`) is the
+     * one that parses the four Doubles and falls back to
+     * the prior.
+     */
+    fun decodeBandit(raw: String): String =
+        try {
+            frictionBandit.decode(raw)
+        } catch (e: Exception) {
+            "1.0\t1.0\t1.0\t1.0"
+        }
+
+    /**
+     * Helper: encode a four-Double bandit-state string
+     * via the sealed codec.
+     */
+    fun encodeBandit(fourDoubles: String): String =
+        frictionBandit.encode(fourDoubles)
 }

@@ -16,6 +16,7 @@ import org.mindanchor.data.FrictionPrefs
 import org.mindanchor.data.LauncherPrefs
 import org.mindanchor.data.NotesPrefs
 import org.mindanchor.friction.FrictionBandit
+import org.mindanchor.friction.CompassionateWrapNotifier
 import org.mindanchor.friction.GateContext
 import org.mindanchor.data.SunsetPrefs
 import org.mindanchor.friction.LoopPhase
@@ -66,6 +67,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val prefs = LauncherPrefs(application)
     private val sunsetPrefs = SunsetPrefs(application)
     private val frictionPrefs = FrictionPrefs(application)
+    private val reportStore = org.mindanchor.report.ReportStore(application)
     private val wellnessRepository = org.mindanchor.vitals.WellnessRepository(application)
     private val readerPrefs = ReaderPrefs(application)
     /**
@@ -408,6 +410,31 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    /**
+     * v0.26+ (Phase 1 G-19) — the user tapped "Note" on the
+     * compassionate-wrap Snackbar. Write the
+     * [CompassionateWrapNotifier.Event] to a Note so the
+     * user has a record of "I was on Instagram for 32
+     * minutes and I noted something about it." The
+     * notifier is the trigger; the launcher is the
+     * storage.
+     */
+    fun recordCompassionateWrap(event: CompassionateWrapNotifier.Event) {
+        val body = "I was on ${event.label} for ${event.minutesSpent} minutes. " +
+            "(auto-captured by MindAnchor compassionate wrap)"
+        val now = System.currentTimeMillis()
+        viewModelScope.launch {
+            notesPrefs.add(
+                Note(
+                    id = nextNoteId(),
+                    body = body,
+                    createdAt = now,
+                    updatedAt = now,
+                ),
+            )
+        }
+    }
+
     // --- Wellness signals (N-of-1, from Health Connect) ---
     //
     // The home card surfaces the per-signal reading against the
@@ -592,4 +619,233 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     /** v0.25.7 (Task 13): dismiss the LLM error state. */
     fun acknowledgeLetterError() = letterVm.acknowledgeError()
+
+    // v0.26+ (Phase 1 G-22, G-21, G-1) — the
+    // protective-layer ritual read-side state. Each
+    // gate is a settings toggle; the home-surface
+    // cards gate on these flows. Default OFF is the
+    // project's opt-out-by-silence rule.
+    val goingLightSchedule: StateFlow<org.mindanchor.friction.GoingLightSchedule> =
+        frictionPrefs.goingLightSchedule
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), org.mindanchor.friction.GoingLightSchedule())
+
+    val baPromptEnabled: StateFlow<Boolean> = frictionPrefs.baPromptEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val morningCompassionEnabled: StateFlow<Boolean> = frictionPrefs.morningCompassionEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    // v0.28+ (Phase 3 G-29, G-8, G-26) — the gratitude,
+    // expressive-writing, and wind-down ritual toggles.
+    // v0.29+ (Phase 4 G-6, G-28) — the push-up mode
+    // and voice journal toggles. Each card gates on
+    // its setting; the home surface reads these
+    // StateFlows.
+    val gratitudeEnabled: StateFlow<Boolean> = frictionPrefs.gratitudeEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val expressiveWritingEnabled: StateFlow<Boolean> = frictionPrefs.expressiveWritingEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val windDownEnabled: StateFlow<Boolean> = frictionPrefs.windDownEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val pushUpModeEnabled: StateFlow<Boolean> = frictionPrefs.pushUpModeEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val voiceJournalEnabled: StateFlow<Boolean> = frictionPrefs.voiceJournalEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    // v0.28+ (Phase 3 G-25) — the n-of-1 weekly
+    // patterns. Read from the same ReportStore the
+    // nightly report writes to (the patterns
+    // themselves are computed by
+    // [org.mindanchor.report.PatternFinder] in the
+    // nightly ReportScheduler; the home surface
+    // shows whatever the latest report found).
+    // The card is the "once a week" affordance —
+    // the user can dismiss with "Thanks" for the
+    // session; the card reappears on the next
+    // home-surface open if the next report has new
+    // patterns (different signal/label pair) or if
+    // the same pair's medians shifted materially.
+    // The card gates on `isNotEmpty()` so a fresh
+    // install with no nightly report yet shows
+    // nothing.
+    val weeklyPatterns: StateFlow<List<org.mindanchor.report.Pattern>> =
+        reportStore.stored
+            .map { it?.patterns.orEmpty() }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
+     * Dismiss the n-of-1 patterns card for this session.
+     * The card reappears on the next home-surface open if
+     * new patterns arrive; for now, a no-op (the
+     * session-scoped Compose state is the only dismiss
+     * surface).
+     */
+    fun dismissWeeklyPatterns() {
+        // session-scoped dismiss lives in the Composable
+        // (remember { mutableStateOf(...) }), so this hook
+        // is a no-op for now. The launcher view-model
+        // owns the read side; the home surface owns the
+        // dismiss state.
+    }
+
+    // v0.29+ (Phase 4 G-5) — the Sleep Lock state.
+    // The home surface shows the card when the user
+    // is inside the configured sleep window. The
+    // bedtime / waketime come from the existing
+    // SunsetPrefs. The Compose-only stub here is
+    // the post-grant UI; the DevicePolicyManager
+    // wiring is a follow-up.
+
+    /**
+     * The user's bedtime (e.g. "22:00") for the
+     * sleep-lock card. Empty string when SunsetPrefs
+     * has not been configured.
+     */
+    val sleepLockBedtime: StateFlow<String> = sunsetPrefs.startTime
+        .map { it.toString() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
+
+    /**
+     * The user's waketime (e.g. "07:00") for the
+     * sleep-lock card. Empty string when SunsetPrefs
+     * has not been configured.
+     */
+    val sleepLockWaketime: StateFlow<String> = sunsetPrefs.endTime
+        .map { it.toString() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
+
+    /**
+     * Whether the current minute is inside the user's
+     * configured sleep window. Pure derivation;
+     * delegated to [SunsetPrefs.isInWindow] (the
+     * midnight-crossing-safe static helper).
+     */
+    val inSleepWindow: StateFlow<Boolean> =
+        kotlinx.coroutines.flow.combine(
+            sunsetPrefs.startTime,
+            sunsetPrefs.endTime,
+            minuteTick,
+        ) { start, end, _ ->
+            org.mindanchor.data.SunsetPrefs.isInWindow(java.time.LocalTime.now(), start, end)
+        }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /**
+     * v0.26+ (Phase 1 G-22) — write a BA mastery/pleasure
+     * pair to the Letters store with the `BA:` body
+     * prefix and `ba-prompt` provider tag. The Friday-
+     * evening scheduler triggers this from the BA
+     * prompt Composable; the home surface can also
+     * call it directly when the user picks manually.
+     */
+    fun saveBaEntry(mastery: String, pleasure: String) {
+        // CodeRabbit review 2026-08-24 (PR #38):
+        // LetterStore.save replaces any letter on the
+        // same date, so a BA entry on Monday would
+        // overwrite Monday's generated daily letter
+        // (and a gratitude entry on Monday would
+        // overwrite the BA entry). The protective-
+        // layer entries are now written to
+        // [org.mindanchor.letters.JournalStore], a
+        // separate DataStore keyed on (Kind, date),
+        // which keeps the four kinds independent of
+        // each other and of the daily letter.
+        viewModelScope.launch {
+            val cleanM = mastery.trim()
+            val cleanP = pleasure.trim()
+            if (cleanM.isEmpty() && cleanP.isEmpty()) return@launch
+            val body = "BA:${cleanM}|${cleanP}"
+            org.mindanchor.letters.JournalStore(getApplication()).save(
+                org.mindanchor.letters.JournalStore.Kind.BA,
+                java.time.LocalDate.now(),
+                body,
+            )
+        }
+    }
+
+    /**
+     * v0.26+ (Phase 1 G-23) — write a DEAR MAN / GIVE /
+     * FAST script to the Letters store as a regular
+     * letter. The script is the rule-based output of
+     * [org.mindanchor.friction.DearMan.scriptFor]; the
+     * letter stores the user's filled-in lines.
+     */
+    fun saveDearManScript(script: String) {
+        // CodeRabbit review 2026-08-24 (PR #38): see
+        // [saveBaEntry]. DEAR MAN scripts go to the
+        // same [org.mindanchor.letters.JournalStore]
+        // under [JournalStore.Kind.DEAR_MAN].
+        viewModelScope.launch {
+            val clean = script.trim()
+            if (clean.isEmpty()) return@launch
+            org.mindanchor.letters.JournalStore(getApplication()).save(
+                org.mindanchor.letters.JournalStore.Kind.DEAR_MAN,
+                java.time.LocalDate.now(),
+                clean,
+            )
+        }
+    }
+
+    /**
+     * v0.28+ (Phase 3 G-29) — write a gratitude entry
+     * to the Letters store. The gratitude is a regular
+     * letter; the body is the user's one-or-two-sentence
+     * answer to "what was the best moment today?"
+     * (Seligman 2005 active-constructive response).
+     */
+    fun saveGratitude(text: String) {
+        // CodeRabbit review 2026-08-24 (PR #38): see
+        // [saveBaEntry]. Gratitude entries go to the
+        // same [org.mindanchor.letters.JournalStore]
+        // under [JournalStore.Kind.GRATITUDE].
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            org.mindanchor.letters.JournalStore(getApplication()).save(
+                org.mindanchor.letters.JournalStore.Kind.GRATITUDE,
+                java.time.LocalDate.now(),
+                trimmed,
+            )
+        }
+    }
+
+    /**
+     * v0.28+ (Phase 3 G-8) — write a Pennebaker 1997
+     * expressive-writing entry. The same Letters
+     * pipeline as the gratitude card; the home
+     * surface calls this directly when the user
+     * taps Save on the prompt card.
+     */
+    fun saveExpressiveWriting(text: String) {
+        // CodeRabbit review 2026-08-24 (PR #38): see
+        // [saveBaEntry]. Expressive-writing entries
+        // go to the same
+        // [org.mindanchor.letters.JournalStore] under
+        // [JournalStore.Kind.EXPRESSIVE_WRITING].
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            org.mindanchor.letters.JournalStore(getApplication()).save(
+                org.mindanchor.letters.JournalStore.Kind.EXPRESSIVE_WRITING,
+                java.time.LocalDate.now(),
+                trimmed,
+            )
+        }
+    }
+
+    /**
+     * v0.26+ (Phase 1 G-1) — the user dismissed the
+     * Going Light consent card. Marks the dismissal
+     * so the card does not re-appear on every home-
+     * surface open.
+     */
+    fun dismissGoingLightConsent() {
+        viewModelScope.launch {
+            frictionPrefs.dismissGoingLightConsent()
+        }
+    }
 }

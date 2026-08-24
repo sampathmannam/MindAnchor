@@ -50,7 +50,19 @@ import java.time.ZoneId
  */
 object EmaScheduler {
 
-    private const val CHANNEL_ID = "ema"
+    private const val CHANNEL_ID = "ema_prompts_v2"
+    // v0.26+: the v1 channel was set to the
+    // lowest silent importance. The user
+    // reported on 2026-08-24 that the silent
+    // prompt was the whole reason they never
+    // saw one. Android 8+ does not allow
+    // raising importance on an existing
+    // channel, so the upgrade is a new channel
+    // id. The v1 channel is deleted on first
+    // post (see [postPrompt]) so the user's
+    // notification settings do not carry a dead
+    // silent entry.
+    private const val LEGACY_CHANNEL_ID = "ema"
     private const val ACTION_PROMPT = "org.mindanchor.EMA_PROMPT"
     private const val ACTION_REARM = "org.mindanchor.EMA_REARM"
     private const val REQUEST_CODE_REARM = 90
@@ -231,7 +243,7 @@ object EmaScheduler {
     }
 
     /**
-     * A single quiet notification that opens straight into the first
+     * A single banner notification that opens straight into the first
      * question. Checked against POST_NOTIFICATIONS first and a silent
      * no-op without it — exactly like
      * [org.mindanchor.friction.SessionManager.postExpiryNotification].
@@ -239,6 +251,20 @@ object EmaScheduler {
      * One line, not a summons: a missed check-in is not a failure, so
      * this never re-posts, never escalates, and never says how many were
      * missed.
+     *
+     * v0.26+ banner upgrade — the previous
+     * v1 channel was set to the lowest
+     * silent importance, so the user never
+     * saw the prompt. The new channel is
+     * IMPORTANCE_DEFAULT (heads-up banner)
+     * with no sound and no vibration. Sound
+     * is off because a check-in
+     * prompt is not a summons; vibration is off
+     * for the same reason and because the existing
+     * quiet-hours window is the one place we know
+     * the user wants the phone to be still. A
+     * banner is enough to be visible at a glance
+     * without being intrusive.
      */
     private fun postPrompt(context: Context) {
         if (ContextCompat.checkSelfPermission(
@@ -248,13 +274,24 @@ object EmaScheduler {
             return
         }
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
-        manager.createNotificationChannel(
-            NotificationChannel(
-                CHANNEL_ID,
-                context.getString(R.string.ema_channel_name),
-                NotificationManager.IMPORTANCE_LOW,
-            ),
-        )
+        // v0.26+: delete the v1 silent channel
+        // if it still exists, so the user's
+        // notification settings do not show a
+        // dead "EMA" entry alongside the new
+        // one. deleteNotificationChannel is a
+        // no-op if the channel does not exist.
+        manager.deleteNotificationChannel(LEGACY_CHANNEL_ID)
+        val channel = NotificationChannel(
+            CHANNEL_ID,
+            context.getString(R.string.ema_channel_name),
+            NotificationManager.IMPORTANCE_DEFAULT,
+        ).apply {
+            description = context.getString(R.string.ema_channel_description)
+            setShowBadge(false)
+            enableVibration(false)
+            setSound(null, null)
+        }
+        manager.createNotificationChannel(channel)
         val contentIntent = PendingIntent.getActivity(
             context,
             NOTIFICATION_ID,
@@ -270,6 +307,10 @@ object EmaScheduler {
             // here, and the question makes a better one-line notification
             // than a wrapper around it would.
             .setContentTitle(context.getString(R.string.ema_valence))
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setDefaults(0)
+            .setVibrate(longArrayOf(0))
+            .setSound(null)
             .setContentIntent(contentIntent)
             .setAutoCancel(true)
             .build()

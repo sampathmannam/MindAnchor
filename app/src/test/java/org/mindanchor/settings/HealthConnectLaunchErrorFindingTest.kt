@@ -5,8 +5,8 @@ import org.junit.Test
 import java.io.File
 
 /**
- * Finding test for the v0.25.3-WP-B Health Connect launch-error
- * diagnostic surface.
+ * Finding test for the v0.25.3-WP-B + v0.26+ Health Connect
+ * launch-error diagnostic surface.
  *
  * Background: one user reported the "Connect to your watch" button
  * silently doing nothing on their physical device ("error / exception
@@ -25,10 +25,24 @@ import java.io.File
  *     diagnostic info with `adb logcat` and we have something to
  *     root-cause from.
  *
- * The actual root-cause fix (the exact failure mode for the user's
- * specific device) is gated on an `adb logcat` capture from the
- * failing device. This test pins the diagnostic surface, not the
- * final fix.
+ * v0.26+ (3-step fallback) — a single user reported the
+ * button still doing nothing on 2026-08-24. The
+ * permission-contract path was failing silently on their
+ * device (Health Connect reported SDK_AVAILABLE but the
+ * permission activity did not surface). The fix extends
+ * the v0.25.3 surface to a 3-step fallback:
+ *   1. SDK launcher (the canonical path; unchanged)
+ *   2. Direct intent to the Health Connect app's main
+ *      activity, so the user can grant permissions from
+ *      the app's own UI when the SDK contract is wedged
+ *   3. Play Store listing for Health Connect, as a last
+ *      resort when the app is missing entirely
+ * All three are wrapped in runCatching; if every path
+ * throws, the last error is logged and stored in
+ * [hcLaunchError] for the visible error text. The
+ * "Why isn\'t this working?" expand-and-explain section
+ * was added in the same pass so a user with a stuck
+ * device has a self-service diagnosis path.
  */
 class HealthConnectLaunchErrorFindingTest {
 
@@ -50,8 +64,11 @@ class HealthConnectLaunchErrorFindingTest {
         // A bare launch swallows the dispatch failure (the system
         // Health Connect activity could not be resolved, the user's
         // phone had a custom ROM with a different package, etc.).
-        // The v0.25.3 fix wraps it in runCatching so the failure
-        // reaches a state the UI can read.
+        // v0.25.3 wrapped the SDK launcher in runCatching.
+        // v0.26+ wraps the same launcher plus the two
+        // fallback launches in runCatching. The pattern
+        // check is the same: the launcher.launch() call
+        // must be inside a runCatching block.
         val runCatchingIdx = screen.indexOf(
             "runCatching {\n" +
                 "                            healthConnectPermissionLauncher.launch(",
@@ -71,9 +88,11 @@ class HealthConnectLaunchErrorFindingTest {
     fun `the launch is logcat-tagged (MindAnchor slash HealthConnect) for adb logcat capture`() {
         // The user (or a support contact) can capture a failing
         // device's logcat with `adb logcat -s MindAnchor/HealthConnect`
-        // and have a known handle to grep for. The v0.25.3 fix adds
-        // a Log.w at the launch site and a Log.e in the onFailure
-        // block.
+        // and have a known handle to grep for. v0.25.3 added a Log.w
+        // at the launch site and a Log.e in the onFailure block.
+        // v0.26+ extends the Log.e to the "all three launches
+        // failed" path. The pattern check is the same: both tag
+        // strings must appear.
         val launchLogIdx = screen.indexOf("Log.w(\"MindAnchor/HealthConnect\"")
         val failureLogIdx = screen.indexOf("Log.e(\"MindAnchor/HealthConnect\"")
         assertTrue(
@@ -95,9 +114,12 @@ class HealthConnectLaunchErrorFindingTest {
     @Test
     fun `a failed launch surfaces a visible error text (not just a log line)`() {
         // A logcat-only error is invisible to a user who is not
-        // running adb. The v0.25.3 fix sets a state on failure that
-        // the UI reads to render an error string below the button.
-        val stateIdx = screen.indexOf("hcLaunchError = t.javaClass.simpleName")
+        // running adb. v0.25.3 set a state on failure that the UI
+        // reads to render an error string below the button. v0.26+
+        // uses a [failure] local rather than [t] because the
+        // 3-step fallback folds the three exceptions into one
+        // for the assignment; the test pattern is updated to match.
+        val stateIdx = screen.indexOf("hcLaunchError =")
         assertTrue(
             "The onFailure block must record the failure in a state " +
                 "the UI can read. " +
@@ -130,6 +152,64 @@ class HealthConnectLaunchErrorFindingTest {
                 "from a previous failed attempt. " +
                 "clearIdx=$clearIdx",
             clearIdx >= 0,
+        )
+    }
+
+    @Test
+    fun `v0_26+ 3-step fallback opens Health Connect main activity when the SDK launcher fails`() {
+        // v0.26+ (3-step fallback) — the user reported the
+        // button doing nothing on 2026-08-24. The fix
+        // extends v0.25.3 to: try SDK launcher; if it
+        // fails, try a direct intent to the Health Connect
+        // app's main activity; if that fails, open the
+        // Play Store listing. The fallback launch must
+        // be wrapped in runCatching so a wedged provider
+        // never takes down the launcher Activity.
+        assertTrue(
+            "The button onClick must try a direct intent to the " +
+                "Health Connect app's main activity as a fallback when " +
+                "the SDK launcher fails. Look for a second runCatching " +
+                "block that calls context.startActivity(...) on a " +
+                "Health Connect main intent. " +
+                "fallbackOpenIdx=${screen.indexOf("fallbackOpen")}",
+            screen.indexOf("fallbackOpen") >= 0,
+        )
+        assertTrue(
+            "The fallback must target the Health Connect package " +
+                "constants, not a hardcoded action string. Look for " +
+                "HEALTH_CONNECT_PACKAGE / HEALTH_CONNECT_MAIN_ACTION.",
+            screen.indexOf("HEALTH_CONNECT_PACKAGE") >= 0 &&
+                screen.indexOf("HEALTH_CONNECT_MAIN_ACTION") >= 0,
+        )
+    }
+
+    @Test
+    fun `v0_26+ 'Why isn' 't this working' expandable section lists the three most common causes`() {
+        // The v0.26+ "Why isn\'t this working?" section is
+        // the self-service diagnosis path for the user who
+        // hit the silent-failure on 2026-08-24. It must
+        // list at least three causes (disabled, not
+        // installed, outdated) and the strings must be
+        // present in the resource table.
+        val file = fileAt("app/src/main/res/values/strings.xml").readText()
+        assertTrue(
+            "The 'Why isn\\'t this working?' strings must be present. " +
+                "Missing health_connect_why_header: ${
+                    if (file.indexOf("health_connect_why_header") < 0) "yes" else "no"
+                }",
+            file.indexOf("health_connect_why_header") >= 0,
+        )
+        assertTrue(
+            "The disabled-cause string must be present.",
+            file.indexOf("health_connect_why_disabled") >= 0,
+        )
+        assertTrue(
+            "The not-installed-cause string must be present.",
+            file.indexOf("health_connect_why_installed") >= 0,
+        )
+        assertTrue(
+            "The outdated-cause string must be present.",
+            file.indexOf("health_connect_why_outdated") >= 0,
         )
     }
 }

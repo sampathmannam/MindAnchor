@@ -1,6 +1,7 @@
 package org.mindanchor.data
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
@@ -37,6 +38,139 @@ class FrictionPrefs(private val context: Context) {
 
     private val flaggedKey = stringSetPreferencesKey("flagged_packages")
     private val ledgerKey = stringPreferencesKey("extension_ledger")
+
+    // v0.26+ (Phase 1 G-22): the behavioural-activation weekly
+    // prompt. The user opts in; default is OFF (the project's
+    // opt-out-by-silence rule). When on, the Friday-evening
+    // PreHome surface offers "pick one mastery + one pleasure".
+    // Dimidjian 2006 (BA RCT, N=241) is the evidence anchor.
+    private val baPromptEnabledKey = booleanPreferencesKey("ba_prompt_enabled")
+    val baPromptEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[baPromptEnabledKey] ?: false
+    }
+    suspend fun setBaPromptEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[baPromptEnabledKey] = enabled }
+    }
+
+    // v0.26+ (Phase 1 G-21): the morning self-compassion
+    // break. The user opts in; default is OFF. Neff 2003
+    // and Linardon 2020 (27 RCTs of smartphone-based
+    // self-compassion apps) are the evidence anchors.
+    private val morningCompassionEnabledKey =
+        booleanPreferencesKey("morning_compassion_enabled")
+    val morningCompassionEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[morningCompassionEnabledKey] ?: false
+    }
+    suspend fun setMorningCompassionEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[morningCompassionEnabledKey] = enabled }
+    }
+
+    // v0.26+ (Phase 1 G-19): the compassionate wrap on
+    // app-close after a long session. The user opts in;
+    // default is OFF. The wrap fires a Snackbar that asks
+    // "You were on %1$s for %2$s — note anything?" — the
+    // ask is a 1-tap offer, never a judgment.
+    private val compassionateWrapEnabledKey =
+        booleanPreferencesKey("compassionate_wrap_enabled")
+    val compassionateWrapEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[compassionateWrapEnabledKey] ?: false
+    }
+    suspend fun setCompassionateWrapEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[compassionateWrapEnabledKey] = enabled }
+    }
+
+    // v0.26+ (Phase 1 G-1) — the Going Light consent
+    // card dismissal. Persisted so the card does not
+    // re-appear on every home-surface open after the
+    // user dismisses it once. The OS-level VpnService
+    // consent is re-checked on every home-surface open
+    // — the dismissal is a UI affordance, not a
+    // permission grant.
+    private val goingLightConsentDismissedKey =
+        booleanPreferencesKey("going_light_consent_dismissed")
+    val goingLightConsentDismissed: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[goingLightConsentDismissedKey] ?: false
+    }
+    suspend fun dismissGoingLightConsent() {
+        context.dataStore.edit { it[goingLightConsentDismissedKey] = true }
+    }
+
+    // v0.28+ (Phase 3 G-8) — the expressive-writing
+    // prompt. The user opts in; default is OFF.
+    // Pennebaker 1997 (minimum-dosage 3-sentence
+    // entry point) is the evidence anchor. The
+    // home surface shows the card on low-mood
+    // check-in days (the user explicitly asks for
+    // it, the launcher does not schedule it).
+    private val expressiveWritingEnabledKey =
+        booleanPreferencesKey("expressive_writing_enabled")
+    val expressiveWritingEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[expressiveWritingEnabledKey] ?: false
+    }
+    suspend fun setExpressiveWritingEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[expressiveWritingEnabledKey] = enabled }
+    }
+
+    // v0.28+ (Phase 3 G-26) — the wind-down card.
+    // The user opts in; default is OFF. Shown on
+    // the home surface after the configured
+    // wind-down time (default 21:00, overridable
+    // in Settings). The launcher applies the
+    // changes when the user taps Begin.
+    private val windDownEnabledKey =
+        booleanPreferencesKey("wind_down_enabled")
+    val windDownEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[windDownEnabledKey] ?: false
+    }
+    suspend fun setWindDownEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[windDownEnabledKey] = enabled }
+    }
+
+    // v0.28+ (Phase 3 G-29) — the gratitude
+    // card. The user opts in; default is OFF.
+    // Seligman 2005 (active-constructive response
+    // RCT) is the evidence anchor. The card
+    // writes to the Letters store (same pipeline
+    // as the DEAR MAN script).
+    private val gratitudeEnabledKey =
+        booleanPreferencesKey("gratitude_enabled")
+    val gratitudeEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[gratitudeEnabledKey] ?: false
+    }
+    suspend fun setGratitudeEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[gratitudeEnabledKey] = enabled }
+    }
+
+    // v0.29+ (Phase 4 G-6) — the push-up mode.
+    // The user opts in; default is OFF. When on,
+    // opening a flagged app shows the push-up
+    // counter and the user must complete N reps
+    // before the launcher lets the app open.
+    // Hauck 2020 (Sports Medicine, intense-exercise
+    // craving-reduction 30-50 min) is the evidence
+    // anchor.
+    private val pushUpModeEnabledKey =
+        booleanPreferencesKey("push_up_mode_enabled")
+    val pushUpModeEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[pushUpModeEnabledKey] ?: false
+    }
+    suspend fun setPushUpModeEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[pushUpModeEnabledKey] = enabled }
+    }
+
+    // v0.29+ (Phase 4 G-28) — the voice journal.
+    // The user opts in; default is OFF. Records
+    // audio on-device; whisper.cpp transcribes
+    // on-device. ~75 MB APK cost acknowledged in
+    // the Composable KDoc.
+    private val voiceJournalEnabledKey =
+        booleanPreferencesKey("voice_journal_enabled")
+    val voiceJournalEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[voiceJournalEnabledKey] ?: false
+    }
+    suspend fun setVoiceJournalEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[voiceJournalEnabledKey] = enabled }
+    }
 
     val flaggedApps: Flow<Set<String>> = context.dataStore.data.map { prefs ->
         prefs[flaggedKey] ?: emptySet()
@@ -307,6 +441,19 @@ class FrictionPrefs(private val context: Context) {
      * tab-separated pair of `(alpha, beta)` per arm so the data
      * store stays text-only, in keeping with the
      * [GateLedger.encode] / [OpenLoop.encode] pattern.
+     *
+     * Sealed with the [SealedCodecs.frictionBandit] HMAC-SHA256
+     * layer (v0.26+, Phase 1 G-2). The bandit state is the
+     * launcher deciding *how hard to push*; a motivated user
+     * with root could otherwise rewrite the on-disk posteriors
+     * to pin the bandit to whichever arm biases the gate toward
+     * their preferred friction level, defeating the §5
+     * "intervention expiry" reset (which only resets one arm
+     * at a time, and only when called by the nightly deviation
+     * trigger). Sealing makes the on-disk form tamper-evident:
+     * a forged state fails the MAC and the bandit resets to
+     * the prior. The next legit `observe` produces a sealed
+     * record and the bandit learns from there.
      */
     val banditState: Flow<FrictionBandit.BanditState> =
         context.dataStore.data.map { decodeBandit(it[banditKey].orEmpty()) }
@@ -315,12 +462,38 @@ class FrictionPrefs(private val context: Context) {
         context.dataStore.edit { it[banditKey] = encodeBandit(state) }
     }
 
+    /**
+     * The §5 "intervention expiry" reset — see
+     * [FrictionBandit.resetDominant]. The reset is conservative
+     * (only the dominant arm is reset, the other arm's
+     * history is preserved) and is fired by the nightly
+     * deviation trigger when the dominant arm has not been
+     * doing its job for the configured threshold. Idempotent:
+     * calling it twice in a row is safe.
+     */
+    suspend fun resetBanditDominant() {
+        context.dataStore.edit { prefs ->
+            val current = decodeBandit(prefs[banditKey].orEmpty())
+            val reset = FrictionBandit.resetDominant(current)
+            prefs[banditKey] = encodeBandit(reset)
+        }
+    }
+
     private fun encodeBandit(state: FrictionBandit.BanditState): String =
-        "${state.full.alpha}\t${state.full.beta}\t${state.brief.alpha}\t${state.brief.beta}"
+        SealedCodecs.encodeBandit(
+            listOf(
+                state.full.alpha.toString(),
+                state.full.beta.toString(),
+                state.brief.alpha.toString(),
+                state.brief.beta.toString(),
+            ).joinToString("\t"),
+        )
 
     private fun decodeBandit(raw: String): FrictionBandit.BanditState {
         if (raw.isBlank()) return FrictionBandit.BanditState()
-        val parts = raw.split('\t')
+        val sealed = runCatching { SealedCodecs.decodeBandit(raw) }.getOrNull()
+            ?: return FrictionBandit.BanditState()
+        val parts = sealed.split('\t')
         if (parts.size < 4) return FrictionBandit.BanditState()
         val (fa, fb, ba, bb) = parts
         val fullAlpha = fa.toDoubleOrNull() ?: return FrictionBandit.BanditState()

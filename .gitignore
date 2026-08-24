@@ -22,3 +22,6 @@ captures/
 
 # Local worktrees (not for commit)
 .worktrees/
+
+# local gradle test/build logs
+gradle-*.log

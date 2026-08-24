@@ -1,6 +1,11 @@
 package org.mindanchor.settings
 
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -9,6 +14,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -23,44 +30,25 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import org.mindanchor.R
-import org.mindanchor.llm.GroqModels
+import org.mindanchor.llm.LlmProvider
 import org.mindanchor.ui.Spacing
 
-/**
- * The "Daily letter (LLM)" section in Settings → Reading.
- * Inserted between the legacy "Daily letter" section
- * (on-device Phi-4 model) and the "Reading size" section.
- *
- * The section has 5 rows: Provider (single value, "Groq"),
- * Model (3 Groq models), API key (password-masked),
- * Connection (status row, updates only on Test tap), and
- * Test connection (button).
- *
- * The Provider row is a static label — the picker is
- * deliberately hidden because v0.25.7 ships Groq only.
- * The Anthropic entry is reserved for v0.25.8+ and is
- * not shown to the user yet.
- */
 @Suppress("FunctionNaming")
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun LlmSettingsScreen(viewModel: LlmSettingsViewModel) {
     val apiKey by viewModel.apiKey.collectAsState()
     val model by viewModel.model.collectAsState()
     val lastTestResult by viewModel.lastTestResult.collectAsState()
     val provider by viewModel.provider.collectAsState()
+    val signupUrl by viewModel.signupUrl.collectAsState()
+    val context = LocalContext.current
 
-    // The parent SettingsScreen already provides a vertical
-    // scroll container for the Reading group. v0.25.7 (Task 14
-    // drive-verify) caught a `Vertically scrollable component was
-    // measured with an infinity maximum height constraints` crash
-    // when this screen added its own `verticalScroll` inside the
-    // parent's `verticalScroll(Column)` — Compose disallows
-    // nested vertical scrolls with unbounded height. Removing the
-    // inner scroll; the parent's scroll carries the section.
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -78,21 +66,52 @@ fun LlmSettingsScreen(viewModel: LlmSettingsViewModel) {
             modifier = Modifier.padding(bottom = Spacing.Loose),
         )
 
-        // Provider
-        SettingsRow(
-            label = stringResource(R.string.settings_llm_provider),
-            value = provider.name,
-        )
-        Spacer(modifier = Modifier.height(Spacing.Loose))
+        FlowRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = Spacing.Loose),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            for (p in LlmProvider.values()) {
+                val label = if (p.isFree) {
+                    "${p.displayName} ✓ Free"
+                } else {
+                    p.displayName
+                }
+                FilterChip(
+                    selected = provider == p,
+                    onClick = { viewModel.setProvider(p) },
+                    label = { Text(label) },
+                )
+            }
+        }
 
-        // Model picker
+        val keyButtonLabel = if (provider.isFree) {
+            stringResource(R.string.settings_llm_get_key_free, provider.displayName)
+        } else {
+            stringResource(R.string.settings_llm_get_key, provider.displayName)
+        }
+        OutlinedButton(
+            onClick = {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(signupUrl))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = Spacing.Loose),
+        ) {
+            Text(keyButtonLabel)
+        }
+
         ModelPickerRow(
             current = model,
+            suggestedModels = provider.suggestedModels,
             onSelect = { viewModel.setModel(it) },
         )
         Spacer(modifier = Modifier.height(Spacing.Loose))
 
-        // API key
         OutlinedTextField(
             value = apiKey,
             onValueChange = { viewModel.setApiKey(it) },
@@ -103,7 +122,6 @@ fun LlmSettingsScreen(viewModel: LlmSettingsViewModel) {
         )
         Spacer(modifier = Modifier.height(Spacing.Loose))
 
-        // Connection status
         SettingsRow(
             label = stringResource(R.string.settings_llm_connection),
             value = if (lastTestResult.testedAtMillis == 0L) {
@@ -119,7 +137,6 @@ fun LlmSettingsScreen(viewModel: LlmSettingsViewModel) {
         )
         Spacer(modifier = Modifier.height(Spacing.Loose))
 
-        // Test connection button
         OutlinedButton(
             onClick = { viewModel.testConnection() },
             modifier = Modifier.fillMaxWidth(),
@@ -129,12 +146,6 @@ fun LlmSettingsScreen(viewModel: LlmSettingsViewModel) {
     }
 }
 
-/**
- * A label-on-the-left, value-on-the-right row. The
- * value's color is parameterised so the Connection row
- * can render the success/failure/never-tested states
- * in their semantic colors.
- */
 @Suppress("FunctionNaming")
 @Composable
 private fun SettingsRow(
@@ -146,13 +157,6 @@ private fun SettingsRow(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 48.dp),
-        // v0.25.9 (P1-6): the previous `weight(1f)` on the label
-        // forced the label to fill all leftover width after the
-        // value, which made "Connection" wrap to "Conne" / "ction"
-        // when the value was a long error message. Sharing the row
-        // width 50/50 lets the value wrap instead of the label
-        // breaking mid-word. `verticalAlignment = Top` so the
-        // multi-line value aligns to the top of the label baseline.
         verticalAlignment = Alignment.Top,
     ) {
         Text(
@@ -169,16 +173,11 @@ private fun SettingsRow(
     }
 }
 
-/**
- * The model dropdown. A [TextButton] opens a
- * [DropdownMenu] listing the three Groq model IDs
- * (see [GroqModels.ALL]). Tapping one fires
- * [onSelect] and collapses the menu.
- */
 @Suppress("FunctionNaming")
 @Composable
 private fun ModelPickerRow(
     current: String,
+    suggestedModels: List<String>,
     onSelect: (String) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -188,9 +187,6 @@ private fun ModelPickerRow(
             .heightIn(min = 48.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // "Model" is a universally understood term; same shape
-        // as the A-/A/A+ labels in the reading-size picker
-        // (see SettingsScreen.kt — those are also hardcoded).
         Text(
             text = "Model",
             style = MaterialTheme.typography.bodyLarge,
@@ -200,7 +196,7 @@ private fun ModelPickerRow(
             Text(current)
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            for (m in GroqModels.ALL) {
+            for (m in suggestedModels) {
                 DropdownMenuItem(
                     text = { Text(m) },
                     onClick = {
