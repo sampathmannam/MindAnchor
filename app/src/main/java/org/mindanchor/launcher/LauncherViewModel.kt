@@ -725,7 +725,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
      * midnight-crossing-safe static helper).
      */
     val inSleepWindow: StateFlow<Boolean> =
-        kotlinx.coroutines.flow.combine(sunsetPrefs.startTime, sunsetPrefs.endTime) { start, end ->
+        kotlinx.coroutines.flow.combine(
+            sunsetPrefs.startTime,
+            sunsetPrefs.endTime,
+            minuteTick,
+        ) { start, end, _ ->
             org.mindanchor.data.SunsetPrefs.isInWindow(java.time.LocalTime.now(), start, end)
         }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
