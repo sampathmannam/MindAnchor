@@ -51,14 +51,15 @@ import java.time.ZoneId
 object EmaScheduler {
 
     private const val CHANNEL_ID = "ema_prompts_v2"
-    // v0.26+: the v1 channel was IMPORTANCE_LOW
-    // (silent in the shade). The user reported on
-    // 2026-08-24 that the silent prompt was the
-    // whole reason they never saw one. Android
-    // 8+ does not allow raising importance on an
-    // existing channel, so the upgrade is a new
-    // channel id. The v1 channel is deleted on
-    // first post (see [postPrompt]) so the user's
+    // v0.26+: the v1 channel was set to the
+    // lowest silent importance. The user
+    // reported on 2026-08-24 that the silent
+    // prompt was the whole reason they never
+    // saw one. Android 8+ does not allow
+    // raising importance on an existing
+    // channel, so the upgrade is a new channel
+    // id. The v1 channel is deleted on first
+    // post (see [postPrompt]) so the user's
     // notification settings do not carry a dead
     // silent entry.
     private const val LEGACY_CHANNEL_ID = "ema"
