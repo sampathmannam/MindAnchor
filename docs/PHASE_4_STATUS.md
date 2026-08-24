@@ -119,6 +119,18 @@ and no falcisifcation of anything".
   same date — a same-day gratitude entry destroyed
   the BA entry, and both destroyed the LLM letter
   for that day. 4 unit-test cases.
+- **v0.30+ addition (this turn, commit `5dca237`):**
+  `Reframer.reframe` now passes the LLM result through
+  `NarrationGuard.judge`. The guard's 1-3 line /
+  1,200-char ceiling is the actual backstop; a model
+  that ignores "three to five sentences" used to leak
+  through. The previous version only checked for
+  null/blank; the KDoc at
+  `LlamaNarrator.reframeLetterBody` was explicit
+  that the caller runs the output through the guard.
+  The fix uses `NarrationGuard.Verdict.Accepted.text`
+  on accept, falls through to the template on reject.
+  `ReframerGuardTest` (4 cases) pins the rule.
 
 ### Version bump
 - `versionName` 0.26.0 → 0.30.0 (via the LLM task's
