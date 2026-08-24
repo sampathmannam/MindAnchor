@@ -61,7 +61,19 @@ fun SleepLockCard(
     modifier: Modifier = Modifier,
 ) {
     var typedSoFar by remember { mutableStateOf("") }
+    // CodeRabbit review 2026-08-24 (PR #38): the
+    // previous version called onUnlock the instant
+    // the typed text equaled the phrase, which a
+    // paste meets in one input event. The 30-second
+    // dwell is the actual friction: the phrase must
+    // *stay* matched for 30 seconds before the
+    // launcher dismisses the sleep lock. The dwell
+    // timer starts on first match, resets when the
+    // user types anything that no longer matches,
+    // and fires onUnlock on completion.
+    var matchStartedAt by remember { mutableStateOf<Long?>(null) }
     val unlockPhrase = "I am awake and I want to use my phone."
+    val dwellSeconds = 30
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -88,7 +100,19 @@ fun SleepLockCard(
             )
             OutlinedTextField(
                 value = typedSoFar,
-                onValueChange = { typedSoFar = it; if (it == unlockPhrase) onUnlock(it) },
+                onValueChange = { newValue ->
+                    typedSoFar = newValue
+                    if (newValue == unlockPhrase) {
+                        val now = System.currentTimeMillis()
+                        if (matchStartedAt == null) matchStartedAt = now
+                        if (now - (matchStartedAt ?: now) >= dwellSeconds * 1000L) {
+                            onUnlock(newValue)
+                            matchStartedAt = null
+                        }
+                    } else {
+                        matchStartedAt = null
+                    }
+                },
                 label = { Text("Type to unlock") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),

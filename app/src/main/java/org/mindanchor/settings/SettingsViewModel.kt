@@ -489,8 +489,28 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         val ctx = getApplication<Application>()
         val manager = ctx.getSystemService(NotificationManager::class.java) ?: return
         if (!manager.isNotificationPolicyAccessGranted) return
+        // CodeRabbit review 2026-08-24 (PR #38): the
+        // previous version reserved the Running
+        // state *after* the first suspension
+        // (manager.currentInterruptionFilter +
+        // SunsetController.applyFilter). A second
+        // call before that assignment passed the
+        // guard at line 488; two countdown loops
+        // would then run. The KDoc says the call is
+        // idempotent, so the behaviour did not match
+        // the contract. Reserve the Running state
+        // with a provisional greyscaleOn = false
+        // *before* the launch; copy() to the real
+        // value once `greyOn` is known, and let the
+        // second `_sunsetTrialState.value !is Idle`
+        // guard reject the duplicate.
+        val previous = manager.currentInterruptionFilter
+        _sunsetTrialState.value = SunsetTrialState.Running(
+            previousFilter = previous,
+            greyscaleOn = false,
+            remainingSeconds = durationSeconds,
+        )
         viewModelScope.launch {
-            val previous = manager.currentInterruptionFilter
             // Apply the same filter SunsetController applies at start.
             SunsetController.applyFilter(ctx, priorityOnly = true)
             // Greyscale only when the user has opted into grey nights
@@ -501,11 +521,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             val greyGranted = org.mindanchor.grayscale.Grayscale.isGranted(ctx)
             val greyOn = greyNights && greyGranted
             if (greyOn) org.mindanchor.grayscale.Grayscale.set(ctx, true)
-            _sunsetTrialState.value = SunsetTrialState.Running(
-                previousFilter = previous,
-                greyscaleOn = greyOn,
-                remainingSeconds = durationSeconds,
-            )
+            _sunsetTrialState.value = _sunsetTrialState.value.let {
+                if (it is SunsetTrialState.Running) it.copy(greyscaleOn = greyOn) else it
+            }
             var remaining = durationSeconds
             while (remaining > 0) {
                 kotlinx.coroutines.delay(1_000)
