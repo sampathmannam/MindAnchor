@@ -65,28 +65,35 @@ class LauncherUiTest {
         // that is the responsibility of the introduction-flow
         // tests, not this one. Use [assertExists]; the
         // "search" button, "settings" button, and
-        // "digest_screen_title" label are all in the
-        // semantic tree on the home surface from the
-        // first launch.
+        // "Digest" label (R.string.digest_screen_title) are
+        // all in the semantic tree on the home surface from
+        // the first launch. The "Digest" text is the
+        // [R.string.digest_screen_title] value — Capitalised;
+        // [onNodeWithText] defaults to case-sensitive
+        // matching so the assertion is exact.
         rule.onNodeWithText("search").assertExists()
         rule.onNodeWithText("settings").assertExists()
-        rule.onNodeWithText("digest").assertExists()
+        rule.onNodeWithText("Digest").assertExists()
     }
 
     @Test
     fun theDrawerOpensAndAcceptsAQuery() {
         launchHome()
         // v0.30+ (PR #38 follow-up): the "Type to find an
-        // app…" field sits below the OnboardingCalloutCard
-        // for the first 3 launches; on a fresh test
-        // DataStore the callout is showing, so the field
-        // is not initially displayed. Scroll the
-        // drawer into view (the column is the
-        // verticalScroll that holds the drawer), then
-        // assert the field is displayed.
+        // app…" field is rendered when the drawer
+        // [Surface] is open. Tapping the "search"
+        // corner button on the home opens the drawer;
+        // the test then asserts the field is displayed
+        // (the previous version used
+        // [performScrollTo].assertIsDisplayed, which
+        // does not work because the drawer is its own
+        // [Surface] with no scrollable ancestor —
+        // the field sits above the soft-keyboard area,
+        // not in a scrollable column). The displayed
+        // assertion is enough.
         rule.onNodeWithText("search").performClick()
         rule.waitForIdle()
-        rule.onNodeWithText("Type to find an app…").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("Type to find an app…").assertIsDisplayed()
         rule.onNodeWithText("Type to find an app…").performTextInput("set")
         rule.waitForIdle()
     }
