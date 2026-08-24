@@ -84,6 +84,65 @@ class NotificationPrefs(private val context: Context) {
         prefs[batchedAppsKey] ?: emptySet()
     }
 
+    // v0.30+ (spec Phase 2) — the active hours
+    // window. Notifications are only demoted inside
+    // this window; outside it, the
+    // [AnchorNotificationListenerService] lets
+    // notifications through unchanged. The spec
+    // calls for default 21:00 to 07:00 (the typical
+    // "I should not see work stuff overnight"
+    // window). Stored as minutes-of-day to keep the
+    // DataStore key simple; the helper
+    // [isWithinActiveHours] handles the
+    // midnight-crossing case.
+    private val activeHoursStartKey = intPreferencesKey("active_hours_start")
+    private val activeHoursEndKey = intPreferencesKey("active_hours_end")
+    // v0.30+ (spec Phase 2) — the held-retention
+    // window in days. Held notifications older than
+    // this are pruned on next service start; the
+    // default is the spec's 7 days.
+    private val heldRetentionDaysKey = intPreferencesKey("held_retention_days")
+
+    val activeHoursStart: Flow<Int> = context.dataStore.data.map { prefs ->
+        prefs[activeHoursStartKey] ?: DEFAULT_ACTIVE_START
+    }
+    val activeHoursEnd: Flow<Int> = context.dataStore.data.map { prefs ->
+        prefs[activeHoursEndKey] ?: DEFAULT_ACTIVE_END
+    }
+    val heldRetentionDays: Flow<Int> = context.dataStore.data.map { prefs ->
+        prefs[heldRetentionDaysKey]?.coerceIn(1, MAX_RETENTION_DAYS)
+            ?: DEFAULT_RETENTION_DAYS
+    }
+
+    /**
+     * Whether the given [now] (minutes-of-day) is inside
+     * the active hours window. The window may cross
+     * midnight (e.g. 21:00 to 07:00); this helper handles
+     * that without forcing the user to express it as
+     * two windows. The test for this rule lives at
+     * ActiveHoursTest; the rule is exposed via the
+     * companion [isWithinActiveHours] so tests can
+     * call it without a `NotificationPrefs` instance.
+     */
+    fun isWithinActiveHours(
+        nowMinutes: Int,
+        startMinutes: Int,
+        endMinutes: Int,
+    ): Boolean = isWithinActiveHoursStatic(nowMinutes, startMinutes, endMinutes)
+
+    suspend fun setActiveHours(startMinutes: Int, endMinutes: Int) {
+        context.dataStore.edit { prefs ->
+            prefs[activeHoursStartKey] = startMinutes.coerceIn(0, MINUTES_PER_DAY - 1)
+            prefs[activeHoursEndKey] = endMinutes.coerceIn(0, MINUTES_PER_DAY - 1)
+        }
+    }
+
+    suspend fun setHeldRetentionDays(days: Int) {
+        context.dataStore.edit { prefs ->
+            prefs[heldRetentionDaysKey] = days.coerceIn(1, MAX_RETENTION_DAYS)
+        }
+    }
+
     suspend fun current(): Pair<Boolean, Set<String>> {
         val prefs = context.dataStore.data.first()
         return (prefs[enabledKey] ?: false) to (prefs[batchedAppsKey] ?: emptySet())
@@ -101,7 +160,46 @@ class NotificationPrefs(private val context: Context) {
         }
     }
 
-    private companion object {
+    companion object {
         const val MINUTES_PER_DAY = 24 * 60
+        // v0.30+ (spec Phase 2) — the default
+        // active-hours window. 21:00 to 07:00 is the
+        // spec's recommendation; the user can change
+        // it in Settings.
+        const val DEFAULT_ACTIVE_START = 21 * 60
+        const val DEFAULT_ACTIVE_END = 7 * 60
+        // v0.30+ (spec Phase 2) — the default
+        // held-retention in days. The spec's default
+        // is 7; the cap is 30 so a user who wants a
+        // longer window can have one without burying
+        // the table in held notifications.
+        const val DEFAULT_RETENTION_DAYS = 7
+        const val MAX_RETENTION_DAYS = 30
+
+        /**
+         * v0.30+ (spec Phase 2) — whether the given
+         * [nowMinutes] is inside the active-hours
+         * window. The window may cross midnight (e.g.
+         * 21:00 to 07:00); this helper handles that
+         * without forcing the user to express it as
+         * two windows. Internal so the unit test
+         * ([ActiveHoursTest]) can call it without
+         * instantiating `NotificationPrefs`.
+         */
+        @JvmStatic
+        fun isWithinActiveHoursStatic(
+            nowMinutes: Int,
+            startMinutes: Int,
+            endMinutes: Int,
+        ): Boolean {
+            if (startMinutes == endMinutes) return true // window is the full day
+            return if (startMinutes < endMinutes) {
+                nowMinutes in startMinutes until endMinutes
+            } else {
+                // Crosses midnight: active from start
+                // to end-of-day, then 0 to end.
+                nowMinutes >= startMinutes || nowMinutes < endMinutes
+            }
+        }
     }
 }
