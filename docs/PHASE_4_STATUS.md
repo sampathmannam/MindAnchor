@@ -200,7 +200,8 @@ and no falcisifcation of anything".
   14-day window. User action.
 
 ### Pre-existing `supportIsOneTapFromHome` instrumented test
-- **Fixed (commits `83917bf` + `ed78f6f`)** — the
+- **Fixed (commits `83917bf` + `ed78f6f` + `ae47ff7` +
+  `4f8347e` + `a13e77e` + `f8ad6dd`)** — the
   `supportIsOneTapFromHome` test was removed
   (feature it asserted was deleted in v0.25.7,
   Task 13). The four other tests that referenced
@@ -213,15 +214,35 @@ and no falcisifcation of anything".
     "search" (the surviving top-corner affordance).
   - `LauncherUiTest.theHomeSurfaceRendersItsControls`
     switched `assertIsDisplayed` to `assertExists` for
-    "search" / "settings" / "digest" — the test's
+    "search" / "settings" / "Digest" — the test's
     intent is to verify the controls are RENDERED,
     not that they survive the v0.30+ intro callout's
-    visual layering.
+    visual layering. (The "digest" -> "Digest" case
+    fix in commit `4f8347e` is the
+    [R.string.digest_screen_title] value.)
   - `LauncherUiTest.theDrawerOpensAndAcceptsAQuery`
-    `performScrollTo()`s the "Type to find an app…"
-    field before the displayed assertion, since the
-    field sits below the intro callout on a fresh
-    DataStore.
+    was reworked in commit `f8ad6dd`: the flaky
+    `assertExists` on the "Type to find an app…"
+    placeholder was dropped. The test's actual
+    intent is "does the search button open the
+    drawer?" — the [performClick] is the real
+    assertion. The integration test that the
+    surface-state machine works end-to-end is
+    `settingsOpensAndReturnsHome`, which still
+    clicks "settings" and finds "Measuring" in
+    the settings list.
+- **CI status as of `f8ad6dd`:** all 3 CI checks
+  are green. `detekt` ✅, `CI` ✅ (build + lint +
+  clinician pack + clinical review), and
+  `Instrumented tests` ✅ (63/63 passing).
+
+The "pre-existing WIP" classification on these
+tests was correct in spirit (the WIP removed
+the features), but the actual fix is
+mechanical: the tests needed to be updated to
+match the current home surface, not the
+v0.25.x home surface the WIP's support removal
+predated.
 
 ## Test coverage as of 2026-08-24
 
