@@ -199,6 +199,19 @@ and no falcisifcation of anything".
   This requires a real device, real usage, and a
   14-day window. User action.
 
+### Pre-existing `supportIsOneTapFromHome` instrumented test
+- **Fixed (commit `83917bf`)** — the test was
+  removed; the feature it asserted was deleted
+  in v0.25.7 (Task 13), the test was broken ever
+  since. The KDoc at the top of
+  `app/src/androidTest/java/org/mindanchor/launcher/LauncherUiTest.kt`
+  now documents the removal. The four other
+  instrumented tests
+  (`theHomeSurfaceRendersItsControls`,
+  `theDrawerOpensAndAcceptsAQuery`,
+  `settingsOpensAndReturnsHome`, etc.) all pass
+  on the next instrumented-test run.
+
 ## Test coverage as of 2026-08-24
 
 - `app:assembleDebug` ✅
