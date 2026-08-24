@@ -526,6 +526,14 @@ fun SettingsScreen(
     hiddenApps: List<DisplayApp>,
     onUnhide: (DisplayApp) -> Unit,
     onBack: () -> Unit,
+    /**
+     * v0.30+ (spec Phase 3) — open the Healthy
+     * defaults walkthrough on its own surface. Wired
+     * to the 'Healthy defaults' card in About; the
+     * walkthrough itself lives in
+     * [org.mindanchor.settings.HealthyDefaultsScreen].
+     */
+    onOpenHealthyDefaults: () -> Unit = {},
     /** Opens the heart-rhythm reading on its own surface. */
     onOpenPpg: () -> Unit = {},
     /** Opens last night's report on its own surface. */
@@ -3318,6 +3326,12 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                TextButton(
+                    onClick = onOpenHealthyDefaults,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Open the walkthrough")
+                }
                 TextButton(
                     onClick = {
                         runCatching {

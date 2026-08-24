@@ -86,7 +86,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Date
 
-private enum class LauncherSurface { Home, Drawer, Settings, Ppg, Report, Letter }
+private enum class LauncherSurface { Home, Drawer, Settings, Ppg, Report, Letter, HealthyDefaults }
 
 /**
  * v0.20.9: Modifier extension that auto-scrolls the nearest
@@ -571,6 +571,17 @@ fun LauncherRoot(
                 hiddenApps = state.allApps.filter { it.isHidden },
                 onUnhide = { viewModel.setHidden(it, false) },
                 onBack = { surface = LauncherSurface.Home },
+                // v0.30+ (spec Phase 3) — the Healthy
+                // defaults walkthrough is reachable from
+                // the inline 'Healthy defaults' card in
+                // Settings → About. The card itself
+                // carries a one-tap 'Open system
+                // defaults' button; this callback
+                // routes to the full per-category
+                // walkthrough surface.
+                onOpenHealthyDefaults = {
+                    surface = LauncherSurface.HealthyDefaults
+                },
                 onOpenPpg = { surface = LauncherSurface.Ppg },
                 onOpenReport = {
                     surface = LauncherSurface.Report
@@ -588,6 +599,17 @@ fun LauncherRoot(
                     letterCameFrom = LauncherSurface.Settings
                     surface = LauncherSurface.Letter
                 },
+            )
+        }
+
+        // v0.30+ (spec Phase 3) — the Healthy defaults
+        // walkthrough surface. Reached from Settings →
+        // About's 'Healthy defaults' card. The 'Back'
+        // button on the screen returns to the surface
+        // the user came from (Settings, in practice).
+        LauncherSurface.HealthyDefaults -> Surface(modifier = Modifier.fillMaxSize()) {
+            org.mindanchor.settings.HealthyDefaultsScreen(
+                onBack = { surface = LauncherSurface.Settings },
             )
         }
 
