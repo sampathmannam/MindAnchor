@@ -1,6 +1,7 @@
 package org.mindanchor.data
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
@@ -37,6 +38,46 @@ class FrictionPrefs(private val context: Context) {
 
     private val flaggedKey = stringSetPreferencesKey("flagged_packages")
     private val ledgerKey = stringPreferencesKey("extension_ledger")
+
+    // v0.26+ (Phase 1 G-22): the behavioural-activation weekly
+    // prompt. The user opts in; default is OFF (the project's
+    // opt-out-by-silence rule). When on, the Friday-evening
+    // PreHome surface offers "pick one mastery + one pleasure".
+    // Dimidjian 2006 (BA RCT, N=241) is the evidence anchor.
+    private val baPromptEnabledKey = booleanPreferencesKey("ba_prompt_enabled")
+    val baPromptEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[baPromptEnabledKey] ?: false
+    }
+    suspend fun setBaPromptEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[baPromptEnabledKey] = enabled }
+    }
+
+    // v0.26+ (Phase 1 G-21): the morning self-compassion
+    // break. The user opts in; default is OFF. Neff 2003
+    // and Linardon 2020 (27 RCTs of smartphone-based
+    // self-compassion apps) are the evidence anchors.
+    private val morningCompassionEnabledKey =
+        booleanPreferencesKey("morning_compassion_enabled")
+    val morningCompassionEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[morningCompassionEnabledKey] ?: false
+    }
+    suspend fun setMorningCompassionEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[morningCompassionEnabledKey] = enabled }
+    }
+
+    // v0.26+ (Phase 1 G-19): the compassionate wrap on
+    // app-close after a long session. The user opts in;
+    // default is OFF. The wrap fires a Snackbar that asks
+    // "You were on %1$s for %2$s — note anything?" — the
+    // ask is a 1-tap offer, never a judgment.
+    private val compassionateWrapEnabledKey =
+        booleanPreferencesKey("compassionate_wrap_enabled")
+    val compassionateWrapEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[compassionateWrapEnabledKey] ?: false
+    }
+    suspend fun setCompassionateWrapEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[compassionateWrapEnabledKey] = enabled }
+    }
 
     val flaggedApps: Flow<Set<String>> = context.dataStore.data.map { prefs ->
         prefs[flaggedKey] ?: emptySet()

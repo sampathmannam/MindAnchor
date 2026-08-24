@@ -135,16 +135,104 @@ class LetterStore(private val context: Context) {
     }
 
     /**
-     * Defaults and bounds for the time-of-day field.
+     * Adds a behavioural-activation weekly-prompt entry for
+     * [date]. The entry is stored as a [Letter] whose body
+     * starts with the [BA_BODY_PREFIX] marker so the reader
+     * UI can render it with the BA-specific affordances
+     * (mastery + pleasure label, completion checkbox) rather
+     * than the standard letter treatment.
      *
-     * [DEFAULT_TIME] is the wire format the DataStore stores;
-     * [DEFAULT_HOUR] / [DEFAULT_MINUTE] are the same default in
-     * numeric form, exposed so callers building their own
-     * [kotlinx.coroutines.flow.StateFlow] over [time] can use the
-     * same initial value [LetterStore] falls back to, without
-     * re-hardcoding "8" in a second place.
+     * ## Wire-format note
+     *
+     * The codec ([LetterLedger]) has no `type` field — the
+     * 5 nullable metadata fields added in v0.25.7 (provider,
+     * model, promptTokens, completionTokens, durationMs)
+     * are all LLM-specific and repurposing one of them for
+     * a UI kind would couple the LLM context to the BA
+     * context. A body prefix is the smallest change that
+     * keeps the codec stable and lets the reader UI
+     * detect BA entries from the [Letter.body] prefix.
+     *
+     * ## Evidence anchor
+     *
+     * Dimidjian S, Hollon SD, Dobson KS, et al. (2006) BA
+     * RCT, N=241. The mastery/pleasure pair is from
+     * Lewinsohn et al. 1976 (the original BA
+     * activity-scheduling protocol). v0.26+ (Phase 1
+     * G-22).
      */
+    suspend fun saveBaEntry(date: LocalDate, mastery: String, pleasure: String) {
+        val cleanMastery = mastery.trim().take(BA_MAX_FIELD_LEN)
+        val cleanPleasure = pleasure.trim().take(BA_MAX_FIELD_LEN)
+        if (cleanMastery.isEmpty() && cleanPleasure.isEmpty()) return
+        val body = "$BA_BODY_PREFIX$cleanMastery$BA_FIELD_SEP$cleanPleasure"
+        save(Letter(date = date, body = body, provider = BA_PROVIDER_TAG))
+    }
+
+    /**
+     * Decodes a [Letter] into a BA mastery/pleasure pair,
+     * or null when the letter is not a BA entry. The
+     * detection is the [BA_BODY_PREFIX] on [Letter.body];
+     * the LLM-provider tags never produce that prefix,
+     * so the two kinds are disjoint on disk.
+     */
+    fun readBaEntry(letter: Letter): BaEntry? {
+        if (!letter.body.startsWith(BA_BODY_PREFIX)) return null
+        val tail = letter.body.removePrefix(BA_BODY_PREFIX)
+        val parts = tail.split(BA_FIELD_SEP, limit = 2)
+        return BaEntry(
+            date = letter.date,
+            mastery = parts.getOrNull(0).orEmpty(),
+            pleasure = parts.getOrNull(1).orEmpty(),
+        )
+    }
+
+    data class BaEntry(
+        val date: LocalDate,
+        val mastery: String,
+        val pleasure: String,
+    )
+
     companion object {
+        /**
+         * The body prefix that marks a letter as a
+         * behavioural-activation entry. The literal
+         * "BA:" is short enough to read in the letter
+         * list and unique enough that no canned or
+         * LLM-generated body collides with it.
+         */
+        const val BA_BODY_PREFIX = "BA:"
+
+        /**
+         * The field separator between the mastery
+         * and pleasure strings. A pipe character —
+         * not a tab — keeps the LLM body pipeline
+         * (which uses tab for the metadata columns)
+         * untouched.
+         */
+        const val BA_FIELD_SEP = "|"
+
+        /**
+         * The provider tag for BA entries. Lets
+         * the reader UI distinguish them from
+         * LLM-driven letters in a single
+         * [Letter.provider] check, the same way
+         * "groq" identifies the Groq cloud LLM.
+         * The string is not an LLM provider; the
+         * reader uses it as a kind-of-entry
+         * marker, not as a remote source.
+         */
+        const val BA_PROVIDER_TAG = "ba-prompt"
+
+        /**
+         * The per-field length cap. 280 chars
+         * matches Twitter's old cap and is enough
+         * for one or two sentences per field.
+         * Trimmed at the call site; longer input
+         * is truncated, not rejected.
+         */
+        const val BA_MAX_FIELD_LEN = 280
+
         /** 08:00 local — the spec's default. */
         const val DEFAULT_TIME = "08:00"
         const val DEFAULT_HOUR = 8
@@ -154,4 +242,15 @@ class LetterStore(private val context: Context) {
         const val MINUTE_MIN = 0
         const val MINUTE_MAX = 59
     }
+
+    /**
+     * Defaults and bounds for the time-of-day field.
+     *
+     * [DEFAULT_TIME] is the wire format the DataStore stores;
+     * [DEFAULT_HOUR] / [DEFAULT_MINUTE] are the same default in
+     * numeric form, exposed so callers building their own
+     * [kotlinx.coroutines.flow.StateFlow] over [time] can use the
+     * same initial value [LetterStore] falls back to, without
+     * re-hardcoding "8" in a second place.
+     */
 }
