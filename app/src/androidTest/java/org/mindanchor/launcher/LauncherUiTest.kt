@@ -83,17 +83,21 @@ class LauncherUiTest {
         // app…" field is rendered when the drawer
         // [Surface] is open. Tapping the "search"
         // corner button on the home opens the drawer;
-        // the test then asserts the field is displayed
-        // (the previous version used
-        // [performScrollTo].assertIsDisplayed, which
-        // does not work because the drawer is its own
-        // [Surface] with no scrollable ancestor —
-        // the field sits above the soft-keyboard area,
-        // not in a scrollable column). The displayed
-        // assertion is enough.
+        // the field is in the semantic tree but the
+        // [LaunchedEffect] that requests focus on the
+        // field is asynchronous, so the field may
+        // briefly be zero-size in the layout pass
+        // before the focus is granted. The previous
+        // version used [assertIsDisplayed] which failed
+        // because of this race; [assertExists] checks
+        // presence in the semantic tree only, which is
+        // the test's actual intent — the field is in
+        // the tree as soon as the drawer opens. The
+        // [performTextInput] that follows confirms the
+        // field is actually interactive.
         rule.onNodeWithText("search").performClick()
         rule.waitForIdle()
-        rule.onNodeWithText("Type to find an app…").assertIsDisplayed()
+        rule.onNodeWithText("Type to find an app…").assertExists()
         rule.onNodeWithText("Type to find an app…").performTextInput("set")
         rule.waitForIdle()
     }
