@@ -45,6 +45,23 @@ and no falcisifcation of anything".
 - The held-notification digest surface (12-held callout,
   release schedule, `BatchAlarms` / `BatchSchedule`
   / `BatchReleaser`) was already in place from v0.25.
+- **v0.30+ additions (this turn, commits `289c96e`,
+  `b2c85e0`, `8903ab7`):**
+  - `NotificationPrefs` gained the spec's three
+    dials: `activeHoursStart` / `activeHoursEnd`
+    (default 21:00-07:00) and `heldRetentionDays`
+    (default 7, capped 1-30). The companion exposes
+    `isWithinActiveHoursStatic` for the
+    midnight-crossing case.
+  - `AnchorNotificationListenerService` now gates
+    the demote on `isWithinActiveHoursStatic` and
+    auto-prunes held rows older than the
+    retention cutoff on `onListenerConnected` via
+    the new `HeldNotificationDao.pruneOlderThan`.
+  - `SettingsViewModel` exposes the new StateFlows
+    and setter methods; the Settings row is a
+    follow-up.
+  - `ActiveHoursTest` (6 cases) pins the rule.
 
 ### Spec Phase 3 — Healthy defaults walkthrough
 - `HealthyDefaultsScreen` (Compose, per-category
@@ -211,6 +228,12 @@ docs/PHASE_4_STATUS.md  (this file)
 ## Commits landed in this session (2026-08-24)
 
 ```
+8903ab7 feat(settings): SettingsViewModel surface for active-hours + retention
+b2c85e0 feat(notifications): wire active-hours gate + retention auto-prune (spec Phase 2)
+289c96e feat(notifications): active-hours + held-retention spec Phase 2 (G-2)
+c1ed258 chore(detekt): refresh baseline for the v0.30.0 LLM multi-provider + PreHome work
+0e84fea docs: regenerate CLINICIAN_PACK.md (LLM + PreHome strings)
+8f5b6fe docs: Phase 1-4 status report (2026-08-24)
 0dcba28 feat(launcher+settings): Healthy defaults walkthrough routing (spec Phase 3)
 e9c8bab feat(settings): PreHome opt-in toggle UI
 eb66bf6 feat(prehome): opt-in toggle + self-skip when disabled
