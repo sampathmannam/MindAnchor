@@ -48,12 +48,12 @@ bool ensure_loaded(const std::string& model_path) {
         return true;
     }
     release_model();
-    // WHISPER_CONTEXT_PARAMS is filled with defaults; ggml's
-    // n_threads is left at 0 (= use hardware-concurrency
-    // heuristic). The launcher's KDoc documents the
-    // contract "4 threads by default"; the upstream
-    // whisper.cpp will pick the right number for the
-    // device CPU.
+    // v0.30+ -- b4938 whisper.cpp. whisper_context_default_params
+    // returns sensible defaults; ggml's n_threads is left at
+    // 0 (= use hardware-concurrency heuristic). The launcher's
+    // KDoc documents the contract "4 threads by default";
+    // the upstream whisper.cpp will pick the right number
+    // for the device CPU.
     whisper_context_params cparams = whisper_context_default_params();
     state().ctx = whisper_init_from_file_with_params(
         model_path.c_str(), cparams);
@@ -101,43 +101,43 @@ std::string transcribe(
     if (samples.empty()) {
         return std::string();
     }
-    // v0.30+ -- real whisper.cpp call. The
-    // sampling strategy is GREEDY when beam_size <= 1
-    // (the default), BEAM_SEARCH otherwise. The
-    // launcher's KDoc says beam_size is the user-facing
-    // parameter; a beam size of 1 = greedy decoding
-    // matches the v0.30+ default.
+    // v0.30+ -- real whisper.cpp call. b4938 has the
+    // 4-argument whisper_full (returns int, not
+    // n_segments); n_segments is queried via
+    // whisper_full_n_segments. Sampling strategy is
+    // GREEDY when beam_size <= 1, BEAM_SEARCH otherwise.
+    // 4 threads per the launcher's documented contract.
     whisper_full_params wparams = whisper_full_default_params(
         beam_size <= 1 ? WHISPER_SAMPLING_GREEDY : WHISPER_SAMPLING_BEAM_SEARCH);
     wparams.print_realtime = false;
     wparams.print_progress = false;
     wparams.language = language.c_str();
     wparams.translate = false;
-    // v0.30+ -- 4 threads by default per the launcher's
-    // documented contract. Setting 0 lets upstream
-    // pick the right number; the launcher's KDoc says
-    // "4 threads" but the upstream default is more
-    // portable. The previous version hardcoded 4.
     wparams.n_threads = 4;
     if (beam_size > 1) {
         wparams.beam_search.beam_size = beam_size;
     }
 
-    int n_segments = 0;
     int rc = whisper_full(
         state().ctx,
         wparams,
         samples.data(),
-        static_cast<int>(samples.size()),
-        &n_segments);
-    if (rc != 0 || n_segments <= 0) {
+        static_cast<int>(samples.size()));
+    if (rc != 0) {
+        return std::string();
+    }
+    // v0.30+ -- b4938 API: n_segments is queried via a
+    // separate call after whisper_full, not via an
+    // out-parameter.
+    int n_segments = whisper_full_n_segments(state().ctx);
+    if (n_segments <= 0) {
         return std::string();
     }
     // Stitch the segment texts. whisper's
-    // segment-getter is per-segment; the JNI
-    // shape of the full text is the concatenation
-    // with single newlines between segments. The
-    // Kotlin side does no further processing.
+    // segment-getter is per-segment; the JNI shape of
+    // the full text is the concatenation with single
+    // newlines between segments. The Kotlin side does
+    // no further processing.
     std::string out;
     for (int i = 0; i < n_segments; ++i) {
         const char* seg = whisper_full_get_segment_text(
@@ -164,7 +164,10 @@ void init_backend_if_needed() {
     // bug: [Whisper.transcribe] called [nativeReady]
     // before [nativeTranscribe] and bailed out with null
     // on a fresh process, so the model load that
-    // happens inside [nativeTranscribe] never ran.
+    // happens inside [nativeTranscribe] never ran. The
+    // fix: defer the model load to [nativeTranscribe],
+    // let [nativeReady] mean "the .so loaded and the
+    // backend is initialised".
     state().backend_ok = true;
 }
 
@@ -185,7 +188,8 @@ Java_org_mindanchor_narrate_WhisperEngine_nativeReady(
     // [nativeReady] was always false, so the user never
     // saw a transcription. The fix: defer the model
     // load to [nativeTranscribe], let [nativeReady]
-    // mean "the .so loaded and the backend is initialised".
+    // mean "the .so loaded and the backend is
+    // initialised".
     init_backend_if_needed();
     return state().backend_ok ? JNI_TRUE : JNI_FALSE;
 }
