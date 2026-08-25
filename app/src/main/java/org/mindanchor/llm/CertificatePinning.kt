@@ -12,39 +12,71 @@ import okhttp3.CertificatePinner
  * the bearer token and the conversation would be
  * visible to the passive observer.
  *
- * The fix: pin each provider's issuer or its
- * public key via OkHttp's [CertificatePinner]. The
- * pins are SHA-256 hashes of the public key (SPKI),
- * the format OkHttp documents in
+ * The fix: pin each provider's issuer *and* the
+ * issuer's root, via OkHttp's [CertificatePinner].
+ * The pins are SHA-256 hashes of the public key
+ * (SPKI), the format OkHttp documents in
  * `CertificatePinner.Builder.add(pattern, pins...)`.
+ * [CertificatePinner] treats a pin set as a match if
+ * *any* certificate in the verified chain matches
+ * *any* configured pin, so pinning both the issuer
+ * and the root is a fallback, not a stricter
+ * requirement: a leaf-issuer rotation that still
+ * chains to the same root keeps working.
+ *
+ * ## Where the pins came from
+ *
+ * The original commit shipped placeholder strings
+ * (`PLACEHOLDER_GOOGLE_GTS`, `PLACEHOLDER_ISRG_ROOT_X1`)
+ * — those are not valid base64 SPKI hashes, so every
+ * real request would have failed closed with
+ * `SSLPeerUnverifiedException`. This revision
+ * replaces them with SPKI hashes read directly off
+ * each host's live TLS handshake
+ * (`openssl s_client -connect <host>:443 -showcerts`,
+ * verified 2026-08-25):
+ *
+ * - `generativelanguage.googleapis.com` and
+ *   `aistudio.google.com` both chain
+ *   leaf → **WR2** (Google Trust Services) →
+ *   **GTS Root R1** (Google Trust Services LLC).
+ * - `openrouter.ai` and `api.groq.com` both chain
+ *   leaf → **WE1** (Google Trust Services) →
+ *   **GTS Root R4** (Google Trust Services LLC).
+ *
+ * The original audit note assumed openrouter.ai and
+ * api.groq.com were issued by Let's Encrypt (ISRG
+ * Root X1); the live handshake shows both are
+ * actually served off Google Trust Services'
+ * WE1/GTS-R4 chain. Pinning the assumed-wrong CA
+ * would have hard-failed every OpenRouter/Groq call,
+ * so the fix pins what the servers actually present,
+ * not what the audit guessed.
  *
  * ## Why the pin set is conservative
  *
- * The pin covers the immediate issuer. Rotating a
- * pin costs nothing in production (the server is
- * trusted, the client is not) and the documented
- * approach in the audit was to pin "the issuer or
- * its public key". Pinning the leaf would fail on
- * the next cert rotation; pinning the issuer
- * survives leaf rotation. The leaf itself is
- * validated by the underlying trust store; the
- * pin is the MITM defence.
+ * The pin set is the issuer intermediate (WR2 or
+ * WE1) plus its root (GTS Root R1 or GTS Root R4).
+ * Pinning the leaf would fail on the next cert
+ * rotation; pinning the issuer survives leaf
+ * rotation, and the root pin survives an intermediate
+ * rotation within the same root. The leaf itself is
+ * still validated by the platform trust store; these
+ * pins are the MITM defence layered on top.
  *
  * ## Rotation policy
  *
- * - The pin set is reviewed quarterly. A CA
- *   rotation adds a fallback before the old pin
- *   expires.
- * - The fallback is the SPKI of the parent CA, not
- *   the parent CA itself. SPKI pinning survives
- *   key rotation in the parent.
- * - If a provider rotates its CA and the new CA
- *   is not pinned, the OkHttp call fails with a
- *   `SSLPeerUnverifiedException`. The audit
- *   remediation says: "rotate the pins annually;
- *   document a fallback to the parent CA so a pin
- *   expiry doesn't brick the LLM path." The
- *   [LlmPrefs] contract reads the API key from the
+ * - The pin set is reviewed quarterly, or whenever a
+ *   provider's LLM calls start failing with
+ *   `SSLPeerUnverifiedException` — re-run the same
+ *   `openssl s_client` capture against the failing
+ *   host and update the pins here.
+ * - If a provider rotates to a new root the pins
+ *   don't cover, the OkHttp call fails closed rather
+ *   than silently trusting an unpinned chain — that
+ *   is the intended behavior of certificate pinning,
+ *   not a bug to route around with a broader pin set.
+ * - The [LlmPrefs] contract reads the API key from the
  *   [LlmTokenStore]; the [CertificatePinner] is set
  *   at client construction in [OpenAiCompatibleClient].
  *
@@ -70,33 +102,8 @@ internal object CertificatePinning {
      * but not used here because each provider is a
      * single host).
      *
-     * The pins are placeholders pending the user's
-     * CA-rotation policy. The audit said:
-     *
-     *   "Pin each provider's issuer or its public key.
-     *    Use OkHttp's CertificatePinner:
-     *      - aistudio.google.com
-     *        (and generativelanguage.googleapis.com)
-     *        → pin Google's GTS CA cert chain
-     *        (the public SPKI hash is in Google's
-     *        official pins).
-     *      - openrouter.ai → pin Let's Encrypt's
-     *        ISRG Root X1 (current issuer) or the
-     *        specific intermediate.
-     *      - api.groq.com → pin Let's Encrypt's
-     *        ISRG Root X1.
-     *    Rotate the pins annually; document a fallback
-     *    to the parent CA so a pin expiry doesn't
-     *    brick the LLM path."
-     *
-     * The SPKI hashes for Google's GTS, Let's Encrypt
-     * ISRG Root X1, and the specific intermediates
-     * are out of scope for this commit; they are the
-     * next step in the certificate-pinning workstream
-     * (the user / devops team has the production
-     * access to the Google and Let's Encrypt SPKI
-     * databases). The [CertificatePinner] plumbing is
-     * in place; the SPKI values are the next patch.
+     * See the class KDoc for where these pins came
+     * from and the rotation policy.
      */
     fun forBaseUrl(baseUrl: String): CertificatePinner? {
         // v0.30+ — hostnames are case-insensitive in
@@ -107,34 +114,37 @@ internal object CertificatePinning {
         return when {
             host.contains("generativelanguage.googleapis.com") ||
                 host.contains("aistudio.google.com") ->
-                googlePinner()
-            host.contains("openrouter.ai") ->
-                letsEncryptPinner()
-            host.contains("api.groq.com") ->
-                letsEncryptPinner()
+                googleGtsR1Pinner()
+            host.contains("openrouter.ai") ||
+                host.contains("api.groq.com") ->
+                googleGtsR4Pinner()
             else -> null
         }
     }
 
-    private fun googlePinner(): CertificatePinner =
-        // TODO(security-audit-2026-08-25): the actual
-        // Google GTS CA SPKI hashes go here. The pin
-        // is a placeholder until the devops team
-        // confirms the rotation policy and the SPKI
-        // values from the Google PKI page.
+    // generativelanguage.googleapis.com / aistudio.google.com:
+    // leaf -> WR2 -> GTS Root R1 (Google Trust Services LLC).
+    // Pins WR2 (the issuer) and GTS Root R1 (its root) so an
+    // intermediate rotation within the same root still verifies.
+    private fun googleGtsR1Pinner(): CertificatePinner =
         CertificatePinner.Builder()
-            .add("aistudio.google.com", "sha256/PLACEHOLDER_GOOGLE_GTS")
-            .add("generativelanguage.googleapis.com", "sha256/PLACEHOLDER_GOOGLE_GTS")
+            .add("aistudio.google.com", GOOGLE_WR2_PIN, GOOGLE_GTS_ROOT_R1_PIN)
+            .add("generativelanguage.googleapis.com", GOOGLE_WR2_PIN, GOOGLE_GTS_ROOT_R1_PIN)
             .build()
 
-    private fun letsEncryptPinner(): CertificatePinner =
-        // TODO(security-audit-2026-08-25): the
-        // ISRG Root X1 SPKI hash goes here. The pin
-        // is a placeholder until the devops team
-        // confirms the rotation policy and the SPKI
-        // values from the Let's Encrypt CT logs.
+    // openrouter.ai / api.groq.com: leaf -> WE1 -> GTS Root R4
+    // (Google Trust Services LLC) — not Let's Encrypt, despite
+    // the original audit note's assumption; see class KDoc.
+    private fun googleGtsR4Pinner(): CertificatePinner =
         CertificatePinner.Builder()
-            .add("openrouter.ai", "sha256/PLACEHOLDER_ISRG_ROOT_X1")
-            .add("api.groq.com", "sha256/PLACEHOLDER_ISRG_ROOT_X1")
+            .add("openrouter.ai", GOOGLE_WE1_PIN, GOOGLE_GTS_ROOT_R4_PIN)
+            .add("api.groq.com", GOOGLE_WE1_PIN, GOOGLE_GTS_ROOT_R4_PIN)
             .build()
+
+    // SPKI (public-key) SHA-256 pins, read from each host's
+    // live TLS handshake on 2026-08-25 — see class KDoc.
+    private const val GOOGLE_WR2_PIN = "sha256/YPtHaftLw6/0vnc2BnNKGF54xiCA28WFcccjkA4ypCM="
+    private const val GOOGLE_GTS_ROOT_R1_PIN = "sha256/hxqRlPTu1bMS/0DITB1SSu0vd4u/8l8TjPgfaAp63Gc="
+    private const val GOOGLE_WE1_PIN = "sha256/kIdp6NNEd8wsugYyyIYFsi1ylMCED3hZbSR8ZFsa/A4="
+    private const val GOOGLE_GTS_ROOT_R4_PIN = "sha256/mEflZT5enoR1FuXLgYYGqnVEoZvmf9c2bVBpiOjYQ0c="
 }

@@ -19,11 +19,12 @@ import org.junit.Test
  * tests below assert that the right provider is
  * selected for each base URL the project uses, and
  * that unknown hosts return null (no pinning — the
- * default OkHttp trust store is used). The pinner
- * itself is a no-op until the SPKI hashes are filled
- * in by the devops team in a follow-up commit; the
- * [forBaseUrl] plumbing is in place and the test
- * pins the routing.
+ * default OkHttp trust store is used). Two pins per
+ * provider are asserted directly against the real
+ * SPKI hashes captured off each host's live TLS
+ * handshake (see [CertificatePinning]'s KDoc) so a
+ * future accidental revert to placeholder strings
+ * fails this test rather than shipping silently.
  */
 class CertificatePinningTest {
 
@@ -72,6 +73,33 @@ class CertificatePinningTest {
         val b = CertificatePinning.forBaseUrl("https://generativelanguage.googleapis.com/v1/")
         assertNotNull(a)
         assertNotNull(b)
+    }
+
+    @Test
+    fun `google hosts pin the verified WR2 issuer and GTS Root R1 fallback`() {
+        val pinner = CertificatePinning.forBaseUrl("https://generativelanguage.googleapis.com/v1beta/openai/")
+        val pins = pinner!!.findMatchingPins("generativelanguage.googleapis.com").map { it.toString() }.toSet()
+        assertEquals(
+            setOf(
+                "sha256/YPtHaftLw6/0vnc2BnNKGF54xiCA28WFcccjkA4ypCM=",
+                "sha256/hxqRlPTu1bMS/0DITB1SSu0vd4u/8l8TjPgfaAp63Gc=",
+            ),
+            pins,
+        )
+    }
+
+    @Test
+    fun `openrouter and groq pin the verified WE1 issuer and GTS Root R4 fallback`() {
+        val expected = setOf(
+            "sha256/kIdp6NNEd8wsugYyyIYFsi1ylMCED3hZbSR8ZFsa/A4=",
+            "sha256/mEflZT5enoR1FuXLgYYGqnVEoZvmf9c2bVBpiOjYQ0c=",
+        )
+        val openRouterPins = CertificatePinning.forBaseUrl("https://openrouter.ai/api/v1/")!!
+            .findMatchingPins("openrouter.ai").map { it.toString() }.toSet()
+        val groqPins = CertificatePinning.forBaseUrl("https://api.groq.com/openai/v1/")!!
+            .findMatchingPins("api.groq.com").map { it.toString() }.toSet()
+        assertEquals(expected, openRouterPins)
+        assertEquals(expected, groqPins)
     }
 
     @Test
