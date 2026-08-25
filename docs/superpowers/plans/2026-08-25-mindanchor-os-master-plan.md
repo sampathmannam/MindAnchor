@@ -219,9 +219,13 @@ per task before handoff — see Part 6.
   Escape hatch: the existing 30s typed dwell unlocks early.
 - **T-1.3 (M, MM)** OS Mode status card on Settings → About: current grant
   state, suspended-now list, next window, revoke instructions.
-- **T-1.4 (M, MM)** Quick Settings tiles ×4 (TileService): Sunset-now,
-  Going-Light toggle, Release-my-batch-now, Breathe (opens the breathing
-  surface). No new permissions.
+- **T-1.4 (M, MM)** Quick Settings tiles ×4 (TileService): Sunset toggle,
+  Going-Light toggle, Release-my-batch-now, Support (opens SupportActivity —
+  safety plan + chosen people; CONCEPT 3.5 "zero friction to coping tools").
+  No new permissions. *(Amended 2026-08-25: originally "Breathe", but no
+  standalone breathing surface exists — breathing lives inside FrictionGate
+  and LauncherSurface is private/non-routable; SupportActivity is a real,
+  directly startable activity.)*
 - **T-1.5 (S, MM)** PreHome "morning protection" toggle: feeds gated for
   user-set N minutes after first unlock (reuses friction machinery; CONCEPT
   3.3 morning protection).
