@@ -58,7 +58,22 @@ class LlmPrefs(private val context: Context) {
     }
 
     suspend fun setApiKey(key: String) {
-        context.letterLlmDataStore.edit { it[apiKeyKey] = key }
+        // v0.30+ (security audit 2026-08-24) — the
+        // previous version accepted any string
+        // unbounded. The audit's adversarial payload
+        // was a 10 MB ASCII string that, stored in
+        // DataStore, would be re-sent on every LLM
+        // call as a 10 MB Authorization header. The
+        // fix mirrors the spec's "validate the
+        // LLM-bridge setApiKey" remediation: trim,
+        // cap, reject control chars, reject empty
+        // post-trim.
+        val cleaned = key
+            .trim()
+            .take(MAX_KEY_LEN)
+            .filter { !it.isISOControl() }
+        if (cleaned.isEmpty()) return
+        context.letterLlmDataStore.edit { it[apiKeyKey] = cleaned }
     }
 
     suspend fun setModel(model: String) {
@@ -75,5 +90,15 @@ class LlmPrefs(private val context: Context) {
 
     internal suspend fun reset() {
         context.letterLlmDataStore.edit { it.clear() }
+    }
+
+    companion object {
+        // v0.30+ (security audit 2026-08-24) — the
+        // LLM provider keys are at most 256 chars in
+        // practice (Google AI Studio: 39; OpenRouter: 64;
+        // Groq: 56). 256 is a comfortable ceiling that
+        // also stops a 10 MB adversarial payload from
+        // landing in DataStore.
+        const val MAX_KEY_LEN = 256
     }
 }

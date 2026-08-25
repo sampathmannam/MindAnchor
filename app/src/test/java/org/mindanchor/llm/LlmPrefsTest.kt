@@ -4,6 +4,7 @@ import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -78,5 +79,52 @@ class LlmPrefsTest {
         prefs.reset()
         assertEquals("", prefs.apiKey.first())
         assertEquals(LlmTestResult.NONE, prefs.lastTestResult.first())
+    }
+
+    // v0.30+ (security audit 2026-08-24) — the
+    // following three cases pin the [setApiKey]
+    // adversarial-payload defences:
+    //  - the 10 MB ASCII payload (memory / network
+    //    pressure)
+    //  - the CRLF-injection payload (header injection
+    //    on a permissive provider)
+    //  - the empty / whitespace-only payload
+    //  - the over-cap (256 char) payload is truncated
+    //    to [MAX_KEY_LEN]
+    // The "happy path" above already covers the
+    // round-trip; the four cases below are the
+    // security cases.
+
+    @Test
+    fun `setApiKey rejects 10MB ASCII payload`() = runBlocking {
+        val payload = "A".repeat(10 * 1024 * 1024)
+        prefs.setApiKey(payload)
+        val stored = prefs.apiKey.first()
+        assertTrue(stored.length <= LlmPrefs.MAX_KEY_LEN)
+        // The stored value is the 256-char truncation.
+        assertEquals(LlmPrefs.MAX_KEY_LEN, stored.length)
+    }
+
+    @Test
+    fun `setApiKey strips CRLF from header-injection payload`() = runBlocking {
+        prefs.setApiKey("abc\r\nX-Evil-Header: pwned")
+        val stored = prefs.apiKey.first()
+        assertTrue(!stored.contains("\r"))
+        assertTrue(!stored.contains("\n"))
+        assertEquals("abcX-Evil-Header: pwned", stored)
+    }
+
+    @Test
+    fun `setApiKey empty or whitespace is a no-op`() = runBlocking {
+        prefs.setApiKey("   ")
+        assertEquals("", prefs.apiKey.first())
+        prefs.setApiKey("")
+        assertEquals("", prefs.apiKey.first())
+    }
+
+    @Test
+    fun `setApiKey trims leading and trailing whitespace`() = runBlocking {
+        prefs.setApiKey("  sk-abc-12345  ")
+        assertEquals("sk-abc-12345", prefs.apiKey.first())
     }
 }
