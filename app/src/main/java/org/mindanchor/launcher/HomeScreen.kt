@@ -181,6 +181,12 @@ fun LauncherRoot(
     var surface by remember { mutableStateOf(LauncherSurface.Home) }
     var actionsFor by remember { mutableStateOf<DisplayApp?>(null) }
     var gateFor by remember { mutableStateOf<DisplayApp?>(null) }
+    // v0.30+ (Phase 4 G-5): the [Activity] reference
+    // for the [startLockTaskOn] / [stopLockTaskOn] calls
+    // is resolved from the Compose [LocalContext]. The
+    // activity is host-process: the LaunchedEffect
+    // body is on the main thread so the call is safe.
+    val context = LocalContext.current
 
     // v0.26+ (Phase 1 G-22, G-21, G-1) — the protective
     // layer rituals' read-side state. Each card gates on
@@ -209,8 +215,20 @@ fun LauncherRoot(
     // existing SunsetPrefs (read by the launcher
     // view-model). The on-device-only-Composable
     // stub here is the post-grant UI; the
-    // DevicePolicyManager wiring is a follow-up.
+    // v0.30+ (this turn) wiring calls
+    // [Activity.startLockTask] / [Activity.stopLockTask]
+    // so the sleep lock is enforced by the
+    // platform, not just a Card overlay.
     val inSleepWindowByState = viewModel.inSleepWindow
+    val inSleepWindow by inSleepWindowByState.collectAsState()
+    // v0.30+ (G-5 device-owner follow-up): pin the
+    // user to the launcher task while the sleep
+    // window is active. The 30-second unlock
+    // phrase is the only way out; pressing Home
+    // does not exit the locked task.
+    LaunchedEffect(inSleepWindow) {
+        if (inSleepWindow) startLockTaskOn(context)
+    }
 
     // v0.28+ (Phase 3 G-25) — the n-of-1 weekly
     // patterns. Read from the same ReportStore
@@ -235,7 +253,6 @@ fun LauncherRoot(
     // (Task 8), which writes letterDateSignal from HomeActivity.
     var letterSelectedDate by remember { mutableStateOf<LocalDate?>(null) }
     var letterCameFrom by remember { mutableStateOf(LauncherSurface.Home) }
-    val context = LocalContext.current
 
     // v0.25.7 (Task 13): the LLM letter write state
     // (Idle / Writing / Reader / Error). Collected at
@@ -525,14 +542,21 @@ fun LauncherRoot(
                 // v0.29+ (Phase 4 G-5) — the Sleep Lock
                 // card. Shown on the home surface when
                 // the user is inside the configured
-                // sleep window. The Composable-only
-                // stub is the post-grant UI; the
-                // DevicePolicyManager device-owner
-                // grant flow is a follow-up.
+                // sleep window. The v0.30+ (this turn)
+                // wiring calls [Activity.startLockTask]
+                // when the sleep window opens and
+                // [Activity.stopLockTask] when the
+                // 30-second unlock phrase is matched.
+                // [startLockTask] does NOT require the
+                // launcher to be the device owner (it
+                // requires the activity to be on top of
+                // its own task stack — which the launcher
+                // always is); the device-owner grant is
+                // the heavier [setPackagesSuspended] path
+                // that the [DeviceOwner] object owns.
                 sleepLockBedtime = viewModel.sleepLockBedtime.collectAsState().value,
                 sleepLockWaketime = viewModel.sleepLockWaketime.collectAsState().value,
-                onSleepLockUnlock = { /* launcher dismisses
-                    the sleep lock (v0.29+ hook) */ },
+                onSleepLockUnlock = { stopLockTaskOn(context) },
                 inSleepWindow = inSleepWindowByState.collectAsState().value,
                 // v0.28+ (Phase 3 G-25) — the n-of-1
                 // weekly patterns. Read from the
@@ -1937,4 +1961,53 @@ class DearManDialogState {
 
     fun show() { visible = true }
     fun dismiss() { visible = false }
+}
+
+/**
+ * v0.30+ (Phase 4 G-5) — pin the user to the
+ * launcher's task while the sleep window is active.
+ *
+ * [Activity.startLockTask] does NOT require the
+ * launcher to be the device owner. It does require
+ * the activity to be at the top of its own task
+ * stack, which the launcher always is when it is
+ * the default home. The [stopLockTaskOn] counterpart
+ * is called from the 30-second unlock phrase in
+ * [SleepLockCard].
+ *
+ * The call is wrapped in [runCatching] because the
+ * platform can throw [IllegalStateException] when
+ * the activity is paused or in a transition. The
+ * sleep lock is a UX safeguard, not a security
+ * boundary, so a missed call is a soft fail.
+ */
+private fun startLockTaskOn(context: android.content.Context) {
+    val activity = context.findActivity()
+    if (activity != null) {
+        runCatching { activity.startLockTask() }
+    }
+}
+
+private fun stopLockTaskOn(context: android.content.Context) {
+    val activity = context.findActivity()
+    if (activity != null) {
+        runCatching { activity.stopLockTask() }
+    }
+}
+
+/**
+ * The LocalContext in a Compose hierarchy is the
+ * [android.content.ContextWrapper] that wraps the
+ * host activity. [ContextWrapper.getBaseContext]
+ * is the wrapped context, and iterating through
+ * the chain is the standard way to find the
+ * Activity without coupling to a private API.
+ * [startLockTask] / [stopLockTask] are [Activity]
+ * methods, so we need the Activity, not the
+ * Application context.
+ */
+private tailrec fun android.content.Context.findActivity(): android.app.Activity? = when (this) {
+    is android.app.Activity -> this
+    is android.content.ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
