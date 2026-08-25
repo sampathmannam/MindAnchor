@@ -1,0 +1,17 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="?android:attr/colorControlNormal">
+    <!--
+        Release batch: paper-plane (send) glyph. The plane is rotated
+        45 degrees so the tip points up-and-out, the standard "send"
+        orientation. The same glyph is what the existing in-app
+        "release now" affordance uses, so the tile is recognisably
+        the same action the user can already reach through the app.
+    -->
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M2.01,21 L23,12 L2.01,3 L2,10 L17,12 L2,14 Z" />
+</vector>

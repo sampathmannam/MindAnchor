@@ -18,6 +18,18 @@
     promise that the app makes zero outbound calls is
     enforced by NetworkCallsForbiddenTest, not by the
     absence of the permission.
+
+    Phase 1 T-1.4 (2026-08-25) adds four TileService
+    declarations for Quick Settings tiles (Sunset,
+    Going light, Release batch, Support). The tiles
+    require no new permissions — BIND_QUICKSETTINGS is
+    a system-level permission that any app declaring a
+    TileService can hold without prompting the user,
+    and the underlying actions (SunsetController,
+    GoingLightScheduler, BatchReleaser, SupportActivity
+    Intent) are already reachable from the home surface.
+    The tile labels are clinical-review-wordlist-checked;
+    see app/src/main/res/values/strings.xml.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
@@ -634,6 +646,86 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+
+        <!--
+            Quick Settings tiles (Phase 1 T-1.4). The four tiles
+            give the user one-tap access to the surfaces that
+            are otherwise one to several taps into the home /
+            settings flow:
+
+              - Sunset:     toggles SunsetController (priority-
+                            only DND, re-arms the window
+                            alarms). Reads the source of truth
+                            from SunsetPrefs.enabled.
+              - Going light: toggles the GoingLightSchedule
+                            (Castelo 2025 mobile-internet gate).
+                            The VpnService consent must already
+                            be granted; if it isn't, the OS
+                            surfaces the consent dialog on the
+                            first tile tap, same as the Settings
+                            toggle.
+              - Release batch: fires the held notification batch
+                            via BatchReleaser.releaseNow and
+                            re-arms BatchAlarms. Action-only,
+                            always INACTIVE.
+              - Support:    launches SupportActivity. The
+                            activity is exported=false, so the
+                            start is only possible from a
+                            same-UID caller — the tile runs
+                            in the same process as the app, so
+                            this is fine.
+
+            BIND_QUICKSETTINGS is a system-level permission
+            that any app declaring a TileService can hold; it
+            does not require a runtime grant from the user. The
+            tiles are exported="true" only in the sense the
+            system requires (SystemUI binds them); the
+            intent-filter is the standard QS action, and the
+            tiles themselves do not accept any other intent.
+        -->
+        <service
+            android:name=".tiles.SunsetToggleTile"
+            android:label="@string/tile_sunset_label"
+            android:icon="@drawable/ic_tile_sunset"
+            android:permission="android.permission.BIND_QUICKSETTINGS"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.GoingLightToggleTile"
+            android:label="@string/tile_going_light_label"
+            android:icon="@drawable/ic_tile_going_light"
+            android:permission="android.permission.BIND_QUICKSETTINGS"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.ReleaseBatchTile"
+            android:label="@string/tile_release_batch_label"
+            android:icon="@drawable/ic_tile_release_batch"
+            android:permission="android.permission.BIND_QUICKSETTINGS"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.SupportTile"
+            android:label="@string/tile_support_label"
+            android:icon="@drawable/ic_tile_support"
+            android:permission="android.permission.BIND_QUICKSETTINGS"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
     </application>
 
 </manifest>

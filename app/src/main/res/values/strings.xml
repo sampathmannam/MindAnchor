@@ -1106,4 +1106,19 @@
     <string name="drive_forgot">Forgot the account. The remote copy is still in your Drive; turn the bridge back on any time.</string>
     <string name="drive_auto_sync_notes">Auto-back up new notes</string>
     <string name="drive_auto_sync_letters">Auto-back up new letters</string>
+
+    <!--
+        Quick Settings tiles (Phase 1 T-1.4). The labels are the only
+        user-facing copy on the tile; they are short by Android QS
+        guidelines and avoid clinical claims. The toast strings are
+        the user feedback path for the action-only tiles (Release
+        batch, Support is a launcher and has no toast). All tile copy
+        has been through the clinical-review wordlist gate.
+    -->
+    <string name="tile_sunset_label">Sunset</string>
+    <string name="tile_going_light_label">Going light</string>
+    <string name="tile_release_batch_label">Release batch</string>
+    <string name="tile_support_label">Support</string>
+    <string name="tile_release_batch_toast">Releasing the held batch.</string>
+    <string name="tile_release_batch_failed">Couldn\'t release right now. Try again in a moment.</string>
 </resources>

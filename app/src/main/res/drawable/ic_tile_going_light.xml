@@ -1,0 +1,33 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="?android:attr/colorControlNormal">
+    <!--
+        Going Light: a Wi-Fi arc with a diagonal slash. The arc reads
+        as "connection" / "wireless"; the slash reads as "off" /
+        "blocked". Together: "the connection is off", which is the
+        Castelo mechanism in one glyph.
+    -->
+    <path
+        android:strokeColor="@android:color/white"
+        android:strokeWidth="1.6"
+        android:fillColor="#00000000"
+        android:pathData="M12,18 m-1,0 a1,1 0 1,0 2,0 a1,1 0 1,0 -2,0" />
+    <path
+        android:strokeColor="@android:color/white"
+        android:strokeWidth="1.6"
+        android:fillColor="#00000000"
+        android:pathData="M8.5,14.5 a5,5 0 0 1 7,0" />
+    <path
+        android:strokeColor="@android:color/white"
+        android:strokeWidth="1.6"
+        android:fillColor="#00000000"
+        android:pathData="M5.5,11.5 a9,9 0 0 1 13,0" />
+    <path
+        android:strokeColor="@android:color/white"
+        android:strokeWidth="2"
+        android:fillColor="#00000000"
+        android:pathData="M4,4 L20,20" />
+</vector>
