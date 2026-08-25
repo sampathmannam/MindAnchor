@@ -86,6 +86,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.RECEIVE_USER_PRESENT" />
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission
@@ -507,6 +508,30 @@
         <receiver
             android:name=".friction.SessionExpiryReceiver"
             android:exported="false" />
+
+        <!--
+            Phase 1 T-1.5 — the first-unlock-of-the-day
+            detector. The system fires
+            `ACTION_USER_PRESENT` once per successful
+            unlock (i.e. once the keyguard is dismissed,
+            not every time the screen turns on). The
+            receiver records the timestamp of the first
+            such event of the local day, which the
+            morning protection window test consumes.
+
+            Exported because the system delivers the
+            broadcast across the user-ID boundary; the
+            permission on the receiver and on the
+            manifest declares the gate.
+        -->
+        <receiver
+            android:name=".friction.FirstUnlockReceiver"
+            android:exported="true"
+            android:permission="android.permission.RECEIVE_USER_PRESENT">
+            <intent-filter>
+                <action android:name="android.intent.action.USER_PRESENT" />
+            </intent-filter>
+        </receiver>
 
         <receiver
             android:name=".sunset.SunsetReceiver"

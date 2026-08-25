@@ -71,6 +71,7 @@
     <ID>FunctionNaming:SettingsScreen.kt$@Composable private fun ProbeLine(labelRes: Int, value: String?)</ID>
     <ID>FunctionNaming:SettingsScreen.kt$@Composable private fun SectionHeading(titleRes: Int, section: SettingsSection?, goals: Set&lt;Goal&gt;)</ID>
     <ID>FunctionNaming:SettingsScreen.kt$@Composable private fun SettingsRowSwitch( title: String, subtitle: String?, checked: Boolean, onCheckedChange: (Boolean) -&gt; Unit, )</ID>
+    <ID>FunctionNaming:SettingsScreen.kt$@Composable private fun SettingsRowSlider( title: String, valueLabel: String, value: Float, onValueChange: (Float) -&gt; Unit, valueRange: ClosedFloatingPointRange&lt;Float&gt;, steps: Int, )</ID>
     <ID>FunctionNaming:SettingsScreen.kt$@Composable private fun TimeNudgerRow( label: String, /** The current value to display next to the label. */ value: String, onEarlier: () -&gt; Unit, onLater: () -&gt; Unit, )</ID>
     <ID>FunctionNaming:SettingsScreen.kt$@Composable private fun WellnessSignalRow(reading: org.mindanchor.vitals.WellnessReading)</ID>
     <ID>FunctionNaming:SleepWindowOptimizerCard.kt$@Composable fun SleepWindowOptimizerCard( medianBedtime: Duration, medianWakeTime: Duration, daysOfData: Int, onApply: () -&gt; Unit, onDismiss: () -&gt; Unit, modifier: Modifier = Modifier, )</ID>

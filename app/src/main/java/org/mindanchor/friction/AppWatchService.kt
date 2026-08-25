@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.mindanchor.data.FrictionPrefs
+import org.mindanchor.prehome.DoomscrollList
 
 /**
  * Notices when a flagged app comes to the front, however it got there.
@@ -111,28 +112,41 @@ class AppWatchService : AccessibilityService() {
 
         lastForeground = opened
 
-        if (!WatchPolicy.shouldGate(
-                opened = opened,
-                flagged = flagged.value,
-                self = packageName,
-                launcher = defaultLauncher(this),
-                allowance = allowanceFor(opened),
-                now = now,
-            )
-        ) {
-            return
-        }
-
-        runCatching {
-            startActivity(
-                // NEW_TASK only. The gate declares its own task affinity, so
-                // it lands in a task of its own on top of whatever opened.
-                // Clearing a task here would risk tearing down the app the
-                // person was heading for.
-                Intent(this, GateActivity::class.java)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    .putExtra(GateActivity.EXTRA_PACKAGE, opened),
-            )
+        // v0.70+ (Phase 1 T-1.5) — morning
+        // protection. The morning context is read
+        // from DataStore, which is suspending, so the
+        // gate decision has to live inside the
+        // existing scope. The compassionate-wrap
+        // launch above already runs in the same
+        // scope, so we just append to it: compute
+        // the morning snapshot, evaluate the policy,
+        // and start the gate activity on the IO
+        // dispatcher.
+        scope.launch {
+            val morningContext = buildMorningProtectionContext(applicationContext, now)
+            if (!WatchPolicy.shouldGate(
+                    opened = opened,
+                    flagged = flagged.value,
+                    self = packageName,
+                    launcher = defaultLauncher(this@AppWatchService),
+                    allowance = allowanceFor(opened),
+                    now = now,
+                    morningProtection = morningContext,
+                )
+            ) {
+                return@launch
+            }
+            runCatching {
+                startActivity(
+                    // NEW_TASK only. The gate declares its own task affinity, so
+                    // it lands in a task of its own on top of whatever opened.
+                    // Clearing a task here would risk tearing down the app the
+                    // person was heading for.
+                    Intent(this@AppWatchService, GateActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        .putExtra(GateActivity.EXTRA_PACKAGE, opened),
+                )
+            }
         }
     }
 
@@ -246,4 +260,53 @@ class AppWatchService : AccessibilityService() {
                 ?.packageName
         }.getOrNull()
     }
+}
+
+/**
+ * v0.70+ (Phase 1 T-1.5) — builds the
+ * [MorningProtectionContext] snapshot the
+ * [WatchPolicy.shouldGate] function consumes.
+ *
+ * Pure-ish: reads DataStore (IO), reads the
+ * doomscroll DataStore (IO), and computes the
+ * [MorningProtectionState] + window test. The
+ * snapshot is computed once per gate decision
+ * and pinned — the policy itself does not see
+ * "now" or a wall clock.
+ *
+ * The function is at file scope rather than
+ * inside the [AppWatchService] companion so a
+ * test can call it without instantiating the
+ * service. The companion holds the static
+ * bookkeeping ([lastForeground], the
+ * [allowances] map) which the morning
+ * protection does not need.
+ */
+internal suspend fun buildMorningProtectionContext(
+    context: Context,
+    nowMillis: Long,
+    zone: java.time.ZoneId = java.time.ZoneId.systemDefault(),
+): MorningProtectionContext {
+    val prefs = FrictionPrefs(context)
+    val enabled = prefs.morningProtectionEnabled.first()
+    val minutes = prefs.morningProtectionMinutes.first()
+    val lastUnlock = prefs.morningProtectionLastFirstUnlockEpochMillis.first()
+    val state = MorningProtectionState(
+        enabled = enabled,
+        minutes = minutes,
+        lastFirstUnlockEpochMillis = lastUnlock,
+    )
+    val active = isInMorningWindow(
+        now = java.time.Instant.ofEpochMilli(nowMillis),
+        state = state,
+        zone = zone,
+    )
+    if (!active) {
+        return MorningProtectionContext(active = false, packages = emptySet())
+    }
+    val doomscroll = DoomscrollList(context).packages.first()
+    return MorningProtectionContext(
+        active = true,
+        packages = morningProtectionGatedPackages(doomscroll),
+    )
 }
