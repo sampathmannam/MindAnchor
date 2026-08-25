@@ -1981,14 +1981,14 @@ class DearManDialogState {
  * sleep lock is a UX safeguard, not a security
  * boundary, so a missed call is a soft fail.
  */
-private fun startLockTaskOn(context: android.content.Context) {
+internal fun startLockTaskOn(context: android.content.Context) {
     val activity = context.findActivity()
     if (activity != null) {
         runCatching { activity.startLockTask() }
     }
 }
 
-private fun stopLockTaskOn(context: android.content.Context) {
+internal fun stopLockTaskOn(context: android.content.Context) {
     val activity = context.findActivity()
     if (activity != null) {
         runCatching { activity.stopLockTask() }
@@ -2006,7 +2006,7 @@ private fun stopLockTaskOn(context: android.content.Context) {
  * methods, so we need the Activity, not the
  * Application context.
  */
-private tailrec fun android.content.Context.findActivity(): android.app.Activity? = when (this) {
+internal tailrec fun android.content.Context.findActivity(): android.app.Activity? = when (this) {
     is android.app.Activity -> this
     is android.content.ContextWrapper -> baseContext.findActivity()
     else -> null
