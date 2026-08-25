@@ -176,6 +176,23 @@ and no falcisifcation of anything".
   com.mindanchor/.admin.MindAnchorDeviceAdmin`,
   which is a *user-side* action and not a
   launcher-side code change.
+- **v0.30+ (this turn, commits `c9e7fc8` + `5d07a4f`)** —
+  the launcher-side [Activity.startLockTask] /
+  [Activity.stopLockTask] wiring is in place. A new
+  [LaunchedEffect] in [HomeSurface] pins the user to
+  the launcher task when the sleep window opens. A new
+  `onSleepLockUnlock` callback in [HomeSurface]
+  stops the lock when the 30-second unlock phrase is
+  matched. The helpers (`startLockTaskOn` /
+  `stopLockTaskOn`) resolve the host [Activity]
+  from the [Context] via a tailrec [findActivity]
+  that unwraps [ContextWrapper] layers. The
+  [SleepLockTaskTest] pins the resolution chain (4
+  cases, all green). [startLockTask] does NOT
+  require the launcher to be the device owner — the
+  device-owner grant is the heavier
+  [setPackagesSuspended] path that the [DeviceOwner]
+  object owns.
 - The `SleepLockCard` Composable is the post-grant
   UI; the 30-second typing gate is wired (CodeRabbit
   fix `38324e5`).
