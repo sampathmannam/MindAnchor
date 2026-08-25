@@ -31,20 +31,20 @@ android {
         applicationId = "org.mindanchor"
         minSdk = 33
         targetSdk = 35
-        // v0.68.0: LLM multi-provider picker (PR #38).
-        // Replaces the v0.25.7 single-provider Groq path
-        // with Google AI Studio (free, no credit card) +
-        // OpenRouter (free, 20+ free models on one key) +
-        // Groq (paid, kept for users with an existing key).
-        // The Settings → Reading → Daily letter (LLM)
-        // section grows a FlowRow of FilterChips with a
-        // "✓ Free" suffix on free providers, and a new
-        // "Get a [free] {provider} API key" OutlinedButton
-        // that launches Intent.ACTION_VIEW on the active
-        // provider's signupUrl — the smooth path from the
-        // LLM section to a pasted key. versionCode 35→92.
-        versionCode = 92
-        versionName = "0.68.0"
+        // v0.69.0: the v0.26-prep/phase-1 protective-layer
+        // follow-up + LLM security-audit cleanup. PreHome
+        // moment-of-pause, notification active-hours +
+        // held-retention dials, Healthy defaults walkthrough,
+        // G-5 device-owner Sleep Lock task wiring, G-28
+        // whisper.cpp JNI scaffold, and the audit-driven LLM
+        // hardening: removed the outbound GitHub call
+        // (CRITICAL), hardened setApiKey against adversarial
+        // payloads, moved the API key into
+        // EncryptedSharedPreferences, and wired real SPKI
+        // certificate pins into the LLM HTTPS client (all
+        // HIGH). versionCode 92→93.
+        versionCode = 93
+        versionName = "0.69.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every
