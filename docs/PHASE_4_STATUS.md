@@ -165,6 +165,25 @@ and no falcisifcation of anything".
   of completion for the launcher-side surface. The
   JNI bridge is a 3-5 day piece and a future
   commitment.
+- **v0.30+ (this turn, commit `d4f0f52`)** —
+  the v0.30+ scaffold for the JNI bridge is in
+  place. [WhisperEngine.kt] is the Kotlin face of
+  the engine (mirrors [LlamaEngine]); [Whisper] is
+  the public API; [mindanchor_whisper.cpp] is the
+  C++ JNI implementation with forward declarations
+  of the whisper.cpp C API so it compiles before
+  the vendoring is in place. [WhisperEngineTest]
+  (4 cases) pins the contract: null on missing
+  native library, null on empty PCM, model path
+  constant ends with `ggml-tiny.en.bin`,
+  `MODEL_DOWNLOADED` is false in this commit.
+- The remaining work is user setup: vendor
+  whisper.cpp under `third_party/whisper.cpp/`,
+  add the `whisper` target to the existing
+  `CMakeLists.txt` (the v0.30+ scaffold matches
+  the llama.cpp shape), place the model file at
+  `Whisper.MODEL_PATH`, and wire the consent flow
+  + OkHttp call in `VoiceJournalCard`.
 
 ### G-5 device-owner grant (Sleep Lock)
 - The launcher-side code is in place: the
