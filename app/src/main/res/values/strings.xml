@@ -234,6 +234,8 @@
     <string name="check_for_updates">Check for updates</string>
     <string name="check_for_updates_idle">Up to date.</string>
     <string name="check_for_updates_newer">v%1$s is available on GitHub.</string>
+    <string name="check_for_updates_subtitle_v030">Open the GitHub releases page in your browser. The launcher does not phone home.</string>
+    <string name="open_releases_page">Open releases page</string>
     <string name="check_for_updates_failed">Could not check. Try again later.</string>
     <string name="open_release">Open release</string>
     <string name="digest_waiting_count" tools:ignore="PluralsCandidate">%1$d waiting for the next batch</string>

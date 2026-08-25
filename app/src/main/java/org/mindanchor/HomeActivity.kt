@@ -28,7 +28,9 @@ import org.mindanchor.sunset.SunsetController
 import org.mindanchor.ui.CalmBackground
 import org.mindanchor.ui.MindAnchorTheme
 import org.mindanchor.update.UpdateChecker
-import org.mindanchor.update.UpdateInfo
+// UpdateInfo removed in v0.30+ (security audit
+// 2026-08-24); the auto-update flow is gone.
+
 import org.mindanchor.update.UpdatePrefs
 
 /**
@@ -64,13 +66,23 @@ class HomeActivity : ComponentActivity() {
     private val letterDateSignal = MutableStateFlow<LocalDate?>(null)
 
     /**
-     * v0.25.9 (auto-update): the result of the most recent
-     * GitHub releases check. `null` means "no update available
-     * or no check yet". When non-null, the home surface shows
-     * a snackbar. Tapping the action opens the release page in
-     * the system browser.
+     * v0.30+ (security audit 2026-08-24) — the
+     * GitHub Releases check was removed; the
+     * `availableUpdate` flow is preserved as a
+     * no-op `StateFlow` (always null) so the
+     * home-surface plumbing compiles. The
+     * "Check for updates" affordance now opens
+     * the releases page in the browser via
+     * [UpdateChecker.openReleasesPage].
      */
-    private val availableUpdate = MutableStateFlow<UpdateInfo?>(null)
+    private val availableUpdate: kotlinx.coroutines.flow.MutableStateFlow<Any?> =
+        kotlinx.coroutines.flow.MutableStateFlow<Any?>(null).also {
+            // v0.30+: never emits a non-null value.
+            // The previous `check()` call site is
+            // removed; the StateFlow is kept as a
+            // no-op so the home surface can compile
+            // without further changes.
+        }
 
     /**
      * v0.25.9 (deployability §8.3): whether the user has
@@ -145,9 +157,9 @@ class HomeActivity : ComponentActivity() {
                         goHomeSignal = goHome,
                         letterDateSignal = letterDate,
                         onLetterDateConsumed = ::consumeLetterDate,
-                        availableUpdate = update,
+                        availableUpdate = update as? org.mindanchor.update.UpdateInfo,
                         isDefaultHome = defaultHome,
-                        onUpdateAction = { info -> openUpdate(info) },
+                        onUpdateAction = { openReleasesPage() },
                         onUpdateDismiss = { availableUpdate.value = null },
                         onSetDefaultHome = { openDefaultHomeSettings() },
                     )
@@ -208,37 +220,40 @@ class HomeActivity : ComponentActivity() {
     }
 
     /**
-     * v0.25.9 (auto-update): consult the cache, then maybe hit the
-     * network. The check is best-effort: any failure (cache miss +
-     * network down, malformed response, etc.) returns silently
-     * and the launcher never blocks on it.
+     * v0.30+ (security audit 2026-08-24) — the
+     * silent GitHub Releases check that shipped in
+     * v0.25.9 was a privacy contract violation. The
+     * [UpdateChecker.check] path was removed; the
+     * "Check for updates" button in Settings → About
+     * now opens the releases page in the browser
+     * (see [UpdateChecker.openReleasesPage]).
+     * [maybeRunUpdateCheck] is preserved as a
+     * no-op so the existing call site
+     * ([onCreate]) does not need to change.
      */
     private fun maybeRunUpdateCheck() {
-        val prefs = UpdatePrefs(applicationContext)
-        lifecycleScope.launch {
-            try {
-                if (prefs.isCacheFresh()) return@launch
-                val info = UpdateChecker(applicationContext).check() ?: return@launch
-                prefs.recordChecked()
-                if (!prefs.isDismissed(info.version)) {
-                    availableUpdate.value = info
-                }
-            } catch (_: Exception) {
-                // Defensive: never crash the launcher on a network blip.
-            }
-        }
+        // v0.30+ no-op: the launcher no longer
+        // checks for updates. The "Check for
+        // updates" affordance in Settings → About
+        // opens the releases page in the browser
+        // (see [UpdateChecker.openReleasesPage]).
     }
 
     /**
-     * v0.25.9: open the release page in the system browser. The
-     * user installs manually because this build is not on Play
-     * Store yet — the sideload pattern is the project's
-     * documented distribution for an alpha cohort.
+     * v0.30+ (security audit 2026-08-24) — open the
+     * release page in the system browser. The user
+     * installs manually because this build is not
+     * on Play Store yet — the sideload pattern is
+     * the project's documented distribution for an
+     * alpha cohort. Replaces the previous
+     * [openUpdate(UpdateInfo)] method, which took a
+     * GitHub response and opened the URL from there;
+     * the new version opens the canonical
+     * [UpdateChecker.RELEASES_URL] (no network call
+     * by the launcher).
      */
-    private fun openUpdate(info: UpdateInfo) {
-        runCatching {
-            startActivity(Intent(Intent.ACTION_VIEW, info.url.toUri()))
-        }
+    private fun openReleasesPage() {
+        UpdateChecker(applicationContext).openReleasesPage()
     }
 
     /**
