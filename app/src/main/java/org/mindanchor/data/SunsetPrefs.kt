@@ -90,6 +90,9 @@ class SunsetPrefs(private val context: Context) {
 
     private val startKey = intPreferencesKey("sunset_start_minute")
     private val endKey = intPreferencesKey("sunset_end_minute")
+    private val overrideStartKey = intPreferencesKey("sunset_override_start_minute")
+    private val overrideEndKey = intPreferencesKey("sunset_override_end_minute")
+    private val overrideExpiryKey = stringPreferencesKey("sunset_override_expiry_day")
 
     /**
      * Flipped the first time the user changes a window by hand. Lets
@@ -173,9 +176,44 @@ class SunsetPrefs(private val context: Context) {
         context.dataStore.data.map { timeOf(it[endKey], DEFAULT_END) }
 
     /** Both ends at once, so a caller cannot read a half-updated window. */
-    suspend fun window(): Pair<LocalTime, LocalTime> {
+    suspend fun window(): Pair<LocalTime, LocalTime> =
+        activeWindowOverride() ?: run {
+            val prefs = context.dataStore.data.first()
+            timeOf(prefs[startKey], DEFAULT_START) to timeOf(prefs[endKey], DEFAULT_END)
+        }
+
+    /**
+     * The AnchorCore temporary window (Hook C accept), or null when unset
+     * or expired. Deliberately separate keys: the person's own window and
+     * the customised flag are never touched, so removing the override —
+     * or just letting it lapse — restores exactly what was there before.
+     */
+    suspend fun activeWindowOverride(): Pair<LocalTime, LocalTime>? {
         val prefs = context.dataStore.data.first()
-        return timeOf(prefs[startKey], DEFAULT_START) to timeOf(prefs[endKey], DEFAULT_END)
+        val expiry = prefs[overrideExpiryKey]
+            ?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
+            ?: return null
+        if (expiry < java.time.LocalDate.now()) return null
+        val s = prefs[overrideStartKey] ?: return null
+        val e = prefs[overrideEndKey] ?: return null
+        if (s !in 0..1439 || e !in 0..1439 || s == e) return null
+        return LocalTime.of(s / 60, s % 60) to LocalTime.of(e / 60, e % 60)
+    }
+
+    suspend fun setTemporaryWindow(start: LocalTime, end: LocalTime, until: java.time.LocalDate) {
+        context.dataStore.edit {
+            it[overrideStartKey] = start.hour * 60 + start.minute
+            it[overrideEndKey] = end.hour * 60 + end.minute
+            it[overrideExpiryKey] = until.toString()
+        }
+    }
+
+    suspend fun clearTemporaryWindow() {
+        context.dataStore.edit {
+            it.remove(overrideStartKey)
+            it.remove(overrideEndKey)
+            it.remove(overrideExpiryKey)
+        }
     }
 
     /** Whether the quiet hours are running right now. */

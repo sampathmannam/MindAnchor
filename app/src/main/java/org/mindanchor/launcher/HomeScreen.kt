@@ -58,6 +58,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import org.mindanchor.anchorcore.SunsetProposal
 import org.mindanchor.friction.CompassionateWrapNotifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.text.font.FontWeight
@@ -237,6 +238,7 @@ fun LauncherRoot(
     // fresh install (no nightly report yet)
     // shows nothing.
     val weeklyPatternsByState = viewModel.weeklyPatterns
+    val sunsetProposalCardByState = viewModel.sunsetProposalCard
 
     // v0.26+ (Phase 1 G-23) — the DEAR MAN dialog state
     // for the long-press affordance on the Anchor Note
@@ -577,6 +579,13 @@ fun LauncherRoot(
                     // view-model hook is a no-op.
                     viewModel.dismissWeeklyPatterns()
                 },
+                // AnchorCore Hook C — the one quiet
+                // sunset-override card. Driven by the
+                // pure SunsetProposal.decide function on
+                // the live AnchorState.
+                sunsetProposal = sunsetProposalCardByState.collectAsState().value,
+                onAcceptSunsetProposal = viewModel::acceptSunsetProposal,
+                onDismissSunsetProposal = viewModel::dismissSunsetProposal,
             )
         }
 
@@ -1261,6 +1270,13 @@ private fun HomeSurface(
      */
     weeklyPatterns: List<org.mindanchor.report.Pattern> = emptyList(),
     onDismissWeeklyPatterns: () -> Unit = {},
+    /**
+     * AnchorCore Hook C: the one quiet sunset-override card. Hidden by
+     * default; the launcher view-model supplies the live decision.
+     */
+    sunsetProposal: SunsetProposal.Decision = SunsetProposal.HIDDEN,
+    onAcceptSunsetProposal: () -> Unit = {},
+    onDismissSunsetProposal: () -> Unit = {},
 ) {
     val now = rememberMinuteTick()
     val clockFormat = rememberClockFormat()
@@ -1562,6 +1578,13 @@ private fun HomeSurface(
                 NOfOnePatternsCard(
                     patterns = weeklyPatterns,
                     onDismiss = onDismissWeeklyPatterns,
+                )
+            }
+
+            if (sunsetProposal.show) {
+                SunsetProposalCard(
+                    onAccept = onAcceptSunsetProposal,
+                    onDismiss = onDismissSunsetProposal,
                 )
             }
 
@@ -1985,6 +2008,32 @@ internal fun startLockTaskOn(context: android.content.Context) {
     val activity = context.findActivity()
     if (activity != null) {
         runCatching { activity.startLockTask() }
+    }
+}
+
+/**
+ * Hook C (AnchorCore): the one quiet card a flagged late-night week may
+ * earn. Accept applies a 7-day temporary wind-down override (stored,
+ * revocable in Settings → Measuring); "Not now" suppresses the card for
+ * 14 days. Never notifies, never auto-applies.
+ *
+ * @wording-reviewed — states a fact about the person's own nights and
+ * asks; no evaluation, no directive.
+ */
+@Composable
+private fun SunsetProposalCard(onAccept: () -> Unit, onDismiss: () -> Unit) {
+    androidx.compose.material3.Card(modifier = Modifier.fillMaxWidth(0.92f)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Some recent nights ran late.", style = MaterialTheme.typography.titleSmall)
+            Text(
+                "Want the wind-down to begin 30 minutes earlier this week?",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TextButton(onClick = onAccept) { Text("Yes") }
+                TextButton(onClick = onDismiss) { Text("Not now") }
+            }
+        }
     }
 }
 
