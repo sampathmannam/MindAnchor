@@ -25,6 +25,9 @@ object MorningHandback {
     /** Late only when 45+ minutes past the person's own usual onset. */
     const val LATE_BY_MINUTES = 45
 
+    private const val SIX_PM_MINUTE = 18 * 60
+    private const val MINUTES_IN_DAY = 24 * 60
+
     /**
      * Both parameters are minutes after 18:00 (Deviation.minutesAfterSixPm),
      * so a bedtime past midnight compares as later, never as earlier —
@@ -39,7 +42,7 @@ object MorningHandback {
 
     /** Minutes-after-18:00 back to a 12-hour clock reading. */
     private fun clock(afterSixPm: Int): String {
-        val minuteOfDay = (afterSixPm + 18 * 60) % 1440
+        val minuteOfDay = (afterSixPm + SIX_PM_MINUTE) % MINUTES_IN_DAY
         val hour12 = ((minuteOfDay / 60) % 12).let { if (it == 0) 12 else it }
         val amPm = if (minuteOfDay / 60 >= 12) "pm" else "am"
         return String.format(Locale.ROOT, "%d:%02d %s", hour12, minuteOfDay % 60, amPm)

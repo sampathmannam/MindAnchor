@@ -34,8 +34,11 @@ class LetterContextFactsTest {
     @Test
     fun `an empty facts section leaves the prompt byte-identical`() {
         val now = Instant.parse("2026-08-26T09:00:00Z")
-        val without = LetterContext.build(LocalDate.of(2026, 8, 26), emptyList(), emptyList(), now, ZoneOffset.UTC)
-        val with = LetterContext.build(LocalDate.of(2026, 8, 26), emptyList(), emptyList(), now, ZoneOffset.UTC, factsSection = "")
+        val date = LocalDate.of(2026, 8, 26)
+        val without = LetterContext.build(date, emptyList(), emptyList(), now, ZoneOffset.UTC)
+        val with = LetterContext.build(
+            date, emptyList(), emptyList(), now, ZoneOffset.UTC, factsSection = "",
+        )
         assertEquals(userText(without), userText(with))
     }
 

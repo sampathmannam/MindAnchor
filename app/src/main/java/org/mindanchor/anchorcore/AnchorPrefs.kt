@@ -84,7 +84,7 @@ class AnchorPrefs(private val context: Context) {
 
     suspend fun recordProposalDismissed(now: Instant = Instant.now()) {
         context.anchorDataStore.edit {
-            it[suppressedUntilKey] = now.plusSeconds(SUPPRESS_DAYS * 24 * 3600).toEpochMilli()
+            it[suppressedUntilKey] = now.plusSeconds(SUPPRESS_DAYS * SECONDS_PER_DAY).toEpochMilli()
         }
     }
 
@@ -100,7 +100,10 @@ class AnchorPrefs(private val context: Context) {
 
     suspend fun sriSlots(): Pair<SriWeekLedger.Slot?, SriWeekLedger.Slot?> {
         val p = context.anchorDataStore.data.first()
-        fun slot(dayKey: androidx.datastore.preferences.core.Preferences.Key<String>, scoreKey: androidx.datastore.preferences.core.Preferences.Key<Int>): SriWeekLedger.Slot? {
+        fun slot(
+            dayKey: androidx.datastore.preferences.core.Preferences.Key<String>,
+            scoreKey: androidx.datastore.preferences.core.Preferences.Key<Int>,
+        ): SriWeekLedger.Slot? {
             val day = p[dayKey]?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: return null
             val score = p[scoreKey] ?: return null
             return SriWeekLedger.Slot(day, score)
@@ -130,5 +133,6 @@ class AnchorPrefs(private val context: Context) {
 
     companion object {
         const val SUPPRESS_DAYS = 14L
+        private const val SECONDS_PER_DAY = 24L * 60L * 60L
     }
 }

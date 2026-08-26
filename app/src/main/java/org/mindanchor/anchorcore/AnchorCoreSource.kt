@@ -18,6 +18,9 @@ import org.mindanchor.vitals.WellnessRepository
  */
 class AnchorCoreSource(private val context: Context) {
 
+    /** Trailing window over which observed-days is counted. */
+    private val trailingObservedDays = 14L
+
     suspend fun state(today: LocalDate = LocalDate.now()): AnchorState {
         val prefs = AnchorPrefs(context)
         // Inert sentinel; every hook checks the master toggle before
@@ -34,9 +37,9 @@ class AnchorCoreSource(private val context: Context) {
             Deviation.minutesAfterSixPm(t.hour * 60 + t.minute)
         }
 
-        // Observed days over the trailing 14: screen-rhythm days union
+        // Observed days over the trailing window: screen-rhythm days union
         // vital-ledger days. Both reads are local and cheap.
-        val window = (0L..13L).map { today.minusDays(it) }
+        val window = (0L until trailingObservedDays).map { today.minusDays(it) }
         val rhythms = runCatching { RhythmRepository(context).rhythms(window) }.getOrNull()
         val presenceByDay = window.associateWith { d ->
             rhythms?.get(d)?.let { it.firstUnlockMinute ?: it.screenMinutes }

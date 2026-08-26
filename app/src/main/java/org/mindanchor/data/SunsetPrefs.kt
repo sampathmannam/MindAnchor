@@ -192,12 +192,15 @@ class SunsetPrefs(private val context: Context) {
         val prefs = context.dataStore.data.first()
         val expiry = prefs[overrideExpiryKey]
             ?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
-            ?: return null
-        if (expiry < java.time.LocalDate.now()) return null
-        val s = prefs[overrideStartKey] ?: return null
-        val e = prefs[overrideEndKey] ?: return null
-        if (s !in 0..1439 || e !in 0..1439 || s == e) return null
-        return LocalTime.of(s / 60, s % 60) to LocalTime.of(e / 60, e % 60)
+        val s = prefs[overrideStartKey]
+        val e = prefs[overrideEndKey]
+        val valid = expiry != null &&
+            !expiry!!.isBefore(java.time.LocalDate.now()) &&
+            s != null && e != null &&
+            s in 0..MINUTES_IN_DAY_MINUS_ONE &&
+            e in 0..MINUTES_IN_DAY_MINUS_ONE &&
+            s != e
+        return if (!valid) null else timeOf(s, LocalTime.MIDNIGHT) to timeOf(e, LocalTime.MIDNIGHT)
     }
 
     suspend fun setTemporaryWindow(start: LocalTime, end: LocalTime, until: java.time.LocalDate) {
@@ -245,6 +248,7 @@ class SunsetPrefs(private val context: Context) {
     companion object {
         val DEFAULT_START: LocalTime = LocalTime.of(22, 0)
         val DEFAULT_END: LocalTime = LocalTime.of(7, 0)
+        private const val MINUTES_IN_DAY_MINUS_ONE = 1439
 
         /**
          * Reads a stored minute-of-day back into a time, falling back to
