@@ -35,6 +35,11 @@ object CorosPasswordHasher {
     @Suppress("InsecureCryptoAlgorithm", "WeakHash")
     fun md5Hex(password: CharSequence): String {
         val bytes = password.toString().toByteArray(Charsets.UTF_8)
+        // nosemgrep: use-of-md5 — required by the COROS Training Hub
+        // web API (the only public source is cygnusb/coros-mcp; the
+        // mobile API would log the user out, so we cannot switch).
+        // See class KDoc for the test that proves the lowercase-hex
+        // contract (2025-12-04 against a real account).
         val digest = MessageDigest.getInstance("MD5").digest(bytes)
         val out = CharArray(digest.size * 2)
         for (i in digest.indices) {
