@@ -1,6 +1,7 @@
 package org.mindanchor.data.db
 
 import android.content.Context
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Delete
@@ -14,6 +15,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
+import org.mindanchor.notifications.SenderTier
 
 /**
  * A notification we held back for the next batch. This journal is the
@@ -29,6 +31,26 @@ data class HeldNotification(
     val text: String,
     val postedAt: Long,
     val releasedAt: Long? = null,
+    /**
+     * T-3.2 (v0.72+) — the sender tier at hold time, one of
+     * [org.mindanchor.notifications.SenderTier] names. Rows predating the
+     * column read as MACHINE via the migration default and
+     * [org.mindanchor.notifications.SenderTier.fromStored].
+     */
+    @ColumnInfo(defaultValue = "MACHINE")
+    val tier: String = SenderTier.MACHINE.name,
+)
+
+/**
+ * One row of the weekly attention receipt (T-3.1): how many times a single
+ * app interrupted this person inside a window, at which sender tier.
+ * Produced by [HeldNotificationDao.interruptCountsSince].
+ */
+data class AppInterruptCount(
+    val packageName: String,
+    val appLabel: String,
+    val tier: String,
+    val count: Int,
 )
 
 @Dao
@@ -65,6 +87,22 @@ interface HeldNotificationDao {
 
     @Query("SELECT * FROM held_notifications ORDER BY postedAt DESC LIMIT 300")
     fun journal(): Flow<List<HeldNotification>>
+
+    /**
+     * T-3.1 (v0.72+) — weekly attention-receipt attribution: held
+     * notifications grouped by app and sender tier inside the window
+     * starting at [since] epoch-millis. Reads the whole journal
+     * (waiting AND released), because an interruption that was later
+     * delivered still happened; the retention prune is what bounds this
+     * table, so the receipt naturally covers the same window the journal
+     * remembers.
+     */
+    @Query(
+        "SELECT packageName, appLabel, tier, COUNT(*) AS count " +
+            "FROM held_notifications WHERE postedAt >= :since " +
+            "GROUP BY packageName, appLabel, tier ORDER BY count DESC",
+    )
+    suspend fun interruptCountsSince(since: Long): List<AppInterruptCount>
 
     @Query("UPDATE held_notifications SET releasedAt = :releasedAt WHERE releasedAt IS NULL")
     suspend fun markAllReleased(releasedAt: Long)
@@ -176,7 +214,7 @@ interface SafetyDao {
         SafetyPlan::class,
         CrisisContact::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 abstract class AnchorDatabase : RoomDatabase() {
@@ -222,8 +260,23 @@ abstract class AnchorDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * T-3.2 (v0.72) — the journal learns which sender tier held each
+         * row. Every pre-existing row was, by construction, an ordinary
+         * machine notification (marketing classification did not exist
+         * yet), so MACHINE is both the honest and the conservative default.
+         */
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE held_notifications " +
+                        "ADD COLUMN tier TEXT NOT NULL DEFAULT 'MACHINE'",
+                )
+            }
+        }
+
         /** Exposed so instrumented tests can walk an old database forward. */
-        fun migrations(): Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
+        fun migrations(): Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
 
         @Volatile
         private var instance: AnchorDatabase? = null

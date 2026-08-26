@@ -262,6 +262,26 @@
     <string name="digest_stamp_other_day">%1$s %2$s</string>
     <string name="digest_text">From %1$s</string>
 
+    <!--
+        T-3.1 weekly attention receipt (v0.72). Descriptive counts only:
+        no ranking language, no goals, no congratulation (R6). These join
+        the DigestScreen @wording-reviewed sign-off list.
+    -->
+    <string name="receipt_show">Attention receipt</string>
+    <string name="receipt_hide">Hide receipt</string>
+    <string name="receipt_title">Who asked for your attention</string>
+    <string name="receipt_subtitle">Notifications held over the last %1$d days</string>
+    <string name="receipt_row">%1$d × %2$s</string>
+    <string name="receipt_tier_machine">app</string>
+    <string name="receipt_tier_marketing">marketing</string>
+    <string name="receipt_tier_human">person</string>
+    <string name="receipt_empty">Nothing was held in this window.</string>
+    <string name="receipt_footnote">A record of what was held, not a score. Entries appear while batching or marketing demotion was on.</string>
+
+    <!-- T-3.2 marketing demotion toggle (v0.72). -->
+    <string name="marketing_demotion_title">Demote marketing notifications</string>
+    <string name="marketing_demotion_explainer">Promotions and re-engagement pings never buzz — they wait silently in the digest with everything else that was batched.</string>
+
     <string name="appearance_section">Home screen</string>
     <string name="appearance_explainer">A quiet landscape under the sky. Even a brief glance at greenery or water measurably steadies attention, so this is drawn to be looked at — and never to move.</string>
     <string name="scene_rotate">A different scene each day</string>
