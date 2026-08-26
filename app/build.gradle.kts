@@ -42,9 +42,19 @@ android {
         // "Get a [free] {provider} API key" OutlinedButton
         // that launches Intent.ACTION_VIEW on the active
         // provider's signupUrl — the smooth path from the
-        // LLM section to a pasted key. versionCode 35→92.
-        versionCode = 92
-        versionName = "0.68.0"
+        // v0.70.0: AnchorCore wellbeing loop (Tasks 1–10) —
+        //   DayFact + AnchorState + AnchorCore + SriWeekLedger +
+        //   AnchorPrefs + AnchorCoreSource, Hook A (letter
+        //   prompt splice), Hook B (friction tone hold), Hook C
+        //   (one-card sunset proposal), PreHome open-loop
+        //   handback + one-sentence sleep fact, Settings →
+        //   Measuring master + per-hook toggles + override
+        //   revoke, refresh-on-demand triggers + Hook B
+        //   call-site wiring. Zero new permissions; no
+        //   network; clinical-review wordlist gate green.
+        //   versionCode 92→93.
+        versionCode = 93
+        versionName = "0.70.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every
