@@ -1106,4 +1106,20 @@
     <string name="drive_forgot">Forgot the account. The remote copy is still in your Drive; turn the bridge back on any time.</string>
     <string name="drive_auto_sync_notes">Auto-back up new notes</string>
     <string name="drive_auto_sync_letters">Auto-back up new letters</string>
+    <!--
+        AnchorCore (v0.70 v1 of the wellbeing loop). The master
+        toggle defaults OFF (opt-out-by-silence); the per-hook
+        toggles flip ON the first time the master is enabled
+        (AnchorPrefs.setEnabled owns the latch).
+    -->
+    <string name="settings_anchor_title">AnchorCore</string>
+    <string name="settings_anchor_subtitle">A quiet weekly picture from your own patterns. Off until you ask.</string>
+    <string name="settings_anchor_letter_title">Letter knows the week</string>
+    <string name="settings_anchor_letter_subtitle">The daily letter sees this week\'s own-data notes.</string>
+    <string name="settings_anchor_friction_title">Gentler repetition in hard weeks</string>
+    <string name="settings_anchor_friction_subtitle">Pauses keep their breath longer during flagged weeks.</string>
+    <string name="settings_anchor_proposal_title">Wind-down suggestion</string>
+    <string name="settings_anchor_proposal_subtitle">One quiet suggestion after late-night weeks.</string>
+    <string name="settings_anchor_override_active">Wind-down is 30 minutes earlier until %1$s.</string>
+    <string name="settings_anchor_override_remove">Return to usual</string>
 </resources>

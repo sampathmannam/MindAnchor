@@ -3540,6 +3540,56 @@ fun SettingsScreen(
                 )
             }
         }
+
+        if (group == SettingsGroup.MEASURING) {
+            // --- AnchorCore: the wellbeing loop ---
+            // Master toggle defaults OFF; the per-hook
+            // toggles flip ON once when the master is
+            // first enabled (AnchorPrefs owns the latch).
+            SectionHeading(R.string.settings_anchor_title, null, goals)
+            val anchor by viewModel.anchorEnabled.collectAsState()
+            SettingsRowSwitch(
+                title = stringResource(R.string.settings_anchor_title),
+                subtitle = stringResource(R.string.settings_anchor_subtitle),
+                checked = anchor,
+                onCheckedChange = { viewModel.setAnchorEnabled(it) },
+            )
+            if (anchor) {
+                val letterFacts by viewModel.anchorLetterFacts.collectAsState()
+                val frictionHold by viewModel.anchorFrictionHold.collectAsState()
+                val proposal by viewModel.anchorSunsetProposal.collectAsState()
+                SettingsRowSwitch(
+                    title = stringResource(R.string.settings_anchor_letter_title),
+                    subtitle = stringResource(R.string.settings_anchor_letter_subtitle),
+                    checked = letterFacts,
+                    onCheckedChange = { viewModel.setAnchorLetterFacts(it) },
+                )
+                SettingsRowSwitch(
+                    title = stringResource(R.string.settings_anchor_friction_title),
+                    subtitle = stringResource(R.string.settings_anchor_friction_subtitle),
+                    checked = frictionHold,
+                    onCheckedChange = { viewModel.setAnchorFrictionHold(it) },
+                )
+                SettingsRowSwitch(
+                    title = stringResource(R.string.settings_anchor_proposal_title),
+                    subtitle = stringResource(R.string.settings_anchor_proposal_subtitle),
+                    checked = proposal,
+                    onCheckedChange = { viewModel.setAnchorSunsetProposal(it) },
+                )
+                val override by viewModel.sunsetOverride.collectAsState()
+                LaunchedEffect(Unit) { viewModel.refreshSunsetOverride() }
+                override?.let { (start, _) ->
+                    Text(
+                        stringResource(R.string.settings_anchor_override_active, start.toString()),
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                    TextButton(onClick = { viewModel.clearSunsetOverride() }) {
+                        Text(stringResource(R.string.settings_anchor_override_remove))
+                    }
+                }
+            }
+        }
     }
 }
 
