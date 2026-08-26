@@ -38,10 +38,20 @@ import androidx.lifecycle.lifecycleScope
 import java.time.LocalDate
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.mindanchor.HomeActivity
+import org.mindanchor.anchorcore.AnchorCoreSource
+import org.mindanchor.anchorcore.AnchorPrefs
+import org.mindanchor.data.FrictionPrefs
+import org.mindanchor.data.SunsetPrefs
+import org.mindanchor.friction.OpenLoop
+import org.mindanchor.sleep.Deviation
+import org.mindanchor.sleep.SleepRepository
 import org.mindanchor.ui.CalmBackground
 import org.mindanchor.ui.MindAnchorTheme
+import java.time.Instant
+import java.time.ZoneId
 
 /**
  * v0.26+ (spec Phase 1) — the moment-of-pause
@@ -156,6 +166,10 @@ private fun PreHomeSurface(
     var breathDone by remember { mutableStateOf(false) }
     var doomscrollPackages by remember { mutableStateOf(DoomscrollList.DEFAULT_DOOMSCROLL) }
     var pendingLaunch by remember { mutableStateOf<PendingLaunch?>(null) }
+    // AnchorCore morning blocks: the open-loop handback and one sleep
+    // fact. Loaded once per open; both silent unless they have something.
+    var handback by remember { mutableStateOf<MorningHandback.Handback?>(null) }
+    var sleepFactLine by remember { mutableStateOf<String?>(null) }
 
     // Load today's intention (or the most recent fallback)
     // and the doomscroll set on first composition.
@@ -179,6 +193,35 @@ private fun PreHomeSurface(
         breathDone = true
     }
 
+    LaunchedEffect(Unit) {
+        val app = ctx.applicationContext
+        val frictionPrefs = FrictionPrefs(app)
+        val phase = OpenLoop.phase(
+            quietHours = SunsetPrefs(app).isQuietHour(),
+            note = frictionPrefs.openLoopNote.first(),
+            notedDay = frictionPrefs.openLoopDay.first(),
+            today = LocalDate.now(),
+            postponedAt = frictionPrefs.openLoopPostponedAt.first(),
+        )
+        handback = MorningHandback.decide(phase, frictionPrefs.openLoopNote.first())
+
+        val anchorPrefs = AnchorPrefs(app)
+        if (anchorPrefs.isEnabled()) {
+            // Recompute trigger #1 (spec): PreHome render rolls the day.
+            runCatching { AnchorCoreSource(app).state() }
+            val summary = runCatching { SleepRepository(app).estimate() }.getOrNull()
+            val zone = ZoneId.systemDefault()
+            val onsets = summary?.windows.orEmpty().map { w ->
+                val t = Instant.ofEpochMilli(w.startMillis).atZone(zone).toLocalTime()
+                Deviation.minutesAfterSixPm(t.hour * 60 + t.minute)
+            }
+            sleepFactLine = MorningHandback.sleepFact(
+                lastOnsetAfterSixPm = onsets.lastOrNull(),
+                usualOnsetAfterSixPm = Deviation.usual(onsets.dropLast(1)),
+            )
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -187,6 +230,22 @@ private fun PreHomeSurface(
             .padding(horizontal = 24.dp, vertical = 32.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        handback?.let { hb ->
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Still open from last night", style = MaterialTheme.typography.titleSmall)
+                    Text(hb.note, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+            LaunchedEffect(hb) {
+                if (hb.shouldClear) {
+                    FrictionPrefs(ctx.applicationContext).clearOpenLoop()
+                }
+            }
+        }
+        sleepFactLine?.let {
+            Text(it, style = MaterialTheme.typography.bodySmall)
+        }
         Text(
             text = "A moment before the home",
             style = MaterialTheme.typography.headlineSmall,
