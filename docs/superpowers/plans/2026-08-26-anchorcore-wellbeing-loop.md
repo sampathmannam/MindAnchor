@@ -84,6 +84,53 @@ If a referenced symbol does not match what you find in the file, STOP and re-rea
 | Settings | `settings/SettingsScreen.kt:473` | `enum SettingsGroup { QUIET, PAUSES, MEASURING, READING, PLAN, PHONE }`. AnchorCore rows go inside an `if (group == SettingsGroup.MEASURING)` block. (The PreHome row at :1374 is in PAUSES — v1 of this plan pointed there wrongly.) Toggle composable: `SettingsRowSwitch(title, subtitle, checked, onCheckedChange)`. VM pattern: `prehomeEnabled` at `SettingsViewModel.kt:403`. |
 | Gates | — | `NetworkCallsForbiddenTest` lives in `test/.../goinglight/`. There is **no** `ClinicalReviewWordlistTest`; the wording gate is the `clinical-review.yml` CI workflow (strings.xml + `@wording-reviewed` tag discipline), structure-pinned by `test/.../ci/ClinicalReviewGateTest.kt`. `tools/clinician-pack.py` exists. Robolectric harness to mirror: `test/.../backup/BackupPrefsRoundTripFindingTest.kt`. |
 
+## §0.7 Escalation protocol — hand hard problems to Fable 5, hands-free
+
+The implementing agent (MiniMax M3 or any other) is expected to complete most
+tasks alone. When it cannot, it must NOT improvise. It escalates to Claude Code
+(Fable 5), installed on this machine, via the headless CLI. The repo's
+`.claude/settings.json` pre-approves the tools the escalated agent needs, so the
+whole loop runs without a human.
+
+**Escalate when — and only when — one of these holds:**
+
+- **E1.** A symbol, signature, or line reference from §0.5 does not match what is
+  actually in the file. (Never adapt the plan yourself.)
+- **E2.** A task's test is still red after 2 honest fix attempts.
+- **E3.** `detekt` or `lintDebug` still reports new issues after 2 fix attempts.
+- **E4.** The fix would require touching anything on the §0 "Do not modify"
+  list. (Never touch it yourself, not even trivially.)
+- **E5.** An integration edit in Tasks 6–10 requires a judgment call the plan's
+  snippet does not settle (naming, placement, Compose wiring) and you are not
+  confident the result matches the file's existing style.
+
+**How to escalate (exact mechanics):**
+
+1. Write `ESCALATION_REQUEST.md` at the repo root, containing: the task and step
+   number; the trigger (E1–E5); the exact command that fails and the last ~50
+   lines of its output; the files you touched; what you already tried. Keep it
+   factual — no summaries of the plan (Fable reads the plan itself).
+2. Run, from the repo root (PowerShell or cmd):
+
+   ```
+   claude -p "You are the escalation engineer for the AnchorCore plan. Read ESCALATION_REQUEST.md at the repo root, then docs/superpowers/plans/2026-08-26-anchorcore-wellbeing-loop.md sections 0, 0.5 and the task named in the request. Resolve the request: make the named gate green while honoring the plan's constraints and the repo style. Run the task's test command yourself to prove it. If you complete the task, commit with the plan's commit message; if you only unblocked it, commit nothing and say precisely what remains. Do not push. Finish by writing ESCALATION_RESULT.md at the repo root: STATUS (RESOLVED or NOT-RESOLVED), what you changed, what the implementing agent should do next." --model claude-fable-5 --permission-mode acceptEdits
+   ```
+
+   Wait for the process to exit (it can take several minutes — it runs Gradle).
+3. Read `ESCALATION_RESULT.md`, delete both escalation files, and re-run the
+   task's gate yourself. Green → continue the plan. Red → escalate once more
+   with the updated failure.
+4. **The brake:** if the same gate is still red after 2 escalations, STOP
+   completely. Write `BLOCKED.md` at the repo root (task, step, both escalation
+   results, current `git status`), commit nothing further, and end the run.
+   A human resumes from BLOCKED.md. Never push a red tree, never skip a task,
+   never disable a test to get past it.
+
+**Division of labor:** the implementing agent owns pushes and the task sequence;
+escalated Fable owns hard fixes and may commit a completed task, but never
+pushes (`git push` is deny-listed in `.claude/settings.json`). Push after each
+green task or at natural milestones.
+
 ## Global Constraints
 
 - Zero new permissions; zero network calls (`NetworkCallsForbiddenTest` stays green).
