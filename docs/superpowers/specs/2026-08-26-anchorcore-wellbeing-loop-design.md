@@ -58,7 +58,7 @@ label in disguise):
 
 | Fact | Source | Example |
 |---|---|---|
-| `LATE_NIGHT_CLUSTER` | `ScreenRhythm` last-unlock times | "4 nights past 01:00 vs usual 23:30" |
+| `LATE_NIGHT_CLUSTER` | sleep-window onsets (`SleepRepository.estimate()`) | "3 nights past 01:00 vs usual 23:30" — the median-of-7 rule caps the count at 3 |
 | `MOVEMENT_LOW` | `WellnessSignal.STEPS` | robust z = -2.1 |
 | `SLEEP_IRREGULAR` | SRI trend | SRI dropped 18 points vs prior week |
 | `HRV_LOW` | HRV (PPG or wearable) | robust z = -2.3 |
@@ -106,23 +106,29 @@ Ordered by risk. Each hook reads `AnchorState`; none writes to it.
 
 ### Hook A — Letter context (zero risk)
 
-`LlamaNarrator`'s daily-letter prompt gains an optional block: this week's
-facts, rendered as plain sentences ("You have been up past 1am four nights;
-your usual is 11:30pm."). Letters stop being generic. When the model is absent
-(`NoEngineNarrator`), the template path renders the same facts inline. When
-`AnchorState` is `WarmingUp` or the master toggle is off, the prompt is exactly
-what it is today.
+The daily letter's generation prompt (the live path: `LetterContext.build` →
+`LetterPrompt.userPrompt` → `LetterViewModel.runGeneration`) gains an optional
+block: this week's facts, rendered as plain sentences ("3 nights this week ran
+well past your usual bedtime."). Letters stop being generic. When
+`AnchorState` is `WarmingUp`, there are no facts, or the master toggle is off,
+the prompt is byte-identical to today (the pinned prompt-shape test proves it).
 
-Guardrail: the block passes through the same wordlist review as all user-facing
-copy; `ClinicalReviewWordlistTest` must cover the fact-rendering strings.
+Guardrail: the block passes through the same wording discipline as all
+user-facing copy — the files carrying it take the `@wording-reviewed` KDoc tag
+(the `clinical-review.yml` CI gate's convention; there is no wordlist unit test
+in the codebase), and a new `AnchorWordingTest` pins that no rendered fact line
+carries a verdict word.
 
 ### Hook B — Friction tone hold (low risk)
 
-Inside the sleep window, when the week is flagged, the `FrictionTone`
-softening ladder holds at `FULL` longer: the soften thresholds move from
-repeats 2/4 to repeats 3/6. Outside the sleep window, or on clean weeks,
-behavior is unchanged. Unit-testable as a pure function of
-`(toneLadderInput, weekFlagged, inSleepWindow)`.
+On a flagged week the `FrictionTone` softening ladder holds at `FULL`
+longer: the soften thresholds move from the existing repeats 1/3 to 2/5.
+(Inside the sleep window the tone is already always `FULL` — that rule is
+untouched and keeps winning.) On clean weeks behavior is unchanged.
+Unit-testable as a pure function of `(recentOpens, insideSleepWindow,
+weekFlagged)`. The bandit path (`FrictionViewModel.adaptiveTone`) defers to
+the deterministic tone on flagged weeks, since its arms were reasoned for
+ordinary weeks.
 
 ### Hook C — Sunset proposal card (medium risk)
 
@@ -183,12 +189,19 @@ gate pass unchanged.
 
 ```
 app/src/main/java/org/mindanchor/anchorcore/          (new)
-    AnchorCore.kt, AnchorState.kt, DayFact.kt, WeekPicture.kt
-app/src/main/java/org/mindanchor/narrate/             (Hook A context block)
-app/src/main/java/org/mindanchor/friction/FrictionTone.kt  (Hook B)
-app/src/main/java/org/mindanchor/launcher/HomeScreen.kt    (Hook C card)
-app/src/main/java/org/mindanchor/prehome/PreHomeActivity.kt (handback + fact)
-app/src/main/java/org/mindanchor/settings/            (toggles)
+    DayFact.kt, AnchorState.kt (incl. WeekPicture), AnchorCore.kt,
+    SriWeekLedger.kt, AnchorPrefs.kt, AnchorCoreSource.kt,
+    LetterFactsSection.kt, SunsetProposal.kt
+app/src/main/java/org/mindanchor/llm/LetterContext.kt      (Hook A splice)
+app/src/main/java/org/mindanchor/letters/LetterViewModel.kt (Hook A provider)
+app/src/main/java/org/mindanchor/friction/FrictionTone.kt   (Hook B ladder)
+app/src/main/java/org/mindanchor/friction/GateActivity.kt   (Hook B wiring)
+app/src/main/java/org/mindanchor/launcher/FrictionViewModel.kt (Hook B wiring)
+app/src/main/java/org/mindanchor/data/SunsetPrefs.kt        (Hook C override)
+app/src/main/java/org/mindanchor/launcher/HomeScreen.kt     (Hook C card)
+app/src/main/java/org/mindanchor/launcher/LauncherViewModel.kt (state + card)
+app/src/main/java/org/mindanchor/prehome/MorningHandback.kt (new) + PreHomeActivity.kt
+app/src/main/java/org/mindanchor/settings/            (toggles + override revoke)
 app/src/test/java/org/mindanchor/anchorcore/          (new tests)
 docs/CLINICIAN_PACK.md                                (regenerated)
 ```
