@@ -116,4 +116,176 @@ class WatchPolicyTest {
     fun `flagging nothing pauses nothing`() {
         assertFalse(gate("com.example.social", flaggedSet = emptySet()))
     }
+
+    // --- v0.70+ (Phase 1 T-1.5) morning protection ---
+
+    @Test
+    fun `morning protection with an empty context does not gate anything`() {
+        // A null or empty morning protection is the
+        // pre-T-1.5 shape; the function must keep its
+        // pre-morning-protection semantics for callers
+        // that have not been updated.
+        val morning = MorningProtectionContext(active = false, packages = emptySet())
+        assertFalse(
+            WatchPolicy.shouldGate(
+                opened = "com.example.feed",
+                flagged = emptySet(),
+                self = self,
+                launcher = launcher,
+                allowance = null,
+                now = now,
+                morningProtection = morning,
+            ),
+        )
+    }
+
+    @Test
+    fun `morning protection gates doomscroll packages even when not flagged`() {
+        // The whole point of the morning window: a
+        // doomscroll app the user has not flagged for
+        // full-day friction still meets the gate
+        // during the morning window. The morning
+        // protection set is the doomscroll list
+        // already filtered against NEVER_GATE.
+        val morning = MorningProtectionContext(
+            active = true,
+            packages = setOf("com.example.feed"),
+        )
+        assertTrue(
+            WatchPolicy.shouldGate(
+                opened = "com.example.feed",
+                flagged = emptySet(),
+                self = self,
+                launcher = launcher,
+                allowance = null,
+                now = now,
+                morningProtection = morning,
+            ),
+        )
+    }
+
+    @Test
+    fun `morning protection does not gate packages outside the morning set`() {
+        // The morning protection set is the doomscroll
+        // list. A non-doomscroll package (e.g. the
+        // banking app) is not in the morning set, so
+        // it is not gated even with the morning window
+        // active.
+        val morning = MorningProtectionContext(
+            active = true,
+            packages = setOf("com.example.feed"),
+        )
+        assertFalse(
+            WatchPolicy.shouldGate(
+                opened = "com.example.banking",
+                flagged = emptySet(),
+                self = self,
+                launcher = launcher,
+                allowance = null,
+                now = now,
+                morningProtection = morning,
+            ),
+        )
+    }
+
+    @Test
+    fun `morning protection does not override an existing live allowance`() {
+        // Someone who passed the gate for a package
+        // is not re-paused on the next foreground
+        // transition inside the session, even if the
+        // morning window is still active. The
+        // allowance check happens before the morning
+        // gate check, so the existing semantic holds.
+        val allowance = WatchPolicy.allowanceFor(
+            packageName = "com.example.feed",
+            minutes = 5,
+            now = now,
+        )
+        val morning = MorningProtectionContext(
+            active = true,
+            packages = setOf("com.example.feed"),
+        )
+        assertFalse(
+            WatchPolicy.shouldGate(
+                opened = "com.example.feed",
+                flagged = emptySet(),
+                self = self,
+                launcher = launcher,
+                allowance = allowance,
+                now = now + 60_000,
+                morningProtection = morning,
+            ),
+        )
+    }
+
+    @Test
+    fun `morning protection never gates the dialer even if the doomscroll list contained it`() {
+        // The buildMorningProtectionContext helper
+        // removes WatchPolicy.NEVER_GATE from the
+        // doomscroll set before the policy sees it.
+        // If a caller passes a set that *does*
+        // contain a never-gate package, the policy
+        // still refuses. The NEVER_GATE check is the
+        // last line, not the first.
+        val morning = MorningProtectionContext(
+            active = true,
+            packages = setOf("com.android.dialer"),
+        )
+        assertFalse(
+            WatchPolicy.shouldGate(
+                opened = "com.android.dialer",
+                flagged = emptySet(),
+                self = self,
+                launcher = launcher,
+                allowance = null,
+                now = now,
+                morningProtection = morning,
+            ),
+        )
+    }
+
+    @Test
+    fun `morning protection does not gate this app or the launcher`() {
+        // The self-and-launcher exclusions apply
+        // even when the morning protection is
+        // active. A buggy doomscroll list that
+        // contained the launcher's own package
+        // would still be a no-op.
+        val morning = MorningProtectionContext(
+            active = true,
+            packages = setOf(self, launcher),
+        )
+        assertFalse(
+            WatchPolicy.shouldGate(
+                opened = self,
+                flagged = emptySet(),
+                self = self,
+                launcher = launcher,
+                allowance = null,
+                now = now,
+                morningProtection = morning,
+            ),
+        )
+        assertFalse(
+            WatchPolicy.shouldGate(
+                opened = launcher,
+                flagged = emptySet(),
+                self = self,
+                launcher = launcher,
+                allowance = null,
+                now = now,
+                morningProtection = morning,
+            ),
+        )
+    }
+
+    @Test
+    fun `flagged apps still gate when morning protection is null`() {
+        // The default-value shape: callers that
+        // have not been updated to thread the
+        // morning context still see the historical
+        // behaviour, which is what the migration
+        // is meant to preserve.
+        assertTrue(gate("com.example.social"))
+    }
 }

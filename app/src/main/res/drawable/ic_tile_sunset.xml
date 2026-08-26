@@ -1,0 +1,36 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="?android:attr/colorControlNormal">
+    <!--
+        Sunset / moon: a half-disc below the horizon, three radiating
+        rays. The half-disc is the "below the line" half of a moon;
+        the rays are a few degrees each so the icon reads as "sunset"
+        rather than "wifi signal" or "broadcast".
+    -->
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M12,3 L12,1 L11,1 L11,3 Z" />
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M4.22,4.22 L4.93,4.93 L5.64,4.22 L4.93,3.51 Z" />
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M19.78,4.22 L19.07,4.93 L18.36,4.22 L19.07,3.51 Z" />
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M2,11 L2,12 L4,12 L4,11 Z" />
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M20,11 L20,12 L22,12 L22,11 Z" />
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M7,18 A5,5 0 0 1 17,18 Z" />
+    <path
+        android:strokeColor="@android:color/white"
+        android:strokeWidth="1.5"
+        android:fillColor="#00000000"
+        android:pathData="M3,21 L21,21" />
+</vector>

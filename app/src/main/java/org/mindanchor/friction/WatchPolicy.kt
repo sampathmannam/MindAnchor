@@ -16,6 +16,29 @@ package org.mindanchor.friction
 data class Allowance(val packageName: String, val until: Long)
 
 /**
+ * v0.70+ (Phase 1 T-1.5) — the morning-protection
+ * snapshot passed into [WatchPolicy.shouldGate].
+ *
+ * The morning protection is a separate, time-bounded
+ * concern from the friction flag list. The decision
+ * ("is the window active right now?") is computed
+ * once at the call site (in [AppWatchService] or a
+ * test) and pinned to the [active] Boolean. The
+ * [packages] is the doomscroll list minus
+ * [WatchPolicy.NEVER_GATE]; the gate is a no-op
+ * for the dialer, settings, etc. anyway.
+ *
+ * Holding the decision in a snapshot rather than
+ * re-evaluating it inside `shouldGate` keeps the
+ * function pure: the time component is
+ * `AppWatchService`'s concern, not the policy's.
+ */
+data class MorningProtectionContext(
+    val active: Boolean,
+    val packages: Set<String>,
+)
+
+/**
  * Decides whether an app arriving in the foreground should be met with a
  * pause.
  *
@@ -64,6 +87,14 @@ object WatchPolicy {
      *
      * [launcher] is the current home app, passed in rather than looked up
      * so this stays pure; a null launcher simply protects one fewer thing.
+     *
+     * [morningProtection] is the v0.70+ (Phase 1 T-1.5) morning window
+     * snapshot. When non-null and `active`, packages in
+     * [MorningProtectionContext.packages] are gated even if they are not
+     * in [flagged]. A null [morningProtection] is the historical
+     * "no morning protection" shape; the function keeps its
+     * pre-morning-protection semantics for callers that have not been
+     * updated.
      */
     fun shouldGate(
         opened: String,
@@ -72,16 +103,28 @@ object WatchPolicy {
         launcher: String?,
         allowance: Allowance?,
         now: Long,
+        morningProtection: MorningProtectionContext? = null,
     ): Boolean {
-        if (opened.isBlank()) return false
-        if (opened == self) return false
-        if (opened == launcher) return false
-        if (opened in NEVER_GATE) return false
-        if (opened !in flagged) return false
-        if (allowance != null && allowance.packageName == opened && now < allowance.until) {
-            return false
-        }
-        return true
+        // The negative-gate predicates. Any of these is a
+        // "leave it alone, do not pause"; they are written
+        // as one OR to keep the early-return count small.
+        val notGateable = opened.isBlank() ||
+            opened == self ||
+            opened == launcher ||
+            opened in NEVER_GATE ||
+            (allowance != null &&
+                allowance.packageName == opened &&
+                now < allowance.until)
+        if (notGateable) return false
+        // The positive-gate predicates. The friction flag
+        // list is the historical surface; morning protection
+        // is the v0.70+ opt-in add-on for the first-unlock
+        // window. Either one is enough.
+        val flagHit = opened in flagged
+        val morningHit = morningProtection != null &&
+            morningProtection.active &&
+            opened in morningProtection.packages
+        return flagHit || morningHit
     }
 
     /**

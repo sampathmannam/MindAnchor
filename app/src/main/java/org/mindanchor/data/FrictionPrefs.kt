@@ -3,6 +3,8 @@ package org.mindanchor.data
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -191,6 +193,45 @@ class FrictionPrefs(private val context: Context) {
     }
     suspend fun setPrehomeEnabled(enabled: Boolean) {
         context.dataStore.edit { it[prehomeEnabledKey] = enabled }
+    }
+
+    // v0.70+ (spec Phase 1 T-1.5) — morning
+    // protection. The user opts in; default is OFF.
+    // When ON, doomscroll apps (the existing
+    // DoomscrollList) are forced through the friction
+    // gate for the user-set N minutes after the first
+    // ACTION_USER_PRESENT of the local day. The
+    // first-unlock timestamp is written by
+    // org.mindanchor.friction.FirstUnlockReceiver and
+    // is intentionally not surfaced in the UI — the
+    // user does not need to see the bookkeeping.
+    private val morningProtectionEnabledKey =
+        booleanPreferencesKey("morning_protection_enabled")
+    val morningProtectionEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[morningProtectionEnabledKey] ?: false
+    }
+    suspend fun setMorningProtectionEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[morningProtectionEnabledKey] = enabled }
+    }
+
+    private val morningProtectionMinutesKey =
+        intPreferencesKey("morning_protection_minutes")
+    val morningProtectionMinutes: Flow<Int> = context.dataStore.data.map { prefs ->
+        prefs[morningProtectionMinutesKey] ?: 0
+    }
+    suspend fun setMorningProtectionMinutes(minutes: Int) {
+        val clamped = minutes.coerceIn(0, org.mindanchor.friction.MorningProtectionState.MAX_MINUTES)
+        context.dataStore.edit { it[morningProtectionMinutesKey] = clamped }
+    }
+
+    private val morningProtectionLastFirstUnlockKey =
+        longPreferencesKey("morning_protection_last_first_unlock_ms")
+    val morningProtectionLastFirstUnlockEpochMillis: Flow<Long> =
+        context.dataStore.data.map { prefs ->
+            prefs[morningProtectionLastFirstUnlockKey] ?: 0L
+        }
+    suspend fun setMorningProtectionLastFirstUnlock(epochMillis: Long) {
+        context.dataStore.edit { it[morningProtectionLastFirstUnlockKey] = epochMillis }
     }
 
     val flaggedApps: Flow<Set<String>> = context.dataStore.data.map { prefs ->

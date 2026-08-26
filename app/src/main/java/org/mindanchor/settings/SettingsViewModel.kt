@@ -408,6 +408,34 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     /**
+     * v0.70+ (Phase 1 T-1.5) — morning protection.
+     * The user opts in; default is OFF. When ON, the
+     * doomscroll apps (the existing
+     * [org.mindanchor.prehome.DoomscrollList]) are
+     * forced through the friction gate for the
+     * user-set N minutes after the first
+     * ACTION_USER_PRESENT of the local day. The
+     * minutes field is the duration; 0 means off.
+     */
+    val morningProtectionEnabled = frictionPrefs.morningProtectionEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setMorningProtectionEnabled(enabled: Boolean) {
+        viewModelScope.launch { frictionPrefs.setMorningProtectionEnabled(enabled) }
+    }
+
+    val morningProtectionMinutes = frictionPrefs.morningProtectionMinutes
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            org.mindanchor.friction.MorningProtectionState.MAX_MINUTES / 2,
+        )
+
+    fun setMorningProtectionMinutes(minutes: Int) {
+        viewModelScope.launch { frictionPrefs.setMorningProtectionMinutes(minutes) }
+    }
+
+    /**
      * v0.30+ (spec Phase 2) — the active-hours
      * window for notification curate. The
      * [AnchorNotificationListenerService] demotes
