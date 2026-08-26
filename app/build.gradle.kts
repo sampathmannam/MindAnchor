@@ -333,3 +333,16 @@ dependencies {
     androidTestImplementation(libs.compose.ui.test.junit4)
     debugImplementation(libs.compose.ui.test.manifest)
 }
+
+// TestGuild #82 (JaCoCo, test-management slot) — coverage is the
+// single most actionable thing a test-management dashboard can
+// surface. Without a number to watch, "we added 4 tests" is a
+// vibe; with a number you can spot a regression in 1342→1346
+// passing tests masking a 0% coverage drop. AGP 8.9 wires
+// JaCoCo into the `testCoverage` extension; the JVM-unit-test
+// coverage report is at
+//   app/build/reports/coverage/test/debug/index.html
+// and the XML at
+//   app/build/reports/coverage/test/debug/report.xml
+// (the latter is what Allure / ReportPortal / Gaffer ingest).
+    // Health Connect 1.1.0 stable requires compileSdk 36+. Bumped
