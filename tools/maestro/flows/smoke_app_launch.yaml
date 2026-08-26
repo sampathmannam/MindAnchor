@@ -1,0 +1,50 @@
+appId: org.mindanchor
+---
+# Maestro smoke test — proves the tool is wired up and the
+# app + device are reachable. Used as the first thing every
+# Maestro run should do, before any AnchorCore-specific
+# flows (the long flow lives in
+# tools/maestro/flows/anchorcore_section.yaml).
+#
+# If this test cannot reach "MindAnchor" on the home surface
+# after launchApp, the rest of the Maestro suite is moot
+# — either the device is locked, the app is in the sleep
+# window, or the 16 KB page-size warning is still showing.
+
+- launchApp
+
+# If the Android task-pinning overlay is up (Android
+# shows it after a long-press of recents or after some
+# instrumentation runs), unpin by tapping "No, thanks"
+# so subsequent runs don't keep showing the overlay.
+- runFlow:
+    when:
+      visible: "App is pinned"
+    commands:
+      - tapOn: "No, thanks"
+
+# If the 16 KB page-size dialog is up (every launch on a
+# fresh install), dismiss it for the rest of the run.
+- runFlow:
+    when:
+      visible: "Android app compatibility"
+    commands:
+      - tapOn: "Don't show again"
+
+# If onboarding is up, skip past it. The onboarding has
+# two pages: "What fits?" (continue) and "Your plan"
+# (begin). Either may show depending on prior state.
+- runFlow:
+    when:
+      visible: "Welcome to MindAnchor"
+    commands:
+      - tapOn: "continue"
+      - tapOn: "continue"
+      - tapOn: "begin"
+
+# Asserting on a time-stable element (the bottom bar's
+# "search" label) so the test is robust to the
+# greeting copy that depends on the time of day
+# ("Winding down." / "Good morning." / etc.).
+- assertVisible: "search"
+- assertVisible: "settings"

@@ -1,0 +1,106 @@
+appId: org.mindanchor
+---
+# TestGuild #8 (Maestro) — the v0.70.0 AnchorCore settings UI
+# flow, run on the connected device (Motorola signature, Android 17).
+#
+# What this checks:
+#   1. App launches into home
+#   2. Settings → Measuring → AnchorCore section visible
+#   3. The opt-out-by-silence subtitle is present (master OFF default)
+#   4. Tap master → 3 hook rows appear
+#   5. Tap master again → 3 hook rows hide (gating works)
+#   6. The override-revoke row stays hidden without a Hook C accept
+#
+# The hook text is asserted as exact strings; the wording review
+# banlist in AnchorWordingTest (TestGuild #15) catches verdict
+# words, this test catches on-screen copy that doesn't match.
+
+- launchApp
+
+# Skip onboarding if it shows.
+- runFlow:
+    when:
+      visible: "Welcome to MindAnchor"
+    commands:
+      - tapOn: "continue"
+      - tapOn: "begin"
+
+# Dismiss the 16 KB page-size warning if it shows.
+- runFlow:
+    when:
+      visible: "Android app compatibility"
+    commands:
+      - tapOn: "Don't show again"
+
+# Dismiss Android's task-pinning overlay if it shows. This
+# dialog blocks the entire screen when the app is pinned
+# (e.g. from a previous test that drove the screen via
+# adb). Without dismissing, the home assertion fails and
+# the rest of the test never runs.
+- runFlow:
+    when:
+      visible: "App is pinned"
+    commands:
+      - tapOn: "Got it"
+
+- assertVisible: "search"   # bottom bar — time-stable, always present on home
+- assertVisible: "settings"
+
+# Open settings.
+- tapOn: "settings"
+- waitForAnimationToEnd
+- assertVisible: "Measuring"
+
+# Open Measuring.
+- tapOn: "Measuring"
+
+# Scroll to the AnchorCore section. Maestro has no direct scroll
+# API; swipe from a low y to a higher y to scroll up. The Measuring
+# group is long (Heart rhythm → Sleep rhythm → Check-ins → Wellness
+# signals → COROS → What arrived → ... → AnchorCore), so a dozen
+# swipes is needed to reach the AnchorCore heading.
+- repeat:
+    times: 12
+    commands:
+      - swipe:
+          start: 600, 2200
+          end:   600,  400
+          duration: 250
+
+# The opt-out-by-silence subtitle is the unique text of the master row.
+- assertVisible: "A quiet weekly picture from your own patterns. Off until you ask."
+
+# Master is OFF. The three hook rows must NOT be visible.
+- assertNotVisible: "Letter knows the week"
+- assertNotVisible: "Gentler repetition in hard weeks"
+- assertNotVisible: "Wind-down suggestion"
+
+# Tap the master subtitle. The whole row is a toggle target, and
+# the subtitle is the unique inner element. (The section header at
+# index [0] is also text "AnchorCore" but has no click handler; the
+# subtitle is the unambiguous row click.)
+- tapOn: "A quiet weekly picture from your own patterns. Off until you ask."
+
+# Wait for the recomposition to settle.
+- waitForAnimationToEnd
+
+# Master is now ON. All three hook rows must be visible.
+- assertVisible: "Letter knows the week"
+- assertVisible: "Gentler repetition in hard weeks"
+- assertVisible: "Wind-down suggestion"
+
+# Override revoke row must stay hidden — no Hook C accept has fired.
+- assertNotVisible: "Wind-down is 30 minutes earlier until "
+
+# Toggle master back off.
+- tapOn: "A quiet weekly picture from your own patterns. Off until you ask."
+- waitForAnimationToEnd
+
+# Hook rows must hide.
+- assertNotVisible: "Letter knows the week"
+- assertNotVisible: "Gentler repetition in hard weeks"
+- assertNotVisible: "Wind-down suggestion"
+
+# Back out to home.
+- pressKey: back
+- pressKey: back
