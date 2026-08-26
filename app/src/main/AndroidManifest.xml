@@ -86,7 +86,6 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <uses-permission android:name="android.permission.RECEIVE_USER_PRESENT" />
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission
@@ -510,28 +509,22 @@
             android:exported="false" />
 
         <!--
-            Phase 1 T-1.5 — the first-unlock-of-the-day
-            detector. The system fires
-            `ACTION_USER_PRESENT` once per successful
-            unlock (i.e. once the keyguard is dismissed,
-            not every time the screen turns on). The
-            receiver records the timestamp of the first
-            such event of the local day, which the
-            morning protection window test consumes.
+            Phase 1 T-1.5 — the first-unlock-of-the-day detector
+            (FirstUnlockReceiver) and the v0.20.1 check-in trigger
+            (CheckInTrigger) both listen for ACTION_USER_PRESENT.
 
-            Exported because the system delivers the
-            broadcast across the user-ID boundary; the
-            permission on the receiver and on the
-            manifest declares the gate.
+            They are deliberately NOT declared here. ACTION_USER_PRESENT
+            is an implicit broadcast and is not in the manifest-receiver
+            exemption list (developer.android.com/develop/background-work/
+            background-tasks/broadcasts/broadcast-exceptions), so since the
+            Android 8.0 background execution limits a manifest-declared
+            receiver targeting API 26+ is never delivered it. Both
+            receivers are registered at runtime by AppWatchService
+            (onServiceConnected / onDestroy), whose accessibility-service
+            lifecycle is also exactly the lifetime during which the
+            friction gate they feed can act. A receiver declared here
+            would look wired and be dead.
         -->
-        <receiver
-            android:name=".friction.FirstUnlockReceiver"
-            android:exported="true"
-            android:permission="android.permission.RECEIVE_USER_PRESENT">
-            <intent-filter>
-                <action android:name="android.intent.action.USER_PRESENT" />
-            </intent-filter>
-        </receiver>
 
         <receiver
             android:name=".sunset.SunsetReceiver"
@@ -546,22 +539,8 @@
             android:name=".model.EmaAlarmReceiver"
             android:exported="false" />
 
-        <!--
-            v0.20.1 round 5: the v2 check-in trigger.
-            Fires on ACTION_USER_PRESENT (phone
-            unlock); the engine decides whether
-            this fire should actually launch a
-            check-in. Exported=false because we
-            never want another app to spoof a
-            USER_PRESENT broadcast at us.
-        -->
-        <receiver
-            android:name=".model.CheckInTrigger"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.intent.action.USER_PRESENT" />
-            </intent-filter>
-        </receiver>
+        <!-- CheckInTrigger: see the USER_PRESENT note above — it is
+             registered at runtime by AppWatchService, not here. -->
 
         <!--
             Present so this app *can* be made Device Owner over adb by

@@ -3,7 +3,9 @@ package org.mindanchor.friction
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.view.accessibility.AccessibilityEvent
+import androidx.core.content.ContextCompat
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -13,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.mindanchor.data.FrictionPrefs
+import org.mindanchor.model.CheckInTrigger
 import org.mindanchor.prehome.DoomscrollList
 
 /**
@@ -54,12 +57,46 @@ class AppWatchService : AccessibilityService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val flagged = MutableStateFlow<Set<String>>(emptySet())
 
+    // v0.70+ (Phase 1 T-1.5) — the USER_PRESENT listeners. Both are
+    // registered at runtime, not in the manifest: ACTION_USER_PRESENT
+    // is an implicit broadcast that manifest receivers targeting
+    // API 26+ are never delivered, so a manifest entry would look
+    // wired and be dead. See the note in AndroidManifest.xml.
+    private var firstUnlockReceiver: FirstUnlockReceiver? = null
+    private var checkInTrigger: CheckInTrigger? = null
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         running = true
         scope.launch {
             FrictionPrefs(applicationContext).flaggedApps.collect { flagged.value = it }
         }
+        registerUserPresentListeners()
+    }
+
+    /**
+     * Registers [FirstUnlockReceiver] (morning-protection bookkeeping)
+     * and [CheckInTrigger] (the v0.20.1 check-in moment) for
+     * ACTION_USER_PRESENT. USER_PRESENT is a protected system broadcast,
+     * so RECEIVER_NOT_EXPORTED costs nothing and keeps third-party apps
+     * unable to spoof an unlock at us; the system's own delivery is not
+     * affected by the flag.
+     */
+    private fun registerUserPresentListeners() {
+        val filter = IntentFilter(Intent.ACTION_USER_PRESENT)
+        firstUnlockReceiver = FirstUnlockReceiver().also {
+            ContextCompat.registerReceiver(this, it, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        }
+        checkInTrigger = CheckInTrigger().also {
+            ContextCompat.registerReceiver(this, it, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        }
+    }
+
+    private fun unregisterUserPresentListeners() {
+        firstUnlockReceiver?.let { runCatching { unregisterReceiver(it) } }
+        firstUnlockReceiver = null
+        checkInTrigger?.let { runCatching { unregisterReceiver(it) } }
+        checkInTrigger = null
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -155,6 +192,7 @@ class AppWatchService : AccessibilityService() {
 
     override fun onDestroy() {
         running = false
+        unregisterUserPresentListeners()
         scope.cancel()
         super.onDestroy()
     }

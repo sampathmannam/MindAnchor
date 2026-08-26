@@ -38,13 +38,23 @@ import org.mindanchor.data.FrictionPrefs
  * returns; without `goAsync`, the write can be lost. The
  * 10-second budget is plenty for a single DataStore edit.
  *
- * ## Manifest
+ * ## Registration: runtime, not manifest
  *
- * The receiver is registered in AndroidManifest.xml with
- * `android.permission.RECEIVE_USER_PRESENT` (the broadcast
- * is permission-gated by the system; the manifest needs the
- * permission declared). The intent filter is the
- * `Intent.ACTION_USER_PRESENT` action.
+ * ACTION_USER_PRESENT is an implicit broadcast, and since the Android 8.0
+ * background execution limits a manifest-declared receiver targeting API 26+
+ * is never delivered implicit broadcasts — it is not in the exemption list
+ * (developer.android.com/develop/background-work/background-tasks/broadcasts/
+ * broadcast-exceptions). A manifest entry would look wired and be dead.
+ * The receiver is therefore registered at runtime by
+ * [AppWatchService.onServiceConnected] and unregistered in
+ * [AppWatchService.onDestroy]. That lifecycle is also exactly the window in
+ * which the friction gate this timestamp feeds can act: with the watcher
+ * off, morning protection has no enforcer anyway.
+ *
+ * Because the registration is dynamic, no export flag is needed for spoof
+ * protection beyond ContextCompat.RECEIVER_NOT_EXPORTED: USER_PRESENT is a
+ * protected system broadcast, so third-party apps cannot send it at us,
+ * and NOT_EXPORTED keeps it that way while the system delivery is unaffected.
  */
 class FirstUnlockReceiver : BroadcastReceiver() {
 
