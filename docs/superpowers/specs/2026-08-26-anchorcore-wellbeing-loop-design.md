@@ -66,8 +66,14 @@ label in disguise):
 
 A fact exists only when its deviation crosses the direction-band threshold the
 codebase already uses (|z| ≥ 2.0, per `WellnessSignals.kt` and Jacobson 2019 as
-the closest published reference). Facts are recomputed when any source updates;
-they are not stored as state — the sources are the store.
+the closest published reference). Facts are recomputed on demand — when PreHome
+renders, when the daily-letter job runs, when Home composes the proposal-card
+check — never on a timer of their own. They are not stored as state; the
+sources are the store.
+
+A day counts as *observed* for warm-up purposes when it has at least one screen
+event in `RhythmRepository` or any vital reading in `WellnessRepository`. Days
+with neither are absent from the baseline count, not zero-filled.
 
 ### Week picture
 
@@ -103,7 +109,9 @@ Ordered by risk. Each hook reads `AnchorState`; none writes to it.
 `LlamaNarrator`'s daily-letter prompt gains an optional block: this week's
 facts, rendered as plain sentences ("You have been up past 1am four nights;
 your usual is 11:30pm."). Letters stop being generic. When the model is absent
-(`NoEngineNarrator`), the template path renders the same facts inline.
+(`NoEngineNarrator`), the template path renders the same facts inline. When
+`AnchorState` is `WarmingUp` or the master toggle is off, the prompt is exactly
+what it is today.
 
 Guardrail: the block passes through the same wordlist review as all user-facing
 copy; `ClinicalReviewWordlistTest` must cover the fact-rendering strings.
@@ -148,9 +156,13 @@ Both respect PreHome's existing self-skip-when-disabled behavior.
 
 ## Settings surface
 
-One master toggle ("AnchorCore", default ON — it is purely passive) plus
-per-hook toggles (letter context default ON; friction hold default ON; sunset
-proposal default ON). All under Settings → Measuring.
+One master toggle ("AnchorCore") plus per-hook toggles (letter context default
+ON; friction hold default ON; sunset proposal default ON). All under Settings →
+Measuring.
+
+The master toggle defaults OFF, matching PreHome's precedent
+(opt-out-by-silence rule: nothing new runs until asked). The hooks are inert
+until it is on.
 
 ## Testing
 
