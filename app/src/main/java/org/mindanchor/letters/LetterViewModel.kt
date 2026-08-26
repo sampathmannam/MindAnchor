@@ -52,6 +52,12 @@ class LetterViewModel(
     private val checkInPrefs: CheckInPrefs,
     private val letterStore: LetterStore,
     private val letterLog: LetterGenerationLog,
+    /**
+     * Hook A (AnchorCore): composes the week-facts block, or null when
+     * the loop is off, warming, or factless. Injected because this VM
+     * deliberately has no Context; LauncherViewModel supplies it.
+     */
+    private val weekFacts: (suspend () -> String?)? = null,
 ) : ViewModel() {
 
     /**
@@ -169,7 +175,8 @@ class LetterViewModel(
         // not `.list` as the brief sketch suggested.
         val notes = notesPrefs.notes.first().notes
         val checkIns = checkInPrefs.checkIns.first().checkIns
-        val request = LetterContext.build(today, notes, checkIns)
+        val factsSection = runCatching { weekFacts?.invoke() }.getOrNull().orEmpty()
+        val request = LetterContext.build(today, notes, checkIns, factsSection = factsSection)
 
         if (cancelled) return // the cancel() may have raced with this
 

@@ -28,6 +28,9 @@ object LetterContext {
 
     private val DATE_FMT: DateTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE
 
+    /** First words of the template's closing instruction — the splice anchor. */
+    private const val FACTS_ANCHOR = "Write today's letter"
+
     /**
      * Build the [LlmRequest] for [today]'s letter. The
      * [notes] list is the user's full notes (the function
@@ -42,6 +45,7 @@ object LetterContext {
         checkIns: List<CheckIn>,
         now: Instant = Instant.now(),
         zone: ZoneId = ZoneId.systemDefault(),
+        factsSection: String = "",
     ): LlmRequest {
         val dayOfWeek = today.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH)
         val timeOfDay = timeOfDayFor(now, zone)
@@ -95,7 +99,19 @@ object LetterContext {
             todayJournalSection = todayJournal,
             recentNotesSection = recentSection,
             checkInSection = checkInSection,
-        )
+        ).let { prompt ->
+            if (factsSection.isBlank()) {
+                prompt
+            } else {
+                // Splice after trimIndent so the block cannot disturb the
+                // template's margin arithmetic (see plan §0.5). The anchor
+                // is the template's closing instruction line.
+                prompt.replace(
+                    FACTS_ANCHOR,
+                    "[This week, from the user's own device]\n$factsSection\n\n$FACTS_ANCHOR",
+                )
+            }
+        }
 
         return LlmRequest(
             model = LlmProvider.GOOGLE_AI_STUDIO.defaultModel,

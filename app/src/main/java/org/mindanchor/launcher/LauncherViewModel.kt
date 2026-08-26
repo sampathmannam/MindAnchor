@@ -18,6 +18,9 @@ import org.mindanchor.data.NotesPrefs
 import org.mindanchor.friction.FrictionBandit
 import org.mindanchor.friction.CompassionateWrapNotifier
 import org.mindanchor.friction.GateContext
+import org.mindanchor.anchorcore.AnchorCoreSource
+import org.mindanchor.anchorcore.AnchorPrefs
+import org.mindanchor.anchorcore.LetterFactsSection
 import org.mindanchor.data.SunsetPrefs
 import org.mindanchor.friction.LoopPhase
 import org.mindanchor.friction.OpenLoop
@@ -598,6 +601,15 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         checkInPrefs = CheckInPrefs(application),
         letterStore = LetterStore(application),
         letterLog = LetterGenerationLog(application),
+        weekFacts = {
+            val anchorPrefs = AnchorPrefs(getApplication())
+            if (anchorPrefs.isEnabled() && anchorPrefs.letterFactsEnabled.first()) {
+                runCatching { AnchorCoreSource(getApplication()).state() }.getOrNull()
+                    ?.let { LetterFactsSection.compose(it) }
+            } else {
+                null
+            }
+        },
     )
 
     /**
