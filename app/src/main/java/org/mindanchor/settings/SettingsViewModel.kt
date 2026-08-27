@@ -18,15 +18,14 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import org.mindanchor.corpus.CorpusImport
-import org.mindanchor.corpus.CorpusStore
 import org.mindanchor.data.AppearancePrefs
+import org.mindanchor.llm.LetterContext
+import org.mindanchor.llm.LlmClientFactory
+import org.mindanchor.llm.LlmPrefs
+import org.mindanchor.llm.LlmResponse
 import org.mindanchor.letters.Letter
 import org.mindanchor.letters.LetterStore
-import org.mindanchor.letters.LetterWriter
 import org.mindanchor.letters.WeekDataCollector
-import org.mindanchor.narrate.ModelSlot
-import org.mindanchor.narrate.ModelStore
 import org.mindanchor.data.NotificationPrefs
 import org.mindanchor.data.SunsetPrefs
 import org.mindanchor.reader.ReaderPrefs
@@ -65,6 +64,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val onboardingPrefs = org.mindanchor.onboarding.OnboardingPrefs(application)
     private val reportStore = ReportStore(application)
     private val backupPrefs = org.mindanchor.backup.BackupPrefs(application)
+    private val osModePrefs = org.mindanchor.osmode.OsModePrefs(application)
 
     /**
      * What the person said they were struggling with, at onboarding or
@@ -101,40 +101,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }.sortedBy { it.first }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /**
-     * The small things the person said help them — their words only, never
-     * seeded with suggestions. See
-     * [org.mindanchor.friction.SmallThings] for when they are offered and,
-     * more importantly, when they are not.
-     */
-    val smallThings = frictionPrefs.smallThings
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    fun addSmallThing(thing: String) {
-        viewModelScope.launch { frictionPrefs.addSmallThing(thing) }
-    }
-
-    fun removeSmallThing(thing: String) {
-        viewModelScope.launch { frictionPrefs.removeSmallThing(thing) }
-    }
-
-    /**
-     * The user's own self-compassion phrases — see
-     * [org.mindanchor.friction.CompassionMoment]. Their
-     * words only; the launcher never seeds suggestions
-     * (Neff 2003, Linardon 2020 meta).
-     */
-    val compassionMoments = frictionPrefs.compassionMoments
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    fun addCompassionMoment(phrase: String) {
-        viewModelScope.launch { frictionPrefs.addCompassionMoment(phrase) }
-    }
-
-    fun removeCompassionMoment(phrase: String) {
-        viewModelScope.launch { frictionPrefs.removeCompassionMoment(phrase) }
-    }
-
     /** Somebody looked at the numbers and kept the pause. Start again. */
     fun keepPause(packageName: String) {
         viewModelScope.launch { frictionPrefs.resetTally(packageName) }
@@ -151,8 +117,19 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val batchingEnabled = prefs.batchingEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
-    val batchedApps = prefs.batchedApps
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+    /**
+     * v0.72+ — apps the user has chosen to let through immediately
+     * (everything else is held by default). Surfaced to the UI as
+     * "Apps to let through"; the curated seed in
+     * [org.mindanchor.data.NotificationPrefs.DEFAULT_NEVER_BATCH_PACKAGES]
+     * is what the screen shows on a fresh install.
+     */
+    val neverBatchApps = prefs.neverBatchApps
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            org.mindanchor.data.NotificationPrefs.DEFAULT_NEVER_BATCH_PACKAGES,
+        )
 
     fun hasNotificationAccess(): Boolean =
         NotificationManagerCompat.getEnabledListenerPackages(getApplication())
@@ -186,8 +163,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun setAppBatched(packageName: String, batched: Boolean) {
-        viewModelScope.launch { prefs.setAppBatched(packageName, batched) }
+    /**
+     * v0.72+ — toggles whether [packageName]'s notifications bypass the
+     * batcher. `passThrough = true` means the app is in the let-through
+     * set (the screen calls this "Apps to let through" → ON).
+     */
+    fun setAppPassThrough(packageName: String, passThrough: Boolean) {
+        viewModelScope.launch { prefs.setAppPassThrough(packageName, passThrough) }
     }
 
     fun releaseNow() {
@@ -221,10 +203,32 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
      */
     fun releaseDeviceOwner(onDone: () -> Unit = {}) {
         viewModelScope.launch {
-            val chosen = frictionPrefs.flaggedApps.first()
+            // Pass every set OS Mode could have applied — the doomscroll
+            // list and the stored hint — not just friction's flagged apps.
+            // Releasing ownership with a suspension still standing would
+            // leave an app shut with nothing left on the phone able to
+            // free it short of a factory reset.
+            val osPrefs = org.mindanchor.osmode.OsModePrefs(getApplication())
+            val chosen = frictionPrefs.flaggedApps.first() +
+                org.mindanchor.prehome.DoomscrollList(getApplication()).packages.first() +
+                osPrefs.lastSuspended.first()
             org.mindanchor.admin.DeviceOwner.release(getApplication(), chosen)
+            osPrefs.clear()
             onDone()
         }
+    }
+
+    /**
+     * v0.70 (Phase 1 T-1.1) — the OS Mode opt-in. Default OFF; the
+     * toggle is the only thing that turns it on. [OsModePrefs.setOptedIn]
+     * re-derives immediately on switch-off so leaving the posture takes
+     * effect now rather than at the next alarm.
+     */
+    val osModeOptedIn = osModePrefs.optedIn
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setOsModeOptedIn(enabled: Boolean) {
+        viewModelScope.launch { osModePrefs.setOptedIn(enabled) }
     }
 
     /**
@@ -920,174 +924,17 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    // --- Research on file (the corpus behind every report) ---
-
-    private val _corpusSize = MutableStateFlow(0)
-
-    /** How many passages the report has to draw on. */
-    val corpusSize: StateFlow<Int> = _corpusSize.asStateFlow()
-
-    private val _corpusImported = MutableStateFlow(false)
-
-    /** Whether anything has been added on top of the bundled seed. */
-    val corpusImported: StateFlow<Boolean> = _corpusImported.asStateFlow()
-
-    private val _lastImport = MutableStateFlow<CorpusImportReport?>(null)
-
-    /**
-     * What the last import did, or null before one has happened this
-     * session. Deliberately not persisted: it is a reply to a tap, and a
-     * reply still sitting there a week later is not news, it is clutter.
-     */
-    val lastImport: StateFlow<CorpusImportReport?> = _lastImport.asStateFlow()
-
-    fun refreshCorpus() {
-        viewModelScope.launch(Dispatchers.IO) {
-            _corpusSize.value = CorpusStore.load(getApplication()).size
-            _corpusImported.value = CorpusStore.hasImported(getApplication())
-        }
-    }
-
-    /**
-     * Reads a picked file, merges it into what is already on file, and
-     * stores the result.
-     *
-     * All of it on [Dispatchers.IO]: this reads a file of unknown size
-     * off storage the app does not own, and doing that on the main thread
-     * is how a settings screen freezes on somebody's slow SD card.
-     *
-     * A file that yields nothing usable is reported and **not** written.
-     * Overwriting a working corpus with the result of a mis-tap would be
-     * a destructive answer to a harmless mistake.
-     */
-    fun importCorpus(uri: Uri) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val context = getApplication<Application>()
-            val raw = CorpusStore.readPicked(context, uri)
-            if (raw == null) {
-                _lastImport.value = CorpusImportReport(unreadable = true)
-                return@launch
-            }
-            val outcome = CorpusImport.merge(CorpusStore.load(context), raw)
-            val stored = if (outcome.isEmpty) true else CorpusStore.saveImported(context, outcome.corpus)
-            _lastImport.value = CorpusImportReport(
-                added = outcome.added,
-                replaced = outcome.replaced,
-                skippedRows = outcome.skippedRows,
-                truncated = outcome.truncated,
-                unreadable = !stored,
-            )
-            _corpusSize.value = CorpusStore.load(context).size
-            _corpusImported.value = CorpusStore.hasImported(context)
-        }
-    }
-
-    /** Back to the bundled seed alone. */
-    fun clearCorpus() {
-        viewModelScope.launch(Dispatchers.IO) {
-            CorpusStore.clearImported(getApplication())
-            _lastImport.value = null
-            _corpusSize.value = CorpusStore.load(getApplication()).size
-            _corpusImported.value = CorpusStore.hasImported(getApplication())
-        }
-    }
-
-    // --- Model (the small model a future writing engine would run) ---
-    //
-    // Mirrors the corpus section immediately above: a plain file import
-    // into app-private storage, with the whole read and copy on
-    // Dispatchers.IO because ModelStore is moving a multi-gigabyte file
-    // off storage the app does not own. See ModelStore and Narrator for
-    // why importing one does not yet make any writing happen.
-
-    private val _modelPresent = MutableStateFlow(false)
-
-    /** Whether a model is on file at all. */
-    val modelPresent: StateFlow<Boolean> = _modelPresent.asStateFlow()
-
-    private val _modelFit = MutableStateFlow(ModelSlot.Fit.TOO_LARGE)
-
-    /**
-     * Whether the model on file would actually run here. Meaningless
-     * while [modelPresent] is false, where it defaults to the same
-     * refuse-by-default value [ModelStore.fit] itself falls back to.
-     */
-    val modelFit: StateFlow<ModelSlot.Fit> = _modelFit.asStateFlow()
-
-    private val _modelImportFailed = MutableStateFlow(false)
-
-    /** Whether the most recent import attempt this session failed. */
-    val modelImportFailed: StateFlow<Boolean> = _modelImportFailed.asStateFlow()
-
-    fun refreshModel() {
-        viewModelScope.launch(Dispatchers.IO) {
-            val context = getApplication<Application>()
-            _modelPresent.value = ModelStore.hasModel(context)
-            _modelFit.value = ModelStore.fit(context)
-            // Keep the new boolean StateFlow in sync with the
-            // detailed fit enum, so a UI consuming [modelFits] sees
-            // the same answer the model card does — both are read
-            // off the same model file on the same disk.
-            ModelStore.refreshFit(context)
-        }
-    }
-
-    /**
-     * Reads a picked file into app-private storage, replacing whatever
-     * model was there before.
-     *
-     * A failed import leaves the previous model, if any, untouched — see
-     * [ModelStore.importFrom] for why a failed copy never leaves a
-     * partial file to be mistaken for a real one.
-     */
-    fun importModel(uri: Uri) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val context = getApplication<Application>()
-            val imported = ModelStore.importFrom(context, uri)
-            _modelImportFailed.value = !imported
-            _modelPresent.value = ModelStore.hasModel(context)
-            _modelFit.value = ModelStore.fit(context)
-            ModelStore.refreshFit(context)
-        }
-    }
-
-    /** Removes the model on file, if any. */
-    fun clearModel() {
-        viewModelScope.launch(Dispatchers.IO) {
-            val context = getApplication<Application>()
-            ModelStore.clear(context)
-            _modelImportFailed.value = false
-            _modelPresent.value = ModelStore.hasModel(context)
-            _modelFit.value = ModelStore.fit(context)
-            ModelStore.refreshFit(context)
-        }
-    }
-
     // --- Letters (the v0.25.2 morning letter) ---
     //
-    // The fields here drive both the letter inbox (Task 6) and the
-    // future Reading sub-section of the settings screen (Task 10).
-    // They default to safe values so the screen renders even before
-    // the first refresh completes: modelFits is "no, the model is
-    // not on file yet", letterRunning is "no generation in flight",
-    // and the size / count / enabled flags come from DataStore
-    // flows that emit their persisted value the moment they are
-    // collected.
+    // v0.72.x: the corpus and offline-model sections are gone
+    // (SettingsScreen has no UI for them any more). The letter
+    // surface now writes via the LLM API when an API key is
+    // configured, and silently no-ops otherwise — a day with no
+    // letter is still a normal day, not a failure.
 
     private val letterStore = LetterStore(application)
 
     private val readerPrefs = ReaderPrefs(application)
-
-    /**
-     * Whether the model on file would actually run on this phone,
-     * exposed as a plain [Boolean] for the letter inbox's
-     * "Generate now" enablement and the empty-state copy.
-     *
-     * Backed by the same probe as [modelFit], just rephrased — see
-     * [ModelStore.fitFlow] for why the StateFlow is held on the
-     * store rather than re-asked on every recomposition.
-     */
-    val modelFits: StateFlow<Boolean> = ModelStore.fitFlow()
 
     private val _letterRunning = MutableStateFlow(false)
 
@@ -1177,12 +1024,24 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     /** Pass-through to [LetterStore.setEnabled]. */
     fun setLettersEnabled(enabled: Boolean) {
-        viewModelScope.launch { letterStore.setEnabled(enabled) }
+        viewModelScope.launch {
+            letterStore.setEnabled(enabled)
+            // v0.72.x: rearm the daily-letter alarm every time
+            // the toggle flips. Before this, the alarm was
+            // only armed on HomeActivity.onCreate, so toggling
+            // "Send me a letter each morning" from settings left
+            // the alarm in its previous state. The user thought
+            // they'd enabled letters; nothing fired at 8 AM.
+            org.mindanchor.letters.LetterScheduler.ensureScheduled(getApplication())
+        }
     }
 
     /** Pass-through to [LetterStore.setTime]. */
     fun setLettersTime(hour: Int, minute: Int) {
-        viewModelScope.launch { letterStore.setTime(hour, minute) }
+        viewModelScope.launch {
+            letterStore.setTime(hour, minute)
+            org.mindanchor.letters.LetterScheduler.ensureScheduled(getApplication())
+        }
     }
 
     /** Pass-through to [ReaderPrefs.setSize]. */
@@ -1244,10 +1103,39 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             _letterRunning.value = true
             try {
                 runCatching {
-                    val week = WeekDataCollector(getApplication()).collectLastWeek()
-                    val writer = LetterWriter(getApplication())
-                    val body = writer.write(week) ?: return@runCatching
-                    letterStore.save(Letter(date = LocalDate.now(), body = body))
+                    val llmPrefs = LlmPrefs(getApplication())
+                    val apiKey = llmPrefs.apiKey.first()
+                    if (apiKey.isBlank()) return@runCatching
+                    val provider = llmPrefs.provider.first()
+                    val model = llmPrefs.model.first()
+                    val voice = llmPrefs.voice.first()
+                    val client = LlmClientFactory.create(provider, apiKey, model)
+                    val notesPrefs = org.mindanchor.data.NotesPrefs(getApplication())
+                    val checkInPrefs = org.mindanchor.data.CheckInPrefs(getApplication())
+                    val notes = notesPrefs.notes.first().notes
+                    val checkIns = checkInPrefs.checkIns.first().checkIns
+                    val request = LetterContext.build(
+                        today = LocalDate.now(),
+                        notes = notes,
+                        checkIns = checkIns,
+                        voice = voice,
+                        model = model,
+                    )
+                    val result = client.complete(request)
+                    result.onSuccess { response ->
+                        letterStore.save(
+                            Letter(
+                                date = LocalDate.now(),
+                                body = response.content,
+                                provider = provider.name.lowercase(),
+                                model = model,
+                                voice = voice.name.lowercase(),
+                                promptTokens = response.promptTokens,
+                                completionTokens = response.completionTokens,
+                                durationMs = response.durationMs,
+                            ),
+                        )
+                    }
                 }
             } finally {
                 _letterRunning.value = false

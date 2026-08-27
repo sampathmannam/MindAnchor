@@ -51,17 +51,48 @@ class LlmPrefs(private val context: Context) {
 
     private val providerKey = stringPreferencesKey("provider")
     private val modelKey = stringPreferencesKey("model")
+    private val voiceKey = stringPreferencesKey("letter_voice")
     private val lastTestSuccessKey = stringPreferencesKey("last_test_success")
     private val lastTestMessageKey = stringPreferencesKey("last_test_message")
     private val lastTestAtKey = longPreferencesKey("last_test_at")
 
     /**
-     * The encrypted-prefs handle for the API key.
-     * `by lazy` because [MasterKey] is built on
-     * first access, and we do not want to spin
-     * the Keystore on a simple [provider] read.
+     * The shared, process-wide cache of the current
+     * API key. [LlmPrefs] is created multiple times in
+     * the same process (the settings viewmodel, the
+     * letter scheduler, the letter viewmodel, the
+     * `Generate now` viewmodel, tests). Without the
+     * shared cache, an instance that opens after the
+     * key was written would see the empty-string
+     * initial value and never observe the update —
+     * exactly the "pasted key not showing" symptom.
+     *
+     * Initial value is "". The [LlmKeyStore] is the
+     * on-disk source of truth; it is read lazily on
+     * first [setApiKey] call (i.e. once the user
+     * starts using the LLM). That is the right shape
+     * for the tests, which start with no key, and
+     * for the production flow, where the user pastes
+     * a key before any of this code is exercised.
      */
-    private val keyStore: LlmKeyStore by lazy { LlmKeyStore.create(context) }
+    // v0.72.x: was `private companion object`, but
+    // [LlmTokenStore] in the same module needs to read
+    // [MAX_KEY_LEN] for the read-side trim. The
+    // [apiKeyState] itself is private to keep callers
+    // from bypassing [setApiKey]'s sanitisation; the
+    // public surface is the [apiKey] property.
+    companion object {
+        private val apiKeyState = kotlinx.coroutines.flow.MutableStateFlow("")
+
+        /**
+         * Sane upper bound for an LLM provider API
+         * key. Google's keys are 39 chars, OpenRouter
+         * keys are ~73 chars, Groq keys are 56 chars.
+         * 256 leaves headroom for the three combined
+         * plus any future provider.
+         */
+        const val MAX_KEY_LEN = 256
+    }
 
     val provider: Flow<LlmProvider> = context.letterLlmDataStore.data.map { prefs ->
         when (prefs[providerKey]) {
@@ -73,19 +104,53 @@ class LlmPrefs(private val context: Context) {
     }
 
     /**
-     * The API key is read from the encrypted
-     * blob. The flow shape is preserved so the
-     * call sites do not change; the body is just
-     * synchronous underneath (the encrypted file
-     * is small — a few hundred bytes — and reading
-     * it is microseconds).
+     * The API key, observed reactively.
+     *
+     * v0.72.x: the previous shape was a one-shot
+     * `flow { emit(keyStore.read()) }`, which only
+     * fires once. The StateFlow in
+     * [org.mindanchor.settings.LlmSettingsViewModel]
+     * is collected from this; with a one-shot flow
+     * the field the user typed into never re-emits
+     * and the saved value never re-emits either, so
+     * `apiKey` was stuck at the value collected the
+     * first time `stateIn` ran. The visible symptom
+     * was: paste a key, look at the field, the field
+     * appears empty (because the flow never re-emits
+     * with the saved value).
+     *
+     * The fix is a process-wide [kotlinx.coroutines.flow.MutableStateFlow]
+     * keyed off the [LlmKeyStore] and the [setApiKey]
+     * writer. [LlmPrefs] is created multiple times in
+     * the same process (the settings viewmodel, the
+     * letter scheduler, the letter viewmodel, the
+     * `Generate now` viewmodel, tests); a per-instance
+     * StateFlow would let one instance's write stay
+     * invisible to another's reader. The
+     * [companion object] scope is the simplest
+     * process-wide cache, and the test surface in
+     * `LlmSettingsTest` proves it round-trips.
+     *
+     * Initial value: empty. The LlmKeyStore is the
+     * source of truth on disk, but the in-memory
+     * state is updated on every [setApiKey] and is
+     * what's observed by callers.
      */
-    val apiKey: Flow<String> = kotlinx.coroutines.flow.flow {
-        emit(keyStore.read())
-    }
+    val apiKey: Flow<String> get() = apiKeyState
 
     val model: Flow<String> = context.letterLlmDataStore.data.map { prefs ->
         prefs[modelKey] ?: LlmProvider.GOOGLE_AI_STUDIO.defaultModel
+    }
+
+    /**
+     * v0.72.x: the voice a letter is written in.
+     * Defaults to [LetterVoice.QUIET] for users
+     * upgrading from pre-0.72.x. The chosen voice
+     * becomes the system-prompt template the LLM
+     * receives; see [LetterVoice.systemPrompt].
+     */
+    val voice: Flow<LetterVoice> = context.letterLlmDataStore.data.map { prefs ->
+        LetterVoice.fromName(prefs[voiceKey])
     }
 
     val lastTestResult: Flow<LlmTestResult> = context.letterLlmDataStore.data.map { prefs ->
@@ -120,11 +185,35 @@ class LlmPrefs(private val context: Context) {
      */
     suspend fun setApiKey(key: String) {
         val cleaned = key.trim().take(MAX_KEY_LEN).filterNot { it.isISOControl() }
-        keyStore.write(cleaned)
+        LlmKeyStore.write(context, cleaned)
+        apiKeyState.value = cleaned
+    }
+
+    /**
+     * v0.72.x: the privacy off-switch. Wipes the API key
+     * from the encrypted blob, clears the in-memory
+     * StateFlow, and resets the cached
+     * [org.mindanchor.llm.LetterError.LastTestResult]
+     * row so the next time the user opens settings the
+     * Connection row is back to "Never tested" rather
+     * than the last error from the wiped key.
+     */
+    suspend fun clearApiKey() {
+        LlmKeyStore.write(context, "")
+        apiKeyState.value = ""
+        context.letterLlmDataStore.edit {
+            it.remove(lastTestSuccessKey)
+            it.remove(lastTestMessageKey)
+            it[lastTestAtKey] = 0L
+        }
     }
 
     suspend fun setModel(model: String) {
         context.letterLlmDataStore.edit { it[modelKey] = model }
+    }
+
+    suspend fun setVoice(voice: LetterVoice) {
+        context.letterLlmDataStore.edit { it[voiceKey] = voice.name }
     }
 
     suspend fun setLastTestResult(result: LlmTestResult) {
@@ -136,67 +225,78 @@ class LlmPrefs(private val context: Context) {
     }
 
     internal suspend fun reset() {
-        keyStore.clear()
+        LlmKeyStore.clear(context)
         context.letterLlmDataStore.edit { it.clear() }
-    }
-
-    companion object {
-        /**
-         * Sane upper bound for an LLM provider API
-         * key. Google's keys are 39 chars, OpenRouter
-         * keys are ~73 chars, Groq keys are 56 chars.
-         * 256 leaves headroom for the three combined
-         * plus any future provider.
-         */
-        const val MAX_KEY_LEN = 256
+        apiKeyState.value = ""
     }
 }
 
 /**
  * The encrypted-prefs blob for the LLM API key.
  *
- * Mirrors [org.mindanchor.backup.TokenStore] and
- * [org.mindanchor.vitals.coros.CorosCredentialStore]:
- * one file, one [MasterKey], AES-256-SIV for the
- * key-encryption key, AES-256-GCM for the value.
+ * v0.72.x: was a class, instantiated per `LlmPrefs`
+ * instance. That meant the on-disk read in
+ * [LlmPrefs.keyStore] lazy-init could not be observed
+ * from the companion-object's [apiKeyState] — the
+ * two were in different objects. This file is now an
+ * `object` (process-wide singleton): one
+ * [SharedPreferences] handle for the whole app, one
+ * read, one write. The companion-object flow in
+ * [LlmPrefs] reads the current value lazily on first
+ * use, so a previously-saved key shows up after a
+ * restart, and every reader in the process sees every
+ * write.
  *
  * The file is wiped by [clear] (called from
  * [LlmPrefs.reset], the test's `@Before reset`).
  */
-internal class LlmKeyStore(private val prefs: SharedPreferences) {
+internal object LlmKeyStore {
 
-    fun read(): String =
-        prefs.getString(KEY_API_KEY, null)?.takeIf { it.isNotBlank() } ?: ""
+    /**
+     * The encrypted SharedPreferences handle. Lazy
+     * because [MasterKey] requires a [Context] — it
+     * has to be built on first call, not at class
+     * load. The [Context] comes from the LlmPrefs
+     * caller that first needs the store.
+     */
+    @Volatile
+    private var prefsRef: SharedPreferences? = null
 
-    fun write(key: String) {
+    private fun prefs(context: Context): SharedPreferences {
+        prefsRef?.let { return it }
+        return synchronized(this) {
+            prefsRef ?: openEncrypted(context.applicationContext).also { prefsRef = it }
+        }
+    }
+
+    fun read(context: Context): String =
+        prefs(context).getString(KEY_API_KEY, null)?.takeIf { it.isNotBlank() } ?: ""
+
+    fun write(context: Context, key: String) {
         if (key.isBlank()) {
-            prefs.edit { remove(KEY_API_KEY) }
+            prefs(context).edit { remove(KEY_API_KEY) }
         } else {
-            prefs.edit { putString(KEY_API_KEY, key) }
+            prefs(context).edit { putString(KEY_API_KEY, key) }
         }
     }
 
-    fun clear() {
-        prefs.edit { clear() }
+    fun clear(context: Context) {
+        prefs(context).edit { clear() }
     }
 
-    companion object {
-        private const val PREF_FILE = "letter_llm_keys"
-        private const val KEY_API_KEY = "api_key"
+    private const val PREF_FILE = "letter_llm_keys"
+    private const val KEY_API_KEY = "api_key"
 
-        fun create(context: Context): LlmKeyStore = LlmKeyStore(openEncrypted(context))
-
-        private fun openEncrypted(context: Context): SharedPreferences {
-            val masterKey = MasterKey.Builder(context)
-                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                .build()
-            return EncryptedSharedPreferences.create(
-                context,
-                PREF_FILE,
-                masterKey,
-                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-            )
-        }
+    private fun openEncrypted(context: Context): SharedPreferences {
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        return EncryptedSharedPreferences.create(
+            context,
+            PREF_FILE,
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+        )
     }
 }

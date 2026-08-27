@@ -11,8 +11,6 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import org.mindanchor.friction.CompassionMoment
-import org.mindanchor.friction.CompassionStore
 import org.mindanchor.friction.ExtensionLedger
 import org.mindanchor.friction.FrictionBandit
 import org.mindanchor.friction.GateLedger
@@ -23,7 +21,6 @@ import org.mindanchor.friction.IfThenPlanStore
 import org.mindanchor.friction.OpenLoop
 import org.mindanchor.friction.PerAppSessionLength
 import org.mindanchor.friction.SealedCodecs
-import org.mindanchor.friction.SmallThings
 import org.mindanchor.sleep.BedtimeList
 import java.time.DayOfWeek
 import java.time.Instant
@@ -298,35 +295,6 @@ class FrictionPrefs(private val context: Context) {
         return priorReaches
     }
 
-    private val smallThingsKey = stringPreferencesKey("small_things")
-
-    /**
-     * The small things the person said help them — see
-     * [org.mindanchor.friction.SmallThings]. Their words only; nothing
-     * here is ever seeded with suggestions.
-     *
-     * Persisted through [SealedCodecs.encodeSmallThings] /
-     * [SealedCodecs.decodeSmallThings] so the data carries
-     * an HMAC-SHA256 tag (Keystore-backed key). A v0.20.0
-     * plaintext form on disk is rejected on read; the
-     * first write seals the data.
-     */
-    val smallThings: Flow<List<String>> =
-        context.dataStore.data.map { SealedCodecs.decodeSmallThings(it[smallThingsKey].orEmpty()) }
-
-    suspend fun addSmallThing(thing: String) {
-        context.dataStore.edit {
-            val current = SealedCodecs.decodeSmallThings(it[smallThingsKey].orEmpty())
-            it[smallThingsKey] = SealedCodecs.encodeSmallThings(SmallThings.add(current, thing))
-        }
-    }
-
-    suspend fun removeSmallThing(thing: String) {
-        context.dataStore.edit {
-            val current = SealedCodecs.decodeSmallThings(it[smallThingsKey].orEmpty())
-            it[smallThingsKey] = SealedCodecs.encodeSmallThings(SmallThings.remove(current, thing))
-        }
-    }
 
     private val loopNoteKey = stringPreferencesKey("open_loop_note")
     private val loopDayKey = stringPreferencesKey("open_loop_day")
@@ -654,55 +622,6 @@ class FrictionPrefs(private val context: Context) {
             val current = SealedCodecs.decodePerAppSessionLength(prefs[perAppSessionLengthKey].orEmpty())
             val next = current.forget(packageName)
             prefs[perAppSessionLengthKey] = SealedCodecs.encodePerAppSessionLength(next)
-        }
-    }
-
-    private val compassionKey = stringPreferencesKey("compassion_moments")
-
-    /**
-     * The user's own set of self-compassion phrases — see
-     * [org.mindanchor.friction.CompassionMoment]. Stored as
-     * one phrase per line, following the [SmallThings.encode]
-     * / [OpenLoop.encode] pattern.
-     *
-     * Persisted through [SealedCodecs.encodeCompassion] /
-     * [SealedCodecs.decodeCompassion] (HMAC-SHA256 tag).
-     */
-    val compassionMoments: Flow<List<CompassionMoment>> =
-        context.dataStore.data.map { SealedCodecs.decodeCompassion(it[compassionKey].orEmpty()) }
-
-    suspend fun setCompassionMoments(moments: List<CompassionMoment>) {
-        context.dataStore.edit { it[compassionKey] = SealedCodecs.encodeCompassion(moments) }
-    }
-
-    /**
-     * Add a new self-compassion phrase the user has just
-     * typed. Pure list op through
-     * [org.mindanchor.friction.CompassionList.add] so the
-     * storage layer never has to know about MAX / dedup /
-     * trim rules.
-     */
-    suspend fun addCompassionMoment(phrase: String) {
-        context.dataStore.edit {
-            val current = SealedCodecs.decodeCompassion(it[compassionKey].orEmpty())
-            val updated = org.mindanchor.friction.CompassionList.add(current, phrase)
-            if (updated !== current) {
-                it[compassionKey] = SealedCodecs.encodeCompassion(updated)
-            }
-        }
-    }
-
-    /**
-     * Drop the first trim-equal match for [phrase]. No-op
-     * when the phrase is not in the list.
-     */
-    suspend fun removeCompassionMoment(phrase: String) {
-        context.dataStore.edit {
-            val current = SealedCodecs.decodeCompassion(it[compassionKey].orEmpty())
-            val updated = org.mindanchor.friction.CompassionList.remove(current, phrase)
-            if (updated !== current) {
-                it[compassionKey] = SealedCodecs.encodeCompassion(updated)
-            }
         }
     }
 

@@ -1,5 +1,6 @@
 package org.mindanchor.friction
 
+import android.util.Log
 import org.mindanchor.model.CheckIn
 import org.mindanchor.model.CheckInState
 import org.mindanchor.model.CheckInStore
@@ -80,45 +81,20 @@ object SealedCodecs {
         try {
             KeystoreHmacKey.getOrCreate()
         } catch (e: Exception) {
-            null
+            // v0.72.x: a keystore failure used to return
+            // null and the caller would rethrow a generic
+            // IllegalStateException("Keystore unavailable")
+            // with the original cause dropped. That made
+            // "I edited the file, why is my gate still
+            // sealing?" unanswerable. We now log the
+            // real exception so the user (or the crash log)
+            // can see what failed, and rethrow with the
+            // cause attached so the failure surfaces
+            // with its real reason.
+            Log.e("MindAnchor/Sealed", "HMAC key unavailable", e)
+            throw IllegalStateException("HMAC key unavailable", e)
         }
     }
-
-    /**
-     * The sealed small-things codec. The codecId is
-     * the FrictionPrefs DataStore key, "small_things".
-     * The MAC is bound to this codecId so a sealed
-     * value from another preference cannot be replayed
-     * against small-things.
-     */
-    val smallThings: IntegritySealedCodec = IntegritySealedCodec(
-        inner = object : Codec<String> {
-            override fun encode(value: String): String = value
-            override fun decode(encoded: String): String = encoded
-        },
-        codecId = "small_things",
-        keyProvider = { keyProvider() ?: throw IllegalStateException("Keystore unavailable") },
-        resetValue = SmallThings.encode(emptyList()),
-    )
-
-    /**
-     * Helper: decode the on-disk string for small things
-     * via the sealed codec, returning the empty list on
-     * any failure.
-     */
-    fun decodeSmallThings(raw: String): List<String> =
-        try {
-            SmallThings.decode(smallThings.decode(raw))
-        } catch (e: Exception) {
-            emptyList()
-        }
-
-    /**
-     * Helper: encode a list of small things via the
-     * sealed codec.
-     */
-    fun encodeSmallThings(value: List<String>): String =
-        smallThings.encode(SmallThings.encode(value))
 
     /**
      * The sealed bedtime-list codec. codecId is
@@ -152,38 +128,6 @@ object SealedCodecs {
      */
     fun encodeBedtimeList(value: List<String>): String =
         bedtimeList.encode(BedtimeList.encode(value))
-
-    /**
-     * The sealed compassion-moments codec. codecId is
-     * "compassion_moments".
-     */
-    val compassion: IntegritySealedCodec = IntegritySealedCodec(
-        inner = object : Codec<String> {
-            override fun encode(value: String): String = value
-            override fun decode(encoded: String): String = encoded
-        },
-        codecId = "compassion_moments",
-        keyProvider = { keyProvider() ?: throw IllegalStateException("Keystore unavailable") },
-        resetValue = CompassionStore.encode(emptyList()),
-    )
-
-    /**
-     * Helper: decode the on-disk string for compassion
-     * moments via the sealed codec.
-     */
-    fun decodeCompassion(raw: String): List<CompassionMoment> =
-        try {
-            CompassionStore.decode(compassion.decode(raw))
-        } catch (e: Exception) {
-            emptyList()
-        }
-
-    /**
-     * Helper: encode a list of compassion moments via
-     * the sealed codec.
-     */
-    fun encodeCompassion(value: List<CompassionMoment>): String =
-        compassion.encode(CompassionStore.encode(value))
 
     /**
      * The sealed if-then-plans codec. codecId is

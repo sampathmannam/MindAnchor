@@ -40,6 +40,8 @@ object LetterContext {
         today: LocalDate,
         notes: List<Note>,
         checkIns: List<CheckIn>,
+        voice: LetterVoice = LetterVoice.DEFAULT,
+        model: String = LlmProvider.GOOGLE_AI_STUDIO.defaultModel,
         now: Instant = Instant.now(),
         zone: ZoneId = ZoneId.systemDefault(),
     ): LlmRequest {
@@ -98,9 +100,9 @@ object LetterContext {
         )
 
         return LlmRequest(
-            model = LlmProvider.GOOGLE_AI_STUDIO.defaultModel,
+            model = model,
             messages = listOf(
-                LlmMessage.System(LetterPrompt.SYSTEM_PROMPT),
+                LlmMessage.System(voice.systemPrompt),
                 LlmMessage.User(userPrompt),
             ),
         )

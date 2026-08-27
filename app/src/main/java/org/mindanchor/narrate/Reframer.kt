@@ -3,6 +3,8 @@ package org.mindanchor.narrate
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+// v0.72.x: the LlamaNarrator and NarrationGuard
+// imports are gone alongside the offline model.
 
 /**
  * The v0.27+ (Phase 2 G-3) compassionate reframe of a Letter.
@@ -59,27 +61,12 @@ class Reframer(private val context: Context) {
      * just gives them more.
      */
     suspend fun reframe(letterBody: String): String = withContext(Dispatchers.IO) {
-        val llm = LlamaNarrator(context)
-        val out = llm.reframeLetterBody(letterBody)
-        // CodeRabbit review 2026-08-24 of PR #38: the
-        // previous version only checked for null /
-        // blank, and the KDoc at
-        // [LlamaNarrator.reframeLetterBody] says
-        // "Caller is responsible for running the
-        // output through [NarrationGuard]". The 1-3
-        // line, 1,200-character limits are enforced in
-        // the guard, not in the LLM itself, so a
-        // model that ignores "three to five
-        // sentences" needs to be rejected here. The
-        // guard's [Accepted.text] is the trimmed but
-        // otherwise-untouched body; a [Rejected]
-        // verdict falls through to the template.
-        if (!out.isNullOrBlank()) {
-            val verdict = NarrationGuard.judge(out)
-            if (verdict is NarrationGuard.Verdict.Accepted) {
-                return@withContext verdict.text
-            }
-        }
+        // v0.72.x: the on-device LlamaNarrator is gone.
+        // The reframe still works — the template is
+        // the whole experience now, and the LLM path
+        // is removed because there is no LLM left to
+        // call. The same DBT-wise-mind voice, just
+        // less rich.
         templateReframe(letterBody)
     }
 

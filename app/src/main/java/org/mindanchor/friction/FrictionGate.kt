@@ -104,13 +104,6 @@ fun FrictionGate(
     /** How hard to push this time; see [FrictionTone]. */
     tone: FrictionTone = FrictionTone.FULL,
     /**
-     * One of the person's own small things, or null. Chosen by
-     * [SmallThings], which is where the rules about when to stay quiet
-     * live. Never shown on FEATHER and never in the quiet hours.
-     */
-    smallThing: String? = null,
-    onSmallThingTaken: () -> Unit = {},
-    /**
      * The user's pre-written if-then plan for this app, or null. When
      * present, the intention prompt is pre-filled with the user's
      * own words — the Gollwitzer 1999 implementation-intention
@@ -118,12 +111,6 @@ fun FrictionGate(
      * the cheapest anti-habituation fix.
      */
     ifThenPlan: IfThenPlan? = null,
-    /**
-     * One of the user's own self-compassion phrases for this reach,
-     * or null. Rotated by [CompassionStore.rotate] so the same
-     * phrase does not become wallpaper.
-     */
-    compassionMoment: String? = null,
     /**
      * The user's per-app session-length map. v0.20.1 round 4
      * (item M, docs/research/22). The gate looks up
@@ -199,10 +186,7 @@ fun FrictionGate(
                 appLabel = appLabel,
                 onOpen = onOpen,
                 onNeverMind = onNeverMind,
-                smallThing = smallThing,
-                onSmallThingTaken = onSmallThingTaken,
                 ifThenPlan = ifThenPlan,
-                compassionMoment = compassionMoment,
                 perAppSessionLength = perAppSessionLength,
                 packageName = packageName,
                 onTimeBoxPicked = onTimeBoxPicked,
@@ -428,8 +412,6 @@ private fun IntentionPrompt(
     appLabel: String,
     onOpen: (minutes: Long?) -> Unit,
     onNeverMind: () -> Unit,
-    smallThing: String? = null,
-    onSmallThingTaken: () -> Unit = {},
     /**
      * The user's pre-written if-then plan for this app. When
      * present, the prompt is pre-filled with the user's own
@@ -438,12 +420,6 @@ private fun IntentionPrompt(
      * in stays exactly where it was.
      */
     ifThenPlan: IfThenPlan? = null,
-    /**
-     * The user's rotated self-compassion moment for this
-     * reach. One line, beneath the if-then plan if both are
-     * present.
-     */
-    compassionMoment: String? = null,
     /**
      * The user's per-app session-length map. v0.20.1 round 4
      * (item M). The IntentionPrompt uses
@@ -701,44 +677,10 @@ private fun IntentionPrompt(
 
             // Their own words, offered beside the door rather than in
             // front of it. Behavioural activation says the small thing is
-            // what shifts mood, and this is the one moment anything can
-            // see that a small thing is being avoided. It is one line and
-            // it never argues — the way in is still exactly where it was.
-            if (smallThing != null) {
-                Text(
-                    text = stringResource(R.string.small_thing_prompt),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = sky.textSecondary,
-                )
-                TextButton(
-                    onClick = onSmallThingTaken,
-                    modifier = Modifier.semantics {
-                        contentDescription =
-                            "Take the small thing instead of opening: $smallThing"
-                        role = Role.Button
-                    },
-                ) {
-                    Text(smallThing, color = sky.textPrimary)
-                }
-            }
-
-            // The user's rotated self-compassion moment. One
-            // line, optional, only shown when the user has
-            // authored at least one. The brief is explicit
-            // (docs/research/15 §3) that the prompt is the
-            // user's own words, not a launcher opinion.
-            if (compassionMoment != null) {
-                Text(
-                    text = stringResource(R.string.compassion_moment_label),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = sky.textSecondary,
-                )
-                Text(
-                    text = compassionMoment,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = sky.textPrimary,
-                )
-            }
+            // v0.72.x: the small-thing and self-compassion prompts
+            // were removed in the same pass that removed the
+            // SmallThings / CompassionList settings. The gate now
+            // shows only the intention prompt and time-box.
         }
         TextButton(
             onClick = onNeverMind,

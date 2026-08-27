@@ -8,13 +8,11 @@ import kotlinx.coroutines.launch
 import org.mindanchor.data.FrictionPrefs
 import org.mindanchor.data.SunsetPrefs
 import org.mindanchor.friction.AppWatchService
-import org.mindanchor.friction.CompassionStore
 import org.mindanchor.friction.FrictionBandit
 import org.mindanchor.friction.FrictionContext
 import org.mindanchor.friction.FrictionTone
 import org.mindanchor.friction.GateContext
 import org.mindanchor.friction.SessionManager
-import org.mindanchor.friction.SmallThings
 import java.time.LocalDate
 import java.time.LocalTime
 
@@ -86,9 +84,7 @@ class FrictionViewModel(application: Application) : AndroidViewModel(application
         frictionPrefs.recordGateShown(packageName)
         val quiet = sunsetPrefs.isQuietHour()
         val adaptive = adaptiveTone(prior, quiet)
-        val smallThings = frictionPrefs.smallThings.first()
         val ifThenPlans = frictionPrefs.ifThenPlans.first()
-        val compassion = frictionPrefs.compassionMoments.first()
         // v0.20.1 round 4 (item M): the per-app session-length
         // map. The gate looks up
         // `perAppSessionLength.defaultMinutes(packageName)`
@@ -96,20 +92,11 @@ class FrictionViewModel(application: Application) : AndroidViewModel(application
         // map here keeps the gate signature stable: one
         // [GateContext] in, one decision out.
         val perAppLength = frictionPrefs.perAppSessionLength.first()
-        val offer = SmallThings.offer(
-            things = smallThings,
-            nthReach = prior,
-            tone = adaptive.tone,
-            quietHours = quiet,
-        )
         val plan = ifThenPlans[packageName]?.takeIf { it.isComplete }
-        val compassionPhrase = CompassionStore.rotate(compassion, prior)?.phrase
         return GateContext(
             tone = adaptive.tone,
             banditArm = adaptive.arm,
-            smallThing = offer,
             ifThenPlan = plan,
-            compassionMoment = compassionPhrase,
             packageName = packageName,
             perAppSessionLength = perAppLength,
         )

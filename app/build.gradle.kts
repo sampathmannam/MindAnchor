@@ -42,9 +42,16 @@ android {
         // payloads, moved the API key into
         // EncryptedSharedPreferences, and wired real SPKI
         // certificate pins into the LLM HTTPS client (all
-        // HIGH). versionCode 92→93.
-        versionCode = 93
-        versionName = "0.69.0"
+        // v0.70.0: cloud-LLM daily letter, six voices (Quiet /
+        // Warm / Direct / Playful / Insight / Reflective) with
+        // picker preview dialog, Insight default, cert-pinning
+        // round-trip, PPG removed, COROS bridge fix,
+        // ProcessLifecycleOwner BOOT_COMPLETED re-arm, the
+        // "Forget this key" privacy button, on-device crash
+        // log + breadcrumbs, and a finding-test pass on the
+        // Reading tab. versionCode 93→94.
+        versionCode = 94
+        versionName = "0.70.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every
@@ -55,46 +62,12 @@ android {
         testInstrumentationRunnerArguments["notAnnotation"] = "org.mindanchor.Fixture"
 
         externalNativeBuild {
-            cmake {
-                // The off-list is load-bearing, not tidiness. LLAMA_CURL
-                // must be OFF because this app's privacy promise is that
-                // no path to the network exists anywhere in it, native
-                // code included. GGML_NATIVE must be OFF because
-                // -march=native on a build machine produces code the
-                // phone may not run. The rest keeps the vendored tree to
-                // exactly the library — no tools, no tests, no server.
-                arguments += listOf(
-                    "-DLLAMA_CURL=OFF",
-                    "-DLLAMA_BUILD_COMMON=OFF",
-                    "-DLLAMA_BUILD_TESTS=OFF",
-                    "-DLLAMA_BUILD_EXAMPLES=OFF",
-                    "-DLLAMA_BUILD_SERVER=OFF",
-                    "-DGGML_NATIVE=OFF",
-                    "-DGGML_OPENMP=OFF",
-                    "-DBUILD_SHARED_LIBS=OFF",
-                )
-                cppFlags += "-std=c++17"
-            }
-        }
-
-        // arm64 is every real phone this app supports (minSdk 33);
-        // x86_64 exists so the CI emulator can load the library and
-        // prove the JNI surface on device rather than trusting it.
-        ndk {
-            abiFilters += listOf("arm64-v8a", "x86_64")
-        }
-    }
-
-    externalNativeBuild {
-        cmake {
-            path = file("src/main/cpp/CMakeLists.txt")
-            // AGP's default is to demand its own pinned CMake exactly;
-            // the trailing + accepts anything newer. 3.22.1 is what a
-            // stock Android Studio SDK ships, the CI runners carry 3.31
-            // and 4.1 (probed, like the NDK), and the vendored llama
-            // tree asks for far less than either — so this floor is the
-            // one every machine that builds this project actually clears.
-            version = "3.22.1+"
+            // v0.72.x: the on-device llama.cpp / Phi-4 model is
+            // gone. The libmindanchor_llama.so is no longer
+            // produced; the voice-journal whisper.cpp path is
+            // still wired (its own CMake block is in the whisper
+            // module). No build-system entries remain for
+            // llama here.
         }
     }
 

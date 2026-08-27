@@ -1,7 +1,15 @@
-# JNI surface — the engine's native methods are the contract.
--keepclasseswithmembernames,includedescriptorclasses class org.mindanchor.narrate.LlamaEngine {
-    native <methods>;
-}
+# (v0.72.x: the LlamaEngine JNI surface is gone — the
+#  on-device Phi-4 / llama.cpp path was removed when the
+#  cloud LLM became the only letter writer. The native
+#  JNI keep is kept here as a no-op rather than a delete
+#  so a future regression that re-introduces LlamaEngine
+#  doesn't have to re-derive the keep rule from a stack
+#  trace. If you have re-introduced it and the keep is
+#  still required, uncomment the block below.)
+#
+# -keepclasseswithmembernames,includedescriptorclasses class org.mindanchor.narrate.LlamaEngine {
+#     native <methods>;
+# }
 
 # kotlinx-serialization: keep the generated $$serializer companions
 # and the @Serializable classes. The plugin emits the serializer for

@@ -47,6 +47,11 @@ object SunsetController {
             }
         } else {
             applyFilter(context, priorityOnly = false)
+            // Sunset switched off inside the window: the same clock that
+            // justified a suspension no longer says "night", so OS Mode
+            // must lift whatever it applied rather than wait for an alarm
+            // that is no longer scheduled.
+            org.mindanchor.osmode.OsModeController.rederiveSuspend(context)
         }
     }
 
@@ -128,30 +133,25 @@ object SunsetController {
                 if (quietHours) applyFilter(appContext, priorityOnly = starting)
                 if (greyNights) org.mindanchor.grayscale.Grayscale.set(appContext, starting)
 
-                // Gated on quietHours specifically, not on the pair above.
-                // Someone who switched on only the grey screen asked for a
-                // colourless phone, not one that makes their apps refuse to
-                // open — and finding out at 22:00 that a colour setting had
-                // started suspending things would be the worst possible way
-                // to learn what this app does.
+                // v0.70 (Phase 1 T-1.2): all package-suspension decisions
+                // are delegated to OS Mode's re-derivation, called on every
+                // firing regardless of which switches brought us here —
+                // when nothing is opted in it is a few cheap reads ending
+                // in a no-op, but skipping it on any path risks a stale
+                // suspension nobody will lift. The window stays the single
+                // source of truth: rederive reads the grant, the explicit
+                // opt-in (default OFF — provisioning a phone never implies
+                // handing over its nights), and the clock, then suspends
+                // or lifts accordingly. A process that died mid-window
+                // converges on the same answer the next time anything
+                // fires.
                 //
-                // Where it does apply, quiet hours are enforced rather than
-                // suggested: nothing is suspended that SuspensionGuard has
-                // not cleared, and everything is lifted at the end of the
-                // window. Clearing passes the whole chosen set rather than
-                // the filtered one, because lifting a suspension that was
-                // never applied does nothing, and missing one would leave
-                // an app shut until somebody noticed.
-                if (quietHours && org.mindanchor.admin.DeviceOwner.isDeviceOwner(appContext)) {
-                    val friction = org.mindanchor.data.FrictionPrefs(appContext)
-                    val chosen = friction.flaggedApps.first()
-                    val alwaysOpen = friction.alwaysOpen.first()
-                    if (starting) {
-                        org.mindanchor.admin.DeviceOwner.apply(appContext, chosen, alwaysOpen)
-                    } else {
-                        org.mindanchor.admin.DeviceOwner.clear(appContext, chosen)
-                    }
-                }
+                // The old gating note still holds one level down: someone
+                // who switched on only the grey screen asked for a
+                // colourless phone, and rederive honours that by requiring
+                // both the quiet hours *and* an explicit opt-in before it
+                // ever suspends anything.
+                org.mindanchor.osmode.OsModeController.rederiveSuspend(appContext)
                 ensureScheduled(appContext)
             }
         }

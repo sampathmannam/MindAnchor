@@ -15,14 +15,22 @@ import org.mindanchor.notifications.BatchSchedule
 private val Context.dataStore by preferencesDataStore(name = "notifications")
 
 /**
- * Batching configuration. Batching is opt-in per app ("every feature is a
- * toggle", docs/PLAN.md §2); conversations and calls always bypass it
- * regardless of these settings.
+ * Batching configuration.
+ *
+ * v0.72+ (Master plan T-3.x): the model flipped from "opt-in per app" to
+ * "default batched, opt-out per app". Everything is held during the active
+ * hours unless the user has marked its package as one to let through. Phone,
+ * WhatsApp and the system messages app are pre-seeded into the let-through
+ * set because conversations, calls and SMS reach a person rather than
+ * interrupt them — silencing any of those is the documented backfire mode
+ * (Fitz et al. 2019, docs/research/05 §1). Conversations, calls, alarms and
+ * the OS-marked bypass categories are still hard-coded pass-through on top
+ * of the per-app set.
  */
 class NotificationPrefs(private val context: Context) {
 
     private val enabledKey = booleanPreferencesKey("batching_enabled")
-    private val batchedAppsKey = stringSetPreferencesKey("batched_packages")
+    private val neverBatchAppsKey = stringSetPreferencesKey("never_batch_apps")
 
     /**
      * The three release times, as minutes of the day.
@@ -80,11 +88,33 @@ class NotificationPrefs(private val context: Context) {
         return true
     }
 
-    val batchedApps: Flow<Set<String>> = context.dataStore.data.map { prefs ->
-        prefs[batchedAppsKey] ?: emptySet()
+    /**
+     * v0.72+ — apps in this set bypass batching entirely; everything else
+     * is held by default. When the DataStore is empty (fresh install), the
+     * curated [DEFAULT_NEVER_BATCH_PACKAGES] seed is filtered to only the
+     * packages actually installed on this device, so a person who never
+     * opens Settings still gets the phone, WhatsApp and the system messages
+     * app instantly.
+     */
+    val neverBatchApps: Flow<Set<String>> = context.dataStore.data.map { prefs ->
+        val stored = prefs[neverBatchAppsKey]
+        if (stored != null) stored else defaultNeverBatchForDevice()
     }
 
-    // v0.30+ (spec Phase 2) — the active hours
+    /**
+     * Resolves [DEFAULT_NEVER_BATCH_PACKAGES] against [Context.getPackageManager],
+     * keeping only entries whose package is installed. The lookup is cheap
+     * (a single pm call per package) and runs only on first read of an
+     * empty DataStore.
+     */
+    private fun defaultNeverBatchForDevice(): Set<String> {
+        val pm = context.packageManager
+        return DEFAULT_NEVER_BATCH_PACKAGES.filter { pkg ->
+            runCatching { pm.getPackageInfo(pkg, 0) }.isSuccess
+        }.toSet().ifEmpty { DEFAULT_NEVER_BATCH_PACKAGES }
+    }
+
+    // v0.30+ (spec Phase 2) — the active-hours
     // window. Notifications are only demoted inside
     // this window; outside it, the
     // [AnchorNotificationListenerService] lets
@@ -160,20 +190,28 @@ class NotificationPrefs(private val context: Context) {
         }
     }
 
+    /** Snapshot of batching state for callers that can't collect flows. */
     suspend fun current(): Pair<Boolean, Set<String>> {
         val prefs = context.dataStore.data.first()
-        return (prefs[enabledKey] ?: false) to (prefs[batchedAppsKey] ?: emptySet())
+        val enabled = prefs[enabledKey] ?: false
+        val never = prefs[neverBatchAppsKey] ?: defaultNeverBatchForDevice()
+        return enabled to never
     }
 
     suspend fun setBatchingEnabled(enabled: Boolean) {
         context.dataStore.edit { it[enabledKey] = enabled }
     }
 
-    suspend fun setAppBatched(packageName: String, batched: Boolean) {
+    /**
+     * v0.72+ — adds or removes [packageName] from the let-through set.
+     * @param passThrough `true` to let this app's notifications through
+     *   immediately (do not batch); `false` to batch them by default.
+     */
+    suspend fun setAppPassThrough(packageName: String, passThrough: Boolean) {
         context.dataStore.edit { prefs ->
-            val current = prefs[batchedAppsKey] ?: emptySet()
-            prefs[batchedAppsKey] =
-                if (batched) current + packageName else current - packageName
+            val current = prefs[neverBatchAppsKey] ?: defaultNeverBatchForDevice()
+            prefs[neverBatchAppsKey] =
+                if (passThrough) current + packageName else current - packageName
         }
     }
 
@@ -195,6 +233,22 @@ class NotificationPrefs(private val context: Context) {
 
         /** T-3.2 (v0.72+) — marketing demotion ships on; the toggle exists to turn it off. */
         const val DEFAULT_MARKETING_DEMOTION = true
+
+        /**
+         * v0.72+ — apps pre-seeded into the let-through set. A fresh
+         * install ships with this list so a person who never opens
+         * Settings still gets phone calls, WhatsApp messages and SMS
+         * straight through. The seed carries candidates for both AOSP
+         * ([com.android.dialer]) and Google-dialer devices
+         * ([com.google.android.dialer]); [defaultNeverBatchForDevice]
+         * filters out anything that is not actually installed.
+         */
+        val DEFAULT_NEVER_BATCH_PACKAGES: Set<String> = setOf(
+            "com.android.dialer",
+            "com.google.android.dialer",
+            "com.whatsapp",
+            "com.google.android.apps.messaging",
+        )
 
         /**
          * v0.30+ (spec Phase 2) — whether the given

@@ -56,15 +56,39 @@ sealed class LetterError(
         isRetryable = true,
     )
 
+    /**
+     * v0.72.x: the TLS handshake did not complete.
+     * Almost always the cert pin for the LLM host
+     * has rotated and we have not refreshed it yet
+     * — see [org.mindanchor.llm.CertificatePinning]'s
+     * rotation policy. The user can still see the
+     * actual exception text by checking
+     * Settings → Reading → Daily letter (LLM) →
+     * Connection row; the short version is "the
+     * call did not finish."
+     */
+    class TlsFailed : LetterError(
+        "Could not establish a secure connection. Try again or update the app.",
+        isRetryable = true,
+    )
+
     /** OkHttp callTimeout (30s) elapsed. */
     class Timeout : LetterError(
         "The request timed out. Try again.",
         isRetryable = true,
     )
 
-    /** Anything else (malformed JSON, etc.). */
-    class Unknown : LetterError(
-        "Something went wrong. Try again.",
+    /**
+     * Anything else (malformed JSON, an HTTP status we did
+     * not map, a server with a non-JSON body, etc.). Carries
+     * the raw response body when there is one, so the user
+     * sees the real reason — Google's "API key not valid.
+     * Please pass a valid API key." is far more useful than
+     * a generic "Something went wrong."
+     */
+    class Unknown(val body: String = "") : LetterError(
+        if (body.isBlank()) "Something went wrong. Try again."
+        else "Something went wrong: ${body.take(200)}",
         isRetryable = true,
     )
 }

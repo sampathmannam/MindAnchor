@@ -25,3 +25,4 @@ captures/
 
 # local gradle test/build logs
 gradle-*.log
+*.DS_Store

@@ -76,7 +76,6 @@ import org.mindanchor.model.NoteActivity
 import org.mindanchor.reader.ReadingSize
 import org.mindanchor.report.ReportScreen
 import org.mindanchor.settings.SettingsScreen
-import org.mindanchor.vitals.PpgScreen
 import org.mindanchor.ui.CalmBackground
 import org.mindanchor.ui.SkyContent
 import org.mindanchor.ui.rememberClockFormat
@@ -86,7 +85,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Date
 
-private enum class LauncherSurface { Home, Drawer, Settings, Ppg, Report, Letter, HealthyDefaults }
+private enum class LauncherSurface { Home, Drawer, Settings, Report, Letter, HealthyDefaults }
 
 /**
  * v0.20.9: Modifier extension that auto-scrolls the nearest
@@ -337,9 +336,7 @@ fun LauncherRoot(
             FrictionGate(
                 tone = resolved.tone,
                 appLabel = app.label,
-                smallThing = resolved.smallThing,
                 ifThenPlan = resolved.ifThenPlan,
-                compassionMoment = resolved.compassionMoment,
                 perAppSessionLength = resolved.perAppSessionLength,
                 packageName = resolved.packageName,
                 // v0.20.1 round 4 (item M): the per-app
@@ -359,14 +356,6 @@ fun LauncherRoot(
                 // again, as if the user had never picked.
                 onForgetDefault = { pkg ->
                     viewModel.clearPerAppSessionLength(pkg)
-                },
-                // Taking the small thing is leaving, not entering. It
-                // counts as backing out for the same reason "never mind"
-                // does: the person met the pause and did not go in.
-                onSmallThingTaken = {
-                    viewModel.recordNeverMind(app, resolved.banditArm)
-                    gateFor = null
-                    surface = LauncherSurface.Home
                 },
                 onOpen = { minutes ->
                     viewModel.launchTimed(app, minutes, resolved.banditArm)
@@ -606,7 +595,6 @@ fun LauncherRoot(
                 onOpenHealthyDefaults = {
                     surface = LauncherSurface.HealthyDefaults
                 },
-                onOpenPpg = { surface = LauncherSurface.Ppg },
                 onOpenReport = {
                     surface = LauncherSurface.Report
                 },
@@ -641,10 +629,6 @@ fun LauncherRoot(
         // The measurement holds the screen awake and runs the torch for a
         // minute and a half; nesting that inside a screen somebody is
         // scrolling through would mean starting it by accident.
-        LauncherSurface.Ppg -> Surface(modifier = Modifier.fillMaxSize()) {
-            PpgScreen(onBack = { surface = LauncherSurface.Settings })
-        }
-
         LauncherSurface.Report -> Surface(modifier = Modifier.fillMaxSize()) {
             // v0.25.6: the home-screen report link is gone. The Report
             // is reachable from Settings only, and back returns to
@@ -884,6 +868,18 @@ private fun QuickNotesCard(
                 // the activity; the home only
                 // surfaces the *fact* the user
                 // wrote it, and the rough when.
+                //
+                // v0.72+ — the row was `bodySmall`
+                // + `sky.textSecondary` + centered,
+                // which made the user's own words
+                // disappear against the structural
+                // copy. The launcher is the surface
+                // that *should* foreground the
+                // user's presence, not de-emphasise
+                // it. Bumped to `bodyMedium` +
+                // primary color, and left-aligned so
+                // multi-word titles read as
+                // sentences, not labels.
                 val title = note.title.ifBlank { note.body.take(60) }
                 val whenText = noteTimeText(note)
                 TextButton(
@@ -896,14 +892,26 @@ private fun QuickNotesCard(
                             title,
                             whenText,
                         ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = sky.textSecondary,
-                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = sky.textPrimary,
                     )
                 }
             }
+            // v0.72+ — the "open the inbox" affordance
+            // is the path back to the user's own
+            // words. It used to render at default
+            // size with the dim secondary color, the
+            // same treatment as the structural copy.
+            // Now it's `labelLarge` + primary so it
+            // reads as a real button, the way a
+            // "View all" CTA in any well-designed
+            // inbox does.
             TextButton(onClick = onOpenAll) {
-                Text(stringResource(R.string.quick_notes_view_all), color = sky.textSecondary)
+                Text(
+                    text = stringResource(R.string.quick_notes_view_all),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = sky.textPrimary,
+                )
             }
         }
     }
@@ -1430,8 +1438,8 @@ private fun HomeSurface(
             // ritual; the user dismisses or starts the
             // 90-second protocol from the card. The
             // "Begin" action is a no-op for v0.26.0; the
-            // CompassionMoment rotation is the v0.27+
-            // hook.
+            // v0.27+ hook is reserved for a future
+            // CompassionMoment-style rotation.
             if (morningCompassionEnabled) {
                 MorningCompassionCard(
                     onStart = { /* v0.27+ */ },
@@ -1800,6 +1808,25 @@ private fun HomeSurface(
                 )
             }
         }
+        // v0.72+ — the floating check-in pill. Mounted as a child of
+        // the outer Box with `Alignment.BottomCenter` so it floats
+        // above the home content but above the snackbar host. The
+        // host owns the show/dismiss lifecycle; the pill itself is
+        // fully controlled. See docs/CHECKIN_FLOATING_PROMPT.md for
+        // the design rationale. The `padding(bottom = 96.dp)` lifts
+        // the pill clear of the bottom corner row (Digest / search /
+        // settings) which sits at the very bottom of the screen.
+        val app = androidx.compose.ui.platform.LocalContext.current.applicationContext
+            as? android.app.Application
+        if (app != null) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 96.dp),
+            ) {
+                org.mindanchor.model.CheckInPromptHost(application = app)
+            }
+        }
     }
 }
 
@@ -1993,6 +2020,11 @@ internal fun stopLockTaskOn(context: android.content.Context) {
     if (activity != null) {
         runCatching { activity.stopLockTask() }
     }
+    // v0.70 (Phase 1 T-1.2): the dwell is the escape hatch for OS Mode
+    // too. Completing the slow typed phrase proves intent, so tonight's
+    // suspension lifts — for this window only; the next window derives
+    // fresh and asks again.
+    org.mindanchor.osmode.OsModeController.releaseForCurrentWindowAsync(context)
 }
 
 /**

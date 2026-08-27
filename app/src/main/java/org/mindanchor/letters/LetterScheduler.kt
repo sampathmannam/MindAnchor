@@ -19,8 +19,10 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.mindanchor.R
-import org.mindanchor.narrate.ModelStore
-import org.mindanchor.narrate.ModelSlot
+import org.mindanchor.llm.LetterContext
+import org.mindanchor.llm.LetterVoice
+import org.mindanchor.llm.LlmClientFactory
+import org.mindanchor.llm.LlmPrefs
 import org.mindanchor.report.PatternFinder
 
 /**
@@ -84,10 +86,8 @@ object LetterScheduler {
             val appContext = context.applicationContext
             val store = LetterStore(appContext)
             val enabled = store.enabled.first()
-            val hasModel = ModelStore.hasModel(appContext)
-            val fit = ModelStore.fit(appContext)
             val alarmManager = appContext.getSystemService(AlarmManager::class.java) ?: return@runCatching
-            if (!enabled || !hasModel || !ModelSlot.runnable(fit)) {
+            if (!enabled) {
                 clear(appContext, alarmManager)
                 return@runCatching
             }
@@ -143,19 +143,48 @@ object LetterScheduler {
                 ensureScheduled(appContext)
                 return@runCatching
             }
-            val week = WeekDataCollector(appContext).collectLastWeek()
-            val writer = LetterWriter(appContext)
-            val body = writer.write(week)
-            if (body != null) {
+            val llmPrefs = LlmPrefs(appContext)
+            val apiKey = llmPrefs.apiKey.first()
+            if (apiKey.isBlank()) {
+                ensureScheduled(appContext)
+                return@runCatching
+            }
+            val provider = llmPrefs.provider.first()
+            val model = llmPrefs.model.first()
+            val voice = llmPrefs.voice.first()
+            val client = LlmClientFactory.create(provider, apiKey, model)
+            val notesPrefs = org.mindanchor.data.NotesPrefs(appContext)
+            val checkInPrefs = org.mindanchor.data.CheckInPrefs(appContext)
+            val notes = notesPrefs.notes.first().notes
+            val checkIns = checkInPrefs.checkIns.first().checkIns
+            val request = LetterContext.build(
+                today = LocalDate.now(),
+                notes = notes,
+                checkIns = checkIns,
+                voice = voice,
+                model = model,
+            )
+            val result = client.complete(request)
+            result.onSuccess { response ->
                 val date = LocalDate.now()
-                store.save(Letter(date = date, body = body))
-                postNotification(appContext, date, body)
+                val letter = Letter(
+                    date = date,
+                    body = response.content,
+                    provider = provider.name.lowercase(),
+                    model = model,
+                    voice = voice.name.lowercase(),
+                    promptTokens = response.promptTokens,
+                    completionTokens = response.completionTokens,
+                    durationMs = response.durationMs,
+                )
+                store.save(letter)
+                postNotification(appContext, date, response.content, voice)
             }
         }
         ensureScheduled(appContext)
     }
 
-    private fun postNotification(context: Context, date: LocalDate, body: String) {
+    private fun postNotification(context: Context, date: LocalDate, body: String, voice: LetterVoice) {
         if (ContextCompat.checkSelfPermission(
                 context, android.Manifest.permission.POST_NOTIFICATIONS,
             ) != PackageManager.PERMISSION_GRANTED

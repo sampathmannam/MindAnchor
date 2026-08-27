@@ -118,6 +118,14 @@ fun CheckInScreen(
      * in depth).
      */
     saving: Boolean = false,
+    /**
+     * v0.72+ — the rating the user already picked on
+     * the floating pill (0 if they tapped the
+     * question text without a rating). When 1-5 the
+     * matching anchor is pre-highlighted; 0 leaves
+     * the row unselected.
+     */
+    initialRating: Int = 0,
 ) {
     // v0.20.1 round 5 follow-up: rememberSaveable
     // so the rating + reflection survive a
@@ -140,7 +148,12 @@ fun CheckInScreen(
     // recreated for those changes, and the
     // rememberSaveable values survive
     // in-memory without a Bundle round-trip.
-    var rating by rememberSaveable { mutableStateOf<Int?>(null) }
+    var rating by rememberSaveable {
+        // Pre-select only if the initial value is in
+        // 1..5; anything else (0, an out-of-range
+        // value) starts unselected.
+        mutableStateOf<Int?>(initialRating.takeIf { it in 1..5 })
+    }
     var reflection by rememberSaveable { mutableStateOf("") }
 
     Surface(modifier = Modifier.fillMaxSize()) {

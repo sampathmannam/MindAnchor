@@ -6,20 +6,18 @@ import org.junit.Test
 
 /**
  * The carrier that bundles the tone decision with the optional
- * extras (small thing, if-then plan, compassion moment) for
- * one friction-gate event. The carrier is small and pure;
- * these tests pin the *defaults* (a fresh user with no
- * extras sees the existing generic prompt) so a future edit
- * cannot silently change the contract.
+ * extras (if-then plan, per-app session length) for one
+ * friction-gate event. The carrier is small and pure; these
+ * tests pin the *defaults* (a fresh user with no extras sees
+ * the existing generic prompt) so a future edit cannot
+ * silently change the contract.
  */
 class GateContextTest {
 
     @Test
     fun `the default context has no extras`() {
         val ctx = GateContext(tone = FrictionTone.FULL)
-        assertNull(ctx.smallThing)
         assertNull(ctx.ifThenPlan)
-        assertNull(ctx.compassionMoment)
         assertNull(ctx.banditArm)
     }
 
@@ -29,15 +27,11 @@ class GateContextTest {
         val ctx = GateContext(
             tone = FrictionTone.BRIEF,
             banditArm = FrictionBandit.ArmChoice.BRIEF,
-            smallThing = "two minutes outside",
             ifThenPlan = plan,
-            compassionMoment = "may I be kind to myself",
         )
         assertEquals(FrictionTone.BRIEF, ctx.tone)
         assertEquals(FrictionBandit.ArmChoice.BRIEF, ctx.banditArm)
-        assertEquals("two minutes outside", ctx.smallThing)
         assertEquals(plan, ctx.ifThenPlan)
-        assertEquals("may I be kind to myself", ctx.compassionMoment)
     }
 
     @Test

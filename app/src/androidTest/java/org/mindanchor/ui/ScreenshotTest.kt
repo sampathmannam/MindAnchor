@@ -24,7 +24,6 @@ import org.mindanchor.launcher.LauncherRoot
 import org.mindanchor.onboarding.OnboardingScreen
 import org.mindanchor.report.ReportScreen
 import org.mindanchor.settings.SettingsScreen
-import org.mindanchor.support.SupportScreen
 import java.io.File
 
 /**
@@ -140,7 +139,11 @@ class ScreenshotTest {
     fun onboarding() = shoot("onboarding") { OnboardingScreen(onDone = { _, _ -> }) }
 
     @Test
-    fun support() = shoot("support") { SupportScreen(onClose = {}) }
+    fun support() {
+        // v0.72.x: SupportScreen and SupportActivity
+        // were removed. The test is preserved as a no-op
+        // so the test list still reflects the intent.
+    }
 
     @Test
     fun pulse() {

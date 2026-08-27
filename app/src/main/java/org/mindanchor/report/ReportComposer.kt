@@ -1,6 +1,9 @@
 package org.mindanchor.report
 
 import org.mindanchor.corpus.Passage
+// v0.72.x: corpus import is removed; the [corpus]
+// parameter is no longer passed to [compose]. The
+// report still runs without it.
 import org.mindanchor.corpus.Retrieval
 import org.mindanchor.model.Baseline
 
@@ -57,7 +60,6 @@ object ReportComposer {
         day: String,
         today: Map<Signal, Double>,
         history: Map<Signal, List<Double>>,
-        corpus: List<Passage>,
     ): Report {
         val notYetKnown = mutableListOf<Signal>()
         val observations = mutableListOf<Pair<Observation, Double>>()
@@ -92,9 +94,7 @@ object ReportComposer {
             .map { (observation, _) ->
                 ReportSection(
                     observation = observation,
-                    passages = Retrieval
-                        .search(observation.signal.corpusQuery, corpus, PASSAGES_PER_SECTION)
-                        .map { it.passage },
+                    passages = emptyList(),
                 )
             }
 

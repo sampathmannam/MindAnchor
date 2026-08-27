@@ -63,22 +63,10 @@ class GateActivity : ComponentActivity() {
                             recentOpens = prior,
                             insideSleepWindow = quiet,
                         )
-                        val offer = SmallThings.offer(
-                            things = prefs.smallThings.first(),
-                            nthReach = prior,
-                            tone = tone,
-                            quietHours = quiet,
-                        )
                         val plan = prefs.ifThenPlans.first()[target]?.takeIf { it.isComplete }
-                        val compassion = CompassionStore.rotate(
-                            prefs.compassionMoments.first(),
-                            prior,
-                        )?.phrase
                         GateContext(
                             tone = tone,
-                            smallThing = offer,
                             ifThenPlan = plan,
-                            compassionMoment = compassion,
                         )
                     }
                 }
@@ -94,18 +82,7 @@ class GateActivity : ComponentActivity() {
                     else -> FrictionGate(
                         tone = resolved.tone,
                         appLabel = label,
-                        smallThing = resolved.smallThing,
                         ifThenPlan = resolved.ifThenPlan,
-                        compassionMoment = resolved.compassionMoment,
-                        // Taking the small thing is leaving, not entering,
-                        // and counts as backing out for the same reason
-                        // "never mind" does.
-                        onSmallThingTaken = {
-                            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-                                prefs.recordGateAbandoned(target)
-                            }
-                            goHome()
-                        },
                         onOpen = { minutes -> allow(target, label, minutes) },
                         onNeverMind = {
                             // Counted before leaving. This is the outcome

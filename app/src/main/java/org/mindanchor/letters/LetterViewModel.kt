@@ -203,7 +203,7 @@ class LetterViewModel(
             )
             _state.value = LetterWriteState.Reader(letter = letter, previous = previous)
         }.onFailure { throwable ->
-            val error = throwable as? LetterError ?: LetterError.Unknown()
+            val error = throwable as? LetterError ?: LetterError.Unknown(throwable.message.orEmpty())
             letterLog.append(logEntry(today, error, 0L))
             _state.value = LetterWriteState.Error(error)
         }

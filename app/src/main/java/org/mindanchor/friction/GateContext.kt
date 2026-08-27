@@ -32,12 +32,8 @@ package org.mindanchor.friction
 data class GateContext(
     val tone: FrictionTone,
     val banditArm: FrictionBandit.ArmChoice? = null,
-    /** The user's own small thing, or null. */
-    val smallThing: String? = null,
     /** The user's pre-written if-then plan for this app, or null. */
     val ifThenPlan: IfThenPlan? = null,
-    /** The user's self-compassion moment for this reach, or null. */
-    val compassionMoment: String? = null,
     /**
      * The package name of the app the gate is interrupting.
      * Used by the per-app session-length default to look up

@@ -31,7 +31,6 @@ import org.mindanchor.model.EmaScreen
 import org.mindanchor.onboarding.OnboardingScreen
 import org.mindanchor.report.ReportScreen
 import org.mindanchor.settings.SettingsScreen
-import org.mindanchor.support.SupportScreen
 import org.mindanchor.vitals.PpgScreen
 
 /**
@@ -176,10 +175,11 @@ class SemanticsTest {
 
     @Test
     fun support() {
-        set { SupportScreen(onClose = {}) }
-        walk("support")
-        scrollAndClick(R.string.action_edit)
-        walk("support editing")
+        // v0.72.x: SupportScreen and SupportActivity
+        // were removed. The test is preserved as a no-op
+        // so the test list still reflects the intent —
+        // re-introducing the support surface should
+        // re-introduce this test in the same shape.
     }
 
     @Test
@@ -232,7 +232,6 @@ class SemanticsTest {
                 onOpen = {},
                 onNeverMind = {},
                 tone = FrictionTone.BRIEF,
-                smallThing = "Water the basil",
             )
         }
         walk("friction prompt")
@@ -298,7 +297,6 @@ class SemanticsTest {
             R.string.settings_group_pauses to "settings pauses",
             R.string.settings_group_measuring to "settings measuring",
             R.string.settings_group_reading to "settings reading",
-            R.string.settings_group_plan to "settings plan",
             R.string.settings_group_phone to "settings phone",
         )
         for ((titleRes, name) in groups) {

@@ -7,7 +7,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mindanchor.digest.DigestActivity
-import org.mindanchor.support.SupportActivity
 
 /**
  * Every activity must survive being launched, rotated away and resumed.
@@ -39,13 +38,6 @@ class AppSmokeTest {
         ActivityScenario.launch(HomeActivity::class.java).use { scenario ->
             scenario.moveToState(Lifecycle.State.CREATED)
             scenario.moveToState(Lifecycle.State.RESUMED)
-            assertEquals(Lifecycle.State.RESUMED, scenario.state)
-        }
-    }
-
-    @Test
-    fun supportActivityOpens() {
-        ActivityScenario.launch(SupportActivity::class.java).use { scenario ->
             assertEquals(Lifecycle.State.RESUMED, scenario.state)
         }
     }

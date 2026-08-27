@@ -26,7 +26,7 @@
     a system-level permission that any app declaring a
     TileService can hold without prompting the user,
     and the underlying actions (SunsetController,
-    GoingLightScheduler, BatchReleaser, SupportActivity
+    GoingLightScheduler, BatchReleaser
     Intent) are already reachable from the home surface.
     The tile labels are clinical-review-wordlist-checked;
     see app/src/main/res/values/strings.xml.
@@ -159,17 +159,17 @@
         packets, not syncing data to a remote endpoint.
     -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-
     <!--
-        Fingertip PPG, and nothing else. HRV is the best physiological
-        signal available here and the watch does not release it, so it is
-        measured directly: finger over the lens, torch on, ~90 seconds.
-        No image is stored, shown, or leaves the frame loop — each frame is
-        reduced to a single average brightness number and discarded.
+        v0.72.x: the fingertip PPG (heart rate + HRV via the rear
+        camera flash) has been removed. HRV now relies on
+        a Health-Connect-paired wearable, falling back to
+        "no reading" on days the watch has nothing to say.
+        The CAMERA permission, the camera.flash feature,
+        and the camera.any feature are no longer required
+        and no longer declared, so Play Console and any
+        privacy review stop asking "why does this app need
+        the camera".
     -->
-    <uses-permission android:name="android.permission.CAMERA" />
-    <uses-feature android:name="android.hardware.camera.flash" android:required="false" />
-    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
 
     <!--
         Granted over adb, once, by someone who wants it — never requestable
@@ -178,10 +178,6 @@
         literature that a phone can apply to itself. Without the grant every
         path that uses it reports "not granted" and does nothing.
     -->
-    <uses-permission
-        android:name="android.permission.WRITE_SECURE_SETTINGS"
-        tools:ignore="ProtectedPermissions" />
-
     <!--
         Backup is off, deliberately and completely.
 
@@ -368,10 +364,6 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
-
-        <activity
-            android:name=".support.SupportActivity"
-            android:exported="false" />
 
         <!--
             The pause, when an app was opened from somewhere other than the
@@ -672,12 +664,6 @@
                             via BatchReleaser.releaseNow and
                             re-arms BatchAlarms. Action-only,
                             always INACTIVE.
-              - Support:    launches SupportActivity. The
-                            activity is exported=false, so the
-                            start is only possible from a
-                            same-UID caller — the tile runs
-                            in the same process as the app, so
-                            this is fine.
 
             BIND_QUICKSETTINGS is a system-level permission
             that any app declaring a TileService can hold; it
@@ -720,16 +706,6 @@
             </intent-filter>
         </service>
 
-        <service
-            android:name=".tiles.SupportTile"
-            android:label="@string/tile_support_label"
-            android:icon="@drawable/ic_tile_support"
-            android:permission="android.permission.BIND_QUICKSETTINGS"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.service.quicksettings.action.QS_TILE" />
-            </intent-filter>
-        </service>
     </application>
 
 </manifest>

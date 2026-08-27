@@ -3,6 +3,7 @@ package org.mindanchor.llm
 import java.io.IOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
+import javax.net.ssl.SSLException
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -21,6 +22,7 @@ class OpenAiCompatibleClient(
 ) : LlmClient {
 
     override suspend fun complete(req: LlmRequest): Result<LlmResponse> = withContext(Dispatchers.IO) {
+        org.mindanchor.diagnostics.CrashLog.breadcrumb("llm.complete.${req.model}")
         runCatching {
             val started = System.currentTimeMillis()
             val body = OpenAiRequestBody(
@@ -41,6 +43,7 @@ class OpenAiCompatibleClient(
     }
 
     override suspend fun testConnection(): Result<Unit> = withContext(Dispatchers.IO) {
+        org.mindanchor.diagnostics.CrashLog.breadcrumb("llm.test_connection.${model}")
         runCatching {
             val body = OpenAiRequestBody(
                 model = model,
@@ -86,19 +89,50 @@ class OpenAiCompatibleClient(
         404 -> LetterError.ModelNotFound()
         429 -> LetterError.RateLimited()
         in 500..599 -> LetterError.ServerError()
-        else -> LetterError.Unknown()
+        else -> LetterError.Unknown(body)
     }
 
-    private fun mapToLetterError(e: Throwable): LetterError = when (e) {
-        is LetterError -> e
-        is SocketTimeoutException -> LetterError.Timeout()
-        is ConnectException -> LetterError.NetworkUnreachable()
-        is IOException -> LetterError.NetworkUnreachable()
-        else -> LetterError.Unknown()
+    private fun mapToLetterError(e: Throwable): LetterError {
+        // v0.72.x: an LLM call that fails with anything
+        // other than a LetterError we threw ourselves is
+        // worth a forensic trace. The user sees the
+        // user-friendly letter error; the crash log
+        // gets the real cause with the message and stack
+        // trace so the next time the user files a bug
+        // about "letter didn't write", we have something
+        // to look at.
+        val mapped = when (e) {
+            is LetterError -> e
+            is SocketTimeoutException -> LetterError.Timeout()
+            is SSLException -> LetterError.TlsFailed()
+            is ConnectException -> LetterError.NetworkUnreachable()
+            is IOException -> LetterError.NetworkUnreachable()
+            else -> LetterError.Unknown()
+        }
+        if (e !is LetterError) {
+            android.util.Log.e("MindAnchor/Llm", "complete() mapped to $mapped", e)
+        }
+        return mapped
     }
 
     @Serializable
-    private data class OpenAiRequestBody(val model: String, val messages: List<OpenAiMessage>, val temperature: Double, val max_tokens: Int)
+    private data class OpenAiRequestBody(
+        val model: String,
+        val messages: List<OpenAiMessage>,
+        val temperature: Double,
+        val max_tokens: Int,
+        // v0.72.x: Groq's `gpt-oss-20b` and `-120b` are
+        // reasoning models; with the default
+        // `reasoning_effort: "medium"` they burn most of
+        // their token budget on internal thinking and
+        // return an empty `content` field. Set
+        // `"low"` to force the model to spend most of
+        // its budget on the visible response. Other
+        // providers ignore this field (the
+        // `ignoreUnknownKeys` setting on the Json
+        // instance would also drop it if it did).
+        val reasoning_effort: String = "low",
+    )
 
     @Serializable
     private data class OpenAiMessage(val role: String, val content: String)

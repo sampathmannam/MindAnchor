@@ -57,6 +57,17 @@ class LlmSettingsViewModel(application: Application) : AndroidViewModel(applicat
         viewModelScope.launch { setApiKeyNow(key) }
     }
 
+    /**
+     * v0.72.x: the privacy off-switch. Wipes the API key
+     * from the encrypted blob and resets the cached
+     * test-result row so the Connection row is back to
+     * "Never tested" rather than the last error from
+     * the wiped key.
+     */
+    fun clearApiKey() {
+        viewModelScope.launch { llmPrefs.clearApiKey() }
+    }
+
     fun setModel(model: String) {
         viewModelScope.launch { setModelNow(model) }
     }
@@ -75,6 +86,25 @@ class LlmSettingsViewModel(application: Application) : AndroidViewModel(applicat
 
     internal suspend fun setModelNow(model: String) {
         llmPrefs.setModel(model)
+    }
+
+    /**
+     * v0.72.x: the voice the letter is written in.
+     * Exposed as a [StateFlow] so the picker UI can
+     * `collectAsState()` and reflect the choice.
+     */
+    val voice: StateFlow<org.mindanchor.llm.LetterVoice> = llmPrefs.voice.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = org.mindanchor.llm.LetterVoice.DEFAULT,
+    )
+
+    fun setVoice(voice: org.mindanchor.llm.LetterVoice) {
+        viewModelScope.launch { llmPrefs.setVoice(voice) }
+    }
+
+    internal suspend fun setVoiceNow(voice: org.mindanchor.llm.LetterVoice) {
+        llmPrefs.setVoice(voice)
     }
 
     fun testConnection() {

@@ -29,8 +29,6 @@
     <string name="settings_group_measuring_desc">What this phone notices, and what you tell it.</string>
     <string name="settings_group_reading">Reading</string>
     <string name="settings_group_reading_desc">Last night\'s look, the research behind it, and the model.</string>
-    <string name="settings_group_plan">Your plan</string>
-    <string name="settings_group_plan_desc">The people and the words you chose in advance.</string>
     <string name="settings_group_phone">This phone</string>
     <string name="settings_group_phone_desc">Home screen, hidden apps, goals, and a copy of your data.</string>
 
@@ -192,12 +190,13 @@
     <string name="action_back">← back</string>
 
     <string name="batching_section">Notification batching</string>
-    <string name="batching_explainer">Chosen apps stop interrupting you; their notifications wait quietly and arrive together at 8:00, 12:30 and 18:00. Conversations, calls and alarms always come through instantly.</string>
+    <string name="batching_explainer">Everything is held quietly and arrives together at 8:00, 12:30 and 18:00. The apps in the list below are the exception — they come through instantly. Phone, WhatsApp and the system messages app are on by default. Conversations, calls and alarms always come through instantly.</string>
     <string name="grant_notification_access">Grant notification access to enable batching</string>
     <string name="batching_toggle">Batch notifications</string>
     <string name="batching_times_explainer">When the batches arrive. The default three follow the trial this is drawn from, not anything about your day — move them to where you can actually take an interruption.</string>
     <string name="batching_time_slot">Arrives at</string>
-    <string name="batching_choose_apps">Apps to batch:</string>
+    <string name="batching_let_through_apps">Apps to let through</string>
+    <string name="batching_let_through_subtitle">On = that app bypasses the batches and notifies you straight away. Off = its notifications wait with everything else.</string>
 
     <string name="digest_channel_name">Digest</string>
     <string name="digest_channel_description">One calm summary per batch of held notifications.</string>
@@ -290,15 +289,6 @@
     <string name="scene_forest">Forest</string>
     <string name="scene_off">Just the sky</string>
 
-    <string name="small_things_section">Small things that help</string>
-    <string name="small_things_explainer">If you write down a few small things that help you, one of them is offered — beside the app, never instead of it — at the moment you reach for something else. Only your words, never ours. Nothing is offered on a fourth reach in ten minutes, or during your quiet hours: those are not moments to be asked whether you have tried going for a walk.</string>
-    <string name="small_things_hint">Two minutes outside</string>
-    <string name="small_things_add">Add</string>
-    <string name="small_things_remove">Remove</string>
-    <string name="compassion_section">Self-compassion micro-moments</string>
-    <string name="compassion_explainer">If you write down a few short phrases in your own words — \"may I be kind to myself\" is the template, not the script — one of them is offered in the friction prompt. Your words only; never the launcher\'s. Neff 2003.</string>
-    <string name="compassion_hint">May I be kind to myself</string>
-    <string name="small_thing_prompt">Or, one of yours:</string>
     <!--
         Per-app if-then plan (Gollwitzer 1999) — the user's own
         words, pre-filled into the intention prompt when a plan
@@ -529,7 +519,6 @@
     <string name="probe_intro">Read straight from Health Connect, just now:</string>
     <string name="probe_line">%1$s: %2$s</string>
     <string name="probe_absent">nothing</string>
-    <string name="ppg_feeds">Each reading is kept on this phone and feeds the nightly look.</string>
     <string name="signal_hrv">Heart-rate variability</string>
     <string name="signal_resting_hr">Resting heart rate</string>
     <string name="signal_sleep_minutes">Time asleep</string>
@@ -606,19 +595,6 @@
         behaviour, no marketing.
     -->
     <string name="ema_channel_description">A short, one-tap check-in at random times. Tap to answer; ignore if now is not the time.</string>
-    <string name="ppg_section">Heart rhythm</string>
-    <string name="ppg_explainer">Many watches measure heart-rate variability and never hand it over — it stays inside the maker\'s own app, and it cannot be worked out from heart rate alone. So this measures it directly, from your fingertip. It also means it still works if you change watch, or aren\'t wearing one.</string>
-    <string name="ppg_how">Rest your index finger over the rear camera and the flash, covering both. Hold still, breathe normally, and stay off the phone for about 90 seconds. Sitting, before you get up, is the most comparable time of day.</string>
-    <string name="ppg_start">Take a reading</string>
-    <string name="ppg_grant">Allow the camera</string>
-    <string name="ppg_measuring">Measuring — hold still</string>
-    <string name="ppg_seconds_left" tools:ignore="PluralsCandidate">%1$d seconds left</string>
-    <string name="ppg_cancel">Stop</string>
-    <string name="ppg_result">Resting HRV %1$d ms, heart rate %2$d bpm.</string>
-    <string name="ppg_refused">That reading was too noisy to trust, so it has been thrown away rather than saved. Usually it is finger pressure — cover the lens and the flash completely, but rest the finger rather than pressing.</string>
-    <string name="ppg_last">Last reading: %1$s</string>
-    <string name="ppg_none_yet">No readings yet.</string>
-    <string name="ppg_history_heading">Recent sessions</string>
     <string name="sleep_section">Sleep rhythm</string>
     <string name="sleep_explainer">MindAnchor can estimate your sleep window from when the screen goes quiet at night — on this phone only, no wearable, nothing uploaded. Consistency matters more than hours.</string>
     <string name="grant_usage_access">Grant usage access to see your rhythm</string>
@@ -660,7 +636,7 @@
     <string name="goal_sleep">My phone keeps me up at night</string>
     <string name="goal_measurement">I want to know if any of this helps</string>
     <string name="onboarding_plan_title">Your plan — switch each on when ready:</string>
-    <string name="plan_interruptions">• Notification batching (settings): chosen apps go quiet and arrive together three times a day. People always come through.</string>
+    <string name="plan_interruptions">• Notification batching (settings): most notifications wait and arrive together three times a day. Phone, WhatsApp, messages and the people you choose come through instantly.</string>
     <string name="plan_compulsive">• Long-press any app and choose \"Add a pause\" — a breath and an intention before it opens.</string>
     <string name="plan_sleep">• Sunset mode + sleep rhythm (settings): priority-only nights and a view of how regular your sleep is.</string>
     <string name="plan_measurement">• Wearable + check-in (settings): a watch or ring for HR / sleep / steps, and a one-tap prompt a few times a day.</string>
@@ -704,8 +680,6 @@
 
 
     <string name="notes_shortcut">notes</string>
-    <string name="support_section">Your people and your plan</string>
-    <string name="support_section_explainer">Somewhere to write down what helps, and the people you would want to talk to. Yours to fill in, whenever you feel like it.</string>
     <string name="support_title">Support</string>
     <string name="support_intro">Everything here works offline and stays on this phone. It reaches real people — it never tries to be one.</string>
     <string name="support_reach_someone">Reach someone now</string>
@@ -745,13 +719,23 @@
     <string name="action_done">done</string>
     <string name="contact_bypass_note">These people are never batched and never held back by sunset mode — if they reach out, your phone tells you straight away.</string>
 
-    <string name="support_open">Open support and safety plan</string>
     <string name="dial_failed">This phone could not open a dialer. The number is %1$s — call it from your phone app, or ask someone near you to.</string>
 
     <string name="owner_section">Enforced quiet hours</string>
+   <!-- v0.70 (Phase 1 T-1.1): OS Mode posture strings. The contract copy
+        states both halves — what is granted, how to leave — and was
+        written to the same plain-language bar as the rest of this file.
+        Clinical-review wordlist: none of the gate patterns appear. -->
+   <string name="osmode_section">OS Mode</string>
+   <string name="osmode_status_not_provisioned">Not set up. OS Mode needs the device-owner grant from the section below.</string>
+   <string name="osmode_status_available">Set up, but switched off. Nothing closes until you turn it on.</string>
+   <string name="osmode_toggle_label">Close chosen apps for the night</string>
+   <string name="osmode_toggle_subtitle">During quiet hours only, and only the apps on your doomscroll list. Your dialer, messages and this app always stay reachable.</string>
+   <string name="osmode_grants">What this grants: during your quiet hours, apps on your doomscroll list become genuinely unopenable — not paused, not gated, closed — however you try to reach them. A decision made while calm, kept by the phone.</string>
+   <string name="osmode_leave">How to leave: switch it off here and everything opens again straight away. Mid-night, typing the unlock phrase all the way through also opens tonight\'s list once. Handing back the device-owner grant (below) ends it entirely.</string>
     <string name="owner_explainer">Everything else here can be walked through, which is usually right and useless on the nights it matters. If this phone is set up as its own guardian, the apps you chose a pause for become genuinely unopenable through the quiet hours — a decision made while calm, kept by the phone rather than by you.</string>
     <string name="owner_needs_setup">This has to be granted once from a computer, on a phone with no accounts signed in — usually right after a factory reset. It is a high bar on purpose.</string>
-    <string name="owner_active">This phone is set up as its own guardian. Chosen apps close for the quiet hours.</string>
+    <string name="owner_active">This phone is set up as its own guardian. What closes at night, if anything, is your choice in OS Mode above.</string>
     <string name="owner_protected">Your phone app, messages, settings and this app are never suspended, whatever you choose.</string>
     <string name="owner_release">Hand this back</string>
     <string name="owner_release_cost">Any suspended apps open again straight away. Getting this back later needs another factory reset, so it is worth being sure — but if you want it back, take it back.</string>
@@ -824,7 +808,7 @@
     <string name="quiet_status_sunset_on">Sunset: on</string>
     <string name="quiet_status_sunset_off">Sunset: off</string>
     <string name="quiet_status_enforced_on">Enforced: on</string>
-    <string name="quiet_status_enforced_off">Enforced: off (needs device owner)</string>
+    <string name="quiet_status_enforced_off">Enforced: off (OS Mode)</string>
     <string name="quiet_status_colour_on">Colour: on</string>
     <string name="quiet_status_colour_off">Colour: off (needs system permission)</string>
     <string name="needs_computer_once">Needs a computer once</string>
@@ -847,6 +831,24 @@
     <string name="check_in_question">How did today sit?</string>
     <string name="check_in_rating_low">rough</string>
     <string name="check_in_rating_high">bright</string>
+    <!-- v0.72+ — five anchors for the floating check-in pill. The two
+         strings above (rough / bright) are the existing end-of-scale
+         labels; the three middle ones (low, ok, good) are new. The
+         wording is clinical-review gated. -->
+    <string name="check_in_anchor_rough">rough</string>
+    <string name="check_in_anchor_low">low</string>
+    <string name="check_in_anchor_ok">ok</string>
+    <string name="check_in_anchor_good">good</string>
+    <string name="check_in_anchor_bright">bright</string>
+    <!-- v0.72+ — the soft-dismiss affordance on the floating pill. The
+         word is intentional: a system term like "snooze" reads as the
+         app's voice; "later" reads as the user's. Clinical-review gated. -->
+    <string name="check_in_later">later</string>
+    <!-- v0.72+ — the auto-pause hint. Shown in place of the pill when
+         the user has rejected 3 check-ins in a day; the pill is
+         suppressed for the rest of the day. Wording is clinical-review
+         gated: "see you tomorrow" is user-language, not a system term. -->
+    <string name="check_in_paused_hint">See you tomorrow</string>
     <string name="check_in_reflection_label">A line or two, if you like</string>
     <string name="check_in_reflection_placeholder">What stuck with you today?</string>
     <string name="check_in_save">Save</string>
@@ -1033,7 +1035,7 @@
         also implied the letter is generated locally when
         the LLM path uses a cloud model.
     -->
-    <string name="letters_explainer">A short letter, written each morning at the time you choose. Tap the notification to read it. The on-device Phi-4 model from earlier versions is still available as a legacy option — see below.</string>
+    <string name="letters_explainer">A short letter, written each morning at the time you choose. Tap the notification to read it. The on-device Phi-4 model has been removed in v0.72.x; the letter is now written via the cloud LLM in the section below — see the API key there.</string>
     <string name="letters_toggle">Send me a letter each morning</string>
     <string name="letters_time">Time: %1$02d:%2$02d</string>
     <string name="letters_run_now">Generate now</string>
@@ -1091,6 +1093,7 @@
     <string name="settings_llm_explainer">Want the daily letter? It is written by a small AI, in the launcher\'s own voice. Pick a provider below, tap the key button to grab a free key in a browser, paste it back, then tap Test connection.</string>
     <string name="settings_llm_provider">Provider</string>
     <string name="settings_llm_api_key">API key</string>
+    <string name="settings_llm_clear_key">Forget this key and start over</string>
     <string name="settings_llm_connection">Connection</string>
     <string name="settings_llm_never_tested">Not tested</string>
     <string name="settings_llm_test_connection">Test connection</string>
@@ -1138,7 +1141,6 @@
     <string name="tile_sunset_label">Sunset</string>
     <string name="tile_going_light_label">Going light</string>
     <string name="tile_release_batch_label">Release batch</string>
-    <string name="tile_support_label">Support</string>
     <string name="tile_release_batch_toast">Releasing the held batch.</string>
     <string name="tile_release_batch_failed">Couldn\'t release right now. Try again in a moment.</string>
 

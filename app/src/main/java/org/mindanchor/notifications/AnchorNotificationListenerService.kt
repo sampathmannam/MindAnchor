@@ -26,7 +26,7 @@ import org.mindanchor.support.CrisisContactRef
 class AnchorNotificationListenerService : NotificationListenerService() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private lateinit var config: kotlinx.coroutines.flow.StateFlow<Pair<Boolean, Set<String>>>
+    private lateinit var config: kotlinx.coroutines.flow.StateFlow<Pair<Boolean, Set<String>>> // (batchingEnabled, neverBatchApps)
 
     /**
      * T-3.2 (v0.72+) — whether the marketing classifier is allowed to
@@ -46,9 +46,17 @@ class AnchorNotificationListenerService : NotificationListenerService() {
     override fun onCreate() {
         super.onCreate()
         val prefs = NotificationPrefs(applicationContext)
-        config = combine(prefs.batchingEnabled, prefs.batchedApps) { enabled, apps ->
-            enabled to apps
-        }.stateIn(scope, SharingStarted.Eagerly, false to emptySet())
+        // v0.72+ — the second leg of the pair is the LET-THROUGH set
+        // (apps the user has explicitly chosen to bypass batching), not
+        // the batched set. See NotificationPrefs.DEFAULT_NEVER_BATCH_PACKAGES
+        // for the curated seed (phone, WhatsApp, messages).
+        config = combine(prefs.batchingEnabled, prefs.neverBatchApps) { enabled, never ->
+            enabled to never
+        }.stateIn(
+            scope,
+            SharingStarted.Eagerly,
+            false to NotificationPrefs.DEFAULT_NEVER_BATCH_PACKAGES,
+        )
 
         // v0.30+ (spec Phase 2) — the active-hours
         // and retention values drive the demotion
@@ -76,8 +84,20 @@ class AnchorNotificationListenerService : NotificationListenerService() {
 
         scope.launch {
             AnchorDatabase.get(applicationContext).safety().contacts().collect { contacts ->
+                // v0.72.x: an empty list is a valid
+                // starting state — the user has, in
+                // fact, configured no crisis contacts.
+                // The previous version of this code
+                // gated the whole listener on the
+                // first emit, which meant a stuck or
+                // slow Flow left the user with no
+                // batching at all. The gate was
+                // removed; the bypass check now runs
+                // against an empty list during the
+                // brief window before this collect
+                // emits, which is the correct
+                // behaviour.
                 crisisContacts = contacts.map { CrisisContactRef(it.name, it.phone) }
-                crisisContactsLoaded = true
             }
         }
     }
@@ -115,18 +135,6 @@ class AnchorNotificationListenerService : NotificationListenerService() {
         val cutoff = System.currentTimeMillis() - days * MILLIS_PER_DAY
         AnchorDatabase.get(applicationContext).heldNotifications().pruneOlderThan(cutoff)
     }
-
-    /**
-     * True once the chosen people have been read from disk at least once.
-     *
-     * Until then we hold nothing. The alternative was to batch with an
-     * empty bypass list, which in the seconds after the service connects
-     * would delay a message from exactly the person the bypass exists to
-     * protect. Letting a few notifications through early is the harmless
-     * side of that trade.
-     */
-    @Volatile
-    private var crisisContactsLoaded: Boolean = false
 
     /**
      * v0.30+ (spec Phase 2) — the active-hours
@@ -167,7 +175,19 @@ class AnchorNotificationListenerService : NotificationListenerService() {
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
-        if (!crisisContactsLoaded) return
+        // v0.72.x: the previous "wait for crisis
+        // contacts to load" gate was removed. An
+        // empty [crisisContacts] list is the correct
+        // starting state — it is what the user has
+        // configured — and the bypass check inside
+        // [NotificationClassifier.shouldHold] does
+        // the right thing with it. The old gate
+        // blocked the whole listener indefinitely
+        // whenever the Flow did not emit, which
+        // was strictly worse than letting one
+        // notification through to a person the user
+        // had not added to the safety plan yet.
+        //
         // v0.30+ (spec Phase 2) — gate the demote on
         // the active-hours window. Outside the
         // window, the notification passes through
@@ -181,7 +201,7 @@ class AnchorNotificationListenerService : NotificationListenerService() {
         ) {
             return
         }
-        val (enabled, batchedApps) = config.value
+        val (enabled, neverBatchApps) = config.value
         val meta = sbn.toMeta()
         // T-3.2 (v0.72+) — title/text/appLabel are extracted BEFORE the
         // hold decision now: the marketing classifier needs them, and they
@@ -195,22 +215,28 @@ class AnchorNotificationListenerService : NotificationListenerService() {
             ).toString()
         }.getOrDefault(sbn.packageName)
 
-        val demoteMarketing =
-            marketingDemotion.value && MarketingClassifier.isMarketing(
+        // v0.72+ — marketing demotion is now a TIER, not a hold override.
+        // The shouldHold gate is checked first; the marketing classifier
+        // only changes which SenderTier the held row is recorded under
+        // (and therefore how the attention receipt attributes it).
+        // An app on the let-through list is never held, even if its
+        // notification looks like marketing — that was the design choice
+        // behind flipping the default.
+        if (!NotificationClassifier.shouldHold(
+                meta = meta,
+                batchingEnabled = enabled,
+                neverBatchApps = neverBatchApps,
+                ownPackage = packageName,
+                crisisContacts = crisisContacts,
+            )
+        ) return
+        val demoteMarketing = marketingDemotion.value &&
+            MarketingClassifier.isMarketing(
                 meta = meta,
                 title = title,
                 text = text,
                 appLabel = appLabel,
             )
-        val hold = demoteMarketing ||
-            NotificationClassifier.shouldHold(
-                meta = meta,
-                batchingEnabled = enabled,
-                batchedApps = batchedApps,
-                ownPackage = packageName,
-                crisisContacts = crisisContacts,
-            )
-        if (!hold) return
         val key = sbn.key
 
         scope.launch {

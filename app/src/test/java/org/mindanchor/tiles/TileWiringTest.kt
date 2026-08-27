@@ -46,21 +46,18 @@ class TileWiringTest {
         "org.mindanchor.tiles.SunsetToggleTile",
         "org.mindanchor.tiles.GoingLightToggleTile",
         "org.mindanchor.tiles.ReleaseBatchTile",
-        "org.mindanchor.tiles.SupportTile",
     )
 
     private val tileLabels = listOf(
         "tile_sunset_label",
         "tile_going_light_label",
         "tile_release_batch_label",
-        "tile_support_label",
     )
 
     private val tileDrawables = listOf(
         "ic_tile_sunset",
         "ic_tile_going_light",
         "ic_tile_release_batch",
-        "ic_tile_support",
     )
 
     @Test

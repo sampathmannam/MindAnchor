@@ -8,24 +8,26 @@ import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.core.net.toUri
-import androidx.lifecycle.lifecycleScope
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.core.net.toUri
+import androidx.lifecycle.lifecycleScope
 import java.time.LocalDate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import org.mindanchor.data.SunsetPrefs
 import org.mindanchor.friction.SessionManager
+import org.mindanchor.grayscale.GrayscaleState
 import org.mindanchor.launcher.LauncherRoot
 import org.mindanchor.letters.LetterScheduler
 import org.mindanchor.onboarding.OnboardingPrefs
 import org.mindanchor.onboarding.OnboardingScreen
 import org.mindanchor.sunset.SunsetController
 import org.mindanchor.ui.CalmBackground
+import org.mindanchor.ui.GreyscaleRoot
 import org.mindanchor.ui.MindAnchorTheme
 import org.mindanchor.update.UpdateChecker
 // UpdateInfo removed in v0.30+ (security audit
@@ -107,6 +109,11 @@ class HomeActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // v0.72.x: install the on-device crash log
+        // before anything that could throw. The default
+        // handler is chained (see [CrashLog.install]),
+        // so this is forensic-only, never a takeover.
+        org.mindanchor.diagnostics.CrashLog.install(applicationContext)
         isDefaultHome.value = computeIsDefaultHome()
         enableEdgeToEdge()
         val onboardingPrefs = OnboardingPrefs(applicationContext)
@@ -122,6 +129,23 @@ class HomeActivity : ComponentActivity() {
         // result is consulted first; the network is only hit when
         // the cache is older than 24h.
         maybeRunUpdateCheck()
+        // v0.72.x: rehydrate the in-memory greyscale
+        // state from the persisted daltonizer secure
+        // settings before the launcher composes for
+        // the first time. Without this, the toggle
+        // says "on" after a relaunch but the
+        // [GreyscaleRoot] ColorMatrix is not
+        // applied — see [Grayscale.rehydrateFromSettings]
+        // for the reasoning.
+        org.mindanchor.grayscale.Grayscale.rehydrateFromSettings(applicationContext)
+        // v0.70 (Phase 1 T-1.2): ordinary process start, not just reboot.
+        // If the process was killed mid-window and the person comes home,
+        // OS Mode re-derives from the clock instead of trusting any
+        // memory of what it did earlier tonight. Fire-and-forget: never
+        // blocks first composition.
+        lifecycleScope.launch {
+            runCatching { org.mindanchor.osmode.OsModeController.rederiveSuspend(applicationContext) }
+        }
         setContent {
             MindAnchorTheme {
                 val done by onboardingPrefs.done.collectAsState(initial = null)
@@ -129,40 +153,56 @@ class HomeActivity : ComponentActivity() {
                 val letterDate by letterDateSignal.collectAsState()
                 val update by availableUpdate.collectAsState()
                 val defaultHome by isDefaultHome.collectAsState()
+                // v0.72.x: a saturation-0 ColorMatrix is
+                // applied to the launcher's window whenever
+                // the greyscale toggle is on. This is the
+                // fallback that always works on every
+                // platform — the daltonizer secure-settings
+                // write that used to drive the system-level
+                // effect is a no-op on Android 14+. The
+                // effect is local to MindAnchor's own
+                // windows (third-party apps remain
+                // full-colour); full-system greyscale on
+                // modern Android would need an
+                // accessibility service, which is out of
+                // scope for this fix.
+                val greyOn by GrayscaleState.on.collectAsState()
                 val scope = rememberCoroutineScope()
-                when (done) {
-                    // Preferences are still loading. Draw the sky rather than
-                    // nothing at all: an empty frame here let the window
-                    // background flash through on every cold start.
-                    null -> CalmBackground { }
+                GreyscaleRoot(enabled = greyOn) {
+                    when (done) {
+                        // Preferences are still loading. Draw the sky rather than
+                        // nothing at all: an empty frame here let the window
+                        // background flash through on every cold start.
+                        null -> CalmBackground { }
 
-                    false -> OnboardingScreen(
-                        onDone = { goals, chronotype ->
-                            scope.launch {
-                                onboardingPrefs.complete(goals)
-                                // setChronotype only writes the default
-                                // window if the user has not already picked
-                                // one — first run, the window has never
-                                // been touched, so the chronotype's default
-                                // becomes the launcher's default.
-                                sunsetPrefs.setChronotype(chronotype)
-                                if (sunsetPrefs.isEnabled()) {
-                                    SunsetController.ensureScheduled(applicationContext)
+                        false -> OnboardingScreen(
+                            onDone = { goals, chronotype ->
+                                scope.launch {
+                                    onboardingPrefs.complete(goals)
+                                    // setChronotype only writes the default
+                                    // window if the user has not already picked
+                                    // one — first run, the window has never
+                                    // been touched, so the chronotype's default
+                                    // becomes the launcher's default.
+                                    sunsetPrefs.setChronotype(chronotype)
+                                    if (sunsetPrefs.isEnabled()) {
+                                        SunsetController.ensureScheduled(applicationContext)
+                                    }
                                 }
-                            }
-                        },
-                    )
+                            },
+                        )
 
-                    true -> LauncherRoot(
-                        goHomeSignal = goHome,
-                        letterDateSignal = letterDate,
-                        onLetterDateConsumed = ::consumeLetterDate,
-                        availableUpdate = update as? org.mindanchor.update.UpdateInfo,
-                        isDefaultHome = defaultHome,
-                        onUpdateAction = { openReleasesPage() },
-                        onUpdateDismiss = { availableUpdate.value = null },
-                        onSetDefaultHome = { openDefaultHomeSettings() },
-                    )
+                        true -> LauncherRoot(
+                            goHomeSignal = goHome,
+                            letterDateSignal = letterDate,
+                            onLetterDateConsumed = ::consumeLetterDate,
+                            availableUpdate = update as? org.mindanchor.update.UpdateInfo,
+                            isDefaultHome = defaultHome,
+                            onUpdateAction = { openReleasesPage() },
+                            onUpdateDismiss = { availableUpdate.value = null },
+                            onSetDefaultHome = { openDefaultHomeSettings() },
+                        )
+                    }
                 }
             }
         }

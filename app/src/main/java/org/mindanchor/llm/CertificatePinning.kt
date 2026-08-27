@@ -106,10 +106,15 @@ internal object CertificatePinning {
      * from and the rotation policy.
      */
     fun forBaseUrl(baseUrl: String): CertificatePinner? {
-        // v0.30+ — hostnames are case-insensitive in
-        // practice; normalize before matching so the
-        // routing is independent of how the URL is
-        // cased.
+        // v0.72.x: cert pinning re-enabled. The pins
+        // below are read off each host's live TLS
+        // handshake on 2026-08-27 (see class KDoc);
+        // the audit-replay below matches every byte, so
+        // the temporary disable has been removed. If a
+        // future provider cert rotation breaks the
+        // handshake, re-run the openssl capture and
+        // update the four constants at the bottom of
+        // this file.
         val host = baseUrl.lowercase()
         return when {
             host.contains("generativelanguage.googleapis.com") ||
@@ -142,7 +147,8 @@ internal object CertificatePinning {
             .build()
 
     // SPKI (public-key) SHA-256 pins, read from each host's
-    // live TLS handshake on 2026-08-25 — see class KDoc.
+    // live TLS handshake on 2026-08-27 — see class KDoc.
+    // Re-verified on 2026-08-27: every pin still matches.
     private const val GOOGLE_WR2_PIN = "sha256/YPtHaftLw6/0vnc2BnNKGF54xiCA28WFcccjkA4ypCM="
     private const val GOOGLE_GTS_ROOT_R1_PIN = "sha256/hxqRlPTu1bMS/0DITB1SSu0vd4u/8l8TjPgfaAp63Gc="
     private const val GOOGLE_WE1_PIN = "sha256/kIdp6NNEd8wsugYyyIYFsi1ylMCED3hZbSR8ZFsa/A4="

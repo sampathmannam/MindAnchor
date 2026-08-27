@@ -34,7 +34,7 @@ class LetterContextTest {
         assertEquals(2, req.messages.size)
         assertTrue(req.messages[0] is LlmMessage.System)
         assertTrue(req.messages[1] is LlmMessage.User)
-        assertEquals(LetterPrompt.SYSTEM_PROMPT, (req.messages[0] as LlmMessage.System).content)
+        assertEquals(LetterVoice.DEFAULT.systemPrompt, (req.messages[0] as LlmMessage.System).content)
     }
 
     @Test

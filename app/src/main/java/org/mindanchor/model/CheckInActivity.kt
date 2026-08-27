@@ -151,10 +151,18 @@ class CheckInActivity : ComponentActivity() {
             finish()
         }
 
+        // v0.72+ — read the rating the user already picked on the
+        // pill, so the full-screen reflection form starts pre-filled.
+        // 0 means "no rating yet"; the screen starts with nothing
+        // selected in that case. The pill is what passes the extra
+        // (see CheckInPromptHost.EXTRA_RATING).
+        val initialRating = intent.getIntExtra(EXTRA_RATING, 0)
+
         setContent {
             MindAnchorTheme {
                 CheckInScreen(
                     saving = saved,
+                    initialRating = initialRating,
                     onSave = { rating, reflection ->
                         // Guard against double-tap.
                         // The Save button is enabled

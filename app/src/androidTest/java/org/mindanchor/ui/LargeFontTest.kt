@@ -13,7 +13,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mindanchor.launcher.LauncherRoot
-import org.mindanchor.support.SupportScreen
 
 /**
  * Someone who needs this app is disproportionately likely to be running a
@@ -41,6 +40,13 @@ import org.mindanchor.support.SupportScreen
  * are unchanged; the support screen is still reachable from
  * [org.mindanchor.support] for any future re-introduction of the
  * home affordance.
+ *
+ * ## v0.72.x: Support screen removed entirely
+ *
+ * The "Your plan" settings entry, the SupportActivity, the
+ * SupportScreen composable and the SupportTile were all removed
+ * in v0.72.x. The two tests that rendered the screen directly
+ * (below) are gone with it.
  */
 @RunWith(AndroidJUnit4::class)
 class LargeFontTest {
@@ -76,12 +82,6 @@ class LargeFontTest {
     }
 
     @Test
-    fun supportSurvivesDoubleSizedText() {
-        setContentAtFontScale(2.0f) { SupportScreen(onClose = {}) }
-        rule.onNodeWithText("Reach someone now").assertExists()
-    }
-
-    @Test
     fun theHomeScreenSurvivesTheLargestAccessibilityText() {
         setContentAtFontScale(3.0f) { LauncherRoot() }
         // v0.30+ (PR #38 follow-up): see the KDoc above.
@@ -109,11 +109,4 @@ class LargeFontTest {
         rule.onNodeWithText("search").assertIsDisplayed()
     }
 
-    @Test
-    fun supportRemainsReachableWhenTheCrisisCardIsTallerThanTheScreen() {
-        setContentAtFontScale(2.0f) { SupportScreen(onClose = {}) }
-        // The crisis card alone runs to seven lines plus contacts at this
-        // size. The safety plan below it must still be gettable to.
-        rule.onNodeWithText("My plan").performScrollTo().assertIsDisplayed()
-    }
 }

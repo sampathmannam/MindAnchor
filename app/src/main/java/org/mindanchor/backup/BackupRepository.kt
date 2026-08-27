@@ -5,8 +5,6 @@ import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-import org.mindanchor.corpus.CorpusImport
-import org.mindanchor.corpus.CorpusStore
 import org.mindanchor.data.LauncherPrefs
 import org.mindanchor.data.db.AnchorDatabase
 import org.mindanchor.model.MomentStore
@@ -42,11 +40,8 @@ class BackupRepository(private val context: Context) {
                 checkIns = MomentStore(context).moments.first().map(BackupCodec::checkInOf),
                 readings = MeasuredStore(context).all().map(BackupCodec::readingOf),
                 inferred = InferredStore(context).all().map(BackupCodec::readingOf),
-                // The imported difference file as it stands, verbatim —
-                // already the person's own curation in a readable format.
-                corpusAdditions = runCatching {
-                    CorpusStore.importedFile(context).takeIf { it.exists() }?.readText()
-                }.getOrNull().orEmpty(),
+                // v0.72.x: corpus-additions export dropped
+                // alongside the corpus-import feature.
             ),
         )
     }
@@ -113,15 +108,11 @@ class BackupRepository(private val context: Context) {
         // Restoring an old file must never overwrite a correction made
         // since it was saved.
         if (backup.corpusAdditions.isNotBlank()) {
-            val current = CorpusStore.load(context)
-            val known = current.map { it.id }.toHashSet()
-            val incoming = CorpusStore.parse(backup.corpusAdditions).filterNot { it.id in known }
-            if (incoming.isNotEmpty()) {
-                CorpusStore.saveImported(
-                    context,
-                    CorpusImport.merge(current, CorpusImport.render(incoming)).corpus,
-                )
-            }
+            // v0.72.x: the corpus-import feature is gone. A
+            // backup from a pre-0.72.x install may still
+            // carry a corpusAdditions field; we read it,
+            // acknowledge it, and drop it on the floor
+            // because the new app has no use for it.
         }
         true
     }

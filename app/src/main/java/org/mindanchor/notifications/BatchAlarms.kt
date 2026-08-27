@@ -94,6 +94,12 @@ class BootReceiver : BroadcastReceiver() {
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             try {
                 org.mindanchor.Alarms.ensureAll(appContext)
+                // v0.70 (Phase 1 T-1.2): a reboot is a crash from OS Mode's
+                // point of view. Nothing about suspension survives it as
+                // truth, so derive the answer fresh from the window —
+                // inside this goAsync block, or the process can be torn
+                // down before the reads finish and tonight stays unheld.
+                org.mindanchor.osmode.OsModeController.rederiveSuspend(appContext)
             } finally {
                 pending.finish()
             }

@@ -74,7 +74,6 @@ import org.mindanchor.admin.DeviceOwner
 import org.mindanchor.friction.AppWatchService
 import org.mindanchor.grayscale.Grayscale
 import org.mindanchor.launcher.DisplayApp
-import org.mindanchor.narrate.ModelSlot
 import org.mindanchor.notifications.BatchSchedule
 import org.mindanchor.onboarding.Goal
 import org.mindanchor.report.MeasureSource
@@ -471,14 +470,13 @@ private fun LetterTimePickerDialog(
  * here is named for what it does rather than for the machinery behind
  * it.
  */
-enum class SettingsGroup { QUIET, PAUSES, MEASURING, READING, PLAN, PHONE }
+enum class SettingsGroup { QUIET, PAUSES, MEASURING, READING, PHONE }
 
 private fun SettingsGroup.titleRes(): Int = when (this) {
     SettingsGroup.QUIET -> R.string.settings_group_quiet
     SettingsGroup.PAUSES -> R.string.settings_group_pauses
     SettingsGroup.MEASURING -> R.string.settings_group_measuring
     SettingsGroup.READING -> R.string.settings_group_reading
-    SettingsGroup.PLAN -> R.string.settings_group_plan
     SettingsGroup.PHONE -> R.string.settings_group_phone
 }
 
@@ -548,8 +546,6 @@ fun SettingsScreen(
      * [org.mindanchor.settings.HealthyDefaultsScreen].
      */
     onOpenHealthyDefaults: () -> Unit = {},
-    /** Opens the heart-rhythm reading on its own surface. */
-    onOpenPpg: () -> Unit = {},
     /** Opens last night's report on its own surface. */
     onOpenReport: () -> Unit = {},
     /**
@@ -592,7 +588,11 @@ fun SettingsScreen(
     }
 
     val batchingEnabled by viewModel.batchingEnabled.collectAsState()
-    val batchedApps by viewModel.batchedApps.collectAsState()
+    // v0.72+ — apps the user has chosen to let through immediately.
+    // The list reads as "Apps to let through" in the UI; the curated
+    // seed in NotificationPrefs.DEFAULT_NEVER_BATCH_PACKAGES is what the
+    // screen shows on a fresh install.
+    val neverBatchApps by viewModel.neverBatchApps.collectAsState()
 
     // Special access is granted in system settings, so nothing in this
     // composition changes when the user comes back — the screen used to keep
@@ -741,12 +741,6 @@ fun SettingsScreen(
                 onClick = { group = SettingsGroup.READING },
             )
             GroupRow(
-                titleRes = R.string.settings_group_plan,
-                descriptionRes = R.string.settings_group_plan_desc,
-                marked = false,
-                onClick = { group = SettingsGroup.PLAN },
-            )
-            GroupRow(
                 titleRes = R.string.settings_group_phone,
                 descriptionRes = R.string.settings_group_phone_desc,
                 marked = false,
@@ -872,120 +866,6 @@ fun SettingsScreen(
                             Text(stringResource(R.string.stale_drop))
                         }
                     }
-                }
-            }
-        }
-
-        if (group == SettingsGroup.PAUSES) {
-            // --- Small things ---
-            //
-            // Behavioural activation: the small thing shifts mood, and the
-            // moment somebody reaches for a distraction is the only moment
-            // anything can see that a small thing is being avoided. What makes
-            // that safe rather than cruel is that these are the person's own
-            // words, written while calm — nothing here is ever seeded with
-            // suggestions about how somebody ought to feel better.
-            Text(
-                text = stringResource(R.string.small_things_section),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
-            )
-            Text(
-                text = stringResource(R.string.small_things_explainer),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            val smallThings by viewModel.smallThings.collectAsState()
-            smallThings.forEach { thing ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = thing,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.weight(1f),
-                    )
-                    TextButton(onClick = { viewModel.removeSmallThing(thing) }) {
-                        Text(stringResource(R.string.small_things_remove))
-                    }
-                }
-            }
-            if (smallThings.size < org.mindanchor.friction.SmallThings.MAX) {
-                var draft by remember { mutableStateOf("") }
-                OutlinedTextField(
-                    value = draft,
-                    onValueChange = { draft = it },
-                    singleLine = true,
-                    placeholder = { Text(stringResource(R.string.small_things_hint)) },
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                )
-                TextButton(
-                    onClick = {
-                        viewModel.addSmallThing(draft)
-                        draft = ""
-                    },
-                ) {
-                    Text(stringResource(R.string.small_things_add))
-                }
-            }
-
-            // --- Self-compassion micro-moments ---
-            //
-            // Neff 2003 Self-Compassion Break: at the moment of
-            // reaching for a doomscroll app, optionally surface
-            // a phrase the user has previously written — their
-            // own words, never the launcher's. Linardon 2020,
-            // Behavior Therapy 51(4):646-658 (DOI 10.1016/j.beth.2019.10.002)
-            // — meta-analysis of 27 RCTs of smartphone apps for
-            // acceptance / mindfulness / self-compassion. Reports
-            // g = −0.32 (95% CI −0.48 to −0.16) for distress and
-            // g = 0.31 (95% CI 0.07-0.56) for self-compassion.
-            // Same "only their own words" fence as small things;
-            // same shape; same cap (six phrases is enough for
-            // a rotation without any one becoming wallpaper).
-            Text(
-                text = stringResource(R.string.compassion_section),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
-            )
-            Text(
-                text = stringResource(R.string.compassion_explainer),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            val compassionMoments by viewModel.compassionMoments.collectAsState()
-            compassionMoments.forEach { moment ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = moment.phrase,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.weight(1f),
-                    )
-                    TextButton(onClick = { viewModel.removeCompassionMoment(moment.phrase) }) {
-                        Text(stringResource(R.string.small_things_remove))
-                    }
-                }
-            }
-            if (compassionMoments.size < org.mindanchor.friction.CompassionList.MAX) {
-                var draft by remember { mutableStateOf("") }
-                OutlinedTextField(
-                    value = draft,
-                    onValueChange = { draft = it },
-                    singleLine = true,
-                    placeholder = { Text(stringResource(R.string.compassion_hint)) },
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                )
-                TextButton(
-                    onClick = {
-                        viewModel.addCompassionMoment(draft)
-                        draft = ""
-                    },
-                ) {
-                    Text(stringResource(R.string.small_things_add))
                 }
             }
         }
@@ -1130,20 +1010,27 @@ fun SettingsScreen(
                     }
 
                     Text(
-                        text = stringResource(R.string.batching_choose_apps),
+                        text = stringResource(R.string.batching_let_through_apps),
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
                     )
+                    Text(
+                        text = stringResource(R.string.batching_let_through_subtitle),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 4.dp),
+                    )
                     allApps.forEach { app ->
                         val packageName = app.component.substringBefore('/')
+                        val isPassThrough = packageName in neverBatchApps
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .heightIn(min = 48.dp)
                                 .toggleable(
-                                    value = packageName in batchedApps,
+                                    value = isPassThrough,
                                     role = Role.Switch,
-                                ) { viewModel.setAppBatched(packageName, it) },
+                                ) { viewModel.setAppPassThrough(packageName, it) },
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
@@ -1151,7 +1038,7 @@ fun SettingsScreen(
                                 style = MaterialTheme.typography.bodyLarge,
                                 modifier = Modifier.weight(1f),
                             )
-                            Switch(checked = packageName in batchedApps, onCheckedChange = null)
+                            Switch(checked = isPassThrough, onCheckedChange = null)
                         }
                     }
 
@@ -1241,7 +1128,8 @@ fun SettingsScreen(
                         )
                     }
                     Switch(checked = marketingDemotion, onCheckedChange = null)
-                }            }
+                }
+            }
         }
 
         if (group == SettingsGroup.PHONE) {
@@ -1515,6 +1403,10 @@ fun SettingsScreen(
             val isOwner = remember(permissionEpoch) { DeviceOwner.isDeviceOwner(context) }
             val grayscaleGranted = remember(permissionEpoch) { Grayscale.isGranted(context) }
             val sunsetEnabled by viewModel.sunsetEnabled.collectAsState()
+            // v0.70 (T-1.1): "enforced" now means the grant AND an explicit
+            // OS Mode opt-in — a provisioned phone with the posture off
+            // suspends nothing, and saying otherwise here would be a lie.
+            val osOptedInStatus by viewModel.osModeOptedIn.collectAsState()
             Column(modifier = Modifier.padding(top = 8.dp, bottom = 16.dp)) {
                 Text(
                     text = stringResource(R.string.quiet_status_label),
@@ -1530,7 +1422,7 @@ fun SettingsScreen(
                 )
                 Text(
                     text = stringResource(
-                        if (isOwner) R.string.quiet_status_enforced_on
+                        if (isOwner && osOptedInStatus) R.string.quiet_status_enforced_on
                         else R.string.quiet_status_enforced_off,
                     ),
                     style = MaterialTheme.typography.bodySmall,
@@ -1690,25 +1582,6 @@ fun SettingsScreen(
                         }
                     }
                 }
-            }
-        }
-
-        if (group == SettingsGroup.MEASURING) {
-            // --- Heart rhythm ---
-            //
-            // The watch measures HRV and keeps it: it never leaves the COROS
-            // app, and it cannot be derived from heart rate, because RMSSD is
-            // defined over beat-to-beat intervals and averaged BPM has already
-            // thrown that away. So it is measured here instead — which also
-            // means it survives changing watch, or wearing none at all.
-            SectionHeading(R.string.ppg_section, SettingsSection.SLEEP, goals)
-            Text(
-                text = stringResource(R.string.ppg_explainer),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            TextButton(onClick = onOpenPpg) {
-                Text(stringResource(R.string.ppg_start))
             }
         }
 
@@ -1890,7 +1763,7 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            val modelFits by viewModel.modelFits.collectAsState()
+            val modelFits = true // v0.72.x: offline model removed; gate is now just enabled-and-not-running
             val lettersEnabled by viewModel.lettersEnabled.collectAsState()
             Row(
                 modifier = Modifier
@@ -1936,7 +1809,7 @@ fun SettingsScreen(
             }
             val letterRunning by viewModel.letterRunning.collectAsState()
             TextButton(
-                enabled = !letterRunning && lettersEnabled && modelFits,
+                enabled = !letterRunning && lettersEnabled,
                 onClick = viewModel::runLetterNow,
             ) {
                 Text(
@@ -2068,175 +1941,14 @@ fun SettingsScreen(
         }
 
         if (group == SettingsGroup.READING) {
-            // --- Research on file (the corpus every report draws on) ---
-            //
-            // Twenty-six bundled passages is a seed, not a library, and the
-            // retrieval behind every report gets better the more there is to
-            // retrieve from. Everything else here can be improved by shipping
-            // an update; the research should not have to wait on one, nor be
-            // limited to what one person thought to include. See CorpusImport
-            // for why an import merges rather than replaces.
-            SectionHeading(R.string.corpus_section, null, goals)
-            Text(
-                text = stringResource(R.string.corpus_explainer),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                // Nothing checks whether an imported passage explains or
-                // interprets. Saying so is the honest alternative to
-                // pretending to a check that is not there.
-                text = stringResource(R.string.corpus_verbatim),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-            val corpusSize by viewModel.corpusSize.collectAsState()
-            val corpusImported by viewModel.corpusImported.collectAsState()
-            val lastImport by viewModel.lastImport.collectAsState()
-            LaunchedEffect(Unit) { viewModel.refreshCorpus() }
-            Text(
-                text = stringResource(R.string.corpus_count, corpusSize),
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(top = 8.dp),
-            )
-            val corpusPicker = rememberLauncherForActivityResult(
-                // OpenDocument rather than GetContent: it returns a document
-                // this app may read again later, and it lets a plain .tsv
-                // through on providers that would not offer it under a
-                // stricter MIME type. "*/*" because text/tab-separated-values
-                // is not a type every file provider on every phone reports,
-                // and a picker that shows nothing selectable is a dead end.
-                ActivityResultContracts.OpenDocument(),
-            ) { uri -> uri?.let(viewModel::importCorpus) }
-            TextButton(onClick = { corpusPicker.launch(arrayOf("*/*")) }) {
-                Text(stringResource(R.string.corpus_import))
-            }
-            Text(
-                text = stringResource(R.string.corpus_format),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            lastImport?.let { result ->
-                // Reported in whatever combination actually happened: added
-                // and corrected, or nothing usable, plus the counts that tell
-                // somebody their file was in the wrong format rather than
-                // leaving them to wonder why it did so little.
-                Column(modifier = Modifier.padding(top = 8.dp)) {
-                    val line = when {
-                        result.unreadable -> stringResource(R.string.corpus_result_unreadable)
-                        result.added == 0 && result.replaced == 0 ->
-                            stringResource(R.string.corpus_result_none)
-                        else -> stringResource(R.string.corpus_result_changed, result.added, result.replaced)
-                    }
-                    Text(text = line, style = MaterialTheme.typography.bodyMedium)
-                    if (result.skippedRows > 0) {
-                        Text(
-                            text = stringResource(R.string.corpus_result_skipped, result.skippedRows),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    if (result.truncated) {
-                        Text(
-                            text = stringResource(R.string.corpus_result_truncated),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-            if (corpusImported) {
-                TextButton(onClick = viewModel::clearCorpus) {
-                    Text(stringResource(R.string.corpus_clear))
-                }
-            }
-        }
-
-        if (group == SettingsGroup.READING) {
-            // --- Model (the small model a future writing engine would run) ---
-            //
-            // No inference engine is built into this app yet — see
-            // org.mindanchor.narrate.NoEngineNarrator. Importing a model here
-            // does not yet make any writing happen; it records the file and,
-            // exactly like ModelSlot was built to, reports honestly whether
-            // this phone has enough memory to run it once an engine exists.
-            SectionHeading(R.string.model_section, null, goals)
-            Text(
-                text = stringResource(R.string.model_explainer),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = stringResource(R.string.model_no_engine),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-            val modelPresent by viewModel.modelPresent.collectAsState()
-            val modelFit by viewModel.modelFit.collectAsState()
-            val modelImportFailed by viewModel.modelImportFailed.collectAsState()
-            LaunchedEffect(Unit) { viewModel.refreshModel() }
-            Text(
-                text = stringResource(if (modelPresent) R.string.model_present else R.string.model_none),
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(top = 8.dp),
-            )
-            if (modelPresent) {
-                val fitRes = when (modelFit) {
-                    ModelSlot.Fit.FITS -> R.string.model_fit_fits
-                    ModelSlot.Fit.TIGHT -> R.string.model_fit_tight
-                    ModelSlot.Fit.TOO_LARGE -> R.string.model_fit_too_large
-                    ModelSlot.Fit.UNSUPPORTED -> R.string.model_fit_unsupported
-                }
-                Text(
-                    text = stringResource(fitRes),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            val modelPicker = rememberLauncherForActivityResult(
-                // OpenDocument, and "*/*", for the same reason as the corpus
-                // picker above: a GGUF is not a MIME type every file provider
-                // on every phone reports, and a picker offering nothing
-                // selectable is a dead end.
-                ActivityResultContracts.OpenDocument(),
-            ) { uri -> uri?.let(viewModel::importModel) }
-            TextButton(onClick = { modelPicker.launch(arrayOf("*/*")) }) {
-                Text(stringResource(R.string.model_import))
-            }
-            if (modelImportFailed) {
-                Text(
-                    text = stringResource(R.string.model_import_failed),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (modelPresent) {
-                TextButton(onClick = viewModel::clearModel) {
-                    Text(stringResource(R.string.model_clear))
-                }
-            }
-            // v0.23.0: one-tap Phi-4 mini download.
-            // The download runs through the system
-            // DownloadManager; when it finishes, the
-            // launcher listens for
-            // ACTION_DOWNLOAD_COMPLETE and prompts the
-            // user with a Yes-then-import.
-            Phi4ModelDownloadSection(viewModel = viewModel)
-
-            // v0.25.4: Google Drive backup (replaces
-            // v0.23.0 WebDAV). The section lives in
-            // the Reading group because the "what
-            // you wrote" surface is the natural
-            // home for "where the writes go" — the
-            // letters feature sits here, the
-            // nightly report reuses the same
-            // ReaderPrefs, and the user looking
-            // for the "I lost my phone, where's
-            // my data?" affordance is reading the
-            // same screen.
-            GoogleDriveBackupSettingsSection(viewModel = viewModel)
+            // v0.72.x: the "Research on file" / corpus, the offline
+            // model / Phi-4 download, and the Google Drive backup
+            // sections were all removed in the same pass. Corpus
+            // import is a feature only the nightly report ever
+            // touched, the offline model has no engine behind it,
+            // and Google Drive is broken on modern play-services-auth
+            // (deprecated API). The "Keep a copy" section in the
+            // "This phone" tab is the file-based backup that remains.
         }
 
         if (group == SettingsGroup.MEASURING) {
@@ -3080,29 +2792,66 @@ fun SettingsScreen(
             }
         }
 
-        if (group == SettingsGroup.PLAN) {
-            // --- Your people and your plan ---
+        if (group == SettingsGroup.QUIET) {
+            // --- OS Mode (v0.70, Phase 1 T-1.1) ---
+            //
+            // The posture, not the grant. The device-owner mechanism one
+            // section down is plumbing; OS Mode is what the person is
+            // offered: an explicit, reversible choice about whether their
+            // chosen apps close for the night. The state machine derives
+            // the status from the grant and the opt-in — it is never
+            // stored as a third thing that could disagree with either.
             Text(
-                text = stringResource(R.string.support_section),
+                text = stringResource(R.string.osmode_section),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
             )
+            val osOptedIn by viewModel.osModeOptedIn.collectAsState()
+            val isOwnerNow = remember(permissionEpoch) { DeviceOwner.isDeviceOwner(context) }
+            // Derived fresh on every resume, same rule the state machine
+            // enforces at runtime: the grant outranks any stale opt-in.
+            when (
+                org.mindanchor.osmode.OsModeState.statusFor(isOwnerNow, osOptedIn)
+            ) {
+                org.mindanchor.osmode.OsModeStatus.NOT_PROVISIONED ->
+                    Text(
+                        text = stringResource(R.string.osmode_status_not_provisioned),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+
+                org.mindanchor.osmode.OsModeStatus.AVAILABLE ->
+                    Text(
+                        text = stringResource(R.string.osmode_status_available),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+
+                org.mindanchor.osmode.OsModeStatus.ACTIVE -> Unit
+            }
+            if (isOwnerNow) {
+                SettingsRowSwitch(
+                    title = stringResource(R.string.osmode_toggle_label),
+                    subtitle = stringResource(R.string.osmode_toggle_subtitle),
+                    checked = osOptedIn,
+                    onCheckedChange = { viewModel.setOsModeOptedIn(it) },
+                )
+            }
+            // The contract, stated before it is ever used: what this
+            // grants and how to leave. Both halves matter; a posture
+            // that only explains its powers reads as a trap.
             Text(
-                text = stringResource(R.string.support_section_explainer),
+                text = stringResource(R.string.osmode_grants),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp),
             )
-            TextButton(
-                onClick = {
-                    runCatching {
-                        context.startActivity(
-                            Intent(context, org.mindanchor.support.SupportActivity::class.java),
-                        )
-                    }
-                },
-            ) {
-                Text(stringResource(R.string.support_open))
-            }
+            Text(
+                text = stringResource(R.string.osmode_leave),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
 
         if (group == SettingsGroup.QUIET) {

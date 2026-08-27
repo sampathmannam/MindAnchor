@@ -6,11 +6,12 @@ import org.mindanchor.support.PhoneMatch
 /**
  * Android-free classification logic so it is fully unit-testable.
  *
- * Design (docs/research/05 §1, docs/research/02 §3): batching is opt-in per
- * app; conversations and calls always pass instantly ("humans break
- * through" — Fitz et al. 2019 batched *machine* interruptions, and muting
- * human contact is the documented backfire mode). Anything the OS marks
- * ongoing/non-clearable, and group summaries, must never be touched.
+ * v0.72+ (Master plan T-3.x): the model flipped to "default batched, opt-out
+ * per app". [shouldHold] now returns `true` for the common case and only
+ * `false` for hard pass-throughs — apps the user has explicitly marked to let
+ * through, OS-marked bypass categories (calls, alarms, navigation, …), the
+ * device's own package, a crisis contact's message, and ongoing / non-clearable
+ * / group-summary notifications that must never be touched.
  */
 data class NotificationMeta(
     val packageName: String,
@@ -31,10 +32,24 @@ object NotificationClassifier {
         "sys", "service", "err", "msg",
     )
 
+    /**
+     * Decides whether the notification should be held (batched) or passed
+     * through immediately.
+     *
+     * Order is significant: the hard pass-throughs short-circuit first so a
+     * let-through app (phone, WhatsApp, …) never has a conversation-shaped
+     * notification delayed even by a frame.
+     */
     fun shouldHold(
         meta: NotificationMeta,
         batchingEnabled: Boolean,
-        batchedApps: Set<String>,
+        /**
+         * v0.72+ — apps the user has explicitly chosen to let through
+         * immediately. Membership here is a hard pass-through that
+         * outranks every other rule (including marketing demotion; the
+         * listener checks shouldHold before applying the marketing tier).
+         */
+        neverBatchApps: Set<String>,
         ownPackage: String,
         /** Chosen people who must never be delayed, whatever the settings. */
         crisisContacts: Collection<CrisisContactRef> = emptyList(),
@@ -42,10 +57,10 @@ object NotificationClassifier {
         if (!batchingEnabled) return false
         if (meta.packageName == ownPackage) return false
         // A crisis contact outranks every other rule, including an app the
-        // user asked to batch: a delayed message from the person you reach
-        // for is the one delay that can do real harm.
+        // user asked to let through: a delayed message from the person you
+        // reach for is the one delay that can do real harm.
         if (PhoneMatch.mentionsAny(meta.people, crisisContacts)) return false
-        if (meta.packageName !in batchedApps) return false
+        if (meta.packageName in neverBatchApps) return false
         if (meta.isOngoing || !meta.isClearable || meta.isGroupSummary) return false
         if (meta.isConversation) return false
         if (meta.category != null && meta.category in PASS_CATEGORIES) return false

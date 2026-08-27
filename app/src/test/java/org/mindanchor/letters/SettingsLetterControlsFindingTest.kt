@@ -34,19 +34,22 @@ class SettingsLetterControlsFindingTest {
         )
     }
 
-    @Test fun `Generate now is gated on modelFits + lettersEnabled + !letterRunning`() {
+    @Test fun `Generate now is gated on lettersEnabled + !letterRunning`() {
         val src = java.io.File(
             "../app/src/main/java/org/mindanchor/settings/SettingsScreen.kt"
         ).readText()
-        // Find the Generate now TextButton. It should reference all three
-        // gates: !letterRunning, lettersEnabled, modelFits.
+        // v0.72.x: the offline-model gate is gone. Generate
+        // now fires whenever the user has the letter feature
+        // on, an LLM key is configured (the LLM call itself
+        // no-ops on a blank key), and nothing is already
+        // running. modelFits is no longer in the gate.
         val gen = src.indexOf("runLetterNow")
         val button = src.lastIndexOf("TextButton(", gen)
         val end = src.indexOf(")", gen)
         val seg = src.substring(button, end)
         assertTrue("Generate now must gate on letterRunning", seg.contains("letterRunning"))
         assertTrue("Generate now must gate on lettersEnabled", seg.contains("lettersEnabled"))
-        assertTrue("Generate now must gate on modelFits", seg.contains("modelFits"))
+        assertTrue("Generate now must not gate on modelFits", !seg.contains("modelFits"))
     }
 
     @Test fun `Open inbox is disabled when unreadCount is 0`() {

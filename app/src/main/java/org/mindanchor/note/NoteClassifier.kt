@@ -4,9 +4,6 @@ import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.mindanchor.model.NoteType
-import org.mindanchor.narrate.LlamaEngine
-import org.mindanchor.narrate.ModelSlot
-import org.mindanchor.narrate.ModelStore
 
 /**
  * On-device classification of a note's body into one
@@ -83,24 +80,14 @@ class NoteClassifier(private val context: Context) {
      * flow.
      */
     suspend fun classify(body: String): NoteType = withContext(Dispatchers.IO) {
+        // v0.72.x: the on-device classifier is gone — the
+        // offline Phi-4 model is no longer shipped. Without
+        // an engine, every note is GENERAL; the user's own
+        // words still drive the rest of the data layer
+        // (timestamp, search), the classification just stops
+        // trying to second-guess what they meant.
         if (body.isBlank()) return@withContext NoteType.GENERAL
-        if (!LlamaEngine.loaded) return@withContext NoteType.GENERAL
-        val fit = ModelStore.fit(context)
-        val contextTokens = ModelSlot.contextTokens(fit)
-        if (contextTokens <= 0) return@withContext NoteType.GENERAL
-        val raw = runCatching {
-            LlamaEngine().nativeGenerate(
-                modelPath = ModelStore.modelFile(context).absolutePath,
-                system = system,
-                prompt = body,
-                contextTokens = contextTokens,
-                maxNewTokens = MAX_NEW_TOKENS,
-                seed = seedFor(body),
-                threads = THREADS,
-            )
-        }.getOrNull() ?: return@withContext NoteType.GENERAL
-        val text = String(raw, Charsets.UTF_8).trim()
-        parseOutput(text)
+        return@withContext NoteType.GENERAL
     }
 
     /**

@@ -26,6 +26,8 @@ data class Letter(
     val body: String,
     val provider: String? = null,
     val model: String? = null,
+    /** v0.72.x: the voice used to generate this letter. */
+    val voice: String? = null,
     val promptTokens: Int? = null,
     val completionTokens: Int? = null,
     val durationMs: Long? = null,
