@@ -2,7 +2,7 @@
 """
 Check that every arm64-v8a .so in the built APK is 16KB-page-aligned.
 
-Android 15+ requires every LOAD segment's p_align to be >= 0x4000
+Android 15+ requires every PT_LOAD segment's p_align to be >= 0x4000
 and every segment's p_offset to be a multiple of p_align. If a .so
 fails this, the OS shows a page-size warning on every launch and
 refuses to load the .so on 16KB-page-size devices (Pixel 8+, some
@@ -17,16 +17,15 @@ Exit code:
     2 — usage error (file not found, no .so, etc)
 
 Why this exists:
-    The v0.70.0 release APK ships 5 arm64-v8a .so files, all with
-    PT_LOAD segments at p_align < 0x4000:
-      - libmindanchor_llama.so       (vendored llama.cpp)
-      - libandroidx.graphics.path.so (Jetpack Graphics)
-      - libsurface_util_jni.so       (ML Kit / CameraX)
+    The v0.70.0 release APK ships 5 arm64-v8a .so files, all
+    with at least one PT_LOAD segment at p_align < 0x4000:
+      - libmindanchor_llama.so          (vendored llama.cpp)
+      - libandroidx.graphics.path.so    (Jetpack Graphics)
+      - libsurface_util_jni.so          (ML Kit / CameraX)
       - libimage_processing_util_jni.so (ML Kit / CameraX)
-      - libdatastore_shared_counter.so (Jetpack DataStore counter)
-    The first was excluded by the v0.70.0 build (T-6.1 native
-    mismatch). The other four are third-party and need upstream
-    16KB-aware releases before they can be fixed here.
+      - libdatastore_shared_counter.so  (Jetpack DataStore counter)
+    The fix is a post-link re-alignment pass (see
+    app/build.gradle.kts :app:alignNativeLibsFor16KbPageSize).
 """
 import struct
 import sys
@@ -87,9 +86,17 @@ def main() -> int:
             if bad:
                 any_bad = True
                 first = bad[0]
+                # Collapse duplicate p_aligns in the report — there's
+                # no value in listing the same p_align twice; the
+                # count matters, not the per-segment listing. The
+                # tuples in `bad` are (idx, type, p_align_str,
+                # offset_str), so strip the hex prefix when sorting.
+                def _align_int(s):
+                    return int(s, 16) if isinstance(s, str) and s.startswith("0x") else int(s)
+                unique = sorted({_align_int(t[2]) for t in bad})
                 print(
                     f"  {so.name:50s} ❌ {len(bad)} bad segments "
-                    f"(first: {first[0]} {first[1]} align={first[2]} {first[3]})"
+                    f"(unique p_aligns: {[hex(a) for a in unique]}, first: {first[0]} {first[1]} align={first[2]} {first[3]})"
                 )
             else:
                 print(f"  {so.name:50s} ✓ 16KB-aligned")

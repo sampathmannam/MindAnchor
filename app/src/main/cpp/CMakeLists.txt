@@ -24,6 +24,16 @@ add_subdirectory(
 
 add_library(mindanchor_llama SHARED mindanchor_llama.cpp)
 target_link_libraries(mindanchor_llama PRIVATE llama)
+# v0.70.x (16 KB page-size fix): Android 15+ requires every
+# PT_LOAD segment to be 16 KB aligned. The default linker
+# page size on aarch64 is 4 KB; without the flags below, the
+# ggml-static .o's PT_LOAD p_align is 0x1000 (4 KB) and the
+# device's loader fails the .so on a 16 KB-page kernel
+# (Pixel 8+, some Samsung) with a 16 KB page-size warning
+# on every launch. NDK r27's linker accepts the flag.
+target_link_options(mindanchor_llama PRIVATE
+    "-Wl,-z,max-page-size=16384"
+    "-Wl,-z,common-page-size=16384")
 
 # Vendored whisper.cpp (Phase 6 / T-6.1 voice
 # journal). The whisper subdirectory is
@@ -41,3 +51,8 @@ add_subdirectory(
 
 add_library(mindanchor_whisper SHARED mindanchor_whisper.cpp)
 target_link_libraries(mindanchor_whisper PRIVATE whisper)
+# v0.70.x (16 KB page-size fix): see the mindanchor_llama
+# block above. whisper.cpp's ggml needs the same flags.
+target_link_options(mindanchor_whisper PRIVATE
+    "-Wl,-z,max-page-size=16384"
+    "-Wl,-z,common-page-size=16384")
