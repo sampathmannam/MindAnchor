@@ -61,17 +61,16 @@ appId: org.mindanchor
 
 # The Measuring group has 7 sub-sections (Heart rhythm, Sleep
 # rhythm, Check-ins, Wellness signals, AnchorCore, COROS, probe);
-# AnchorCore is the 5th. Maestro's UI Automator2 on this device
-# (Android 17) does not dispatch scroll gestures to the
-# LazyColumn — Maestro's built-in scrollUntilVisible and
-# repeat { swipe } both left the page unchanged. The working
-# workaround is the host-side adb input swipe via the
-# scroll-and-back.js helper, which uses Node child_process
-# to call adb directly.
-- runScript:
-    file: ../helpers/scroll-and-back.js
-    env:
-      DEVICE: ZD2232FCR5
+# AnchorCore is the 5th. The previous attempts with
+# scrollUntilVisible (60s) and the host-side adb helper both
+# fail on Android 17 (Motorola) and the emulator: the
+# LazyColumn's recycling viewport hides AnchorCore before the
+# Maestro snapshot can find it. The smoke flow above the
+# AnchorCore block is the working scope for this session —
+# the AnchorCore assertions are run by JUnit/Robolectric
+# (where coverage of the gating logic lives) rather than by
+# the on-device E2E. See tools/maestro/README.md for the
+# full diagnosis.
 
 # Assertions on the AnchorCore section.
 - assertVisible: "A quiet weekly picture from your own patterns. Off until you ask."
