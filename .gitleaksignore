@@ -1,0 +1,19 @@
+# gitleaks false-positive whitelist — only test fixtures that
+# use a published MD5 of a non-secret string ("password",
+# "123456", etc.) as the wrong-password test vector.
+#
+# Real secrets (API keys, tokens, real user passwords' MD5)
+# must NEVER appear here. Add to this file only when a
+# scanner flagged a test fixture that is recognisably a
+# public hash, not a credential.
+#
+# Each entry format: <fingerprint-from-gitleaks-output>
+
+# CorosApiTest:80 + 81 — the MD5 of "password" (5f4dcc3...)
+# is the standard test fixture for the "wrong password"
+# branch. The COROS API expects the MD5 of the user's
+# password; "password" → 5f4dcc3b5aa765d61d8327deb882cf99
+# is the only string in this codebase that, when MD5'd,
+# matches that pattern, so there's no real-leak risk.
+2116ffb3d9deea6148dd14f714c422d4b19bb1fa:app/src/test/java/org/mindanchor/vitals/coros/CorosApiTest.kt:generic-api-key:80
+3a4c9cd9adbca646c4547d691d9bba8d23e7c042:app/src/test/java/org/mindanchor/vitals/coros/CorosApiTest.kt:generic-api-key:81
