@@ -4,6 +4,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -19,10 +21,13 @@ import java.util.concurrent.TimeUnit
  * in [fetchDashboard], [fetchAnalyse], [fetchActivities],
  * and the constructor's [login] call. All calls go
  * over HTTPS, all bodies are JSON, and every
- * authenticated request carries the
+ * authenticated request carries two headers, exactly
+ * as the Training Hub web UI sends them: the
  * `accesstoken: <token>` header (lowercase, no
- * underscore) — exactly as the Training Hub web UI
- * sends them.
+ * underscore) and `yfheader: {"userId": ...}` echoing
+ * the login response's userId. The server rejects
+ * token-only requests with result=1019 ("Access token
+ * is invalid") — see [yfHeader].
  *
  * The side-channel deliberately does *not* implement
  * the mobile API. Acquiring a mobile token would log
@@ -35,6 +40,13 @@ class CorosApi(
     private val json: Json = Json {
         ignoreUnknownKeys = true
         coerceInputValues = true
+        // v0.70.1: the regional data planes do not agree on
+        // JSON types — the US host serialises day-key fields
+        // the EU host quotes (a bare 20260828 where EU sends
+        // "20260828"). Lenient parsing reads either form into
+        // the String fields the wire schemas declare, instead
+        // of failing the whole sync on the stricter host.
+        isLenient = true
     },
     /**
      * A test-only override that replaces the regional
@@ -197,7 +209,11 @@ class CorosApi(
             .url(url)
             .get()
             .header("User-Agent", USER_AGENT)
-            .header("accesstoken", auth.accessToken)
+            .header("Content-Type", "application/json")
+            .header("accessToken", auth.accessToken)
+            // v0.70.1: see [authenticatedGet] — the Training
+            // Hub requires the userId echoed in `yfheader`.
+            .header("yfheader", yfHeader(auth))
             .build()
         client.newCall(req).execute().use { resp ->
             val text = resp.body?.string().orEmpty()
@@ -237,6 +253,17 @@ class CorosApi(
         }
     }
 
+    /**
+     * The `yfheader` value every authenticated Training
+     * Hub call must carry: the login response's userId,
+     * echoed back as a one-field JSON object. Built with
+     * the serializer rather than string concatenation so
+     * an unexpected character in a future userId cannot
+     * produce malformed JSON.
+     */
+    private fun yfHeader(auth: CorosAuthPayload): String =
+        buildJsonObject { put("userId", auth.userId) }.toString()
+
     private fun authenticatedGet(auth: CorosAuthPayload, path: String): String {
         val url = baseUrl(auth.region).toHttpUrl().newBuilder()
             .addPathSegments(path.trimStart('/'))
@@ -245,7 +272,20 @@ class CorosApi(
             .url(url)
             .get()
             .header("User-Agent", USER_AGENT)
-            .header("accesstoken", auth.accessToken)
+            .header("Content-Type", "application/json")
+            .header("accessToken", auth.accessToken)
+            // v0.70.1: the Training Hub started rejecting
+            // token-only requests with result=1019 ("Access
+            // token is invalid") even for a token minted
+            // seconds earlier. The maintained community
+            // clients authenticate with the token header
+            // spelled `accessToken`, a `Content-Type` set
+            // even on GETs, and the login response's userId
+            // echoed back as a JSON object in a `yfheader`
+            // header. Match all three. The payload already
+            // carries userId for exactly this; it was parsed
+            // and never used until now.
+            .header("yfheader", yfHeader(auth))
             .build()
         client.newCall(req).execute().use { resp ->
             val text = resp.body?.string().orEmpty()
@@ -313,6 +353,16 @@ class CorosApi(
             .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .callTimeout(CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
+            // v0.70.1: HTTP/1.1 only. The Training Hub's data
+            // plane started answering result=1019 ("Access
+            // token is invalid") to authenticated reads made
+            // over an OkHttp-negotiated HTTP/2 connection while
+            // accepting the same headers over HTTP/1.1 — the
+            // protocol the working community clients speak.
+            // Pinning 1.1 removes the variable; the cost is
+            // one connection per host, irrelevant at four
+            // calls per six-hour sync.
+            .protocols(listOf(okhttp3.Protocol.HTTP_1_1))
             .build()
 
         private const val CONNECT_TIMEOUT_SECONDS: Long = 15

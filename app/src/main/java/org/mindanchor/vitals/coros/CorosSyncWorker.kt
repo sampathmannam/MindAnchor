@@ -71,7 +71,7 @@ class CorosSyncWorker(
         if (!auth.connectionState(lastSyncEpochMs = null).isConnectedLike()) {
             return Result.failure()
         }
-        val authed = try {
+        var authed = try {
             auth.ensureAuthed()
         } catch (e: CorosApiException) {
             // Authentication failure with stored
@@ -90,13 +90,35 @@ class CorosSyncWorker(
         val dashboard = try {
             api.fetchDashboard(authed)
         } catch (e: CorosApiException) {
-            // Transient: the worker should retry on the
-            // next periodic tick rather than fail the
-            // whole batch. The exception's `corosResult`
-            // field is the structured diagnostic; the UI
-            // shows the lastSync timestamp going stale.
-            @Suppress("SwallowedException")
-            return Result.retry()
+            if (e.corosResult != REGION_MISMATCH_RESULT) {
+                // Transient: the worker should retry on the
+                // next periodic tick rather than fail the
+                // whole batch. The exception's `corosResult`
+                // field is the structured diagnostic; the UI
+                // shows the lastSync timestamp going stale.
+                @Suppress("SwallowedException")
+                return Result.retry()
+            }
+            // result=1019 ("Access token is invalid") on a
+            // token minted seconds ago is not a bad token.
+            // Login is federated across the Training Hub's
+            // regional hosts — any of them will mint a token
+            // for any account — but the data plane is
+            // sharded, and a token only reads data on the
+            // host the account actually lives on. The region
+            // chosen at connect time is therefore
+            // unverifiable at login and only provably wrong
+            // here. Probe the other regions with the stored
+            // credentials; the first data plane that answers
+            // is the account's real home, and it is
+            // persisted so every later sync starts right.
+            // (Observed in the wild 2026-08-28: an account
+            // connected as "eu" — accepted at login — whose
+            // data lives on the US host.)
+            val healed = healRegion(ctx, api, authed.region)
+                ?: return Result.retry()
+            authed = healed.auth
+            healed.dashboard
         }
         val analyse = try {
             api.fetchAnalyse(authed)
@@ -127,6 +149,54 @@ class CorosSyncWorker(
     private fun CorosConnectionState.isConnectedLike(): Boolean =
         this is CorosConnectionState.Connected
 
+    /**
+     * A successful region probe: the token minted on the
+     * account's real home host, and the dashboard that host
+     * already returned (so the caller does not fetch it a
+     * second time).
+     */
+    private data class HealedRegion(
+        val auth: CorosAuthPayload,
+        val dashboard: List<CorosHrv>,
+    )
+
+    /**
+     * Finds the account's real regional host after the
+     * stored region's data plane rejected a fresh token —
+     * see the call site for why that means "wrong region"
+     * rather than "bad credentials". Tries each other
+     * region in turn; a host that fails, in any way, is
+     * simply not the home region. On success the corrected
+     * region is persisted so the next sync — and the
+     * Settings screen's connection line — start right.
+     */
+    @Suppress("SwallowedException", "detekt.TooGenericExceptionCaught")
+    private suspend fun healRegion(
+        ctx: Context,
+        api: CorosApi,
+        badRegion: String,
+    ): HealedRegion? {
+        val store = CorosCredentialStore(ctx)
+        val creds = store.read() ?: return null
+        val hash = CorosPasswordHasher.md5Hex(creds.second)
+        for (region in CANDIDATE_REGIONS) {
+            if (region == badRegion) continue
+            val payload = try {
+                api.login(creds.first, hash, region)
+            } catch (e: Exception) {
+                continue
+            }
+            val dashboard = try {
+                api.fetchDashboard(payload)
+            } catch (e: Exception) {
+                continue
+            }
+            store.write(creds.first, creds.second, region)
+            return HealedRegion(payload, dashboard)
+        }
+        return null
+    }
+
     companion object {
         /**
          * The unique work name for the periodic sync. Used
@@ -152,6 +222,21 @@ class CorosSyncWorker(
          * boot receiver, AppWatchService).
          */
         private const val PERIODIC_INTERVAL_HOURS: Long = 6
+
+        /**
+         * The Training Hub's "Access token is invalid"
+         * result code. On a token minted moments earlier it
+         * means the stored *region* is wrong, not the token
+         * — see the [healRegion] call site.
+         */
+        private const val REGION_MISMATCH_RESULT = "1019"
+
+        /**
+         * Every regional host the Training Hub runs, in the
+         * order [healRegion] probes them. Must cover the
+         * same set [CorosApi.baseUrl] maps.
+         */
+        private val CANDIDATE_REGIONS = listOf("eu", "us", "cn")
 
         /**
          * Arms the periodic worker. Called from
