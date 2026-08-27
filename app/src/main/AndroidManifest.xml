@@ -328,6 +328,42 @@
                 <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
             </intent-filter>
         </activity-alias>
+        <!--
+            v0.70.1: the app-list alias. On Android 14+ the
+            platform decides whether an app is a Health
+            Connect app at all by looking for one thing: an
+            exported activity whose intent filter carries
+            `android.intent.action.VIEW_PERMISSION_USAGE`
+            with category
+            `android.intent.category.HEALTH_PERMISSIONS`.
+            The four aliases above answer the links *inside*
+            the permission dialog; this one answers the
+            question "does this app integrate at all". The
+            `<queries>` entry at the top of this file uses
+            the same action to *find* Health Connect — it
+            does not declare anything on our side, which is
+            exactly the mistake this alias corrects.
+
+            Without it, the permission controller auto-denies
+            every health permission request without showing a
+            dialog (observed on a stock Android 17 phone:
+            result callback in ~80 ms, 0 of 10 granted) and
+            the launcher never appears in Health Connect's
+            own app list, so the person cannot even grant by
+            hand. The `START_VIEW_PERMISSION_USAGE` gate is
+            the system permission Settings holds — as with
+            the gates above, a random app cannot invoke it.
+        -->
+        <activity-alias
+            android:name=".HealthPermissionUsageAlias"
+            android:targetActivity=".HomeActivity"
+            android:exported="true"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
+        </activity-alias>
 
         <activity
             android:name=".digest.DigestActivity"

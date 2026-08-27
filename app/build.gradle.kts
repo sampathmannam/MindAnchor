@@ -54,8 +54,17 @@ android {
         //   call-site wiring. Zero new permissions; no
         //   network; clinical-review wordlist gate green.
         //   versionCode 92→93.
-        versionCode = 93
-        versionName = "0.70.0"
+        // v0.70.1: Health Connect app-list alias
+        // (VIEW_PERMISSION_USAGE) — without it Android 14+
+        // auto-denies every health permission request in one
+        // frame and the launcher never appears in Health
+        // Connect's own app list. versionCode 93→95 (94 was
+        // consumed by the diverged t31-t32 release commit
+        // d01980c; skipping it keeps the two lineages'
+        // versionCodes from colliding on the same number
+        // with different bits).
+        versionCode = 95
+        versionName = "0.70.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every
