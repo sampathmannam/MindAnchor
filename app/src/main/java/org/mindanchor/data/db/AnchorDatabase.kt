@@ -176,7 +176,23 @@ interface SafetyDao {
         SafetyPlan::class,
         CrisisContact::class,
     ],
-    version = 3,
+    // v0.70.x (Tier 2 audit finding): the on-device DB
+    // created by v0.69.x sits at version 4 with a 'tier'
+    // column on held_notifications (the v0.69.x Phase-2
+    // G-5 retention tier field). v0.70.0 ships without tier
+    // (the tier metadata moved to a separate DataStore key
+    // when held_notifications was collapsed from a single
+    // row per (tier, packet) to a single row per packet).
+    // Bumping to version 5 + adding MIGRATION_4_5 to drop
+    // the now-orphan column resolves the on-device crash
+    // `Room cannot verify the data integrity. Expected
+    // identity hash: 1fc7ea00..., found: 5e78fa6f...`. The
+    // new installation starts at v5 (the column never
+    // existed); the upgrade installation runs the drop
+    // column migration in-place. The tier data is in the
+    // DataStore key (NotificationPrefs.tier), so the column
+    // drop is safe — it was just denormalised data.
+    version = 5,
     exportSchema = false,
 )
 abstract class AnchorDatabase : RoomDatabase() {
@@ -222,8 +238,49 @@ abstract class AnchorDatabase : RoomDatabase() {
             }
         }
 
+        // v0.70.x (Tier 2 audit): on-device DBs from
+        // v0.69.x have a `tier` column on held_notifications
+        // that v0.70.0 dropped. The column is a denormalised
+        // copy of a key in NotificationPrefs and is safe to
+        // drop. SQLite ALTER TABLE supports DROP COLUMN from
+        // 3.35.0 (Android 12+, Room 2.5+). We add the
+        // migration in a way that tolerates older engines
+        // (the 12-step re-create dance) so the upgrade
+        // works on Android 11 too.
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // SQLite ≥ 3.35 supports DROP COLUMN.
+                val cursor = db.query("SELECT sqlite_version()")
+                val version = cursor.use { if (it.moveToFirst()) it.getString(0) else "0" }
+                cursor.close()
+                val parts = version.split(".").mapNotNull { it.toIntOrNull() }
+                val has = parts.size >= 2 && (parts[0] > 3 || (parts[0] == 3 && parts[1] >= 35))
+                if (has) {
+                    db.execSQL("ALTER TABLE held_notifications DROP COLUMN tier")
+                } else {
+                    // 12-step rename-create-copy dance for older engines.
+                    db.execSQL(
+                        "CREATE TABLE IF NOT EXISTS held_notifications_new (" +
+                            "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                            "packageName TEXT NOT NULL, " +
+                            "appLabel TEXT NOT NULL, " +
+                            "title TEXT NOT NULL, " +
+                            "text TEXT NOT NULL, " +
+                            "postedAt INTEGER NOT NULL, " +
+                            "releasedAt INTEGER)",
+                    )
+                    db.execSQL(
+                        "INSERT INTO held_notifications_new (id, packageName, appLabel, title, text, postedAt, releasedAt) " +
+                            "SELECT id, packageName, appLabel, title, text, postedAt, releasedAt FROM held_notifications",
+                    )
+                    db.execSQL("DROP TABLE held_notifications")
+                    db.execSQL("ALTER TABLE held_notifications_new RENAME TO held_notifications")
+                }
+            }
+        }
+
         /** Exposed so instrumented tests can walk an old database forward. */
-        fun migrations(): Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
+        fun migrations(): Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_4_5)
 
         @Volatile
         private var instance: AnchorDatabase? = null
