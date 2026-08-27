@@ -59,9 +59,14 @@ class GateActivity : ComponentActivity() {
                         )
                         prefs.recordGateShown(target)
                         val quiet = sunsetPrefs.isQuietHour()
+                        val anchorPrefs = org.mindanchor.anchorcore.AnchorPrefs(applicationContext)
+                        val weekFlagged = anchorPrefs.isEnabled() &&
+                            anchorPrefs.frictionHoldEnabled.first() &&
+                            anchorPrefs.weekFlagged()
                         val tone = FrictionContext.toneFor(
                             recentOpens = prior,
                             insideSleepWindow = quiet,
+                            weekFlagged = weekFlagged,
                         )
                         val offer = SmallThings.offer(
                             things = prefs.smallThings.first(),

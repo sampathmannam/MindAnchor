@@ -116,7 +116,15 @@ class FrictionViewModel(application: Application) : AndroidViewModel(application
     }
 
     private suspend fun adaptiveTone(prior: Int, quiet: Boolean): AdaptiveTone {
-        val deterministic = FrictionContext.toneFor(prior, insideSleepWindow = quiet)
+        val anchorPrefs = org.mindanchor.anchorcore.AnchorPrefs(getApplication())
+        val weekFlagged = anchorPrefs.isEnabled() &&
+            anchorPrefs.frictionHoldEnabled.first() &&
+            anchorPrefs.weekFlagged()
+        val deterministic = FrictionContext.toneFor(prior, insideSleepWindow = quiet, weekFlagged = weekFlagged)
+        // Hook B: the bandit's arms were reasoned for ordinary weeks
+        // (FrictionBandit.kt header); a flagged week is precisely when
+        // the ceremony holds its weight, so the deterministic tone wins.
+        if (weekFlagged) return AdaptiveTone(deterministic, null)
         if (deterministic != FrictionTone.FULL) return AdaptiveTone(deterministic, null)
         val state = frictionPrefs.banditState.first()
         val tallies = frictionPrefs.gateTallies.first()

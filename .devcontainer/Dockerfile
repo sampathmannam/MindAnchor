@@ -69,3 +69,16 @@ RUN java -version && \
 
 # Default working directory for the source tree.
 WORKDIR /src
+
+# Container runs as non-root for the build/test workload.
+# v0.70.x (security): trivy fs flagged DS-0002 (HIGH,
+# "Specify at least 1 USER command"). The Android SDK
+# manager and Gradle run fine as the unprivileged build
+# user; the ANDROID_HOME tree is owned by root from the
+# apt install + sdkmanager step, so we need to chown it
+# before dropping privileges. After this USER line every
+# subsequent RUN / ENTRYPOINT runs as `build` (uid 1000).
+RUN groupadd --system --gid 1000 build && \
+    useradd --system --uid 1000 --gid 1000 --home-dir /src build && \
+    chown -R build:build /opt/android-sdk /src
+USER build

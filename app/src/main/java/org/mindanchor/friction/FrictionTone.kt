@@ -53,6 +53,15 @@ object FrictionContext {
     /** One prior reach already means the first pause did not settle it. */
     const val REPEATS_BEFORE_BRIEF = 1
 
+    // v-next (AnchorCore Hook B): on a flagged week — AnchorState said
+    // something deviated this trailing week — the soften ladder backs off
+    // one step. Repetition inside a hard week is more likely the loop
+    // talking than weak resolve, so the ceremony earns a longer chance
+    // before it demotes itself. The sleep window still wins over
+    // everything, exactly as before.
+    const val FLAGGED_REPEATS_BEFORE_BRIEF = 2
+    const val FLAGGED_REPEATS_BEFORE_FEATHER = 5
+
     /**
      * Chooses the tone.
      *
@@ -68,10 +77,16 @@ object FrictionContext {
      * literature is about, and the moment a pause is most likely to be
      * accepted rather than resented.
      */
-    fun toneFor(recentOpens: Int, insideSleepWindow: Boolean): FrictionTone = when {
+    fun toneFor(
+        recentOpens: Int,
+        insideSleepWindow: Boolean,
+        weekFlagged: Boolean = false,
+    ): FrictionTone = when {
         insideSleepWindow -> FrictionTone.FULL
-        recentOpens >= REPEATS_BEFORE_FEATHER -> FrictionTone.FEATHER
-        recentOpens >= REPEATS_BEFORE_BRIEF -> FrictionTone.BRIEF
+        recentOpens >= (if (weekFlagged) FLAGGED_REPEATS_BEFORE_FEATHER else REPEATS_BEFORE_FEATHER) ->
+            FrictionTone.FEATHER
+        recentOpens >= (if (weekFlagged) FLAGGED_REPEATS_BEFORE_BRIEF else REPEATS_BEFORE_BRIEF) ->
+            FrictionTone.BRIEF
         else -> FrictionTone.FULL
     }
 }

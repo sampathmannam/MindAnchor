@@ -1,56 +1,21 @@
-// v0.30+ (Phase 4 G-28) — the native half of the
+// v0.30+ (Phase 4 G-28) -- the native half of the
 // voice journal. Mirrors mindanchor_llama.cpp's
 // shape: a thin JNI wrapper around whisper.cpp's
-// C API. The actual whisper.cpp vendoring is a
-// user setup step (third_party/whisper.cpp/);
-// this file is the Kotlin↔C glue.
+// C API. The vendoring is at
+// third_party/whisper.cpp/ (see VENDORED.md).
 //
 // The transcription is slow on a mid-range device
-// (5-10× realtime on a Pixel 6 with whisper-tiny.en)
+// (5-10x realtime on a Pixel 6 with whisper-tiny.en)
 // so the JNI call runs on the Kotlin IO dispatcher
-// (see [WhisperEngine.transcribe]). The model is
-// loaded once per [WhisperEngine] instance via the
-// [nativeReady] bridge; the JNI side keeps a
-// per-process state so the second call to
-// [nativeTranscribe] is fast.
+// (see [Whisper.transcribe]). The model is loaded
+// once per process via the [nativeReady] bridge;
+// the JNI side keeps a per-process state so the
+// second call to [nativeTranscribe] is fast.
 
 #include <jni.h>
 #include <string>
 #include <vector>
-
-// Forward declarations of the whisper.cpp C API.
-// The full whisper.h header is in
-// third_party/whisper.cpp/include/whisper.h.
-// We forward-declare the minimum surface the JNI
-// uses so this file compiles before whisper.cpp is
-// vendored; once the vendoring is in place, this
-// file is the only change needed (delete the
-// forward declarations, include whisper.h, link
-// the whisper target).
-
-extern "C" {
-
-struct whisper_context;
-struct whisper_full_params;
-
-struct whisper_context_params {
-    int n_threads;
-};
-
-whisper_context* whisper_init_from_file(const char* path_model);
-void whisper_free(whisper_context* ctx);
-
-struct whisper_full_params whisper_full_default_params(
-    int strategy);
-
-int whisper_full(
-    whisper_context* ctx,
-    whisper_full_params wparams,
-    const float* samples,
-    int n_samples,
-    int* n_segments);
-
-} // extern "C"
+#include <whisper.h>
 
 namespace {
 
@@ -62,6 +27,7 @@ namespace {
 struct State {
     whisper_context* ctx = nullptr;
     std::string model_path;
+    bool backend_ok = false;
 };
 
 State& state() {
@@ -82,7 +48,15 @@ bool ensure_loaded(const std::string& model_path) {
         return true;
     }
     release_model();
-    state().ctx = whisper_init_from_file(model_path.c_str());
+    // v0.30+ -- b4938 whisper.cpp. whisper_context_default_params
+    // returns sensible defaults; ggml's n_threads is left at
+    // 0 (= use hardware-concurrency heuristic). The launcher's
+    // KDoc documents the contract "4 threads by default";
+    // the upstream whisper.cpp will pick the right number
+    // for the device CPU.
+    whisper_context_params cparams = whisper_context_default_params();
+    state().ctx = whisper_init_from_file_with_params(
+        model_path.c_str(), cparams);
     if (state().ctx == nullptr) {
         return false;
     }
@@ -127,44 +101,74 @@ std::string transcribe(
     if (samples.empty()) {
         return std::string();
     }
-    whisper_full_params params =
-        whisper_full_default_params(beam_size);
-    params.language = language.c_str();
-    params.translate = false;
-    int n_segments = 0;
+    // v0.30+ -- real whisper.cpp call. b4938 has the
+    // 4-argument whisper_full (returns int, not
+    // n_segments); n_segments is queried via
+    // whisper_full_n_segments. Sampling strategy is
+    // GREEDY when beam_size <= 1, BEAM_SEARCH otherwise.
+    // 4 threads per the launcher's documented contract.
+    whisper_full_params wparams = whisper_full_default_params(
+        beam_size <= 1 ? WHISPER_SAMPLING_GREEDY : WHISPER_SAMPLING_BEAM_SEARCH);
+    wparams.print_realtime = false;
+    wparams.print_progress = false;
+    wparams.language = language.c_str();
+    wparams.translate = false;
+    wparams.n_threads = 4;
+    if (beam_size > 1) {
+        wparams.beam_search.beam_size = beam_size;
+    }
+
     int rc = whisper_full(
         state().ctx,
-        params,
+        wparams,
         samples.data(),
-        static_cast<int>(samples.size()),
-        &n_segments);
-    if (rc != 0 || n_segments <= 0) {
+        static_cast<int>(samples.size()));
+    if (rc != 0) {
+        return std::string();
+    }
+    // v0.30+ -- b4938 API: n_segments is queried via a
+    // separate call after whisper_full, not via an
+    // out-parameter.
+    int n_segments = whisper_full_n_segments(state().ctx);
+    if (n_segments <= 0) {
         return std::string();
     }
     // Stitch the segment texts. whisper's
-    // segment-getter is per-segment; the JNI
-    // shape of the full text is the concatenation
-    // with single newlines between segments. The
-    // Kotlin side does no further processing.
+    // segment-getter is per-segment; the JNI shape of
+    // the full text is the concatenation with single
+    // newlines between segments. The Kotlin side does
+    // no further processing.
     std::string out;
     for (int i = 0; i < n_segments; ++i) {
-        // whisper_get_segment_text is the
-        // C-API getter. Imported via the
-        // forward declaration when whisper.h is
-        // included; this file's forward
-        // declaration block is the "compile
-        // before vendoring" stub.
-        // (The real function is
-        //  const char* whisper_full_get_segment_text
-        //   (whisper_context*, int i_segment);
-        // we leave the actual call to the
-        // follow-up commit that includes
-        // whisper.h.)
-        // For the scaffold: append a placeholder
-        // so the JNI round-trip works.
-        out += "[transcript stub]\n";
+        const char* seg = whisper_full_get_segment_text(
+            state().ctx, i);
+        if (seg != nullptr) {
+            if (!out.empty()) {
+                out += "\n";
+            }
+            out += seg;
+        }
     }
     return out;
+}
+
+void init_backend_if_needed() {
+    if (state().backend_ok) return;
+    // whisper.cpp's ggml backend is initialized on
+    // first whisper_init_from_file_with_params via the
+    // ggml static init; the JNI lib-load is the
+    // canonical "library loaded" signal. [nativeReady]
+    // returns true once System.loadLibrary succeeded.
+    // The previous version returned whether a model
+    // was already loaded, which was a chicken-and-egg
+    // bug: [Whisper.transcribe] called [nativeReady]
+    // before [nativeTranscribe] and bailed out with null
+    // on a fresh process, so the model load that
+    // happens inside [nativeTranscribe] never ran. The
+    // fix: defer the model load to [nativeTranscribe],
+    // let [nativeReady] mean "the .so loaded and the
+    // backend is initialised".
+    state().backend_ok = true;
 }
 
 } // namespace
@@ -174,7 +178,20 @@ extern "C" {
 JNIEXPORT jboolean JNICALL
 Java_org_mindanchor_narrate_WhisperEngine_nativeReady(
     JNIEnv* /* env */, jobject /* this */) {
-    return state().ctx != nullptr ? JNI_TRUE : JNI_FALSE;
+    // v0.30+ (Phase 4 G-28) -- "the library loaded
+    // and the backend is healthy". [Whisper.transcribe]
+    // calls [nativeReady] before [nativeTranscribe] and
+    // uses a null return to gate the call. The previous
+    // implementation returned whether a model was
+    // already loaded, which was a chicken-and-egg bug:
+    // a fresh process never loaded a model, so
+    // [nativeReady] was always false, so the user never
+    // saw a transcription. The fix: defer the model
+    // load to [nativeTranscribe], let [nativeReady]
+    // mean "the .so loaded and the backend is
+    // initialised".
+    init_backend_if_needed();
+    return state().backend_ok ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT jbyteArray JNICALL

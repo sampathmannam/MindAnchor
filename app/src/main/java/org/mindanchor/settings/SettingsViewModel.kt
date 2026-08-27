@@ -60,6 +60,39 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val prefs = NotificationPrefs(application)
     private val sunsetPrefs = SunsetPrefs(application)
     private val frictionPrefs = org.mindanchor.data.FrictionPrefs(application)
+    private val anchorPrefs = org.mindanchor.anchorcore.AnchorPrefs(application)
+
+    // v-next (AnchorCore): the wellbeing loop's master switch + hooks.
+    // Default OFF everywhere (opt-out-by-silence); first enable flips
+    // hook defaults once (AnchorPrefs.setEnabled owns the latch).
+    val anchorEnabled = anchorPrefs.enabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    val anchorLetterFacts = anchorPrefs.letterFactsEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    val anchorFrictionHold = anchorPrefs.frictionHoldEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    val anchorSunsetProposal = anchorPrefs.sunsetProposalEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setAnchorEnabled(v: Boolean) = viewModelScope.launch { anchorPrefs.setEnabled(v) }
+    fun setAnchorLetterFacts(v: Boolean) = viewModelScope.launch { anchorPrefs.setLetterFactsEnabled(v) }
+    fun setAnchorFrictionHold(v: Boolean) = viewModelScope.launch { anchorPrefs.setFrictionHoldEnabled(v) }
+    fun setAnchorSunsetProposal(v: Boolean) = viewModelScope.launch { anchorPrefs.setSunsetProposalEnabled(v) }
+
+    // The Hook C override, so the accept is visible and revocable here.
+    private val _sunsetOverride = MutableStateFlow<Pair<java.time.LocalTime, java.time.LocalTime>?>(null)
+    val sunsetOverride: StateFlow<Pair<java.time.LocalTime, java.time.LocalTime>?> = _sunsetOverride.asStateFlow()
+
+    fun refreshSunsetOverride() {
+        viewModelScope.launch { _sunsetOverride.value = sunsetPrefs.activeWindowOverride() }
+    }
+
+    fun clearSunsetOverride() {
+        viewModelScope.launch {
+            sunsetPrefs.clearTemporaryWindow()
+            _sunsetOverride.value = null
+        }
+    }
     private val sleepRepository = SleepRepository(application)
     private val appearancePrefs = AppearancePrefs(application)
     private val onboardingPrefs = org.mindanchor.onboarding.OnboardingPrefs(application)

@@ -1,0 +1,43 @@
+version: "3.8"
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: defectdojo
+      POSTGRES_USER: defectdojo
+      POSTGRES_PASSWORD: defectdojo_pwd
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U defectdojo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  defectdojo:
+    image: defectdojo/defectdojo-django:latest
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DD_DATABASE_URL: "postgresql://defectdojo:defectdojo_pwd@db:5432/defectdojo"
+      DD_CELERY_BROKER_URL: "redis://redis:6379/0"
+      DD_SECRET_KEY: "ci-only-do-not-use-in-prod"
+      DD_ALLOWED_HOSTS: "localhost,defectdojo,127.0.0.1"
+      DD_DEBUG: "False"
+    ports:
+      - "8000:8081"
+
+volumes:
+  pgdata:

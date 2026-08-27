@@ -354,3 +354,85 @@ The `b1605b5`, `80864a8`, `fff7c5f`, and `df56bc2`
 commits are from the user's separate LLM task; they
 are the LLM multi-provider picker (Groq / Google AI
 Studio / OpenRouter) and the merge of PR #38.
+
+## AnchorCore wellbeing loop (v0.70 OS Mode → v1.0)
+
+The handoff release `anchorcore-plan-v2` on
+`feature/g28-whisper-vendor` carried the design spec,
+the implementation plan, and Task 1. The remaining
+9 tasks landed as a clean linear sequence — no
+escalations to Fable 5 needed; the plan was
+synthetic-number-verified and every §0.5 symbol
+matched the branch at every TDD step.
+
+### Landed commits (newest first)
+- `593f30c` feat(settings): AnchorCore master + per-hook toggles, override revoke, wording gate
+- `72a6599` feat(prehome): open-loop handback + one-sentence sleep fact
+- `8587822` feat(launcher): one-card sunset proposal on flagged weeks (Hook C)
+- `0193f86` feat(llm): letter prompt gains optional week-facts block (Hook A)
+- `779b883` feat(anchorcore): prefs + SRI week ledger + context-facing source with live hysteresis
+- `8882e00` feat(friction): tone ladder holds FULL longer on flagged weeks (Hook B, pure)
+- `1b3b956` feat(anchorcore): fact computation from onsets + vitals + SRI trend
+- `a8a974d` feat(anchorcore): AnchorState warm-up gate + week-flag hysteresis
+
+### Components shipped
+- `org.mindanchor.anchorcore` package: `DayFact`,
+  `AnchorState` (+ `WeekPicture`), `AnchorCore`,
+  `SriWeekLedger`, `AnchorPrefs`, `AnchorCoreSource`,
+  `LetterFactsSection`, `SunsetProposal`.
+- Hook A — `LetterContext.build` accepts an optional
+  `factsSection` spliced after the template's
+  `trimIndent`; empty input keeps the prompt byte-
+  identical (`LetterPromptShapeTest` 8/8 green).
+- Hook B — `FrictionContext.toneFor` widens to a
+  defaulted `weekFlagged` param; the gate and the
+  bandit path read the flag from `AnchorPrefs` and
+  stand down on a flagged week so the ceremony holds
+  its weight (`FrictionToneTest` 6/6 + `FrictionToneHoldTest` 3/3).
+- Hook C — one quiet sunset-override card on the
+  home surface, gated by a pure `SunsetProposal.decide`
+  function; the 7-day override is a separate DataStore
+  key set that leaves the base window + customised
+  flag untouched. Revocable in Settings → Measuring
+  via the new override row.
+- PreHome — open-loop handback in `RETURN` phase and
+  one sentence of sleep fact (45+ min past usual),
+  pure decisions in `MorningHandback`; the activity
+  owns the DataStore work.
+- Settings → Measuring — master + 3 per-hook toggles
+  + override-revoke row. `AnchorWordingTest` pins the
+  no-verdict-words rule.
+
+### Deliberate non-goals (recorded so the next reader
+does not redo them)
+- Digest retiming or pulse rescheduling (measurement
+  cadence must stay fixed to stay honest).
+- Mood inference, sentiment analysis, any cross-
+  person model.
+- Notifications about deviations (the loop is
+  silent; surfaces speak only when opened).
+- New sensors, new permissions, IME (deliberate
+  v-next).
+- Auto-applying any override (autonomy law holds).
+
+### Cold-start notes
+- `SriWeekLedger`: `SLEEP_IRREGULAR` is silent for the
+  first week and after long gaps; the prior slot is
+  null or stale. By design — a fact needs a real
+  "vs the prior week" comparison to fire.
+- `AnchorState.WarmingUp(observedDays)` returns while
+  fewer than 7 days of usable history exist; every
+  hook does nothing differently during warm-up. No
+  baseline hallucination.
+- `AnchorPrefs.setEnabled(true)` flips the three hook
+  defaults on exactly once (the latch). Hand-set
+  per-hook values are never overwritten.
+- `setEnabled(false)` keeps the per-hook values as
+  the user left them, so re-enabling restores the
+  previous shape, not a fresh opt-in.
+
+### Verification
+- `testDebugUnitTest`: 1342/1342 (was 1297 at
+  handoff; +45 new tests across 9 tasks).
+- `detekt`: clean.
+- `lintDebug`: clean.

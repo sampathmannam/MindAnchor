@@ -18,6 +18,11 @@ import org.mindanchor.data.NotesPrefs
 import org.mindanchor.friction.FrictionBandit
 import org.mindanchor.friction.CompassionateWrapNotifier
 import org.mindanchor.friction.GateContext
+import org.mindanchor.anchorcore.AnchorCoreSource
+import org.mindanchor.anchorcore.AnchorPrefs
+import org.mindanchor.anchorcore.AnchorState
+import org.mindanchor.anchorcore.LetterFactsSection
+import org.mindanchor.anchorcore.SunsetProposal
 import org.mindanchor.data.SunsetPrefs
 import org.mindanchor.friction.LoopPhase
 import org.mindanchor.friction.OpenLoop
@@ -67,6 +72,18 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val prefs = LauncherPrefs(application)
     private val sunsetPrefs = SunsetPrefs(application)
     private val frictionPrefs = FrictionPrefs(application)
+    private val anchorPrefs = AnchorPrefs(application)
+    private val anchorCoreSource = AnchorCoreSource(application)
+
+    // Recompute-on-demand (spec): Home composition triggers refresh; no timer.
+    private val _anchorCoreState =
+        MutableStateFlow<AnchorState>(AnchorState.WarmingUp(0))
+
+    fun refreshAnchorState() {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching { anchorCoreSource.state() }.onSuccess { _anchorCoreState.value = it }
+        }
+    }
     private val reportStore = org.mindanchor.report.ReportStore(application)
     private val wellnessRepository = org.mindanchor.vitals.WellnessRepository(application)
     private val readerPrefs = ReaderPrefs(application)
@@ -598,6 +615,15 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         checkInPrefs = CheckInPrefs(application),
         letterStore = LetterStore(application),
         letterLog = LetterGenerationLog(application),
+        weekFacts = {
+            val anchorPrefs = AnchorPrefs(getApplication())
+            if (anchorPrefs.isEnabled() && anchorPrefs.letterFactsEnabled.first()) {
+                runCatching { AnchorCoreSource(getApplication()).state() }.getOrNull()
+                    ?.let { LetterFactsSection.compose(it) }
+            } else {
+                null
+            }
+        },
     )
 
     /**
@@ -847,5 +873,45 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             frictionPrefs.dismissGoingLightConsent()
         }
+    }
+
+    // AnchorCore Hook C — the one quiet sunset-override card. Combines the
+    // master + per-hook toggles, the freshly-computed AnchorState, and the
+    // suppression timestamp; one StateFlow recomputed by the pure decision
+    // function (tested in SunsetProposalTest).
+    val sunsetProposalCard: StateFlow<SunsetProposal.Decision> = combine(
+        anchorPrefs.enabled,
+        anchorPrefs.sunsetProposalEnabled,
+        _anchorCoreState,
+        anchorPrefs.suppressedUntilFlow(),
+    ) { master, hookOn, state, suppressed ->
+        SunsetProposal.decide(
+            enabled = master && hookOn,
+            state = state,
+            suppressedUntil = suppressed,
+            nowMillis = System.currentTimeMillis(),
+        )
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        SunsetProposal.HIDDEN,
+    )
+
+    /** Hook C accept: a 7-day temporary wind-down override 30 min earlier. */
+    fun acceptSunsetProposal() {
+        viewModelScope.launch {
+            val (start, end) = sunsetPrefs.window()
+            sunsetPrefs.setTemporaryWindow(
+                start.minusMinutes(SunsetProposal.EARLIER_BY_MINUTES),
+                end,
+                java.time.LocalDate.now().plusDays(SunsetProposal.OVERRIDE_DAYS),
+            )
+            refreshAnchorState()
+        }
+    }
+
+    /** Hook C dismiss: suppress the card for 14 days. */
+    fun dismissSunsetProposal() {
+        viewModelScope.launch { anchorPrefs.recordProposalDismissed() }
     }
 }
