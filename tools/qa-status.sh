@@ -32,9 +32,10 @@ DD_ENG_ID="${DD_ENG_ID:-1}"
 SEMGREP_RULES="${SEMGREP_RULES:-p/security-audit p/secrets p/kotlin}"
 TESTSUITE_GLOB="${TESTSUITE_GLOB:-app/src/test/java}"
 GRADLE_TASK="${GRADLE_TASK:-testDebugUnitTest}"
+KOVER_REPORT="${KOVER_REPORT:-app/build/reports/kover}"
 
 # 1. JVM unit tests
-log "step 1/5: gradle $GRADLE_TASK"
+log "step 1/6: gradle $GRADLE_TASK"
 JAVA_HOME="$JAVA_HOME" ANDROID_HOME="${ANDROID_HOME:-/Users/sujithsampath/Library/Android/sdk}" \
   ./gradlew ":app:$GRADLE_TASK" >/tmp/ma-qa-test.log 2>&1 \
   || fail "test run failed (see /tmp/ma-qa-test.log)"
@@ -43,14 +44,37 @@ test_count=$(find app/build/test-results -name 'TEST-*.xml' \
 ok "  tests run: $test_count"
 
 # 2. Allure HTML
-log "step 2/5: allure generate → $ALLURE_OUT"
+log "step 2/6: allure generate → $ALLURE_OUT"
 allure generate --clean app/build/test-results/testDebugUnitTest \
   --output "$ALLURE_OUT" >/tmp/ma-qa-allure.log 2>&1 \
   || fail "allure generate failed (see /tmp/ma-qa-allure.log)"
 ok "  Allure report: file://$ALLURE_OUT/index.html"
 
-# 3. Semgrep via Docker
-log "step 3/5: semgrep scan (rules: $SEMGREP_RULES)"
+# 3. Coverage (Kover)
+log "step 3/6: kover coverage"
+JAVA_HOME="$JAVA_HOME" ANDROID_HOME="${ANDROID_HOME:-/Users/sujithsampath/Library/Android/sdk}" \
+  ./gradlew :app:koverXmlReportDebug :app:koverHtmlReportDebug \
+  >/tmp/ma-qa-kover.log 2>&1 || warn "kover failed (see /tmp/ma-qa-kover.log)"
+if [ -s "$KOVER_REPORT/reportDebug.xml" ]; then
+  instr_count=$(python3 -c "
+import xml.etree.ElementTree as ET
+root = ET.parse('$KOVER_REPORT/reportDebug.xml').getroot()
+seen = set(); total_c = total_m = 0
+for c in root.findall('.//counter'):
+    t = c.get('type')
+    if t == 'INSTRUCTION' and t not in seen:
+        seen.add(t)
+        total_c += int(c.get('covered', 0))
+        total_m += int(c.get('missed', 0))
+print(f'{total_c}+{total_m}={total_c + total_m}')
+" 2>/dev/null || echo "?+?=?")
+  ok "  coverage: $instr_count instructions  file://$KOVER_REPORT/htmlDebug/index.html"
+else
+  warn "kover report not generated"
+fi
+
+# 4. Semgrep via Docker
+log "step 4/6: semgrep scan (rules: $SEMGREP_RULES)"
 if ! command -v docker >/dev/null; then warn "docker missing; skipping semgrep"; else
   docker run --rm -v "$PWD:/src" returntocorp/semgrep:latest \
     semgrep --config="$SEMGREP_RULES" --json --metrics=off /src \
@@ -62,8 +86,8 @@ if ! command -v docker >/dev/null; then warn "docker missing; skipping semgrep";
   ok "  semgrep findings: $finding_count"
 fi
 
-# 4. Re-upload Semgrep → DefectDojo
-log "step 4/5: upload Semgrep findings to DefectDojo"
+# 5. Re-upload Semgrep → DefectDojo
+log "step 5/6: upload Semgrep findings to DefectDojo"
 if ! command -v curl >/dev/null; then warn "curl missing; skipping upload"; elif [ ! -s /tmp/ma-qa-semgrep.json ]; then
   warn "no semgrep results to upload"
 else
@@ -79,13 +103,14 @@ else
   fi
 fi
 
-# 5. Status summary
-log "step 5/5: summary"
+# 6. Status summary
+log "step 6/6: summary"
 printf "
   Tests       %s
   Allure      %s
+  Coverage    file://%s/htmlDebug/index.html
   DefectDojo  %s
   Semgrep     /tmp/ma-qa-semgrep.json
   Logs        /tmp/ma-qa-*.log
-" "$test_count" "$ALLURE_URL" "$DD_URL"
+" "$test_count" "$ALLURE_URL" "$KOVER_REPORT" "$DD_URL"
 ok "done"

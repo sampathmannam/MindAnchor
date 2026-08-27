@@ -1,6 +1,7 @@
 [versions]
 agp = "8.9.1"
 kotlin = "2.0.21"
+kover = "0.9.1"
 composeBom = "2024.12.01"
 activityCompose = "1.9.3"
 coreKtx = "1.15.0"
@@ -104,3 +105,4 @@ kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", versi
 # config/detekt/detekt.yml; the baseline is at
 # config/detekt/baseline.xml. See docs/research/17.
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
+kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }

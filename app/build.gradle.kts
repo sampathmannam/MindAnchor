@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.ksp)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.kover)
 }
 
 android {
@@ -332,4 +333,18 @@ dependencies {
     androidTestImplementation(libs.androidx.room.testing)
     androidTestImplementation(libs.compose.ui.test.junit4)
     debugImplementation(libs.compose.ui.test.manifest)
+}
+
+// TestGuild #82 (Kover / coverage slot) — the missing
+// test-management pillar. The kover Gradle plugin is
+// applied here. The defaults run against the existing
+// src/test/java tree and produce:
+//   app/build/reports/kover/htmlDebug/index.html
+//   app/build/reports/kover/reportDebug.xml
+// which CI dashboards ingest. To also cover the main
+// source set (production code paths), extend `kover { sources { ... } }`
+// in Kover ≥ 0.8; the Kover 0.9 DSL shape is documented at
+// https://kotlin.github.io/kotlinx-kover/gradle-plugin/.
+dependencies {
+    kover(project(":app"))
 }
