@@ -114,3 +114,19 @@ printf "
   Logs        /tmp/ma-qa-*.log
 " "$test_count" "$ALLURE_URL" "$KOVER_REPORT" "$DD_URL"
 ok "done"
+
+# Bonus: also ship the JUnit XML results to DefectDojo as
+# a Semgrep-format shim (DefectDojo 3.2 dropped its built-in
+# JUnit test-import parser; see docs/qa/defectdojo-junit-import-regression.md).
+# Skipped silently if the test result dir isn't on disk or
+# DefectDojo is unreachable.
+if [ -d app/build/test-results/testDebugUnitTest ] && curl -s -m 3 -o /dev/null -w "" "$DD_URL/api/v2/" 2>/dev/null; then
+  log "bonus: ship 1346-test JUnit summary to DefectDojo"
+  python3 tools/junit_to_defectdojo.py \
+    app/build/test-results/testDebugUnitTest /tmp/ma-junit-dd.json 2>/dev/null \
+  && curl -s -u "$DD_USER:$DD_PASS" -X POST "$DD_URL/api/v2/import-scan/" \
+    -F "file=@/tmp/ma-junit-dd.json" \
+    -F "scan_type=Semgrep JSON Report" \
+    -F "engagement=$DD_ENG_ID" 2>/dev/null \
+  && ok "  DefectDojo upload: $DD_URL/api/v2/findings/?engagement=$DD_ENG_ID"
+fi
