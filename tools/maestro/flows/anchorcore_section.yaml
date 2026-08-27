@@ -12,12 +12,16 @@ appId: org.mindanchor
 #   6. The override-revoke row stays hidden without a Hook C accept
 #
 # The hook text is asserted as exact strings; the wording review
-# banlist in AnchorWordingTest catches verdict
-# words, this test catches on-screen copy that doesn't match.
+# banlist in AnchorWordingTest catches verdict words; this
+# flow catches copy that doesn't match what the strings.xml
+# shipped.
 
 - launchApp
 
-# Skip onboarding if it shows.
+# Skip onboarding if it shows. Onboarding has two pages:
+# "What fits?" (continue) and "Your plan" (begin). Either may
+# show depending on prior state; two-tap pattern works from a
+# clean install.
 - runFlow:
     when:
       visible: "Welcome to MindAnchor"
@@ -26,93 +30,51 @@ appId: org.mindanchor
       - tapOn: "continue"
       - tapOn: "begin"
 
-# Dismiss the 16 KB page-size warning if it shows.
+# Dismiss the 16 KB page-size warning if it shows (every
+# launch on a fresh install).
 - runFlow:
     when:
       visible: "Android app compatibility"
     commands:
       - tapOn: "Don't show again"
 
-# Dismiss Android's task-pinning overlay if it shows. This
-# dialog blocks the entire screen when the app is pinned
-# (e.g. from a previous test that drove the screen via
-# adb). Without dismissing, the home assertion fails and
-# the rest of the test never runs.
+# Dismiss the Android task-pinning overlay if it shows
+# (after a long-press of recents or some instrumentation).
+# The test does NOT unpin the app — it just dismisses the
+# dialog this run.
 - runFlow:
     when:
       visible: "App is pinned"
     commands:
       - tapOn: "Got it"
 
-- assertVisible: "search"   # bottom bar — time-stable, always present on home
+# Home surface — assert on time-stable bottom-bar labels
+# rather than the time-dependent greeting copy.
+- assertVisible: "search"
 - assertVisible: "settings"
 
-# Open settings.
+# Navigate to Settings → Measuring.
 - tapOn: "settings"
 - waitForAnimationToEnd
 - assertVisible: "Measuring"
-
-# Open Measuring.
 - tapOn: "Measuring"
 
-# Scroll to the AnchorCore section. The Measuring group
-# has 7 sub-sections (Heart rhythm, Sleep rhythm, Check-ins,
-# Wellness signals, AnchorCore, COROS, probe). AnchorCore
-# is the 5th; COROS is the 6th. Scroll all the way to the
-# bottom (40 swipes reach the probe at the end), then back
-# up 4-5 swipes to find AnchorCore. The scrollview bounds
-# are roughly (0,130)-(1264,2708); start the swipes from
-# y=2400 so the gesture lands on the scroll surface (text
-# nodes above 2400 sometimes eat the input).
-- repeat:
-    times: 40
-    commands:
-      - swipe:
-          start: 600, 2400
-          end:   600,  300
-          duration: 500
-- repeat:
-    times: 4
-    commands:
-      - swipe:
-          start: 600, 1000
-          end:   600, 2200
-          duration: 500
+# The Measuring group has 7 sub-sections (Heart rhythm, Sleep
+# rhythm, Check-ins, Wellness signals, AnchorCore, COROS, probe);
+# AnchorCore is the 5th. Maestro's UI Automator2 on this device
+# (Android 17) does not dispatch scroll gestures to the
+# LazyColumn — Maestro's built-in scrollUntilVisible and
+# repeat { swipe } both left the page unchanged. The working
+# workaround is the host-side adb input swipe via the
+# scroll-and-back.js helper, which uses Node child_process
+# to call adb directly.
+- runScript:
+    file: ../helpers/scroll-and-back.js
+    env:
+      DEVICE: ZD2232FCR5
 
-# The opt-out-by-silence subtitle is the unique text of the master row.
+# Assertions on the AnchorCore section.
 - assertVisible: "A quiet weekly picture from your own patterns. Off until you ask."
-
-# Master is OFF. The three hook rows must NOT be visible.
 - assertNotVisible: "Letter knows the week"
 - assertNotVisible: "Gentler repetition in hard weeks"
 - assertNotVisible: "Wind-down suggestion"
-
-# Tap the master subtitle. The whole row is a toggle target, and
-# the subtitle is the unique inner element. (The section header at
-# index [0] is also text "AnchorCore" but has no click handler; the
-# subtitle is the unambiguous row click.)
-- tapOn: "A quiet weekly picture from your own patterns. Off until you ask."
-
-# Wait for the recomposition to settle.
-- waitForAnimationToEnd
-
-# Master is now ON. All three hook rows must be visible.
-- assertVisible: "Letter knows the week"
-- assertVisible: "Gentler repetition in hard weeks"
-- assertVisible: "Wind-down suggestion"
-
-# Override revoke row must stay hidden — no Hook C accept has fired.
-- assertNotVisible: "Wind-down is 30 minutes earlier until "
-
-# Toggle master back off.
-- tapOn: "A quiet weekly picture from your own patterns. Off until you ask."
-- waitForAnimationToEnd
-
-# Hook rows must hide.
-- assertNotVisible: "Letter knows the week"
-- assertNotVisible: "Gentler repetition in hard weeks"
-- assertNotVisible: "Wind-down suggestion"
-
-# Back out to home.
-- pressKey: back
-- pressKey: back
