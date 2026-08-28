@@ -1,7 +1,13 @@
 package org.mindanchor.llm
 
 import androidx.test.core.app.ApplicationProvider
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -126,5 +132,28 @@ class LlmPrefsTest {
     fun `setApiKey trims leading and trailing whitespace`() = runBlocking {
         prefs.setApiKey("  sk-abc-12345  ")
         assertEquals("sk-abc-12345", prefs.apiKey.first())
+    }
+
+    // v0.70+ (bug fix) — the Settings screen and its
+    // ViewModel never call apiKey.first() on every
+    // read; they collect it once into a StateFlow via
+    // stateIn() and read .value from then on, exactly
+    // like LlmSettingsViewModel does. The tests above
+    // all call .first() fresh after every write, which
+    // masked the real bug: the old `flow { emit(...) }`
+    // implementation only ever read the encrypted store
+    // once per collection and then completed, so a
+    // collector that started *before* a write never saw
+    // it — the API key field looked like it kept
+    // reverting to blank, and Test Connection kept using
+    // a stale value.
+    @Test
+    fun `a collector started before the write still sees the new key`() = runBlocking {
+        val scope = CoroutineScope(Job())
+        val state = prefs.apiKey.stateIn(scope, SharingStarted.Eagerly, "")
+        prefs.setApiKey("fresh-key")
+        delay(50)
+        assertEquals("fresh-key", state.value)
+        scope.cancel()
     }
 }

@@ -257,8 +257,34 @@ android {
         // whose opacity is the exact complement of the stars' (same
         // dawn/dusk windows), so the two are never both on screen.
         // versionCode 107→108.
-        versionCode = 108
-        versionName = "0.70.14"
+        // v0.70.15: fixed the LLM API key never sticking in
+        // Settings → Daily letter (LLM). LlmPrefs.apiKey was
+        // `flow { emit(keyStore.read()) }` — a cold flow that reads
+        // the encrypted key once per collection and then completes.
+        // LlmSettingsViewModel turns it into a StateFlow via
+        // stateIn(), which collects it exactly once and then just
+        // reads .value forever after; setApiKey() writes the new
+        // key straight to the encrypted store but never touched
+        // that already-completed flow, so the field looked like it
+        // kept losing whatever was typed, and Test Connection kept
+        // testing a stale (often blank) key. Existing unit tests
+        // never caught it because they all call apiKey.first() —
+        // a fresh collection every time — instead of going through
+        // stateIn() the way the real screen does.
+        //
+        // Fixed with a reactive cache that setApiKey() updates in
+        // place. It has to be shared across every LlmPrefs instance
+        // (not per-instance) because LauncherViewModel and
+        // LlmSettingsViewModel each construct their own against the
+        // same encrypted file — an instance-level cache would leave
+        // the letter writer holding a stale key after the user
+        // updates it in Settings, the same bug in a different shape.
+        // Added a regression test that collects apiKey into a
+        // stateIn() StateFlow before writing, the exact pattern the
+        // old code silently failed.
+        // versionCode 108→109.
+        versionCode = 109
+        versionName = "0.70.15"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every

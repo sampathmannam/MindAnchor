@@ -10,6 +10,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 
 private val Context.letterLlmDataStore by preferencesDataStore(name = "letter_llm")
@@ -73,16 +74,45 @@ class LlmPrefs(private val context: Context) {
     }
 
     /**
-     * The API key is read from the encrypted
-     * blob. The flow shape is preserved so the
-     * call sites do not change; the body is just
-     * synchronous underneath (the encrypted file
-     * is small — a few hundred bytes — and reading
-     * it is microseconds).
+     * v0.70+ (bug fix): this used to be
+     * `flow { emit(keyStore.read()) }` — a cold
+     * flow that reads the encrypted blob once and
+     * then completes. [setApiKey] writes straight
+     * to the blob and never touched that flow, so
+     * once something collected it the *first* time,
+     * it never saw another value: typing a key,
+     * saving, and reopening Settings (or just
+     * re-collecting after a `WhileSubscribed`
+     * timeout) always looked like the key had
+     * reverted to blank, and "Test connection" kept
+     * testing whatever was loaded at collection time
+     * rather than what the user just typed.
+     *
+     * The cache lives on the companion object, not
+     * the instance: both [org.mindanchor.settings
+     * .LlmSettingsViewModel] and
+     * [org.mindanchor.launcher.LauncherViewModel]
+     * construct their own [LlmPrefs] against the
+     * same encrypted file, and both need to see a
+     * key saved through the other one — an
+     * instance-level cache would leave the letter
+     * writer holding a stale key after the user
+     * updates it in Settings, which is the same bug
+     * in a different shape. Seeded lazily (double-
+     * checked, thread-safe) from the encrypted blob
+     * by whichever [LlmPrefs] instance asks for the
+     * key first, so nothing spins up the Keystore
+     * until something actually needs it.
      */
-    val apiKey: Flow<String> = kotlinx.coroutines.flow.flow {
-        emit(keyStore.read())
+    private fun sharedApiKey(): MutableStateFlow<String> {
+        sharedApiKeyState?.let { return it }
+        synchronized(apiKeyLock) {
+            sharedApiKeyState?.let { return it }
+            return MutableStateFlow(keyStore.read()).also { sharedApiKeyState = it }
+        }
     }
+
+    val apiKey: Flow<String> get() = sharedApiKey()
 
     val model: Flow<String> = context.letterLlmDataStore.data.map { prefs ->
         prefs[modelKey] ?: LlmProvider.GOOGLE_AI_STUDIO.defaultModel
@@ -121,6 +151,7 @@ class LlmPrefs(private val context: Context) {
     suspend fun setApiKey(key: String) {
         val cleaned = key.trim().take(MAX_KEY_LEN).filterNot { it.isISOControl() }
         keyStore.write(cleaned)
+        sharedApiKey().value = cleaned
     }
 
     suspend fun setModel(model: String) {
@@ -137,6 +168,7 @@ class LlmPrefs(private val context: Context) {
 
     internal suspend fun reset() {
         keyStore.clear()
+        sharedApiKey().value = ""
         context.letterLlmDataStore.edit { it.clear() }
     }
 
@@ -149,6 +181,12 @@ class LlmPrefs(private val context: Context) {
          * plus any future provider.
          */
         const val MAX_KEY_LEN = 256
+
+        /** Guards the double-checked lazy init of [sharedApiKeyState]. */
+        private val apiKeyLock = Any()
+
+        @Volatile
+        private var sharedApiKeyState: MutableStateFlow<String>? = null
     }
 }
 
