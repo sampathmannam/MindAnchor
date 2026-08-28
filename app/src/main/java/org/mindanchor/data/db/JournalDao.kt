@@ -21,6 +21,11 @@ interface JournalDao {
     @Query("SELECT * FROM journal_entries WHERE id = :id LIMIT 1")
     suspend fun entry(id: String): JournalEntryEntity?
 
+    // Program 0 must never physically delete Journal content: this
+    // tombstones the entry (deletedAt set) rather than removing the row.
+    @Query("UPDATE journal_entries SET deletedAt = :deletedAt, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun tombstone(id: String, deletedAt: Long, updatedAt: Long)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertContext(rows: List<JournalContextEntity>)
 
