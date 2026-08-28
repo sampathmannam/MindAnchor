@@ -1643,11 +1643,21 @@ private fun HomeSurface(
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding(),
         ) {
-            Text(
-                text = stringResource(R.string.open_drawer),
-                style = MaterialTheme.typography.labelMedium,
-                color = sky.textSecondary,
-            )
+            // v0.70.x (UI audit): an invisible second line, the
+            // same style as the Digest button's subtitle, so this
+            // button's bottom edge sits as low as Digest's does —
+            // otherwise this label's baseline sits visibly lower
+            // than Digest's title, since Digest is a two-line
+            // Column and this bottom-aligned row would otherwise
+            // hug its own single line to the bottom.
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = stringResource(R.string.open_drawer),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = sky.textSecondary,
+                )
+                Text(text = "", style = MaterialTheme.typography.labelSmall)
+            }
         }
 
         TextButton(
@@ -1663,11 +1673,16 @@ private fun HomeSurface(
                 // pixel.
                 .padding(end = 8.dp),
         ) {
-            Text(
-                text = stringResource(R.string.settings),
-                style = MaterialTheme.typography.labelMedium,
-                color = sky.textSecondary,
-            )
+            // See the open_drawer button above — same
+            // invisible-second-line baseline fix.
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = stringResource(R.string.settings),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = sky.textSecondary,
+                )
+                Text(text = "", style = MaterialTheme.typography.labelSmall)
+            }
         }
 
         val context = LocalContext.current

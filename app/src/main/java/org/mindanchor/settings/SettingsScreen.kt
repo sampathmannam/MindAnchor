@@ -28,9 +28,11 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -243,10 +245,21 @@ private fun TimeNudgerRow(
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.weight(1f),
         )
-        TextButton(onClick = onEarlier) {
+        // v0.70.x (UI audit): outlined, not text-only — a bare
+        // TextButton reads as a label rather than a control, and
+        // this one is meant to be tapped repeatedly to nudge a
+        // time. The tightened content padding keeps both buttons
+        // fitting comfortably next to a long label.
+        OutlinedButton(
+            onClick = onEarlier,
+            contentPadding = ButtonDefaults.TextButtonContentPadding,
+        ) {
             Text(stringResource(R.string.time_earlier))
         }
-        TextButton(onClick = onLater) {
+        OutlinedButton(
+            onClick = onLater,
+            contentPadding = ButtonDefaults.TextButtonContentPadding,
+        ) {
             Text(stringResource(R.string.time_later))
         }
     }
@@ -436,8 +449,7 @@ private fun ChronotypeRadioRow(
                 selected = selected == chronotype,
                 role = Role.RadioButton,
                 onClick = { onChange(chronotype) },
-            )
-            .padding(vertical = 4.dp),
+            ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         RadioButton(selected = selected == chronotype, onClick = null)
@@ -876,11 +888,7 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
             )
-            Text(
-                text = stringResource(R.string.small_things_explainer),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            WhyExplainer(stringResource(R.string.small_things_explainer))
             val smallThings by viewModel.smallThings.collectAsState()
             smallThings.forEach { thing ->
                 Row(
@@ -935,11 +943,7 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
             )
-            Text(
-                text = stringResource(R.string.compassion_explainer),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            WhyExplainer(stringResource(R.string.compassion_explainer))
             val compassionMoments by viewModel.compassionMoments.collectAsState()
             compassionMoments.forEach { moment ->
                 Row(
@@ -1222,6 +1226,12 @@ fun SettingsScreen(
                 // onClick there were two tap targets per line and the
                 // inner one had no words — a screen reader landed on an
                 // unnamed radio button between every named row.
+                // v0.70.x (UI audit): dropped the extra vertical
+                // padding this Row used to add on top of its own
+                // heightIn(min = 48.dp) — the 48dp floor already
+                // guarantees the accessible touch target, so the
+                // padding was only adding cosmetic air, making a
+                // short 5-item list read as longer than it is.
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1229,8 +1239,7 @@ fun SettingsScreen(
                         .selectable(
                             selected = natureScene == scene,
                             role = Role.RadioButton,
-                        ) { viewModel.setNatureScene(scene) }
-                        .padding(vertical = 4.dp),
+                        ) { viewModel.setNatureScene(scene) },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     RadioButton(selected = natureScene == scene, onClick = null)
@@ -2753,8 +2762,7 @@ fun SettingsScreen(
                             .selectable(
                                 selected = corosRegionDraft == regionCode,
                                 role = Role.RadioButton,
-                            ) { corosRegionDraft = regionCode }
-                            .padding(vertical = 4.dp),
+                            ) { corosRegionDraft = regionCode },
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         RadioButton(
