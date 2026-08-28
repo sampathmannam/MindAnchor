@@ -15,6 +15,12 @@ interface JournalDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertEntries(entries: List<JournalEntryEntity>)
 
+    // Used by the Task 4 legacy importer, which derives a deterministic id
+    // per legacy entry: re-running the import must never overwrite or
+    // duplicate a row, so conflicts are ignored rather than replaced.
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertEntriesIgnoreDuplicates(entries: List<JournalEntryEntity>)
+
     @Query("SELECT * FROM journal_entries WHERE deletedAt IS NULL ORDER BY createdAt DESC")
     fun entries(): Flow<List<JournalEntryEntity>>
 

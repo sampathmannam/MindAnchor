@@ -92,6 +92,34 @@ class JournalStore(private val context: Context) {
     }
 
     /**
+     * Every entry ever saved to this store, regardless of age — unlike
+     * [entries], which only probes the latest 365 days for the launcher's
+     * recent-entries view. This is a one-shot read: it exists for the Task
+     * 4 legacy importer, which consumes the whole store exactly once.
+     *
+     * Keys are `<kind-tag>:<ISO-date>`; the split is on the *last* colon,
+     * since tags like `dear-man`/`expressive-writing` contain hyphens but
+     * no colons. A key that doesn't match a known tag, or whose date half
+     * doesn't parse, is skipped rather than thrown — the DataStore is a
+     * flat string map and could in principle hold something unrelated.
+     * Results are sorted by date, then kind.
+     */
+    suspend fun allEntries(): List<Entry> {
+        val prefs = context.journalDataStore.data.first()
+        return prefs.asMap().mapNotNull { (prefKey, rawValue) ->
+            val key = prefKey.name
+            val separator = key.lastIndexOf(':')
+            if (separator <= 0) return@mapNotNull null
+            val tag = key.substring(0, separator)
+            val dateText = key.substring(separator + 1)
+            val kind = Kind.entries.find { it.tag == tag } ?: return@mapNotNull null
+            val date = runCatching { LocalDate.parse(dateText) }.getOrNull() ?: return@mapNotNull null
+            val body = rawValue as? String ?: return@mapNotNull null
+            Entry(kind = kind, date = date, body = body)
+        }.sortedWith(compareBy({ it.date }, { it.kind }))
+    }
+
+    /**
      * The body for a specific (kind, date), or null when
      * nothing was saved on that date.
      */
