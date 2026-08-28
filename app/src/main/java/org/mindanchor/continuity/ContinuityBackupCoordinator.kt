@@ -49,6 +49,31 @@ sealed class CheckpointResult {
 }
 
 /**
+ * The outcome of [ContinuityBackupCoordinator.putAndVerifyBytes] — the
+ * upload-transport half of [ContinuityBackupCoordinator.runCheckpoint]'s
+ * steps 5-7 (put -> get -> byte-compare), reused on its own so
+ * [NightlySnapshotWorker] can re-prove its `LATEST` refresh PUT without
+ * repeating the decode/decrypt/content-hash checks a prior [runCheckpoint]
+ * call already proved for the same bytes.
+ */
+sealed class PutAndVerifyResult {
+    /** Uploaded, downloaded back, and verified byte-exact. */
+    data object Verified : PutAndVerifyResult()
+
+    /** The stored Drive access token is gone/expired. */
+    data object AuthExpired : PutAndVerifyResult()
+
+    /** A transient remote failure (network error, 429, 5xx). Caller may retry. */
+    data class Retryable(val errorCode: ContinuityErrorCode) : PutAndVerifyResult()
+
+    /** A non-transient remote failure. Retrying will not help. */
+    data class PermanentFailure(val errorCode: ContinuityErrorCode) : PutAndVerifyResult()
+
+    /** The upload round-tripped, but the downloaded bytes did not match byte-for-byte. */
+    data class VerificationFailed(val errorCode: ContinuityErrorCode) : PutAndVerifyResult()
+}
+
+/**
  * The Task 10 "capture → encrypt → upload → download-and-verify → acknowledge"
  * algorithm, factored out of [CheckpointBackupWorker] so it is testable as
  * plain JVM logic (see [ContinuityBackupCoordinatorTest]) — no
@@ -178,5 +203,61 @@ class ContinuityBackupCoordinator(
             contentSha256 = snapshot.contentSha256,
             envelopeBytes = envelopeBytes,
         )
+    }
+
+    /**
+     * Uploads [bytes] to [fileName], then immediately downloads it back and
+     * compares byte-for-byte — the same "upload success alone is never
+     * enough" check [runCheckpoint] performs in its steps 5-7, on its own
+     * so a caller that already holds bytes proven correct by a prior
+     * [runCheckpoint] call (decode/decrypt/content-hash included) can
+     * re-prove just the transport step for a genuinely separate PUT to a
+     * different file name, without repeating checks that would only ever
+     * re-confirm what is already known.
+     *
+     * Calls [recordError] on any failure, with the same [ContinuityErrorCode]
+     * [runCheckpoint] would record for the equivalent step. Never calls
+     * [recordVerified] — recording *this specific* PUT as a verified
+     * nightly/checkpoint state is the caller's call, not this function's.
+     */
+    suspend fun putAndVerifyBytes(fileName: String, bytes: ByteArray): PutAndVerifyResult {
+        when (val putResult = remoteBackupStore.put(fileName, bytes)) {
+            is RemoteResult.AuthExpired -> {
+                recordError(ContinuityErrorCode.AUTH)
+                return PutAndVerifyResult.AuthExpired
+            }
+            is RemoteResult.Retryable -> {
+                recordError(ContinuityErrorCode.NETWORK)
+                return PutAndVerifyResult.Retryable(ContinuityErrorCode.NETWORK)
+            }
+            is RemoteResult.Permanent -> {
+                recordError(ContinuityErrorCode.NETWORK)
+                return PutAndVerifyResult.PermanentFailure(ContinuityErrorCode.NETWORK)
+            }
+            is RemoteResult.Ok -> Unit
+        }
+
+        val downloaded = when (val getResult = remoteBackupStore.get(fileName)) {
+            is RemoteResult.AuthExpired -> {
+                recordError(ContinuityErrorCode.AUTH)
+                return PutAndVerifyResult.AuthExpired
+            }
+            is RemoteResult.Retryable -> {
+                recordError(ContinuityErrorCode.NETWORK)
+                return PutAndVerifyResult.Retryable(ContinuityErrorCode.NETWORK)
+            }
+            is RemoteResult.Permanent -> {
+                recordError(ContinuityErrorCode.NETWORK)
+                return PutAndVerifyResult.PermanentFailure(ContinuityErrorCode.NETWORK)
+            }
+            is RemoteResult.Ok -> getResult.value
+        }
+
+        if (downloaded == null || !downloaded.contentEquals(bytes)) {
+            recordError(ContinuityErrorCode.VERIFY_FAILED)
+            return PutAndVerifyResult.VerificationFailed(ContinuityErrorCode.VERIFY_FAILED)
+        }
+
+        return PutAndVerifyResult.Verified
     }
 }

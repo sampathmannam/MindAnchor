@@ -43,6 +43,11 @@ class ContinuityBackupCoordinatorTest {
     private class FakeRemoteBackupStore(
         private val putOverride: RemoteResult<RemoteObject>? = null,
         private val getOverride: RemoteResult<ByteArray?>? = null,
+        // Per-name get() override, checked after [getOverride]. Lets a test
+        // script one file's get() (e.g. a corrupted LATEST refresh) while
+        // another name (e.g. the already-verified versioned upload) still
+        // echoes back whatever was put().
+        private val getOverrideForName: Map<String, RemoteResult<ByteArray?>> = emptyMap(),
     ) : RemoteBackupStore {
         val stored = mutableMapOf<String, ByteArray>()
         var putCalls = 0
@@ -58,6 +63,7 @@ class ContinuityBackupCoordinatorTest {
         override suspend fun get(name: String): RemoteResult<ByteArray?> {
             getCalls++
             getOverride?.let { return it }
+            getOverrideForName[name]?.let { return it }
             return RemoteResult.Ok(stored[name])
         }
 
@@ -285,6 +291,75 @@ class ContinuityBackupCoordinatorTest {
         assertTrue(
             "a pending continuity_changes row must stay unacknowledged when the checkpoint cannot complete",
             recorder.acknowledged.isEmpty(),
+        )
+    }
+
+    @Test
+    fun `putAndVerifyBytes succeeds when the downloaded bytes match exactly and records no error`() = runBlocking {
+        val store = FakeRemoteBackupStore()
+        val recorder = Recorder()
+        val bytes = "already-verified-envelope-bytes".encodeToByteArray()
+
+        val result = coordinator(recorder, store).putAndVerifyBytes(ContinuityFiles.LATEST, bytes)
+
+        assertEquals(PutAndVerifyResult.Verified, result)
+        assertTrue(recorder.errorsRecorded.isEmpty())
+        assertTrue("putAndVerifyBytes never itself records a verified state", recorder.acknowledged.isEmpty())
+        assertNull(recorder.verifiedCall)
+    }
+
+    @Test
+    fun `putAndVerifyBytes on a corrupted round-trip records VERIFY_FAILED, not Verified`() = runBlocking {
+        val store = FakeRemoteBackupStore(getOverride = RemoteResult.Ok("corrupted-refresh-bytes".encodeToByteArray()))
+        val recorder = Recorder()
+        val bytes = "already-verified-envelope-bytes".encodeToByteArray()
+
+        val result = coordinator(recorder, store).putAndVerifyBytes(ContinuityFiles.LATEST, bytes)
+
+        assertEquals(PutAndVerifyResult.VerificationFailed(ContinuityErrorCode.VERIFY_FAILED), result)
+        assertEquals(listOf(ContinuityErrorCode.VERIFY_FAILED), recorder.errorsRecorded)
+    }
+
+    @Test
+    fun `a versioned nightly checkpoint that verifies, followed by a LATEST refresh whose round-trip is corrupted, does not report a clean success for the refresh`() = runBlocking {
+        // Reproduces the post-review finding: NightlySnapshotWorker runs
+        // runCheckpoint() against the versioned name (verifies cleanly),
+        // then calls putAndVerifyBytes() to refresh LATEST with those same
+        // already-verified bytes. A fault that corrupts ONLY the LATEST
+        // put/get (a genuinely separate network operation from the
+        // versioned upload) must surface as an honest VerificationFailed
+        // for that refresh, not be silently folded into the versioned
+        // checkpoint's success.
+        val store = FakeRemoteBackupStore(
+            getOverrideForName = mapOf(ContinuityFiles.LATEST to RemoteResult.Ok("corrupted-latest-refresh".encodeToByteArray())),
+        )
+        val recorder = Recorder()
+        val snapshot = sampleSnapshot(id = "snap-nightly", contentHash = "hash-nightly")
+        val coordinator = coordinator(recorder, store, snapshot = snapshot)
+
+        val versionedResult = coordinator.runCheckpoint(targetFileName = { "custom-versioned-name.mab" })
+        assertTrue("the versioned upload itself must verify cleanly", versionedResult is CheckpointResult.Verified)
+        val verified = versionedResult as CheckpointResult.Verified
+        val versionedVerifiedCall = recorder.verifiedCall
+        assertEquals(Triple(5_000L, "snap-nightly", "hash-nightly"), versionedVerifiedCall)
+
+        val latestRefreshResult = coordinator.putAndVerifyBytes(ContinuityFiles.LATEST, verified.envelopeBytes)
+
+        assertEquals(
+            "a corrupted LATEST refresh must surface as VerificationFailed, not as a silent success",
+            PutAndVerifyResult.VerificationFailed(ContinuityErrorCode.VERIFY_FAILED),
+            latestRefreshResult,
+        )
+        assertEquals(
+            "the versioned checkpoint's own verified-state recording must be untouched by the later LATEST failure",
+            versionedVerifiedCall,
+            recorder.verifiedCall,
+        )
+        assertEquals(
+            "the failed LATEST refresh must leave an honest VERIFY_FAILED error signal " +
+                "(the versioned run itself recorded no error, since it verified cleanly)",
+            listOf(ContinuityErrorCode.VERIFY_FAILED),
+            recorder.errorsRecorded,
         )
     }
 }
