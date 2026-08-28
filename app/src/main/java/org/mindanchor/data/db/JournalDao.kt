@@ -44,6 +44,12 @@ interface JournalDao {
     @Query("SELECT * FROM morning_measures ORDER BY localDate DESC")
     fun morningMeasures(): Flow<List<MorningMeasureEntity>>
 
+    // Lets the morning-measure repository check for an existing row on a
+    // given date without loading the whole table, so save() can upsert by
+    // date rather than by id.
+    @Query("SELECT * FROM morning_measures WHERE localDate = :localDate LIMIT 1")
+    suspend fun morningMeasureByDate(localDate: String): MorningMeasureEntity?
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertChange(change: ContinuityChangeEntity)
 
