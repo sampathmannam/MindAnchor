@@ -202,8 +202,26 @@ android {
         // as a second opt-in exception and are explicit that the
         // safety plan and crisis contacts never leave the phone.
         // versionCode 104→105.
-        versionCode = 105
-        versionName = "0.70.11"
+        // v0.70.12: CI schema fix (every run had been failing
+        // instantly all session on a workflow-file schema error);
+        // fixed Semgrep/detekt findings that surfaced once CI could
+        // actually run; a real Room migration gap (1→5 had no path
+        // through 3→4) that the same CI fix exposed. UI audit
+        // continuation: collapsible "Why?" rationale text on Quiet/
+        // Measuring/Pauses (was a wall of prose in front of every
+        // control); Digest/Notes/History lists no longer force-fill
+        // the screen when short; home nav baseline alignment;
+        // Earlier/Later buttons now read as tappable; removed the
+        // home screen's "This week" notification-diet card per
+        // request; added a night-time star field to the background
+        // (fades in/out on the same schedule the sky's own colour
+        // already does); "Apps to batch" extracted from an inlined
+        // dump of every installed app into its own searchable
+        // screen; guarded the Sleep Lock's startLockTask call
+        // against re-triggering while already locked.
+        // versionCode 105→106.
+        versionCode = 106
+        versionName = "0.70.12"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every
