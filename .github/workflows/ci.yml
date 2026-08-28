@@ -19,6 +19,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      tests: ${{ steps.test-summary.outputs.tests }}
+      failures: ${{ steps.test-summary.outputs.failures }}
     env:
       # Pre-installed on the standard `ubuntu-latest` runner.
       JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
@@ -48,7 +51,8 @@ jobs:
           failures=$(find app/build/test-results/testDebugUnitTest \
             -name 'TEST-*.xml' -exec grep -hE '<testsuite ' {} + \
             | sed -E 's/.*failures="([0-9]+)".*/\1/' | paste -sd+ - | bc)
-          echo "tests=$count failures=$failures" >> "$GITHUB_OUTPUT"
+          echo "tests=$count" >> "$GITHUB_OUTPUT"
+          echo "failures=$failures" >> "$GITHUB_OUTPUT"
           echo "MindAnchor unit tests: $count run, $failures failed"
 
       - name: Kover coverage (≥ 50% line rate)
@@ -78,7 +82,7 @@ jobs:
             > /tmp/semgrep.json 2>/dev/null
           findings=$(python3 -c "import json; print(len(json.load(open('/tmp/semgrep.json')).get('results', [])))" 2>/dev/null || echo 0)
           echo "Semgrep findings: $findings"
-          test "$findures" = 0
+          test "$findings" = 0
 
       - name: OWASP dependency-check
         if: env.NVD_API_KEY != ''
@@ -92,9 +96,6 @@ jobs:
             --project "MindAnchor" --scan /src \
             --format HTML --out /tmp/depcheck
           echo "OWASP dep-check report: /tmp/depcheck/dependency-check-report.html"
-
-      - name: Run shellscript with sudo (for setcap)
-        if: false  # placeholder; noop
 
   fail:
     needs: test
