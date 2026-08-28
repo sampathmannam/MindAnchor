@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MindAnchor: a phone that succeeds when you do</title>
+<meta name="description" content="An open-source, research-backed, mental-health-first launcher and notification layer for Android. Zero backend. Every feature cites a study.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2244%22 fill=%22%231b2a2e%22/><circle cx=%2250%22 cy=%2250%22 r=%2216%22 fill=%22%23e8c07d%22/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Piazzolla:ital,wght@0,400;0,500;0,600;1,500&family=Source+Sans+3:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f6f3ec;
+    --bg-raised: #ffffff;
+    --ink: #1b201d;
+    --ink-soft: #4a5049;
+    --ink-faint: #7c8179;
+    --line: #ded8c9;
+    --accent: #b5652e;
+    --accent-soft: #f0e2d0;
+    --moon: #e8c07d;
+    --sky: #1b2a2e;
+    --focus: #1b2a2e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14181a;
+      --bg-raised: #1c2224;
+      --ink: #ece7dc;
+      --ink-soft: #b7bcb4;
+      --ink-faint: #7d8580;
+      --line: #303735;
+      --accent: #e2a565;
+      --accent-soft: #2c2620;
+      --moon: #e8c07d;
+      --sky: #0e1416;
+      --focus: #e2a565;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14181a;
+    --bg-raised: #1c2224;
+    --ink: #ece7dc;
+    --ink-soft: #b7bcb4;
+    --ink-faint: #7d8580;
+    --line: #303735;
+    --accent: #e2a565;
+    --accent-soft: #2c2620;
+    --moon: #e8c07d;
+    --sky: #0e1416;
+    --focus: #e2a565;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Source Sans 3", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    font-size: 17px;
+    line-height: 1.6;
+  }
+  ::selection { background: var(--accent-soft); color: var(--ink); }
+  a { color: var(--accent); }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+
+  .wrap { max-width: 780px; margin: 0 auto; padding: 0 24px; }
+
+  header.site {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 22px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .wordmark { display: flex; align-items: center; gap: 10px; font-family: "Piazzolla", Georgia, serif; font-weight: 600; font-size: 1.15rem; letter-spacing: -0.01em; }
+  .wordmark .dot {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--sky);
+    position: relative; flex: none;
+  }
+  .wordmark .dot::after {
+    content: ""; position: absolute; width: 9px; height: 9px; border-radius: 50%;
+    background: var(--moon); top: 6px; left: 6px;
+  }
+  nav.site a { color: var(--ink-soft); text-decoration: none; font-size: 0.95rem; margin-left: 22px; }
+  nav.site a:hover { color: var(--accent); }
+
+  .hero { padding: 76px 0 56px; }
+  .eyebrow {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--accent); margin: 0 0 18px;
+  }
+  h1 {
+    font-family: "Piazzolla", Georgia, serif;
+    font-weight: 500;
+    font-size: clamp(2.1rem, 5vw, 3.1rem);
+    line-height: 1.1;
+    letter-spacing: -0.015em;
+    margin: 0 0 22px;
+    text-wrap: balance;
+    max-width: 15ch;
+  }
+  h1 em { font-style: italic; color: var(--accent); }
+  .lede {
+    font-size: 1.15rem;
+    color: var(--ink-soft);
+    max-width: 58ch;
+    margin: 0 0 34px;
+  }
+  .cta-row { display: flex; flex-wrap: wrap; gap: 12px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 20px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.98rem;
+    border: 1px solid transparent;
+    transition: transform 0.12s ease, background 0.15s ease;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn-primary { background: var(--sky); color: #f5f0e2; }
+  .btn-primary:hover { background: var(--ink); }
+  .btn-ghost { border-color: var(--line); color: var(--ink); }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+  section { padding: 48px 0; border-top: 1px solid var(--line); }
+  h2 {
+    font-family: "Piazzolla", Georgia, serif;
+    font-weight: 500;
+    font-size: 1.6rem;
+    margin: 0 0 8px;
+  }
+  .section-note { color: var(--ink-faint); margin: 0 0 32px; max-width: 56ch; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+  @media (max-width: 620px) { .grid { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--bg-raised);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 22px 24px;
+  }
+  .card h3 {
+    font-size: 1.02rem;
+    margin: 0 0 8px;
+    display: flex; align-items: center; gap: 9px;
+  }
+  .card h3 .mark { color: var(--accent); font-family: "JetBrains Mono", monospace; font-size: 0.9em; }
+  .card p { margin: 0; color: var(--ink-soft); font-size: 0.96rem; }
+  .card .study { display: block; margin-top: 10px; font-size: 0.82rem; color: var(--ink-faint); font-family: "JetBrains Mono", monospace; }
+
+  .principles { list-style: none; margin: 0; padding: 0; display: grid; gap: 18px; }
+  .principles li { display: grid; grid-template-columns: 26px 1fr; gap: 14px; }
+  .principles .num { font-family: "JetBrains Mono", monospace; color: var(--accent); font-size: 0.85rem; padding-top: 3px; }
+  .principles strong { display: block; margin-bottom: 2px; }
+  .principles span.body { color: var(--ink-soft); font-size: 0.96rem; }
+
+  .status-line {
+    display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 10px 20px;
+    padding: 16px 20px;
+    background: var(--bg-raised);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font-size: 0.92rem;
+  }
+  .status-line .k { color: var(--ink-faint); }
+  .status-line .v { font-family: "JetBrains Mono", monospace; color: var(--ink); }
+  .status-list { margin: 18px 0 0; padding-left: 20px; color: var(--ink-soft); }
+  .status-list li { margin-bottom: 6px; }
+
+  .crisis {
+    background: var(--accent-soft);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 22px 24px;
+  }
+  .crisis h2 { font-size: 1.15rem; margin-bottom: 10px; }
+  .crisis p { margin: 0 0 10px; color: var(--ink-soft); font-size: 0.96rem; }
+  .crisis ul { margin: 0; padding-left: 20px; color: var(--ink-soft); font-size: 0.94rem; }
+
+  footer.site {
+    padding: 36px 0 60px;
+    color: var(--ink-faint);
+    font-size: 0.88rem;
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+  }
+  footer.site a { color: var(--ink-faint); }
+  footer.site a:hover { color: var(--accent); }
+
+  code {
+    font-family: "JetBrains Mono", monospace;
+    background: var(--accent-soft);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.88em;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="site">
+    <div class="wordmark"><span class="dot" aria-hidden="true"></span> MindAnchor</div>
+    <nav class="site">
+      <a href="#how-it-works">How it works</a>
+      <a href="#principles">Principles</a>
+      <a href="https://github.com/sampathmannam/MindAnchor">GitHub</a>
+    </nav>
+  </header>
+
+  <section class="hero" style="border-top:none;">
+    <p class="eyebrow">Open source · Android · zero backend</p>
+    <h1>A phone that succeeds<br>when <em>you</em> do, not<br>when you don't put it down.</h1>
+    <p class="lede">
+      MindAnchor is a launcher and notification layer that inverts the usual objective.
+      It doesn't optimize for engagement or screen time. It succeeds when your attention,
+      sleep and mood measurably improve. Every feature it ships cites the published
+      study behind it.
+    </p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="https://github.com/sampathmannam/MindAnchor/releases/latest">Get the latest APK</a>
+      <a class="btn btn-ghost" href="https://github.com/sampathmannam/MindAnchor">View source on GitHub</a>
+    </div>
+  </section>
+
+  <section id="how-it-works">
+    <h2>What it does</h2>
+    <p class="section-note">Six features, each tied to a mechanism in the research, not a guess about what feels good.</p>
+    <div class="grid">
+      <div class="card">
+        <h3><span class="mark">01</span> Batched notifications</h3>
+        <p>Machine notifications collapse into a few calm daily digests. The humans you choose still come through instantly.</p>
+        <span class="study">Fitz et al. 2019: batching improved mood and attention; muting everything backfired.</span>
+      </div>
+      <div class="card">
+        <h3><span class="mark">02</span> Text-first launcher</h3>
+        <p>Search to open. A handful of favorites. No grid, no badges, no red dots to pull your eye.</p>
+      </div>
+      <div class="card">
+        <h3><span class="mark">03</span> Self-chosen friction</h3>
+        <p>A breathing-paced pause, an intention prompt, and time-boxed sessions on the apps that pull at you, opt-in per app.</p>
+      </div>
+      <div class="card">
+        <h3><span class="mark">04</span> Sunset mode</h3>
+        <p>From your own wind-down hour: grayscale, feeds gated, everything batched until morning.</p>
+      </div>
+      <div class="card">
+        <h3><span class="mark">05</span> Sleep-regularity tracking</h3>
+        <p>Inferred from screen on/off patterns alone: no wearable, no cloud round-trip required.</p>
+      </div>
+      <div class="card">
+        <h3><span class="mark">06</span> Honest measurement</h3>
+        <p>Short wellbeing pulses. If a feature isn't helping <em>you</em> specifically, the app says so and offers to turn itself off.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="principles">
+    <h2>Principles</h2>
+    <p class="section-note">The constraints that shape every decision in the codebase.</p>
+    <ul class="principles">
+      <li>
+        <span class="num">—</span>
+        <div><strong>Zero backend.</strong> <span class="body">No accounts, no server, no analytics. Your data stays on your phone, full stop.</span></div>
+      </li>
+      <li>
+        <span class="num">—</span>
+        <div><strong>Evidence or it doesn't ship.</strong> <span class="body">Every intervention cites the study it implements. Features argued on vibes alone get declined.</span></div>
+      </li>
+      <li>
+        <span class="num">—</span>
+        <div><strong>Autonomy, not paternalism.</strong> <span class="body">Everything is a toggle. Nothing is imposed on you by default.</span></div>
+      </li>
+      <li>
+        <span class="num">—</span>
+        <div><strong>Wellness, not medicine.</strong> <span class="body">MindAnchor is not a medical device and does not diagnose. See the crisis resources below if you need a human right now.</span></div>
+      </li>
+    </ul>
+  </section>
+
+  <section id="status">
+    <h2>Project status</h2>
+    <p class="section-note">Early, but actively developed and CI-verified on every change.</p>
+    <div class="status-line">
+      <span><span class="k">Requires</span> <span class="v">Android 13+</span></span>
+      <span><span class="k">License</span> <span class="v">GPL-3.0-only</span></span>
+      <span><span class="k">Signing</span> <span class="v">debug-signed builds</span></span>
+    </div>
+    <ul class="status-list">
+      <li>Each tagged release is built, checksummed and published automatically by CI: grab it from the <a href="https://github.com/sampathmannam/MindAnchor/releases">Releases page</a>.</li>
+      <li>Builds are debug-signed for now, so Android will warn on install; that's expected until a release signing key is set up.</li>
+      <li>Outstanding work, the roadmap, and the research behind each feature all live in the repo: see <code>docs/PLAN.md</code> and <code>docs/CONCEPT.md</code>.</li>
+    </ul>
+  </section>
+
+  <section id="crisis" style="border-top: 1px solid var(--line);">
+    <div class="crisis">
+      <h2>If you're in crisis right now</h2>
+      <p>MindAnchor is a wellness tool, not a replacement for talking to someone.</p>
+      <ul>
+        <li><strong>US</strong>: 988 (Suicide &amp; Crisis Lifeline)</li>
+        <li><strong>India</strong>: Tele-MANAS 14416</li>
+        <li>Elsewhere: please reach your local crisis line</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer class="site">
+    <span>MindAnchor is free and open source, GPL-3.0-only.</span>
+    <span>
+      <a href="https://github.com/sampathmannam/MindAnchor">GitHub</a> ·
+      <a href="https://github.com/sampathmannam/MindAnchor/releases/latest">Releases</a> ·
+      <a href="https://github.com/sampathmannam/MindAnchor/issues">Issues</a>
+    </span>
+  </footer>
+</div>
+
+</body>
+</html>
