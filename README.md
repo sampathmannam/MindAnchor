@@ -2,6 +2,10 @@
 
 **An open-source, research-backed, mental-health-first launcher and notification layer for Android.**
 
+[Website](https://sampathmannam.github.io/MindAnchor/) ·
+[Latest release](https://github.com/sampathmannam/MindAnchor/releases/latest) ·
+[GPL-3.0](LICENSE)
+
 Modern phones are optimized for engagement. MindAnchor inverts the objective: the app
 succeeds when your attention, sleep and mood improve — not when screen time goes up.
 Every intervention it ships is tied to a published study, and the app measures on your
@@ -42,7 +46,9 @@ outstanding — chiefly a release signing key, a clinician's reading of the word
 and a real-device beta. Requires Android 13+.
 
 Every release so far is debug-signed, so Play Protect will warn about the APK; see
-[docs/RELEASING.md](docs/RELEASING.md).
+[docs/RELEASING.md](docs/RELEASING.md). Grab the APK from the
+[latest release](https://github.com/sampathmannam/MindAnchor/releases/latest) —
+each one is built and checksummed automatically by CI from a tagged commit.
 
 ## Building
 
