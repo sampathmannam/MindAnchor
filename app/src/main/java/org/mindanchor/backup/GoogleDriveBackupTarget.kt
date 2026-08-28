@@ -274,8 +274,8 @@ class GoogleDriveBackupTarget(
             .build()
         return runRequest(req) { resp ->
             val ok = resp.code in HTTP_OK_RANGE
-            if (!ok) Log.w(LOG_TAG, "createFile: HTTP ${resp.code}")
-            resp.close()
+            if (!ok) Log.w(LOG_TAG, "createFile: HTTP ${resp.code} ${resp.use { it.body?.string() }}")
+            else resp.close()
             ok
         }.getOrElse { e ->
             Log.w(LOG_TAG, "createFile failed: $e")
@@ -368,7 +368,15 @@ class GoogleDriveBackupTarget(
         // shape, so we hand-build the body and
         // set the content-type explicitly.
         val metadataBytes = bodyBuilder.toString().toByteArray(Charsets.UTF_8)
-        val closing = "--$boundary--\r\n".toByteArray(Charsets.UTF_8)
+        // A CRLF must precede every boundary delimiter, including the
+        // closing one (RFC 2046 §5.1.1) — the transition from the
+        // metadata part to this part gets its CRLF from the "append(crlf)"
+        // calls above, but the raw `content` bytes end wherever the
+        // caller's payload happens to end, so the CRLF before the closing
+        // boundary has to be added here explicitly. Without it, Drive's
+        // parser reads `<content>--boundary--` as one unterminated line
+        // and rejects the whole request with "Missing end boundary".
+        val closing = "\r\n--$boundary--\r\n".toByteArray(Charsets.UTF_8)
         val combined = metadataBytes + content + closing
         val mediaType = "multipart/related; boundary=$boundary".toMediaType()
         return combined.toRequestBody(mediaType)

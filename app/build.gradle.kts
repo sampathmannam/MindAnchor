@@ -135,8 +135,23 @@ android {
         // slow down over time. Safety plan and crisis contacts stay
         // phone-only, unchanged.
         // versionCode 100→101.
-        versionCode = 101
-        versionName = "0.70.7"
+        // v0.70.8: fixed a bug in GoogleDriveBackupTarget's multipart
+        // body builder that made every single Drive upload fail with
+        // HTTP 400 "Missing end boundary in multipart body" — the raw
+        // payload bytes were glued directly onto the closing boundary
+        // with no CRLF between them (RFC 2046 §5.1.1 requires one before
+        // every boundary delimiter, including the closing one). This
+        // silently broke v0.70.7's entire backup feature on the very
+        // first real upload; found by driving the live sign-in and
+        // backup flow end to end on a real device against a real
+        // Google Cloud OAuth client, not by a unit test — the mocked
+        // Drive responses in the existing test suite never exercised
+        // real RFC 2046 parsing. Added a regression test that checks
+        // the actual byte sequence around the closing boundary rather
+        // than a loose substring match.
+        // versionCode 101→102.
+        versionCode = 102
+        versionName = "0.70.8"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every

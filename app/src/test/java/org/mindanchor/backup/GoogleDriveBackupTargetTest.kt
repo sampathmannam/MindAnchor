@@ -207,6 +207,20 @@ class GoogleDriveBackupTargetTest {
             "create body must close with the multipart closing boundary",
             bodyText.contains("--MindAnchorBoundary"),
         )
+        // RFC 2046 §5.1.1: a CRLF must precede every boundary delimiter,
+        // including the closing one. Google's Drive API rejects a body
+        // that is missing it with "Missing end boundary in multipart
+        // body" (400) — a `contains("--boundary")` check alone does not
+        // catch a missing CRLF, since the delimiter text is still present
+        // even when it is glued directly onto the payload with no line
+        // break before it.
+        val closingBoundaryIndex = bodyText.lastIndexOf("--MindAnchorBoundary")
+        assertTrue(
+            "closing boundary must be preceded by CRLF: ${bodyText.takeLast(40)}",
+            closingBoundaryIndex >= 2 &&
+                bodyText[closingBoundaryIndex - 2] == '\r' &&
+                bodyText[closingBoundaryIndex - 1] == '\n',
+        )
     }
 
     @Test fun `append on an existing file downloads, appends, and re-uploads`() = runBlocking {
