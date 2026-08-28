@@ -125,10 +125,15 @@ fun CheckInHistoryScreen(
                         listState.scrollToItem(sorted.size - 1)
                     }
                 }
+                // v0.70.x (UI audit): weight(1f, fill = false), not
+                // fillMaxSize — see NoteScreen/DigestScreen for the
+                // same fix. A short check-in history otherwise leaves
+                // a large dead gap below the last entry.
                 LazyColumn(
                     state = listState,
                     modifier = Modifier
-                        .fillMaxSize()
+                        .fillMaxWidth()
+                        .weight(1f, fill = false)
                         .padding(horizontal = 16.dp),
                 ) {
                     // The key must be unique across the

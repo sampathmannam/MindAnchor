@@ -406,9 +406,18 @@ fun NoteScreen(
                     )
                 }
             } else {
+                // v0.70.x (UI audit): weight(1f, fill = false), not
+                // fillMaxSize — the same dead-space bug as
+                // DigestScreen's journal list. fillMaxSize forced this
+                // list to occupy all remaining screen height even with
+                // one or two notes, leaving a large empty gap below
+                // them. fill = false keeps the height ceiling (so a
+                // long note list still scrolls within its own bounds)
+                // without forcing a floor.
                 LazyColumn(
                     modifier = Modifier
-                        .fillMaxSize()
+                        .fillMaxWidth()
+                        .weight(1f, fill = false)
                         .padding(horizontal = 16.dp),
                 ) {
                     visible.forEach { (day, dayNotes) ->

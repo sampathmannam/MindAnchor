@@ -114,7 +114,14 @@ fun DigestScreen(
                 }
             }
 
-            LazyColumn(modifier = Modifier.weight(1f)) {
+            // v0.70.x (UI audit): fill = false — this list only needs a
+            // hard height ceiling (so a long journal scrolls within its
+            // own bounds and "Clear released" stays put below it), not
+            // a hard height floor. weight(1f) alone forces the list to
+            // expand to fill all remaining space even with one entry,
+            // leaving a large dead gap before "Clear released"; fill =
+            // false lets it shrink to its actual content instead.
+            LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
                 items(waiting, key = { it.id }) { item ->
                     JournalRow(item, waiting = true) { viewModel.openApp(item.packageName) }
                 }
