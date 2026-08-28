@@ -19,7 +19,7 @@ private val Context.continuityDataStore by preferencesDataStore(name = "continui
  * is ever inserted; a name string is stable and self-describing, and an
  * unrecognised name degrades to [NONE] on read rather than crashing.
  */
-enum class ContinuityErrorCode { NONE, AUTH, NETWORK, KEY_MISSING, VERIFY_FAILED, DECODE_FAILED }
+enum class ContinuityErrorCode { NONE, AUTH, NETWORK, KEY_MISSING, VERIFY_FAILED, DECODE_FAILED, RESTORE_VERIFY_FAILED }
 
 /**
  * Local flags and health state for Program 0's continuity backup

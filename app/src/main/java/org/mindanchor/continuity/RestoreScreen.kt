@@ -40,6 +40,7 @@ import org.mindanchor.backup.GoogleDriveAuth
 import org.mindanchor.backup.GoogleDriveObjectStore
 import org.mindanchor.backup.RemoteBackupStore
 import org.mindanchor.continuity.crypto.RecoveryKeyCodec
+import org.mindanchor.continuity.crypto.RecoveryKeyStore
 
 /**
  * The read-only preview [RestoreScreen] shows for a selected candidate.
@@ -101,6 +102,9 @@ class RestoreViewModel(
     private val context: Context,
     private val auth: GoogleDriveAuth = GoogleDriveAuth(context.applicationContext),
     private val remoteBackupStore: RemoteBackupStore = GoogleDriveObjectStore(currentAccessToken = auth::currentAccessToken),
+    // Defaults to the same on-device store RestoreCoordinator.resume()'s
+    // real production currentVerifiedKey reads from (see checkForBackup()).
+    private val recoveryKeyStore: RecoveryKeyStore = RecoveryKeyStore.create(context.applicationContext),
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
     // Defaults to the real production wiring; overridable so
     // `RestoreScreenTest` can drive the confirm-and-restore flow against an
@@ -130,7 +134,15 @@ class RestoreViewModel(
         recoveryKeyInput = value
     }
 
-    /** Step 3: downloads, decrypts, and verifies candidates in order; never mutates anything. */
+    /**
+     * Step 3: downloads, decrypts, and verifies candidates in order. The
+     * only mutation is on success: a candidate decrypting correctly is
+     * exactly the "user re-entered the full generated key and it proved
+     * correct" event [RecoveryKeyStore.markVerified]'s contract calls for
+     * (see that KDoc) — on a replacement phone, this typed-and-proven key is
+     * also the only source [RestoreCoordinator.resume] will later have for
+     * it, so it must be persisted here, before "Restore" is ever tappable.
+     */
     fun checkForBackup() {
         val key = RecoveryKeyCodec.decode(recoveryKeyInput)
         if (key == null) {
@@ -142,6 +154,8 @@ class RestoreViewModel(
             when (val result = RestoreCandidateSelector.select(remoteBackupStore, key)) {
                 is CandidateSelectionResult.Found -> {
                     selectedCandidate = result.candidate
+                    recoveryKeyStore.save(key)
+                    recoveryKeyStore.markVerified()
                     _uiState.value = RestoreUiState.CandidateFound(previewOf(result.candidate.snapshot), result.usedFallbackFrom)
                 }
                 is CandidateSelectionResult.WrongRecoveryKey -> _uiState.value = RestoreUiState.WrongRecoveryKey

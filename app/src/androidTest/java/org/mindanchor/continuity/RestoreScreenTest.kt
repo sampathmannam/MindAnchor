@@ -28,6 +28,7 @@ import org.mindanchor.backup.RemoteResult
 import org.mindanchor.continuity.crypto.BackupEnvelopeCodec
 import org.mindanchor.continuity.crypto.RecoveryKey
 import org.mindanchor.continuity.crypto.RecoveryKeyCodec
+import org.mindanchor.continuity.crypto.RecoveryKeyStore
 import org.mindanchor.data.FrictionPrefs
 import org.mindanchor.data.LauncherPrefs
 import org.mindanchor.data.NotesPrefs
@@ -76,6 +77,13 @@ class RestoreScreenTest {
     private lateinit var stagingFile: java.io.File
     private lateinit var stagingTmpFile: java.io.File
 
+    // The real, on-device (Keystore-backed) store — deliberately NOT a
+    // hardcoded-key test double. See `checkForBackupPersists...` below: the
+    // whole point of that regression test is that RestoreViewModel and
+    // testCoordinator's `currentVerifiedKey` both read/write THIS instance,
+    // exactly like RestoreCoordinator.build()'s production wiring does.
+    private lateinit var recoveryKeyStore: RecoveryKeyStore
+
     @Before
     fun setUp() = runBlocking {
         db = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java).build()
@@ -98,6 +106,7 @@ class RestoreScreenTest {
         val stagingDir = java.io.File(context.filesDir, "continuity")
         stagingFile = java.io.File(stagingDir, "restore-staged.mab")
         stagingTmpFile = java.io.File(stagingDir, "restore-staged.mab.tmp")
+        recoveryKeyStore = RecoveryKeyStore.create(context)
 
         letterStore.reset()
         notesPrefs.replaceAll(emptyList())
@@ -109,6 +118,7 @@ class RestoreScreenTest {
         restoreStateStore.reset()
         stagingFile.delete()
         stagingTmpFile.delete()
+        recoveryKeyStore.clear()
         Unit
     }
 
@@ -118,6 +128,7 @@ class RestoreScreenTest {
         restoreStateStore.reset()
         stagingFile.delete()
         stagingTmpFile.delete()
+        recoveryKeyStore.clear()
         Unit
     }
 
@@ -193,7 +204,12 @@ class RestoreScreenTest {
                 stagingTmpFile.renameTo(stagingFile)
             },
             deleteStagedFile = { stagingFile.delete() },
-            currentVerifiedKey = { key },
+            // Reads the SAME real, on-device RecoveryKeyStore RestoreViewModel
+            // writes to in checkForBackup() — exactly RestoreCoordinator.build()'s
+            // production wiring, not a hardcoded-key test double. This is what
+            // makes `checkForBackupPersistsAndVerifiesTheRecoveryKey...` below a
+            // genuine regression test for the Critical finding.
+            currentVerifiedKey = { recoveryKeyStore.current()?.takeIf { recoveryKeyStore.isVerified() } },
             preflightIsLocalDataEmpty = {
                 dao.entriesNow().isEmpty() && dao.morningMeasuresNow().isEmpty() &&
                     notesPrefs.notes.first().notes.isEmpty() && letterStore.letters.first().isEmpty()
@@ -218,7 +234,7 @@ class RestoreScreenTest {
             },
             recapture = { snapshotRepository.capture(System.currentTimeMillis()) },
             recordRestoreVerified = { at, hash -> continuityPrefs.recordRestore(at, hash) },
-            recordVerifyFailed = { continuityPrefs.recordError(ContinuityErrorCode.VERIFY_FAILED) },
+            recordVerifyFailed = { continuityPrefs.recordError(ContinuityErrorCode.RESTORE_VERIFY_FAILED) },
         )
     }
 
@@ -226,6 +242,7 @@ class RestoreScreenTest {
         val viewModel = RestoreViewModel(
             context = context,
             remoteBackupStore = remoteBackupStore,
+            recoveryKeyStore = recoveryKeyStore,
             coordinatorBuilder = ::testCoordinator,
         )
         rule.setContent {
@@ -339,5 +356,51 @@ class RestoreScreenTest {
 
         val entries = runBlocking { db.journal().entriesNow() }
         assert(entries.size == 1) { "the restored entry must be durably merged" }
+    }
+
+    /**
+     * The Critical-finding regression test: on a genuinely new/replacement
+     * phone, [RecoveryKeyStore] starts empty, and [RestoreCoordinator.resume]'s
+     * real production `currentVerifiedKey` (see [RestoreCoordinator.build])
+     * has no other source for the key. Before this test would pass, the
+     * typed-and-proven-correct key had to actually be persisted, by
+     * [RestoreViewModel.checkForBackup] itself, into that same store — not
+     * merely used locally to prove [RestoreCandidateSelector.select]
+     * succeeds. [testCoordinator]'s `currentVerifiedKey` reads from
+     * [recoveryKeyStore] (the same real, on-device instance the view model
+     * writes to) rather than a hardcoded key lambda, so this genuinely
+     * exercises the fix end to end: before it, `checkForBackup()` never
+     * called [RecoveryKeyStore.save]/[RecoveryKeyStore.markVerified], the
+     * assertions below on [recoveryKeyStore] would fail immediately, and —
+     * had they been bypassed — the confirm-restore step would have failed
+     * with [RestoreResult.KeyMissing] instead of reaching
+     * `restore_complete_message`.
+     */
+    @Test
+    fun checkForBackupPersistsAndVerifiesTheRecoveryKeySoTheRealCoordinatorCanFindIt() {
+        val snapshot = sampleSnapshot(runBlocking { samplePayload() })
+        val bytes = envelopeBytes(snapshot)
+        val remoteBackupStore = FakeRemoteBackupStore(mapOf(ContinuityFiles.LATEST to bytes))
+        val viewModel = launch(remoteBackupStore = remoteBackupStore)
+
+        assert(recoveryKeyStore.current() == null) { "test setup: RecoveryKeyStore must start empty, like a real replacement phone" }
+
+        viewModel.onRecoveryKeyChanged(RecoveryKeyCodec.format(key))
+        viewModel.checkForBackup()
+        waitForTag("restore_confirm_button")
+
+        val persisted = recoveryKeyStore.current()
+        assert(persisted != null && persisted.keyId == key.keyId) {
+            "checkForBackup() succeeding must persist the typed, proven-correct key to RecoveryKeyStore"
+        }
+        assert(recoveryKeyStore.isVerified()) {
+            "checkForBackup() succeeding must mark the persisted key verified"
+        }
+
+        // Prove resume() (invoked by confirmRestore()) can actually find that
+        // key via the real currentVerifiedKey wiring and complete the restore.
+        rule.onNodeWithTag("restore_confirm_button").performClick()
+        waitForTag("restore_complete_message")
+        rule.onNodeWithTag("restore_complete_message").assertIsDisplayed()
     }
 }

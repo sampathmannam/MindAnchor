@@ -443,7 +443,7 @@ class RestoreCoordinator(
                 },
                 recapture = { snapshotRepository.capture(System.currentTimeMillis()) },
                 recordRestoreVerified = { at, hash -> continuityPrefs.recordRestore(at, hash) },
-                recordVerifyFailed = { continuityPrefs.recordError(ContinuityErrorCode.VERIFY_FAILED) },
+                recordVerifyFailed = { continuityPrefs.recordError(ContinuityErrorCode.RESTORE_VERIFY_FAILED) },
             )
         }
     }

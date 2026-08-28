@@ -47,7 +47,7 @@ sealed class BackupHealth {
             if (!hasVerifiedRecoveryKey) return RecoveryKeyRequired
             when (lastErrorCode) {
                 ContinuityErrorCode.AUTH -> return NeedsSignIn
-                ContinuityErrorCode.VERIFY_FAILED, ContinuityErrorCode.DECODE_FAILED -> return VerificationFailed
+                ContinuityErrorCode.VERIFY_FAILED, ContinuityErrorCode.DECODE_FAILED, ContinuityErrorCode.RESTORE_VERIFY_FAILED -> return VerificationFailed
                 ContinuityErrorCode.KEY_MISSING -> return RecoveryKeyRequired
                 ContinuityErrorCode.NETWORK, ContinuityErrorCode.NONE -> Unit
             }

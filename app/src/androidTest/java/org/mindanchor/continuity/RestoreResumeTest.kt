@@ -27,7 +27,9 @@ import org.mindanchor.data.LauncherPrefs
 import org.mindanchor.data.NotesPrefs
 import org.mindanchor.data.db.AnchorDatabase
 import org.mindanchor.data.db.CrisisContact
+import org.mindanchor.data.db.JournalEntryEntity
 import org.mindanchor.data.db.PulseResult
+import org.mindanchor.data.db.SafetyPlan
 import org.mindanchor.data.mergeRestored
 import org.mindanchor.data.replaceAlwaysOpen
 import org.mindanchor.data.replaceFlagged
@@ -261,7 +263,7 @@ class RestoreResumeTest {
             },
             recapture = { snapshotRepository.capture(System.currentTimeMillis()) },
             recordRestoreVerified = { at, hash -> continuityPrefs.recordRestore(at, hash) },
-            recordVerifyFailed = { continuityPrefs.recordError(ContinuityErrorCode.VERIFY_FAILED) },
+            recordVerifyFailed = { continuityPrefs.recordError(ContinuityErrorCode.RESTORE_VERIFY_FAILED) },
         )
     }
 
@@ -401,6 +403,70 @@ class RestoreResumeTest {
         assertEquals(RestoreStage.NONE, restoreStateStore.currentInfo().stage)
         assertFalse(stagingFile.exists())
     }
+
+    /**
+     * Unlike every other test in this class, this one deliberately uses
+     * [RestoreCoordinator.build] itself — the exact production wiring
+     * `RestoreActivity` uses — instead of [realCoordinator]'s hand-rolled
+     * collaborators. [realCoordinator]'s own `preflightIsLocalDataEmpty`
+     * lambda above (see its `db.journal()`/`notesPrefs`/etc. checks) is
+     * missing the safety-plan/contacts/pulses checks the REAL production
+     * preflight has — exactly the gap an independent code review flagged:
+     * this is the single safety-critical gate that stops a restore from
+     * silently coexisting with an already-populated safety plan or
+     * crisis-contact list, and it previously had zero coverage against the
+     * real function.
+     *
+     * [RestoreCoordinator.build] reads Journal/safety/contacts/pulses from
+     * the app's real on-disk [AnchorDatabase] singleton (not this class's
+     * own in-memory [db]) — the one place in this file that touches it for
+     * more than [clearEverything]'s existing safety/contacts cleanup.
+     * `realDb.clearAllTables()` in the `finally` block is needed because
+     * [org.mindanchor.data.db.PulseDao] exposes no delete method at all —
+     * Room's own table-clear is the only way to remove the seeded pulse
+     * afterward.
+     */
+    @Test
+    fun theRealProductionPreflightBlocksANewRestoreWhenSafetyPlanContactsOrPulsesExist() = runBlocking {
+        val realDb = AnchorDatabase.get(context)
+        try {
+            realDb.safety().savePlan(SafetyPlan(warningSigns = "feeling overwhelmed", updatedAt = 1_000L))
+            realDb.safety().addContact(CrisisContact(name = "A Friend", phone = "555-0100", isProfessional = false))
+            realDb.pulses().insert(PulseResult(takenAt = 1_000L, score = 70))
+            realDb.journal().upsertEntries(
+                listOf(
+                    JournalEntryEntity(
+                        id = "existing-on-real-device", createdAt = 1L, updatedAt = 1L, localDate = "2026-01-01",
+                        title = "existing", body = "existing local data", kind = "DAILY",
+                        sourceDeviceId = "device-a", deletedAt = null,
+                    ),
+                ),
+            )
+
+            val snapshot = sampleSnapshot(samplePayload())
+            val bytes = envelopeBytes(snapshot)
+
+            val result = RestoreCoordinator.build(context).beginRestore("x.mab", bytes, snapshot.contentSha256)
+
+            assertEquals(RestoreResult.PreflightBlocked, result)
+            assertEquals(RestoreStage.NONE, restoreStateStore.currentInfo().stage)
+            assertFalse(stagingFile.exists())
+        } finally {
+            realDb.clearAllTables()
+        }
+    }
+
+    // The companion property — a RESUMED restore (persisted stage past
+    // RestoreStage.NONE) must never re-run the preflight, even though local
+    // data now genuinely exists, because that data is the restore's own
+    // in-progress merge, not evidence of a second, unrelated dataset — is
+    // already covered by RestoreCoordinatorTest's
+    // `beginRestore on an already-in-progress restore delegates to resume and never re-runs the preflight`
+    // test. That property (beginRestore's `info.stage != NONE -> resume()`
+    // branch, see RestoreCoordinator.beginRestore's KDoc) lives entirely in
+    // RestoreCoordinator itself, independent of which preflight
+    // implementation is plugged in, so a JVM-fake preflight double is
+    // adequate there and this file does not duplicate it.
 
     // --- Legacy-backup-carried contacts/pulses survive an interruption without duplicating ---
 

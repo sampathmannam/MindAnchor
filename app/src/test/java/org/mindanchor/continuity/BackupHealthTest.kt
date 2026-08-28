@@ -79,6 +79,17 @@ class BackupHealthTest {
     }
 
     @Test
+    fun `RESTORE_VERIFY_FAILED error code is VerificationFailed`() {
+        val health = BackupHealth.compute(
+            backupEnabled = true,
+            hasVerifiedRecoveryKey = true,
+            lastErrorCode = ContinuityErrorCode.RESTORE_VERIFY_FAILED,
+            lastVerifiedCheckpoint = verified,
+        )
+        assertEquals(BackupHealth.VerificationFailed, health)
+    }
+
+    @Test
     fun `DECODE_FAILED error code is VerificationFailed`() {
         val health = BackupHealth.compute(
             backupEnabled = true,
