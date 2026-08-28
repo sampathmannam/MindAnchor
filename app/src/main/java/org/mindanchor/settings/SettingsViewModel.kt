@@ -866,7 +866,23 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     sealed interface HealthConnectStatus {
         data object Unknown : HealthConnectStatus
         data object Unavailable : HealthConnectStatus
-        data class Available(val granted: Int, val total: Int) : HealthConnectStatus
+        /**
+         * [granted]/[total] count the record-read permissions.
+         * [additionalGranted]/[additionalTotal] count the two
+         * "additional" grants (background + history), which are
+         * requested through their own launch — Health Connect
+         * silently drops them from a request that also carries
+         * record reads, see
+         * [org.mindanchor.vitals.HealthConnectSource.ADDITIONAL_PERMISSIONS]
+         * — so the section needs to know separately when that
+         * second step still has something to ask.
+         */
+        data class Available(
+            val granted: Int,
+            val total: Int,
+            val additionalGranted: Int,
+            val additionalTotal: Int,
+        ) : HealthConnectStatus
     }
 
     private val _healthConnectStatus = MutableStateFlow<HealthConnectStatus>(HealthConnectStatus.Unknown)
@@ -884,9 +900,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 HealthConnectStatus.Unavailable
             } else {
                 val granted = HealthConnectSource.grantedPermissions(app).size
+                val additionalEffective = HealthConnectSource.effectiveAdditionalPermissions(app)
+                val additionalGranted = HealthConnectSource.grantedAdditionalPermissions(app)
+                    .count { it in additionalEffective }
                 HealthConnectStatus.Available(
                     granted = granted,
                     total = HealthConnectSource.PERMISSIONS.size,
+                    additionalGranted = additionalGranted,
+                    additionalTotal = additionalEffective.size,
                 )
             }
         }

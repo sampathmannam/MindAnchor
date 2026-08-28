@@ -81,6 +81,35 @@ object HealthConnectSource {
     )
 
     /**
+     * The two "additional" permissions — background reads and history
+     * reads. Kept OUT of [PERMISSIONS] on purpose, and the separation
+     * is load-bearing: when a request mixes additional permissions
+     * with record-read permissions, Health Connect renders grant
+     * toggles for the record reads only and silently drops the
+     * additional ones — no dialog page, no error, no log line.
+     * Observed on the project's own phone: both stayed ungranted
+     * through every connect pass while they rode along in the one
+     * bundled request. They only ever get a grant screen when
+     * launched on their own, which is what the Settings section's
+     * second step does.
+     *
+     * Why each is worth that second step:
+     * [HealthPermission.PERMISSION_READ_HEALTH_DATA_IN_BACKGROUND]
+     * is what lets the nightly report's ~03:00 receiver read with no
+     * activity in the foreground — without it those reads are denied
+     * and the report degrades to empty
+     * (see [org.mindanchor.report.ReportScheduler]).
+     * [HealthPermission.PERMISSION_READ_HEALTH_DATA_HISTORY] lifts
+     * the floor that otherwise caps reads at 30 days before the
+     * first grant, which is what lets the personal baseline backfill
+     * from the nights the watch's own app has already written.
+     */
+    val ADDITIONAL_PERMISSIONS: Set<String> = setOf(
+        HealthPermission.PERMISSION_READ_HEALTH_DATA_IN_BACKGROUND,
+        HealthPermission.PERMISSION_READ_HEALTH_DATA_HISTORY,
+    )
+
+    /**
      * The subset of [PERMISSIONS] the current provider can actually
      * supply. Always at least the seven types that do not depend on
      * a feature flag; the eighth — [MindfulnessSessionRecord] — is
@@ -104,6 +133,32 @@ object HealthConnectSource {
             PERMISSIONS
         } else {
             base
+        }
+    }
+
+    /**
+     * The subset of [ADDITIONAL_PERMISSIONS] the current provider
+     * advertises. Same shape, same reason as the mindfulness gating
+     * in [effectivePermissions]: asking the system dialog for a
+     * permission the provider has not turned on raises at render
+     * time. Each of the two rides its own feature flag, so a
+     * provider that knows background reads but not history reads
+     * still gets asked for the one it supports.
+     */
+    fun effectiveAdditionalPermissions(context: Context): Set<String> {
+        if (!isAvailable(context)) return emptySet()
+        val hcClient = runCatching { client(context) }.getOrNull() ?: return emptySet()
+        val features = runCatching { hcClient.features }.getOrNull() ?: return emptySet()
+        fun advertised(feature: Int): Boolean = runCatching { features.getFeatureStatus(feature) }
+            .getOrDefault(HealthConnectFeatures.FEATURE_STATUS_UNAVAILABLE) ==
+            HealthConnectFeatures.FEATURE_STATUS_AVAILABLE
+        return buildSet {
+            if (advertised(HealthConnectFeatures.FEATURE_READ_HEALTH_DATA_IN_BACKGROUND)) {
+                add(HealthPermission.PERMISSION_READ_HEALTH_DATA_IN_BACKGROUND)
+            }
+            if (advertised(HealthConnectFeatures.FEATURE_READ_HEALTH_DATA_HISTORY)) {
+                add(HealthPermission.PERMISSION_READ_HEALTH_DATA_HISTORY)
+            }
         }
     }
 
@@ -145,6 +200,18 @@ object HealthConnectSource {
         // — believed correct but, like the rest of this file's Health
         // Connect calls, unverified against this repo's CI.
         hcClient.permissionController.getGrantedPermissions().intersect(PERMISSIONS)
+    }.getOrDefault(emptySet())
+
+    /**
+     * The subset of [ADDITIONAL_PERMISSIONS] currently granted. A
+     * separate accessor because [grantedPermissions] intersects with
+     * [PERMISSIONS] and so filters the additional grants out — which
+     * is correct for it: [hasAnyPermissions] means "enough to read
+     * something", and these two read nothing by themselves.
+     */
+    suspend fun grantedAdditionalPermissions(context: Context): Set<String> = runCatching {
+        val hcClient = client(context) ?: return emptySet()
+        hcClient.permissionController.getGrantedPermissions().intersect(ADDITIONAL_PERMISSIONS)
     }.getOrDefault(emptySet())
 
     /** True only once every permission in [PERMISSIONS] has been granted. */

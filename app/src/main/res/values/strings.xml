@@ -898,6 +898,8 @@
     <string name="health_connect_why_outdated_body">This app targets Health Connect 1.1.0. If the phone has an older provider, the permission request is rejected with no error. Update Health Connect from the Play Store.</string>
     <string name="health_connect_button_connect">Connect to your watch</string>
     <string name="health_connect_button_change">Change what is shared</string>
+    <string name="health_connect_additional_explainer">Two Health Connect switches are still off: reading while this app is closed, and reading records older than 30 days. The first lets the overnight look run while the phone sits idle. The second gives your usual more nights to draw on, instead of starting from today. Health Connect only shows these switches when they are asked for on their own — that is what this button does.</string>
+    <string name="health_connect_additional_button">Allow background and older data</string>
     <string name="health_connect_what_reads_header">What this app reads</string>
     <string name="health_connect_reads_heart_rate">heart rate samples — used to show mean and resting heart rate</string>
     <string name="health_connect_reads_resting_heart_rate">resting heart rate — used to show recovery from your usual</string>

@@ -2639,6 +2639,58 @@ fun SettingsScreen(
                         }
                     }
                 }
+
+                // v0.70.2: the second step of the connect flow.
+                // READ_HEALTH_DATA_IN_BACKGROUND and
+                // READ_HEALTH_DATA_HISTORY are "additional"
+                // permissions, and Health Connect silently drops
+                // them from a request that also carries record-read
+                // permissions: the dialog renders toggles for the
+                // record reads only, the additional two come back
+                // ungranted, and nothing logs why. Both had been
+                // declared in the manifest and bundled into the
+                // connect launch above — and both were still
+                // ungranted on the project's own phone after every
+                // connect pass. They only get their grant screens
+                // when launched on their own, so they get their own
+                // row: shown once any record read is granted (alone,
+                // the two read nothing) while at least one of the
+                // two is still missing; gone once both are granted.
+                // Background is what lets the overnight look's
+                // receiver read at ~03:00 with no activity in the
+                // foreground; history lifts the 30-day read floor so
+                // the picture of your usual can backfill. The set is
+                // feature-gated per provider like mindfulness — an
+                // unadvertised permission crashes the dialog — and
+                // the launch reuses the cached launcher, whose
+                // callback already refreshes the status.
+                if (s.granted > 0 && s.additionalGranted < s.additionalTotal) {
+                    Text(
+                        text = stringResource(R.string.health_connect_additional_explainer),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                    TextButton(
+                        onClick = {
+                            Log.w("MindAnchor/HealthConnect", "additional-access launch requested")
+                            runCatching {
+                                healthConnectPermissionLauncher.launch(
+                                    HealthConnectSource.effectiveAdditionalPermissions(context),
+                                )
+                            }.onFailure { t ->
+                                Log.e(
+                                    "MindAnchor/HealthConnect",
+                                    "additional-access launch failed: " + t.javaClass.simpleName,
+                                    t,
+                                )
+                                hcLaunchError = t.javaClass.simpleName
+                            }
+                        },
+                    ) {
+                        Text(stringResource(R.string.health_connect_additional_button))
+                    }
+                }
             }
 
             // "What this app reads" — a list that maps each granted

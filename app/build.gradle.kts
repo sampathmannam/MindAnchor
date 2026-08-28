@@ -63,8 +63,19 @@ android {
         // d01980c; skipping it keeps the two lineages'
         // versionCodes from colliding on the same number
         // with different bits).
-        versionCode = 95
-        versionName = "0.70.1"
+        // v0.70.2: second grant step for the two "additional"
+        // Health Connect permissions (READ_HEALTH_DATA_IN_BACKGROUND
+        // + READ_HEALTH_DATA_HISTORY). Bundled into the record-read
+        // request — as they had been since they were declared —
+        // Health Connect silently drops them from the dialog and
+        // they stay ungranted. They now ride their own launch from
+        // a Settings row shown while a record read is granted and
+        // either of the two is missing. Background is what lets the
+        // overnight look's ~03:00 receiver read at all; history
+        // lifts the 30-day read floor so the baseline can backfill.
+        // versionCode 95→96.
+        versionCode = 96
+        versionName = "0.70.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every
