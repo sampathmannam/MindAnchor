@@ -2,6 +2,8 @@ package org.mindanchor.vitals
 
 import android.content.Context
 import java.time.LocalDate
+import org.mindanchor.vitals.coros.CorosDaily
+import org.mindanchor.vitals.coros.CorosHrv
 
 /**
  * The bridge between [HealthConnectSource] and
@@ -141,6 +143,39 @@ class WellnessRepository(private val context: Context) {
         WellnessSignal.STEPS -> null
         WellnessSignal.SLEEP_MINUTES -> null
         WellnessSignal.MINDFULNESS_MINUTES -> null
+    }
+
+    /**
+     * Imports a freshly synced COROS bridge's historical series
+     * into the rolling history, so a wearable connected today
+     * makes the RHR baseline reportable today instead of after
+     * 14 more days of daily reads.
+     *
+     * The repository is the meeting point on purpose — the same
+     * role it plays for the live path: the bridge's series is
+     * wearable-provenance, the [MeasuredStore] holds the
+     * deliberate measurements, and [WellnessBackfill] applies
+     * the [org.mindanchor.report.Sourcing.pick] precedence
+     * between them before anything is written. Only HRV has a
+     * measured-here source today, same as [measuredFor].
+     *
+     * Called by the COROS sync worker after each successful
+     * sync. Never throws — a ledger hiccup must not fail the
+     * sync that fetched the data.
+     */
+    suspend fun backfillFromWearable(hrv: List<CorosHrv>, daily: List<CorosDaily>) {
+        runCatching {
+            val measuredHere = MeasuredStore(context).all().mapNotNull { m ->
+                if (m.key != org.mindanchor.report.Signal.HRV.name) return@mapNotNull null
+                val day = runCatching { LocalDate.parse(m.day) }.getOrNull()
+                    ?: return@mapNotNull null
+                WellnessLedger.Entry(signal = WellnessSignal.HRV, day = day, value = m.value)
+            }
+            history.backfill(
+                wearable = WellnessBackfill.fromBridge(hrv = hrv, daily = daily),
+                measuredHere = measuredHere,
+            )
+        }
     }
 
     /**

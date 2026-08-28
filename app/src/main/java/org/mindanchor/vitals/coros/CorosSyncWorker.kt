@@ -11,6 +11,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import java.util.concurrent.TimeUnit
+import org.mindanchor.vitals.WellnessRepository
 
 /**
  * Periodic + on-demand sync of COROS Training Hub data into
@@ -143,6 +144,12 @@ class CorosSyncWorker(
             daily = analyse,
             activities = activities,
         )
+        // The fetched history also seeds the per-signal wellness
+        // ledger, so a freshly connected account's 28 days of RHR
+        // make the baseline reportable now rather than 14 daily
+        // reads from now. The call never throws — a ledger hiccup
+        // must not fail the sync that fetched the data.
+        WellnessRepository(ctx).backfillFromWearable(hrv = dashboard, daily = analyse)
         return Result.success()
     }
 

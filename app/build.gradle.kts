@@ -74,8 +74,18 @@ android {
         // overnight look's ~03:00 receiver read at all; history
         // lifts the 30-day read floor so the baseline can backfill.
         // versionCode 95→96.
-        versionCode = 96
-        versionName = "0.70.2"
+        // v0.70.3: COROS history seeds the wellness baseline.
+        // The bridge already syncs 28 days of RHR and 7 nights
+        // of HRV, but the per-signal ledger only grew from its
+        // own daily reads, so a fresh connect still said "still
+        // building a picture" for 14 more days about data the
+        // account already had. Synced history now backfills the
+        // ledger on every sync — append-only (an existing day
+        // always wins) with Sourcing.pick precedence (a
+        // camera-PPG measurement beats the watch's number).
+        // versionCode 96→97.
+        versionCode = 97
+        versionName = "0.70.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every

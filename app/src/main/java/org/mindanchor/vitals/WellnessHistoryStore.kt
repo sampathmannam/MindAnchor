@@ -200,6 +200,38 @@ class WellnessHistoryStore(private val context: Context) {
         }
     }
 
+    /**
+     * Bridge-history counterpart to [recordAll]: fills the days a
+     * freshly synced wearable bridge knows about and the ledger
+     * does not, in a single [DataStore.edit] transaction, under
+     * the [WellnessBackfill.merged] provenance rules — an
+     * existing row always wins, a [measuredHere] value beats the
+     * [wearable] one for a day the ledger lacks, and history is
+     * filled, never revised.
+     *
+     * Pruning is anchored to the newest day on file after the
+     * merge rather than to a passed-in "today", because a
+     * backfill has no single day — its whole point is a span.
+     *
+     * Never throws, same rule as [record]: a storage hiccup must
+     * not turn a successful bridge sync into a failed worker run.
+     */
+    suspend fun backfill(
+        wearable: List<WellnessLedger.Entry>,
+        measuredHere: List<WellnessLedger.Entry> = emptyList(),
+    ) {
+        if (wearable.isEmpty()) return
+        runCatching {
+            context.wellnessDataStore.edit { prefs ->
+                val current = WellnessLedger.decode(prefs[entriesKey].orEmpty())
+                val merged = WellnessBackfill.merged(current, wearable, measuredHere)
+                val newest = merged.maxOf { it.day }
+                val pruned = WellnessLedger.prune(merged, newest.minusDays(KEEP_DAYS.toLong()))
+                prefs[entriesKey] = WellnessLedger.encode(pruned)
+            }
+        }
+    }
+
     companion object {
         /**
          * Comfortably past the wellness surface's baseline window
