@@ -7,6 +7,8 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Rule
 import org.junit.Test
@@ -61,7 +63,7 @@ class AnchorCoreUiTest {
         // DEBUG: dump all text nodes we can see in the AnchorCore section.
         val allText = rule.onAllNodesWithText(".*", substring = false).fetchSemanticsNodes()
             .mapNotNull { node ->
-                val text = (node.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.Text)
+                val text = (node.config.getOrNull(SemanticsProperties.Text)
                     ?.joinToString("") { it.text })
                 if (text.isNullOrBlank()) null else text
             }
