@@ -462,6 +462,16 @@
             android:theme="@style/Theme.MindAnchor" />
 
         <!--
+            Task 11 (Program 0 continuity): the replacement-phone restore
+            flow. Own activity, same rationale as JournalActivity above.
+        -->
+        <activity
+            android:name=".continuity.RestoreActivity"
+            android:exported="false"
+            android:stateNotNeeded="false"
+            android:theme="@style/Theme.MindAnchor" />
+
+        <!--
             v0.20.1 round 5 follow-up: the
             check-in history activity. Read-only
             list of past check-ins. NOT

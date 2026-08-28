@@ -41,6 +41,12 @@ interface JournalDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertMorningMeasure(measure: MorningMeasureEntity)
 
+    // Task 11 (continuity restore): batch upsert, mirroring upsertEntries
+    // above — the restore's ROOM_MERGED phase writes every restored
+    // morning measure in one call inside a single Room transaction.
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertMorningMeasures(measures: List<MorningMeasureEntity>)
+
     @Query("SELECT * FROM morning_measures ORDER BY localDate DESC")
     fun morningMeasures(): Flow<List<MorningMeasureEntity>>
 

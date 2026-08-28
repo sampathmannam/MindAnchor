@@ -171,6 +171,8 @@ class JournalLegacyImporterTest {
         override suspend fun allContext() = delegate.allContext()
         override suspend fun upsertMorningMeasure(measure: MorningMeasureEntity) =
             delegate.upsertMorningMeasure(measure)
+        override suspend fun upsertMorningMeasures(measures: List<MorningMeasureEntity>) =
+            delegate.upsertMorningMeasures(measures)
         override fun morningMeasures() = delegate.morningMeasures()
         override suspend fun morningMeasureByDate(localDate: String) = delegate.morningMeasureByDate(localDate)
         override suspend fun insertChange(change: ContinuityChangeEntity) = delegate.insertChange(change)
