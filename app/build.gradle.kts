@@ -54,8 +54,11 @@ android {
         //   call-site wiring. Zero new permissions; no
         //   network; clinical-review wordlist gate green.
         //   versionCode 92→93.
-        versionCode = 94
-        versionName = "0.70.0"
+        // v0.71.0: Task 13 release-hardening bump (Program 0's
+        //   complete, reviewed feature slice — Tasks 1-12).
+        //   versionCode 94→95.
+        versionCode = 95
+        versionName = "0.71.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every

@@ -60,6 +60,24 @@ Delete `mindanchor.jks.base64` afterwards. The `.jks` stays in your
 backups, never in the repository — `.gitignore` covers the pattern, but
 the real protection is not putting it there.
 
+Then record the certificate's public fingerprint as a repository
+**variable** (not a secret — a certificate fingerprint is meant to be
+publicly verifiable, that's the point of it) under **Settings → Secrets
+and variables → Actions → Variables**:
+
+```sh
+keytool -exportcert -alias mindanchor -keystore mindanchor.jks | \
+  openssl x509 -inform der -noout -fingerprint -sha256
+```
+
+| Variable | Value |
+|---|---|
+| `MINDANCHOR_RELEASE_CERT_SHA256` | the `SHA256` fingerprint from the command above, hex digits only (case-insensitive — the workflow uppercases both sides before comparing) |
+
+<!-- TODO: owner fills in the real certificate fingerprint here once the
+     release keystore exists. Do not put a placeholder hex string in
+     this file — an absent value is honest; a fake one is not. -->
+
 ---
 
 ## 3. Cut a release
@@ -67,11 +85,41 @@ the real protection is not putting it there.
 Either push a `v*` tag, or run the **Release** workflow manually with a
 tag like `v0.10.0`.
 
-The workflow builds a signed release APK when the secrets are present and
-falls back to a debug APK when they are not, so forks and contributors
-still get a working build. Every release publishes the artifact's SHA-256
-in the release notes — the only way for someone downloading outside a
-store to confirm they have the file CI actually built.
+**The workflow fails closed.** If any of the four signing secrets is
+missing, the job exits before building anything and no GitHub Release is
+created — there is no debug-signed fallback for an official release.
+Forks and contributors still get ordinary debug builds from `ci.yml` on
+every push; they just never come out of this workflow as something
+tagged "official."
+
+When the secrets are present, the workflow:
+
+1. builds the release APK twice, cleanly, with the same
+   `SOURCE_DATE_EPOCH` (see `tools/verify-reproducible-release.sh`) and
+   fails if the two builds don't produce byte-identical output;
+2. runs `apksigner verify --print-certs` on the result and compares the
+   certificate's SHA-256 digest against the `MINDANCHOR_RELEASE_CERT_SHA256`
+   repository variable recorded above — a mismatch fails the release,
+   which is what catches a wrong or compromised keystore being used;
+3. publishes the APK's own SHA-256 in the release notes — the only way
+   for someone downloading outside a store to confirm they have the file
+   CI actually built.
+
+### Reproducibility boundary
+
+`tools/verify-reproducible-release.sh` proves the *unsigned build
+content* (resources, DEX, native libraries, manifest) is reproducible
+given a fixed `SOURCE_DATE_EPOCH` — that part is fully mechanical and
+runnable by anyone, with or without the release keystore. The *signed*
+APK reproducibility this task actually cares about additionally depends
+on Android's APK Signature Scheme producing a deterministic signature
+block for a fixed keystore and fixed input, which this repository cannot
+independently verify without the real release keystore in CI. If a
+future signing scheme or plugin version ever makes signed output vary
+between otherwise-identical builds, the fix is to compare the *unsigned*
+APK as the primary reproducibility proof and keep certificate
+verification (step 2 above) as a separate, explicit check — not to
+loosen the hash comparison to "close enough."
 
 ---
 
@@ -99,15 +147,32 @@ it is not automated here, deliberately.
 
 ## 6. Before the first public release
 
-- [ ] Signing key created and backed up in two offline places
+The signing key setup is an owner-only manual step — no automated task
+in this repository can perform it, since it requires holding a private
+key and a GitHub Secrets admin login that only the owner has:
+
+- [ ] Create one release keystore, once (§1 above)
+- [ ] Store two offline copies outside the phone and outside the repository
+- [ ] Configure `MINDANCHOR_KEYSTORE_BASE64`, `MINDANCHOR_KEYSTORE_PASSWORD`,
+      `MINDANCHOR_KEY_ALIAS`, and `MINDANCHOR_KEY_PASSWORD` in GitHub Secrets
+- [ ] Record only the public certificate SHA-256 fingerprint as the
+      `MINDANCHOR_RELEASE_CERT_SHA256` repository variable (§2 above) —
+      do not consider this step complete until the fingerprint the
+      release workflow actually built matches the one recorded here
+- [ ] Install two consecutive signed builds over each other on a real
+      device and confirm Android accepts the upgrade (see
+      `docs/qa/program-0-upgrade-runbook.md` for the full procedure)
+
+And separately:
+
 - [ ] `docs/CLINICAL_REVIEW.md` reviewed by a clinician, and the crisis
       numbers confirmed against the operators themselves
 - [ ] The app installed and used on a real phone for more than a day
 - [ ] Screenshots reviewed at large font scales
 
-The second item is not a formality. This app holds a suicide safety plan,
-and no amount of test coverage substitutes for someone qualified having
-read what it tells a person in crisis.
+The clinical-review item is not a formality. This app holds a suicide
+safety plan, and no amount of test coverage substitutes for someone
+qualified having read what it tells a person in crisis.
 
 ---
 
