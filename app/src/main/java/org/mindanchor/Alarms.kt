@@ -3,6 +3,7 @@ package org.mindanchor
 import android.app.AlarmManager
 import android.content.Context
 import android.os.Build
+import org.mindanchor.backup.DriveNightlySync
 import org.mindanchor.model.EmaScheduler
 import org.mindanchor.notifications.BatchAlarms
 import org.mindanchor.report.ReportScheduler
@@ -15,13 +16,14 @@ import org.mindanchor.sunset.SunsetController
  *
  * Alarms do not survive a reboot, and until this existed the list of what
  * to put back lived only inside `BootReceiver` — where it had drifted.
- * Batch releases, sunset, the nightly report, and the check-in
- * prompts are re-armed here. (The 2026-08-24 release removed the
- * fortnightly pulse scheduler; this function used to call it as a
- * fifth entry. The original list-of-five bug — see git history — was
- * that two of the five were not being re-armed; the re-arm contract
- * now covers the remaining four and the missing-alarm class of bug
- * is closed for them.)
+ * Batch releases, sunset, the nightly report, the check-in prompts, and
+ * (v0.70.7) the nightly Google Drive backup are re-armed here. (The
+ * 2026-08-24 release removed the fortnightly pulse scheduler; this
+ * function used to call it as a fifth entry. The original list-of-five
+ * bug — see git history — was that two of the five were not being
+ * re-armed; the re-arm contract covered the remaining four and closed
+ * the missing-alarm class of bug for them. v0.70.7 brings the count back
+ * to five with a genuinely new entry.)
  *
  * A missing alarm is the worst shape of bug this app can have: nothing
  * fails, nothing is logged, a feature just never speaks again and the
@@ -47,6 +49,7 @@ object Alarms {
         runCatching { SunsetController.ensureScheduled(app) }
         runCatching { ReportScheduler.ensureScheduled(app) }
         runCatching { EmaScheduler.ensureScheduled(app) }
+        runCatching { DriveNightlySync.ensureScheduled(app) }
     }
 
     /**

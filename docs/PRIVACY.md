@@ -33,9 +33,18 @@ its build configuration enforces that:
   Health Connect. The launcher reads it; it never writes back to
   the watch and never transmits it.
 - **If you have opted in:** your COROS account email + password
-  hash, your Google Drive refresh token, and your Groq LLM API
-  key, all held in `EncryptedSharedPreferences` (Tink-backed).
-  Each of these can be cleared from Settings.
+  hash, your signed-in Google account email plus a short-lived
+  Google Drive access token (Google's side holds the refresh
+  token; this phone re-requests a fresh access token from Google
+  each time one is needed rather than storing one that outlives
+  a session), and your Groq LLM API key, all held in
+  `EncryptedSharedPreferences` (Tink-backed). Each of these can
+  be cleared from Settings.
+- **If you turn on Google Drive backup:** a second copy of your
+  notes, letters, check-ins, and wellness readings in your own
+  Google Drive, in four plain text files this app created and is
+  the only app that can see. Your safety plan and crisis contacts
+  are never included — see the section above.
 
 ## What the app does NOT do
 

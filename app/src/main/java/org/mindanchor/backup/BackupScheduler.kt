@@ -2,101 +2,113 @@ package org.mindanchor.backup
 
 import android.content.Context
 import android.util.Log
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.scan
-import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.mindanchor.data.NotesPrefs
+import org.mindanchor.letters.Letter
 import org.mindanchor.letters.LetterStore
+import org.mindanchor.model.Moment
+import org.mindanchor.model.MomentStore
 import org.mindanchor.model.Note
 import org.mindanchor.model.NotesState
+import org.mindanchor.vitals.MeasuredStore
+import org.mindanchor.vitals.Measurement
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 
 /**
- * The v0.25.4 per-type routing layer. v0.25.4
- * (WP-D). Sits between the data sources
- * ([NotesPrefs], [LetterStore]) and the
- * outbound channel ([BackupTarget]).
+ * The per-type routing layer between the data
+ * sources ([NotesPrefs], [LetterStore],
+ * [MomentStore], [MeasuredStore]) and the outbound
+ * channel ([BackupTarget]).
  *
- * The model is "one Drive file per content
- * type" — `MindAnchor-Notes.txt` for notes,
- * `MindAnchor-Letters.txt` for letters. The
- * scheduler's job is to take an entry (a note
- * or a letter) and append the AES-256-GCM
- * blob to the right file. It does not know
- * or care which [BackupTarget] implementation
- * is wired — the Drive target is the v0.25.4
- * surface, but the same scheduler can route
- * to a Local target, a future S3 target, or a
- * test fake.
+ * The model is "one Drive file per content type" —
+ * see [ContentType]'s KDoc for why. The scheduler's
+ * job is to take every entry currently on file for a
+ * type and append it as one JSON-Lines line; it does
+ * not know or care which [BackupTarget]
+ * implementation is wired.
  *
  * ## Wire format per entry
  *
- * Each [BackupEntry] is serialised to a one-line
- * JSON object (`{"date":"2026-08-12","body":"..."}`),
- * then wrapped with [EncryptedBackupCodec] (the
- * AES-256-GCM blob is `IV || ciphertext || tag`).
- * The target appends the bytes verbatim plus a
+ * Each entry is serialised to a one-line JSON object
+ * and the target appends the bytes verbatim plus a
  * trailing newline (`\n`, 0x0A) — see
  * [GoogleDriveBackupTarget]. The per-type file is
- * therefore a sequence of newline-terminated
- * encrypted entries, inspectable in the Drive
- * web UI as one entry per line.
+ * therefore a sequence of newline-terminated JSON
+ * objects, inspectable in the Drive web UI as one
+ * entry per line, plain text.
+ *
+ * v0.70.7: the payload used to be wrapped in
+ * [org.mindanchor.backup.EncryptedBackupCodec] before
+ * this class's own KDoc named it — that class no
+ * longer exists. See [GoogleDriveBackupTarget]'s KDoc
+ * for why: an Android-Keystore-backed key cannot
+ * follow the user to a new phone, which made "back
+ * this up so I don't lose it when I change phones"
+ * and "encrypt it with a key that can't leave this
+ * phone" a direct contradiction. The user chose
+ * continuity.
+ *
+ * Also new in v0.70.7: two more content types
+ * ([ContentType.CheckIns], [ContentType.WellnessReadings])
+ * and [restoreAll], the read side of the same
+ * contract. The v0.25.5 on-write streaming trigger
+ * and its WorkManager retry queue are gone — neither
+ * was ever wired to anything that ran (see the
+ * v0.70.7 commit for the full account) — replaced by
+ * a single nightly delta sync
+ * ([org.mindanchor.backup.DriveNightlySync]).
+ *
+ * ## Why a delta, not a full reupload
+ *
+ * [GoogleDriveBackupTarget.append] has no native
+ * append call to build on — each call downloads the
+ * whole file, adds one line, and reuploads the whole
+ * file. Calling it once per *existing* entry, every
+ * night, forever, would make a nightly job that gets
+ * slower and more expensive every night it runs, and
+ * would write the same content into the Drive file
+ * again on top of itself — exactly the unbounded
+ * battery/data cost this app's other nightly jobs are
+ * built to avoid (see [org.mindanchor.report.ReportScheduler]'s
+ * own KDoc on the same concern). So [backupAll]
+ * downloads each type's current Drive content once,
+ * and only appends the local entries that are not
+ * already in it — a night with nothing new to say
+ * costs four small downloads and zero uploads. This
+ * also means a failed night costs nothing but a day's
+ * delay: whatever did not make it up is simply still
+ * "not yet in Drive" and is picked up by the next
+ * successful run.
  *
  * ## Triggers
  *
- * Two trigger surfaces, both wired in WP-D:
- *  1. [backupAll] — a one-shot full reupload of
- *     every existing note + every existing
- *     letter. The "Back up now" button in the
- *     Settings sub-section calls this. The
- *     intent is "backfill", not "from now on".
- *  2. [start] — an on-write trigger that observes
- *     the [NotesPrefs.notes] and
- *     [LetterStore.letters] flows; on each new
- *     entry, fires an incremental append. The
- *     on-write trigger is the streaming path;
- *     the auto-sync toggles in the Settings
- *     sub-section gate it.
- *
- * The on-write trigger uses
- * [kotlinx.coroutines.flow.scan] to diff each
- * emission against the previous one; the new
- * entries (the tail of the new list that the
- * old list did not contain) are appended one
- * by one. [distinctUntilChanged] is the safety
- * net — a flow that re-emits the same list
- * (which DataStore can do on a metadata-only
- * change) does not double-append.
+ * [backupAll] is called from two places: the
+ * Settings "Back up now" button (immediate, manual)
+ * and [org.mindanchor.backup.DriveNightlySync]'s
+ * alarm (automatic, once a night). Both call sites
+ * run the identical delta sync; "nightly" is a matter
+ * of who calls it and when, not a different code path.
  *
  * ## Threading
  *
- * All public methods are `suspend` and run on
- * the caller's dispatcher. The [start] method
- * launches the observers in the supplied
- * [CoroutineScope] (typically the application
- * scope) and returns immediately. The scheduler
- * holds no internal scopes of its own — the
- * lifetime is the caller's.
+ * All public methods are `suspend` and run on the
+ * caller's dispatcher.
  */
 class BackupScheduler(
     private val context: Context,
     private val notesTarget: BackupTarget,
     private val lettersTarget: BackupTarget,
+    private val checkInsTarget: BackupTarget,
+    private val wellnessTarget: BackupTarget,
     private val notesPrefs: NotesPrefs = NotesPrefs(context),
     private val letterStore: LetterStore = LetterStore(context),
-    /**
-     * v0.25.5 WP-H: the prefs the on-write trigger enqueues
-     * failed [PendingBackup]s into. Defaulted to a fresh one
-     * so the test surface can pass a controlled instance and
-     * so older callers (and older tests) keep their public
-     * surface.
-     */
-    private val backupPrefs: BackupPrefs = BackupPrefs(context),
+    private val momentStore: MomentStore = MomentStore(context),
+    private val measuredStore: MeasuredStore = MeasuredStore(context),
 ) {
 
     private val json = Json {
@@ -110,218 +122,358 @@ class BackupScheduler(
     }
 
     /**
-     * The serialiser for [BackupEntry]. Uses an
-     * ISO-8601 string for [LocalDate] so the
-     * per-type file's JSON is plain-text and
-     * human-inspectable in the Drive web UI.
-     * The [kotlinx.serialization.Serializable]
-     * annotation uses kotlinx's default
-     * `LocalDate` handling (the kotlinx
-     * datetime module), which serialises
-     * [LocalDate] as `2026-08-12` — exactly the
-     * format the per-type file wants.
-     */
-
-    /**
-     * Reuploads every existing note + every
-     * existing letter. Idempotent: a second
-     * call appends the same entries again (the
-     * per-type file is append-only; a restore
-     * is "read everything, dedup by date" if
-     * duplicates matter). The "Back up now"
-     * button is a manual reupload, not a sync.
+     * Uploads whatever local content, of every type,
+     * is not already in its Drive file. Safe to call
+     * repeatedly: a call with nothing new to say
+     * downloads four files and uploads nothing. The
+     * "Back up now" button and the nightly alarm both
+     * call this — neither is a "from now on" streaming
+     * decision, both are "check what's missing, right
+     * now".
      */
     suspend fun backupAll(): BackupAllResult {
-        val notesState = notesPrefs.notes.firstOrEmpty(NotesState())
-        val notes = notesState.notes
-        val letters = letterStore.letters.firstOrEmpty(emptyList())
-        var notesOk = 0
-        var notesFail = 0
-        for (note in notes) {
-            val entry = BackupEntry(date = LocalDate.now().toString(), body = note.body)
-            when (encryptAndAppend(ContentType.Notes, entry)) {
-                is AppendResult.Ok -> notesOk++
-                else -> notesFail++
-            }
-        }
-        var lettersOk = 0
-        var lettersFail = 0
-        for (letter in letters) {
-            val entry = BackupEntry(date = letter.date.toString(), body = letter.body)
-            when (encryptAndAppend(ContentType.Letters, entry)) {
-                is AppendResult.Ok -> lettersOk++
-                else -> lettersFail++
-            }
-        }
+        val (notesOk, notesFail) = syncNotes()
+        val (lettersOk, lettersFail) = syncLetters()
+        val (checkInsOk, checkInsFail) = syncCheckIns()
+        val (wellnessOk, wellnessFail) = syncWellness()
+
         Log.i(
             LOG_TAG,
-            "backupAll: notes $notesOk ok / $notesFail fail, letters $lettersOk ok / $lettersFail fail",
+            "backupAll: notes $notesOk/$notesFail, letters $lettersOk/$lettersFail, " +
+                "checkIns $checkInsOk/$checkInsFail, wellness $wellnessOk/$wellnessFail (ok/fail)",
         )
         return BackupAllResult(
             notesAppended = notesOk,
             notesFailed = notesFail,
             lettersAppended = lettersOk,
             lettersFailed = lettersFail,
+            checkInsAppended = checkInsOk,
+            checkInsFailed = checkInsFail,
+            wellnessAppended = wellnessOk,
+            wellnessFailed = wellnessFail,
         )
     }
 
     /**
-     * Starts the on-write trigger. The caller
-     * supplies a [CoroutineScope] (typically
-     * the application scope) and the scheduler
-     * launches two collectors — one on
-     * [NotesPrefs.notes], one on
-     * [LetterStore.letters]. Each collector
-     * diffs against the previous emission and
-     * appends the new entries. The method
-     * returns immediately; the collectors run
-     * for the lifetime of the [scope].
-     *
-     * The diff uses
-     * `scan(emptyList<Note>()) { acc, next -> ... }`
-     * to track the previous snapshot, then
-     * compares the two lists by id (Notes) or
-     * date (Letters). The `distinctUntilChanged`
-     * downstream of the flow filters out
-     * metadata-only re-emissions that DataStore
-     * can produce.
+     * Notes are keyed by [Note.body] for this
+     * comparison — the wire format ([BackupEntry])
+     * does not carry [Note.id], so body text is the
+     * only field on both sides of the comparison. An
+     * edited note has a different body, so it uploads
+     * as a second line rather than silently never
+     * syncing the edit — [restoreAll] then sees it as
+     * a second note on a fresh device, the same
+     * tradeoff documented on [restoreNotes].
      */
-    fun start(scope: CoroutineScope) {
-        scope.launch {
-            notesPrefs.notes
-                .distinctUntilChanged()
-                .scan(NotesDiffState()) { state, current ->
-                    val newOnes = newNotes(state.current, current.notes)
-                    NotesDiffState(previous = state.current, current = current.notes, newOnes = newOnes)
-                }
-                .collect { state ->
-                    for (note in state.newOnes) {
-                        val entry = BackupEntry(date = LocalDate.now().toString(), body = note.body)
-                        // v0.25.5 WP-H: a [NetworkError] no longer
-                        // costs the user the entry — it is enqueued
-                        // for the [BackupRetryWorker]'s next
-                        // CONNECTED run. The on-write trigger still
-                        // does not block the UI; the enqueue is a
-                        // fire-and-forget on the same coroutine.
-                        encryptAndAppend(ContentType.Notes, entry)
-                    }
-                }
+    private suspend fun syncNotes(): Pair<Int, Int> {
+        val notes = notesPrefs.notes.firstOrEmpty(NotesState()).notes
+        if (notes.isEmpty()) return 0 to 0
+        val already = downloadedKeys(notesTarget, ContentType.Notes) {
+            decodeLine(BackupEntry.serializer(), it)?.body
         }
-        scope.launch {
-            letterStore.letters
-                .distinctUntilChanged()
-                .scan(LettersDiffState()) { state, current ->
-                    val newOnes = newLetters(state.current, current)
-                    LettersDiffState(previous = state.current, current = current, newOnes = newOnes)
-                }
-                .collect { state ->
-                    for (letter in state.newOnes) {
-                        val entry = BackupEntry(date = letter.date.toString(), body = letter.body)
-                        encryptAndAppend(ContentType.Letters, entry)
-                    }
-                }
+        var ok = 0
+        var fail = 0
+        for (note in notes) {
+            if (note.body in already) continue
+            val entry = BackupEntry(date = dayOf(note.createdAt).toString(), body = note.body)
+            when (append(ContentType.Notes, entry)) {
+                is AppendResult.Ok -> ok++
+                else -> fail++
+            }
         }
+        return ok to fail
+    }
+
+    /** Letters are keyed by [Letter.date] — see [restoreLetters] for the same key on the way back. */
+    private suspend fun syncLetters(): Pair<Int, Int> {
+        val letters = letterStore.letters.firstOrEmpty(emptyList())
+        if (letters.isEmpty()) return 0 to 0
+        val already = downloadedKeys(lettersTarget, ContentType.Letters) {
+            decodeLine(BackupEntry.serializer(), it)?.date
+        }
+        var ok = 0
+        var fail = 0
+        for (letter in letters) {
+            if (letter.date.toString() in already) continue
+            val entry = BackupEntry(date = letter.date.toString(), body = letter.body)
+            when (append(ContentType.Letters, entry)) {
+                is AppendResult.Ok -> ok++
+                else -> fail++
+            }
+        }
+        return ok to fail
+    }
+
+    /** Check-ins are immutable once answered, so [Moment.momentKey] alone is a complete key. */
+    private suspend fun syncCheckIns(): Pair<Int, Int> {
+        val moments = momentStore.moments.firstOrEmpty(emptyList())
+        if (moments.isEmpty()) return 0 to 0
+        val already = downloadedKeys(checkInsTarget, ContentType.CheckIns) {
+            decodeLine(CheckInEntry.serializer(), it)?.let(::checkInKey)
+        }
+        var ok = 0
+        var fail = 0
+        for (moment in moments) {
+            if (moment.momentKey() in already) continue
+            val entry = CheckInEntry(
+                valence = moment.valence,
+                arousal = moment.arousal,
+                atMinuteOfDay = moment.atMinuteOfDay,
+                day = moment.day,
+            )
+            when (appendCheckIn(entry)) {
+                is AppendResult.Ok -> ok++
+                else -> fail++
+            }
+        }
+        return ok to fail
     }
 
     /**
-     * The diff state for the notes flow.
-     * The accumulator is the new state; the
-     * `newOnes` are the entries the on-write
-     * trigger appends.
+     * Wellness readings key on (day, signal, value) together, not just
+     * (day, signal): [MeasuredStore.record] treats a same-day retake as a
+     * replacement ("the later measurement is the one the person trusted
+     * enough to keep"), and a value that changed for an already-synced day
+     * is exactly that — a retake worth a fresh line, not a duplicate. On
+     * [restoreWellness], the later line in file order wins because
+     * `record()` itself upserts by (day, key), so this never produces two
+     * conflicting readings on the far end.
      */
-    private data class NotesDiffState(
-        val previous: List<Note> = emptyList(),
-        val current: List<Note> = emptyList(),
-        val newOnes: List<Note> = emptyList(),
-    )
-
-    private data class LettersDiffState(
-        val previous: List<org.mindanchor.letters.Letter> = emptyList(),
-        val current: List<org.mindanchor.letters.Letter> = emptyList(),
-        val newOnes: List<org.mindanchor.letters.Letter> = emptyList(),
-    )
+    private suspend fun syncWellness(): Pair<Int, Int> {
+        val readings = runCatching { measuredStore.all() }.getOrDefault(emptyList())
+        if (readings.isEmpty()) return 0 to 0
+        val already = downloadedKeys(wellnessTarget, ContentType.WellnessReadings) {
+            decodeLine(WellnessEntry.serializer(), it)?.let(::wellnessKey)
+        }
+        var ok = 0
+        var fail = 0
+        for (reading in readings) {
+            if (wellnessKey(reading.day, reading.key, reading.value) in already) continue
+            val entry = WellnessEntry(day = reading.day, key = reading.key, value = reading.value)
+            when (appendWellness(entry)) {
+                is AppendResult.Ok -> ok++
+                else -> fail++
+            }
+        }
+        return ok to fail
+    }
 
     /**
-     * Encrypts [entry] (JSON → AES-256-GCM blob)
-     * and dispatches to the right
-     * [BackupTarget]. The dispatch is the only
-     * place the per-type routing decision is
-     * made — every other call site asks for
-     * "this type" and the scheduler picks the
-     * target. A future per-target fallback
-     * (e.g. Local on offline, Drive on online)
-     * lives here.
+     * Downloads [type]'s current Drive content and reduces each line to a
+     * dedup key via [keyOf] (null for a line that fails to parse — treated
+     * as absent, the same way a genuinely missing file is). No local
+     * bookkeeping of "what was synced last time" is kept anywhere:
+     * Drive's own content is re-read and re-diffed against on every call,
+     * so a reinstall, a cleared local store, or a second device signed
+     * into the same account can never drift out of sync with what the
+     * append side believes is already backed up.
      */
-    private suspend fun encryptAndAppend(type: ContentType, entry: BackupEntry): AppendResult {
+    private suspend fun downloadedKeys(
+        target: BackupTarget,
+        type: ContentType,
+        keyOf: (String) -> String?,
+    ): Set<String> {
+        val bytes = target.download(type) ?: return emptySet()
+        return linesOf(bytes).mapNotNull(keyOf).toSet()
+    }
+
+    private fun checkInKey(entry: CheckInEntry): String =
+        "${entry.day}|${entry.atMinuteOfDay}|${entry.valence}|${entry.arousal}"
+
+    private fun wellnessKey(entry: WellnessEntry): String = wellnessKey(entry.day, entry.key, entry.value)
+
+    private fun wellnessKey(day: String, key: String, value: Double): String = "$day|$key|$value"
+
+    /**
+     * Downloads every content type's current file
+     * and merges any entry not already present into
+     * the matching local store. Additive, never
+     * destructive: nothing already on this phone is
+     * ever removed or overwritten by a restore.
+     *
+     * This is what makes a new phone, signed into
+     * the same Google account, able to pick up where
+     * the old one left off — the manual counterpart
+     * to [org.mindanchor.backup.DriveNightlySync],
+     * which only ever writes forward.
+     */
+    suspend fun restoreAll(): RestoreAllResult {
+        val notesRestored = restoreNotes()
+        val lettersRestored = restoreLetters()
+        val checkInsRestored = restoreCheckIns()
+        val wellnessRestored = restoreWellness()
+        Log.i(
+            LOG_TAG,
+            "restoreAll: notes $notesRestored, letters $lettersRestored, " +
+                "checkIns $checkInsRestored, wellness $wellnessRestored (new entries written)",
+        )
+        return RestoreAllResult(
+            notesRestored = notesRestored,
+            lettersRestored = lettersRestored,
+            checkInsRestored = checkInsRestored,
+            wellnessRestored = wellnessRestored,
+        )
+    }
+
+    private suspend fun restoreNotes(): Int {
+        val bytes = notesTarget.download(ContentType.Notes) ?: return 0
+        val existingIds = notesPrefs.notes.firstOrEmpty(NotesState()).notes.map { it.id }.toSet()
+        var written = 0
+        for (line in linesOf(bytes)) {
+            val entry = decodeLine(BackupEntry.serializer(), line) ?: continue
+            // A restored note has no id of its own in the wire
+            // format (the wire format only ever carried date +
+            // body — see [BackupEntry]); a fresh id derived from
+            // the body is the only stable dedup key available,
+            // so the same restore run twice does not double the
+            // note. This means a note edited after its own
+            // backup restores as a second note rather than
+            // overwriting the edit — the safer direction, since
+            // restore must never silently discard a local edit.
+            val id = stableIdFor(entry.body)
+            if (id in existingIds) continue
+            // The wire format only carries a date, not a
+            // time-of-day (see [BackupEntry]) — start-of-day
+            // is the closest reconstructable timestamp. That
+            // is coarser than the original device's millisecond
+            // createdAt, but it is enough to sort the note into
+            // the right day; the alternative (createdAt = 0L)
+            // would silently dump every restored note into the
+            // 1970-01-01 group in NoteStore.groupedByDay.
+            val restoredAt = runCatching { LocalDate.parse(entry.date) }
+                .getOrNull()
+                ?.let(::millisAtStartOfDay)
+                ?: 0L
+            notesPrefs.add(Note(id = id, body = entry.body, createdAt = restoredAt, updatedAt = restoredAt))
+            written++
+        }
+        return written
+    }
+
+    private suspend fun restoreLetters(): Int {
+        val bytes = lettersTarget.download(ContentType.Letters) ?: return 0
+        val existingDates = letterStore.letters.firstOrEmpty(emptyList()).map { it.date }.toSet()
+        var written = 0
+        for (line in linesOf(bytes)) {
+            val entry = decodeLine(BackupEntry.serializer(), line) ?: continue
+            val date = runCatching { LocalDate.parse(entry.date) }.getOrNull() ?: continue
+            if (date in existingDates) continue
+            letterStore.save(Letter(date = date, body = entry.body))
+            written++
+        }
+        return written
+    }
+
+    private suspend fun restoreCheckIns(): Int {
+        val bytes = checkInsTarget.download(ContentType.CheckIns) ?: return 0
+        val existing = momentStore.moments.firstOrEmpty(emptyList()).map { it.momentKey() }.toSet()
+        var written = 0
+        for (line in linesOf(bytes)) {
+            val entry = decodeLine(CheckInEntry.serializer(), line) ?: continue
+            val moment = Moment(
+                valence = entry.valence,
+                arousal = entry.arousal,
+                atMinuteOfDay = entry.atMinuteOfDay,
+                day = entry.day,
+            )
+            if (moment.momentKey() in existing) continue
+            momentStore.append(moment)
+            written++
+        }
+        return written
+    }
+
+    private suspend fun restoreWellness(): Int {
+        val bytes = wellnessTarget.download(ContentType.WellnessReadings) ?: return 0
+        var written = 0
+        for (line in linesOf(bytes)) {
+            val entry = decodeLine(WellnessEntry.serializer(), line) ?: continue
+            val day = runCatching { LocalDate.parse(entry.day) }.getOrNull() ?: continue
+            // record() upserts by (day, key), so restoring an
+            // entry that already exists locally is a harmless
+            // no-op overwrite with the same value rather than a
+            // duplicate — unlike notes/check-ins, this type
+            // needs no separate existing-set check.
+            measuredStore.record(day, entry.key, entry.value)
+            written++
+        }
+        return written
+    }
+
+    private fun Moment.momentKey(): String = "$day|$atMinuteOfDay|$valence|$arousal"
+
+    private fun dayOf(epochMillis: Long): LocalDate =
+        Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault()).toLocalDate()
+
+    private fun millisAtStartOfDay(date: LocalDate): Long =
+        date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+    private fun linesOf(bytes: ByteArray): List<String> =
+        String(bytes, Charsets.UTF_8).lineSequence().filter { it.isNotBlank() }.toList()
+
+    private fun <T> decodeLine(serializer: kotlinx.serialization.KSerializer<T>, line: String): T? =
+        runCatching { json.decodeFromString(serializer, line) }.getOrNull()
+
+    /**
+     * Appends [entry] (JSON-encoded, no further
+     * wrapping) to the Notes target.
+     */
+    private suspend fun append(type: ContentType, entry: BackupEntry): AppendResult {
         val jsonStr = json.encodeToString(BackupEntry.serializer(), entry)
-        val cipher = EncryptedBackupCodec.wrap(jsonStr)
-            ?: return AppendResult.NetworkError("wrap failed")
         val target = when (type) {
             ContentType.Notes -> notesTarget
             ContentType.Letters -> lettersTarget
+            ContentType.CheckIns, ContentType.WellnessReadings ->
+                error("append(BackupEntry) does not route $type")
         }
-        val result = target.append(type, cipher)
-        // v0.25.5 WP-H: a NetworkError (or any non-Ok result) on
-        // the best-effort on-write path enqueues the entry for
-        // the next [BackupRetryWorker] run. The enqueue is
-        // itself fail-soft; a storage hiccup here is not worth
-        // turning a failed backup into a crash.
-        if (result !is AppendResult.Ok) {
-            runCatching {
-                backupPrefs.enqueuePending(
-                    PendingBackup(
-                        type = type,
-                        payload = cipher,
-                        queuedAt = java.time.Instant.now(),
-                    ),
-                )
-            }
-        }
-        return result
+        return target.append(type, jsonStr.toByteArray(Charsets.UTF_8))
+    }
+
+    private suspend fun appendCheckIn(entry: CheckInEntry): AppendResult {
+        val jsonStr = json.encodeToString(CheckInEntry.serializer(), entry)
+        return checkInsTarget.append(ContentType.CheckIns, jsonStr.toByteArray(Charsets.UTF_8))
+    }
+
+    private suspend fun appendWellness(entry: WellnessEntry): AppendResult {
+        val jsonStr = json.encodeToString(WellnessEntry.serializer(), entry)
+        return wellnessTarget.append(ContentType.WellnessReadings, jsonStr.toByteArray(Charsets.UTF_8))
     }
 
     /**
-     * The result of a [backupAll] call. The
-     * caller (the "Back up now" button's
-     * result state) renders a one-line summary
-     * from these numbers; no individual error
-     * message is surfaced (a per-entry failure
-     * is rare; the [AppendResult] is logged).
+     * The result of a [backupAll] call. The caller
+     * (the "Back up now" button's result state, and
+     * the nightly sync's log line) renders a summary
+     * from these numbers.
      */
     data class BackupAllResult(
         val notesAppended: Int,
         val notesFailed: Int,
         val lettersAppended: Int,
         val lettersFailed: Int,
+        val checkInsAppended: Int,
+        val checkInsFailed: Int,
+        val wellnessAppended: Int,
+        val wellnessFailed: Int,
     ) {
-        val ok: Boolean get() = notesFailed == 0 && lettersFailed == 0
+        val ok: Boolean
+            get() = notesFailed == 0 && lettersFailed == 0 && checkInsFailed == 0 && wellnessFailed == 0
+    }
+
+    /** The result of a [restoreAll] call: how many new entries each type wrote locally. */
+    data class RestoreAllResult(
+        val notesRestored: Int,
+        val lettersRestored: Int,
+        val checkInsRestored: Int,
+        val wellnessRestored: Int,
+    ) {
+        val total: Int get() = notesRestored + lettersRestored + checkInsRestored + wellnessRestored
     }
 
     /**
-     * The shape of one entry in the per-type
-     * file. Two fields — the date (the entry's
-     * timestamp, ISO-8601 `yyyy-MM-dd`) and the
-     * body (the entry's text content). The date
-     * is a [String] not a [LocalDate] so
-     * kotlinx.serialization can encode it
-     * without the kotlinx-datetime module;
-     * the on-the-wire format is plain text
-     * anyway, and the [LocalDate.parse] round-trip
-     * on restore is exact.
-     *
-     * The serializer produces a one-line JSON
-     * object; the [EncryptedBackupCodec] wraps
-     * the JSON into a binary blob; the per-type
-     * file is a sequence of these blobs
-     * separated by newlines.
-     *
-     * For Notes, the date is "today at the
-     * moment of backup" (the note itself is
-     * identified by id, not date, in the
-     * [NotesPrefs] store; the per-type file
-     * doesn't care about ids — the body is
-     * what matters). For Letters, the date is
-     * the letter's [org.mindanchor.letters.Letter.date].
+     * The shape of one Notes/Letters entry in the
+     * per-type file. Two fields — the date and the
+     * body. See [restoreNotes] for why a note's
+     * [Note.id] is not part of the wire format.
      */
     @Serializable
     data class BackupEntry(
@@ -329,36 +481,60 @@ class BackupScheduler(
         val body: String,
     )
 
-    private fun newNotes(
-        previous: List<Note>,
-        current: List<Note>,
-    ): List<Note> {
-        val previousIds = previous.map { it.id }.toSet()
-        return current.filter { it.id !in previousIds }
-    }
+    /** The shape of one check-in entry in `MindAnchor-CheckIns.txt`. */
+    @Serializable
+    data class CheckInEntry(
+        val valence: Int,
+        val arousal: Int,
+        val atMinuteOfDay: Int,
+        val day: String,
+    )
 
-    private fun newLetters(
-        previous: List<org.mindanchor.letters.Letter>,
-        current: List<org.mindanchor.letters.Letter>,
-    ): List<org.mindanchor.letters.Letter> {
-        val previousDates = previous.map { it.date }.toSet()
-        return current.filter { it.date !in previousDates }
-    }
+    /** The shape of one wellness-reading entry in `MindAnchor-Wellness.txt`. */
+    @Serializable
+    data class WellnessEntry(
+        val day: String,
+        val key: String,
+        val value: Double,
+    )
 
     /**
-     * Reads the first emission of a [Flow] or
-     * an empty list if the flow has not emitted
-     * yet. The empty-list fallback is what
-     * makes [backupAll] safe on a fresh install:
-     * the flow's first emission may be delayed
-     * by DataStore's IO, and a synchronous
-     * caller should not block.
+     * Reads the first emission of a [Flow] or an
+     * empty list if the flow has not emitted yet.
+     * The empty-list fallback is what makes
+     * [backupAll] safe on a fresh install: the
+     * flow's first emission may be delayed by
+     * DataStore's IO, and a synchronous caller
+     * should not block.
      */
-    private suspend fun <T> kotlinx.coroutines.flow.Flow<T>.firstOrEmpty(default: T): T {
-        return runCatching { this.first() }.getOrDefault(default)
-    }
+    private suspend fun <T> kotlinx.coroutines.flow.Flow<T>.firstOrEmpty(default: T): T =
+        runCatching { this.first() }.getOrDefault(default)
 
     companion object {
         private const val LOG_TAG = "MindAnchor/BackupSched"
+
+        /**
+         * A stable id for a restored note. Notes
+         * created on-device get their id from
+         * [System.currentTimeMillis]
+         * ([Note.id]'s own KDoc); a restored note has
+         * no such moment, so this derives one
+         * deterministically from the body text
+         * instead. Deterministic means restoring the
+         * same backup twice produces the same id both
+         * times, which is what makes the dedup-by-id
+         * check in [restoreNotes] work at all.
+         */
+        private fun stableIdFor(body: String): Long {
+            var h = 1125899906842597L
+            for (c in body) h = 31L * h + c.code
+            // Notes.id is also used as a sort/display
+            // key elsewhere; forcing it negative marks
+            // a restored note as distinguishable from
+            // a device-created one (device timestamps
+            // are always positive) without adding a
+            // new field to [Note].
+            return -kotlin.math.abs(h)
+        }
     }
 }

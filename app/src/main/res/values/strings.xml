@@ -1028,17 +1028,20 @@
         pick" path (the local file picker) is unchanged.
     -->
     <string name="drive_section">Google Drive backup (opt-in)</string>
-    <string name="drive_explainer">A second, automatic copy in your own Google Drive — encrypted before it leaves this phone, in two text files (notes and letters). The app can only see files it created; the rest of your Drive is invisible.</string>
+    <string name="drive_explainer">A second copy in your own Google Drive, synced every night while you sleep — notes, letters, check-ins, and wellness readings, in four plain text files. The app can only see files it created; the rest of your Drive is invisible. Your safety plan and crisis contacts never leave this phone.</string>
     <string name="drive_sign_in">Sign in with Google</string>
     <string name="drive_signed_in_as">Signed in as %1$s</string>
+    <string name="drive_nightly_sync">Back up every night</string>
     <string name="drive_backup_now">Back up now</string>
-    <string name="drive_backup_uploaded">Backed up. The remote copy is encrypted with the same key as the local backup.</string>
-    <string name="drive_upload_failed">Couldn\'t back up right now. Will retry on the next entry.</string>
+    <string name="drive_backup_uploaded">Backed up.</string>
+    <string name="drive_upload_failed">Couldn\'t back up right now. Will retry tonight.</string>
     <string name="drive_sign_in_failed">Couldn\'t sign in. Check the account picker and try again.</string>
     <string name="drive_forget_account">Forget this account</string>
-    <string name="drive_forgot">Forgot the account. The remote copy is still in your Drive; turn the bridge back on any time.</string>
-    <string name="drive_auto_sync_notes">Auto-back up new notes</string>
-    <string name="drive_auto_sync_letters">Auto-back up new letters</string>
+    <string name="drive_forgot">Forgot the account. The remote copy is still in your Drive; turn the backup back on any time.</string>
+    <string name="drive_restore_now">Restore from Google Drive</string>
+    <string name="drive_restore_done">Restored what wasn\'t already on this phone.</string>
+    <string name="drive_restore_nothing">Nothing new to restore — this phone already has everything in Drive.</string>
+    <string name="drive_restore_failed">Couldn\'t restore right now. Check your connection and try again.</string>
     <!--
         AnchorCore (v0.70 v1 of the wellbeing loop). The master
         toggle defaults OFF (opt-out-by-silence); the per-hook

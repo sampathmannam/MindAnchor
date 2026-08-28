@@ -295,4 +295,59 @@ class GoogleDriveBackupTargetTest {
         )
         assertEquals("no HTTP call on type mismatch", 0, server.requestCount)
     }
+
+    @Test fun `download on an existing file returns its current content`() = runBlocking {
+        val existingContent = "line-one\nline-two\n".toByteArray()
+        stubFileFound(size = existingContent.size)
+        stubDownloadOk(existingContent)
+
+        val result = target.download(ContentType.Notes)
+
+        assertArrayEquals("download must return the file's raw bytes", existingContent, result)
+        val findReq = server.takeRequest()
+        assertEquals("GET", findReq.method)
+        val downloadReq = server.takeRequest()
+        assertEquals("GET", downloadReq.method)
+        assertTrue("download must use alt=media", downloadReq.requestUrl.toString().contains("alt=media"))
+        assertEquals("exactly find + download, no upload", 2, server.requestCount)
+    }
+
+    @Test fun `download when the file has never been written returns null with one HTTP call`() = runBlocking {
+        stubFileNotFound()
+
+        val result = target.download(ContentType.Notes)
+
+        assertEquals("no file yet must read as null, not an error", null, result)
+        assertEquals("only the find call, no download attempt", 1, server.requestCount)
+    }
+
+    @Test fun `download returns null without any HTTP call when the auth has no token`() = runBlocking {
+        val ctx = ApplicationProvider.getApplicationContext<Context>()
+        val emptyTokenStore = TokenStore(
+            ctx.getSharedPreferences("test_drive_auth_empty_download", Context.MODE_PRIVATE),
+        )
+        emptyTokenStore.clear()
+        val noAuth = GoogleDriveAuth(ctx, emptyTokenStore)
+        val noAuthTarget = GoogleDriveBackupTarget(
+            client = client,
+            auth = noAuth,
+            type = ContentType.Notes,
+            allowInsecureForTest = GoogleDriveBackupTarget.AllowInsecureForTest.INSTANCE,
+        )
+
+        val result = noAuthTarget.download(ContentType.Notes)
+
+        assertEquals("no-token download must return null without any HTTP call", null, result)
+        assertEquals("no HTTP request must be made", 0, server.requestCount)
+    }
+
+    @Test fun `download with a type-mismatch returns null without any HTTP call`() = runBlocking {
+        val result = target.download(ContentType.Letters)
+        assertEquals(
+            "type mismatch (Letters, but target is Notes) must return null",
+            null,
+            result,
+        )
+        assertEquals("no HTTP call on type mismatch", 0, server.requestCount)
+    }
 }

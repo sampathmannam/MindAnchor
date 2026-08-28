@@ -1046,33 +1046,36 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     /**
-     * v0.25.4: per-type auto-sync toggles for the
-     * Google Drive backup. The Settings sub-section
-     * binds to these flows; the WP-D scheduler
-     * reads the same [BackupPrefs] to decide
-     * whether to fire on a new note / letter.
+     * v0.70.7: the single toggle for the nightly
+     * Google Drive backup, replacing the v0.25.4
+     * per-type `autoSyncNotes`/`autoSyncLetters`
+     * pair (see [BackupPrefs]'s KDoc for why one
+     * toggle now covers every content type).
      *
-     * The toggles are independent of the sign-in
-     * state: a user can sign in with Google but
-     * leave both toggles off (no auto-sync), or
-     * flip a toggle before signing in (the sign-in
-     * prompt fires when the first auto-sync
-     * attempt finds no account). The default is
-     * `false` on both — the v0.23.0
-     * "off by default; opt-in" design that the
-     * v0.25.4 plan explicitly extends.
+     * Independent of the sign-in state: a user can
+     * sign in with Google but leave this off (nothing
+     * syncs), or flip it on before signing in (the
+     * nightly job simply finds nobody signed in and
+     * skips the night — see [org.mindanchor.backup.DriveNightlySync]).
+     * Defaults to `false` — this app's "off by
+     * default; opt-in" convention.
      */
-    val autoSyncNotes: StateFlow<Boolean> = backupPrefs.autoSyncNotes
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
-    val autoSyncLetters: StateFlow<Boolean> = backupPrefs.autoSyncLetters
+    val driveNightlySyncEnabled: StateFlow<Boolean> = backupPrefs.driveNightlySyncEnabled
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
-    fun setAutoSyncNotes(enabled: Boolean) {
-        viewModelScope.launch { backupPrefs.setAutoSyncNotes(enabled) }
-    }
-
-    fun setAutoSyncLetters(enabled: Boolean) {
-        viewModelScope.launch { backupPrefs.setAutoSyncLetters(enabled) }
+    fun setDriveNightlySyncEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            backupPrefs.setDriveNightlySyncEnabled(enabled)
+            // Arms the nightly alarm when switched on; cancels it when
+            // switched off. Calling this again on an already-armed
+            // schedule replaces the one alarm rather than stacking a
+            // second — see DriveNightlySync.ensureScheduled.
+            if (enabled) {
+                org.mindanchor.backup.DriveNightlySync.ensureScheduled(getApplication())
+            } else {
+                org.mindanchor.backup.DriveNightlySync.cancel(getApplication())
+            }
+        }
     }
 
     // --- Wellness signals (N-of-1, from Health Connect) ---

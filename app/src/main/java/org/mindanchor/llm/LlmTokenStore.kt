@@ -12,10 +12,9 @@ import androidx.security.crypto.MasterKey
  * [LlmPrefs]. The audit's recommendation is the same
  * pattern the COROS bridge uses for the user's web
  * token: a dedicated [EncryptedSharedPreferences]
- * file keyed by the existing
- * [org.mindanchor.backup.KeystoreAesKey] master
- * pattern. The key lives only in the device
- * Keystore; the encrypted blob lives in
+ * file backed by a Keystore-held [MasterKey]. The
+ * key lives only in the device Keystore; the
+ * encrypted blob lives in
  * `/data/data/org.mindanchor/files/letter_llm_tokens`.
  *
  * ## Why a separate file from `letter_llm_dataStore`

@@ -27,34 +27,41 @@ import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import org.mindanchor.R
 import org.mindanchor.backup.BackupScheduler
+import org.mindanchor.backup.ContentType
 import org.mindanchor.backup.GoogleDriveAuth
 import org.mindanchor.backup.GoogleDriveBackupTarget
 
 /**
  * The Google Drive backup sub-section. v0.25.4
- * (WP-C). Replaces the v0.23.0 WebDAV sub-section
- * in the Settings → Reading group.
+ * (WP-C); consolidated to one nightly sync
+ * covering every content type in v0.70.7.
+ * Replaces the v0.23.0 WebDAV sub-section in the
+ * Settings → Reading group.
  *
- * Opt-in shape mirrors the v0.23.0 design the
- * v0.25.4 plan extends: the section exposes a
- * "Sign in with Google" button (default state)
- * which, on success, flips to "Signed in as
- * <email>" + the per-type auto-sync toggles +
- * the "Back up now" / "Forget this account"
- * affordances. The auto-sync toggles gate the
- * WP-D scheduler's on-write trigger; the
- * "Forget this account" button clears the
- * local credentials and re-prompts on the
- * next sign-in.
+ * Opt-in shape mirrors the v0.23.0 design this
+ * extends: the section exposes a "Sign in with
+ * Google" button (default state) which, on
+ * success, flips to "Signed in as <email>" + the
+ * nightly-sync toggle + the "Back up now" /
+ * "Restore from Google Drive" / "Forget this
+ * account" affordances. The toggle gates
+ * [org.mindanchor.backup.DriveNightlySync]'s
+ * alarm; "Forget this account" clears the local
+ * credentials and re-prompts on the next sign-in.
  *
- * The `Back up now` button dispatches the
- * v0.25.4-WP-D [BackupScheduler.backupAll] —
- * a full reupload of every existing note and
- * every existing letter. The scheduler is
- * created on demand (one per click) with a
- * fresh [GoogleDriveBackupTarget] per content
- * type, so the network round-trips are
- * independent and the OkHttp client is
+ * The `Back up now` button dispatches
+ * [BackupScheduler.backupAll] — every note,
+ * letter, check-in, and wellness reading not
+ * already in this phone's Drive. `Restore from
+ * Google Drive` is the reverse:
+ * [BackupScheduler.restoreAll] pulls in whatever
+ * is in Drive but missing locally, which is the
+ * path a new phone signed into the same account
+ * uses to pick up where the old one left off. Both
+ * schedulers are created on demand (one per
+ * click) with a fresh [GoogleDriveBackupTarget]
+ * per content type, so the network round-trips
+ * are independent and the OkHttp client is
  * disposable.
  *
  * The section is a Composable, not a class —
@@ -76,8 +83,7 @@ internal fun GoogleDriveBackupSettingsSection(
     // email on every recomposition.
     val auth = remember(context) { GoogleDriveAuth(context.applicationContext) }
     val signedInEmail by auth.signedInEmailFlow.collectAsState(initial = null)
-    val autoSyncNotes by viewModel.autoSyncNotes.collectAsState()
-    val autoSyncLetters by viewModel.autoSyncLetters.collectAsState()
+    val driveNightlySyncEnabled by viewModel.driveNightlySyncEnabled.collectAsState()
     val coroutineScope = rememberCoroutineScope()
     var driveMessage by remember { mutableStateOf<Int?>(null) }
 
@@ -113,8 +119,8 @@ internal fun GoogleDriveBackupSettingsSection(
         } else {
             SignedInContent(
                 email = email,
-                autoSyncNotes = autoSyncNotes,
-                autoSyncLetters = autoSyncLetters,
+                nightlySyncEnabled = driveNightlySyncEnabled,
+                onToggleNightlySync = viewModel::setDriveNightlySyncEnabled,
                 auth = auth,
                 coroutineScope = coroutineScope,
                 onMessage = { driveMessage = it },
@@ -172,18 +178,21 @@ private fun SignedOutContent(onSignIn: () -> Unit) {
 }
 
 /**
- * The signed-in surface: the email, the
- * per-type auto-sync toggles, the "Back up
- * now" and "Forget this account" buttons.
- * The full-reupload dispatch goes through
- * the v0.25.4-WP-D [BackupScheduler].
+ * The signed-in surface: the email, the one
+ * nightly-sync toggle, and the "Back up now" /
+ * "Restore from Google Drive" / "Forget this
+ * account" buttons. The manual buttons dispatch
+ * [BackupScheduler] directly; the toggle instead
+ * arms [org.mindanchor.backup.DriveNightlySync]
+ * via [onToggleNightlySync] (see
+ * [SettingsViewModel.setDriveNightlySyncEnabled]).
  */
 @Composable
 @Suppress("FunctionNaming")
 private fun SignedInContent(
     email: String,
-    autoSyncNotes: Boolean,
-    autoSyncLetters: Boolean,
+    nightlySyncEnabled: Boolean,
+    onToggleNightlySync: (Boolean) -> Unit,
     auth: GoogleDriveAuth,
     coroutineScope: kotlinx.coroutines.CoroutineScope,
     onMessage: (Int) -> Unit,
@@ -195,40 +204,18 @@ private fun SignedInContent(
         modifier = Modifier.padding(top = 8.dp),
     )
     GoogleDriveAutoSyncRow(
-        labelRes = R.string.drive_auto_sync_notes,
-        checked = autoSyncNotes,
-        onCheckedChange = { /* WP-D scheduler reads the same DataStore; toggle is the gate */ },
+        labelRes = R.string.drive_nightly_sync,
+        checked = nightlySyncEnabled,
+        onCheckedChange = onToggleNightlySync,
     )
-    GoogleDriveAutoSyncRow(
-        labelRes = R.string.drive_auto_sync_letters,
-        checked = autoSyncLetters,
-        onCheckedChange = { /* WP-D scheduler reads the same DataStore; toggle is the gate */ },
-    )
-    // v0.25.4-WP-D: the manual full-reupload
-    // path. The scheduler is created on
-    // demand; one per click keeps the
-    // network round-trips independent and
-    // the OkHttp client disposable.
+    // The manual full-sync path. The scheduler is
+    // created on demand; one per click keeps the
+    // network round-trips independent and the
+    // OkHttp client disposable.
     TextButton(
         onClick = {
             coroutineScope.launch {
-                val client = OkHttpClient()
-                val notesTarget = GoogleDriveBackupTarget(
-                    client = client,
-                    auth = auth,
-                    type = org.mindanchor.backup.ContentType.Notes,
-                )
-                val lettersTarget = GoogleDriveBackupTarget(
-                    client = client,
-                    auth = auth,
-                    type = org.mindanchor.backup.ContentType.Letters,
-                )
-                val scheduler = BackupScheduler(
-                    context = context.applicationContext,
-                    notesTarget = notesTarget,
-                    lettersTarget = lettersTarget,
-                )
-                val result = scheduler.backupAll()
+                val result = buildScheduler(context, auth).backupAll()
                 onMessage(
                     if (result.ok) R.string.drive_backup_uploaded
                     else R.string.drive_upload_failed,
@@ -242,6 +229,23 @@ private fun SignedInContent(
     TextButton(
         onClick = {
             coroutineScope.launch {
+                val outcome = runCatching { buildScheduler(context, auth).restoreAll() }
+                onMessage(
+                    outcome.fold(
+                        onSuccess = { result ->
+                            if (result.total > 0) R.string.drive_restore_done else R.string.drive_restore_nothing
+                        },
+                        onFailure = { R.string.drive_restore_failed },
+                    ),
+                )
+            }
+        },
+    ) {
+        Text(stringResource(R.string.drive_restore_now))
+    }
+    TextButton(
+        onClick = {
+            coroutineScope.launch {
                 auth.signOut()
                 onMessage(R.string.drive_forgot)
             }
@@ -249,6 +253,19 @@ private fun SignedInContent(
     ) {
         Text(stringResource(R.string.drive_forget_account))
     }
+}
+
+/** One [BackupScheduler] wired to all four content types, for a single manual button click. */
+private fun buildScheduler(context: android.content.Context, auth: GoogleDriveAuth): BackupScheduler {
+    val client = OkHttpClient()
+    val appContext = context.applicationContext
+    return BackupScheduler(
+        context = appContext,
+        notesTarget = GoogleDriveBackupTarget(client = client, auth = auth, type = ContentType.Notes),
+        lettersTarget = GoogleDriveBackupTarget(client = client, auth = auth, type = ContentType.Letters),
+        checkInsTarget = GoogleDriveBackupTarget(client = client, auth = auth, type = ContentType.CheckIns),
+        wellnessTarget = GoogleDriveBackupTarget(client = client, auth = auth, type = ContentType.WellnessReadings),
+    )
 }
 
 /**

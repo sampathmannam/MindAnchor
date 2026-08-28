@@ -121,8 +121,22 @@ android {
         // daily letter (Settings → Reading → Daily letter (LLM)) is a
         // separate, untouched feature.
         // versionCode 99→100.
-        versionCode = 100
-        versionName = "0.70.6"
+        // v0.70.7: Google Drive backup now covers notes, letters,
+        // check-ins, and wellness readings (was notes + letters only),
+        // runs as a real nightly AlarmManager job (was two Settings
+        // toggles wired to nothing and a streaming trigger that was
+        // never started), and adds a restore path — the read half the
+        // interface always anticipated but never got. Dropped the
+        // AES-256-GCM layer: its key was Android Keystore-bound and
+        // could never follow the user to a new phone, which silently
+        // defeated the whole point of a backup. The sync now diffs
+        // against what is already in Drive instead of re-uploading
+        // everything every night, so it can't grow the Drive files or
+        // slow down over time. Safety plan and crisis contacts stay
+        // phone-only, unchanged.
+        // versionCode 100→101.
+        versionCode = 101
+        versionName = "0.70.7"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every
