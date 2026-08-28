@@ -473,6 +473,18 @@ fun LauncherRoot(
                     letterCameFrom = LauncherSurface.Home
                     surface = LauncherSurface.Letter
                 },
+                // Task 6 (Program 0 continuity): route to the standalone
+                // Journal experience (Today / Entries / Patterns). Same
+                // runCatching shape as onOpenNotes above — a misconfigured
+                // manifest should never crash the launcher.
+                onOpenJournal = {
+                    runCatching {
+                        val journalIntent = android.content.Intent(
+                            context, org.mindanchor.journal.JournalActivity::class.java,
+                        )
+                        context.startActivity(journalIntent)
+                    }
+                },
                 showIntroCallout = showIntroCallout,
                 onRecordLaunch = viewModel::recordHomeLaunch,
                 // v0.25.7 (Task 13): the LLM letter state
@@ -1000,6 +1012,14 @@ private fun HomeSurface(
      * the surface dispatcher.
      */
     onOpenLetters: () -> Unit = {},
+    /**
+     * Task 6 (Program 0 continuity): route to
+     * [org.mindanchor.journal.JournalActivity] — the Today /
+     * Entries / Patterns Journal experience. Own activity, same
+     * shape as [onOpenNotes] and [onOpenLetters]: a crash while
+     * writing must never take the launcher down with it.
+     */
+    onOpenJournal: () -> Unit = {},
     /**
      * v0.20.4: the home-screen quick-notes
      * affordance. The card shows a one-line
@@ -1739,6 +1759,18 @@ private fun HomeSurface(
             ) {
                 Text(
                     text = stringResource(R.string.check_in_history_shortcut),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = sky.textSecondary,
+                )
+            }
+            // Task 6 (Program 0 continuity): a fourth stacked button —
+            // "journal" — alongside letter/notes/history. Additive only;
+            // does not reorder or displace any of the three above it.
+            TextButton(
+                onClick = onOpenJournal,
+            ) {
+                Text(
+                    text = stringResource(R.string.journal_shortcut),
                     style = MaterialTheme.typography.labelMedium,
                     color = sky.textSecondary,
                 )

@@ -1154,4 +1154,11 @@
         <string name="settings_anchor_proposal_subtitle">One quiet suggestion after late-night weeks.</string>
         <string name="settings_anchor_override_active">Wind-down is 30 minutes earlier until %1$s.</string>
         <string name="settings_anchor_override_remove">Return to usual</string>
+
+    <!--
+        Task 6 (Program 0 continuity): the home-screen shortcut to the
+        Journal experience (Today / Entries / Patterns), alongside the
+        existing letter/notes/history shortcuts in the TopEnd corner.
+    -->
+    <string name="journal_shortcut">journal</string>
 </resources>

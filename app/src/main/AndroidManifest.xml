@@ -451,6 +451,17 @@
             android:configChanges="orientation|screenSize|keyboard|keyboardHidden" />
 
         <!--
+            Task 6 (Program 0 continuity): the Journal experience
+            (Today / Entries / Patterns). Own activity so a crash while
+            writing never takes the launcher down with it.
+        -->
+        <activity
+            android:name=".journal.JournalActivity"
+            android:exported="false"
+            android:stateNotNeeded="false"
+            android:theme="@style/Theme.MindAnchor" />
+
+        <!--
             v0.20.1 round 5 follow-up: the
             check-in history activity. Read-only
             list of past check-ins. NOT
