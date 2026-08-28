@@ -84,7 +84,7 @@ class ClassifierEnqueuer(private val context: Context) {
     fun enqueue(note: Note) {
         scope.launch {
             runCatching {
-                val type = classifier.classify(note.body)
+                val type = classifier.classify()
                 prefs.setType(note.id, type)
             }
         }

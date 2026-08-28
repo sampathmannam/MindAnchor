@@ -84,10 +84,12 @@ class BackupSchedulerTest {
         )
         scheduler = BackupScheduler(
             context = ctx,
-            notesTarget = target(ContentType.Notes),
-            lettersTarget = target(ContentType.Letters),
-            checkInsTarget = target(ContentType.CheckIns),
-            wellnessTarget = target(ContentType.WellnessReadings),
+            targets = BackupTargets(
+                notes = target(ContentType.Notes),
+                letters = target(ContentType.Letters),
+                checkIns = target(ContentType.CheckIns),
+                wellness = target(ContentType.WellnessReadings),
+            ),
         )
     }
 

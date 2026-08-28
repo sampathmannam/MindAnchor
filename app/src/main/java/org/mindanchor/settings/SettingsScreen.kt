@@ -105,6 +105,7 @@ import kotlin.math.roundToLong
  */
 private const val HEALTH_CONNECT_PACKAGE = "com.google.android.apps.healthdata"
 private const val HEALTH_CONNECT_MAIN_ACTION = "androidx.health.ACTION_HEALTH_CONNECT_HOME"
+private const val HEALTH_CONNECT_LOG_TAG = "MindAnchor/HealthConnect"
 
 /**
  * A section title, marked when the person named a reason for it.
@@ -1800,7 +1801,7 @@ fun SettingsScreen(
             // completion; the cached result is shown in the
             // Connection row above.
             val llmVm: org.mindanchor.settings.LlmSettingsViewModel = viewModel()
-            org.mindanchor.settings.LlmSettingsScreen(llmVm)
+            org.mindanchor.settings.LlmSettingsScreen(llmVm, onOpenLetters = onOpenLetters)
         }
 
         if (group == SettingsGroup.READING) {
@@ -2265,7 +2266,7 @@ fun SettingsScreen(
             val healthConnectPermissionLauncher = rememberLauncherForActivityResult(
                 contract = healthConnectPermissionContract,
             ) { granted ->
-                Log.w("MindAnchor/HealthConnect", "permission result: " + granted.size + " granted")
+                Log.w(HEALTH_CONNECT_LOG_TAG, "permission result: " + granted.size + " granted")
                 hcLaunchError = null
                 viewModel.refreshHealthConnectStatus()
             }
@@ -2312,7 +2313,7 @@ fun SettingsScreen(
                 // is never silent again.
                 TextButton(
                     onClick = {
-                        Log.w("MindAnchor/HealthConnect", "launch requested")
+                        Log.w(HEALTH_CONNECT_LOG_TAG, "launch requested")
                         val primary = runCatching {
                             healthConnectPermissionLauncher.launch(
                                 HealthConnectSource.effectivePermissions(context),
@@ -2353,7 +2354,11 @@ fun SettingsScreen(
                             ?: fallbackOpen.exceptionOrNull()
                             ?: playStore.exceptionOrNull()
                         if (failure != null) {
-                            Log.e("MindAnchor/HealthConnect", "all three launches failed; last error: " + failure.javaClass.simpleName, failure)
+                            Log.e(
+                                HEALTH_CONNECT_LOG_TAG,
+                                "all three launches failed; last error: " + failure.javaClass.simpleName,
+                                failure,
+                            )
                             hcLaunchError = failure.javaClass.simpleName
                         }
                     },
@@ -2443,7 +2448,7 @@ fun SettingsScreen(
                                                         context.startActivity(intent)
                                                     }.onFailure { t ->
                                                         Log.e(
-                                                            "MindAnchor/HealthConnect",
+                                                            HEALTH_CONNECT_LOG_TAG,
                                                             "play store launch failed: " +
                                                                 t.javaClass.simpleName,
                                                             t,
@@ -2498,14 +2503,14 @@ fun SettingsScreen(
                     )
                     TextButton(
                         onClick = {
-                            Log.w("MindAnchor/HealthConnect", "additional-access launch requested")
+                            Log.w(HEALTH_CONNECT_LOG_TAG, "additional-access launch requested")
                             runCatching {
                                 healthConnectPermissionLauncher.launch(
                                     HealthConnectSource.effectiveAdditionalPermissions(context),
                                 )
                             }.onFailure { t ->
                                 Log.e(
-                                    "MindAnchor/HealthConnect",
+                                    HEALTH_CONNECT_LOG_TAG,
                                     "additional-access launch failed: " + t.javaClass.simpleName,
                                     t,
                                 )

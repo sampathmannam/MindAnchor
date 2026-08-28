@@ -247,14 +247,24 @@ abstract class AnchorDatabase : RoomDatabase() {
         // migration in a way that tolerates older engines
         // (the 12-step re-create dance) so the upgrade
         // works on Android 11 too.
+        // SQLite ≥ 3.35 supports DROP COLUMN.
+        private const val MIN_SQLITE_MAJOR_FOR_DROP_COLUMN = 3
+        private const val MIN_SQLITE_MINOR_FOR_DROP_COLUMN = 35
+
         private val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // SQLite ≥ 3.35 supports DROP COLUMN.
                 val cursor = db.query("SELECT sqlite_version()")
                 val version = cursor.use { if (it.moveToFirst()) it.getString(0) else "0" }
                 cursor.close()
                 val parts = version.split(".").mapNotNull { it.toIntOrNull() }
-                val has = parts.size >= 2 && (parts[0] > 3 || (parts[0] == 3 && parts[1] >= 35))
+                val has = parts.size >= 2 &&
+                    (
+                        parts[0] > MIN_SQLITE_MAJOR_FOR_DROP_COLUMN ||
+                            (
+                                parts[0] == MIN_SQLITE_MAJOR_FOR_DROP_COLUMN &&
+                                    parts[1] >= MIN_SQLITE_MINOR_FOR_DROP_COLUMN
+                                )
+                        )
                 if (has) {
                     db.execSQL("ALTER TABLE held_notifications DROP COLUMN tier")
                 } else {
@@ -270,8 +280,10 @@ abstract class AnchorDatabase : RoomDatabase() {
                             "releasedAt INTEGER)",
                     )
                     db.execSQL(
-                        "INSERT INTO held_notifications_new (id, packageName, appLabel, title, text, postedAt, releasedAt) " +
-                            "SELECT id, packageName, appLabel, title, text, postedAt, releasedAt FROM held_notifications",
+                        "INSERT INTO held_notifications_new " +
+                            "(id, packageName, appLabel, title, text, postedAt, releasedAt) " +
+                            "SELECT id, packageName, appLabel, title, text, postedAt, releasedAt " +
+                            "FROM held_notifications",
                     )
                     db.execSQL("DROP TABLE held_notifications")
                     db.execSQL("ALTER TABLE held_notifications_new RENAME TO held_notifications")

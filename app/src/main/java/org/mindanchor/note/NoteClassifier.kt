@@ -13,5 +13,5 @@ import org.mindanchor.model.NoteType
  * model-lookup path that could never succeed again anyway.
  */
 class NoteClassifier {
-    fun classify(body: String): NoteType = NoteType.GENERAL
+    fun classify(): NoteType = NoteType.GENERAL
 }

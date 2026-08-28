@@ -114,17 +114,27 @@ import java.time.ZoneId
  * All public methods are `suspend` and run on the
  * caller's dispatcher.
  */
+/** The four per-content-type Drive targets [BackupScheduler] syncs. */
+data class BackupTargets(
+    val notes: BackupTarget,
+    val letters: BackupTarget,
+    val checkIns: BackupTarget,
+    val wellness: BackupTarget,
+)
+
 class BackupScheduler(
     private val context: Context,
-    private val notesTarget: BackupTarget,
-    private val lettersTarget: BackupTarget,
-    private val checkInsTarget: BackupTarget,
-    private val wellnessTarget: BackupTarget,
+    targets: BackupTargets,
     private val notesPrefs: NotesPrefs = NotesPrefs(context),
     private val letterStore: LetterStore = LetterStore(context),
     private val momentStore: MomentStore = MomentStore(context),
     private val measuredStore: MeasuredStore = MeasuredStore(context),
 ) {
+    private val notesTarget = targets.notes
+    private val lettersTarget = targets.letters
+    private val checkInsTarget = targets.checkIns
+    private val wellnessTarget = targets.wellness
+
 
     private val json = Json {
         // No pretty-printing: each entry is one
@@ -343,34 +353,36 @@ class BackupScheduler(
         val bytes = notesTarget.download(ContentType.Notes) ?: return 0
         val existingIds = notesPrefs.notes.firstOrEmpty(NotesState()).notes.map { it.id }.toSet()
         var written = 0
-        for (line in linesOf(bytes)) {
-            val entry = decodeLine(BackupEntry.serializer(), line) ?: continue
-            // A restored note has no id of its own in the wire
-            // format (the wire format only ever carried date +
-            // body — see [BackupEntry]); a fresh id derived from
-            // the body is the only stable dedup key available,
-            // so the same restore run twice does not double the
-            // note. This means a note edited after its own
-            // backup restores as a second note rather than
-            // overwriting the edit — the safer direction, since
-            // restore must never silently discard a local edit.
-            val id = stableIdFor(entry.body)
-            if (id in existingIds) continue
-            // The wire format only carries a date, not a
-            // time-of-day (see [BackupEntry]) — start-of-day
-            // is the closest reconstructable timestamp. That
-            // is coarser than the original device's millisecond
-            // createdAt, but it is enough to sort the note into
-            // the right day; the alternative (createdAt = 0L)
-            // would silently dump every restored note into the
-            // 1970-01-01 group in NoteStore.groupedByDay.
-            val restoredAt = runCatching { LocalDate.parse(entry.date) }
-                .getOrNull()
-                ?.let(::millisAtStartOfDay)
-                ?: 0L
-            notesPrefs.add(Note(id = id, body = entry.body, createdAt = restoredAt, updatedAt = restoredAt))
-            written++
-        }
+        linesOf(bytes)
+            .mapNotNull { decodeLine(BackupEntry.serializer(), it) }
+            .forEach { entry ->
+                // A restored note has no id of its own in the wire
+                // format (the wire format only ever carried date +
+                // body — see [BackupEntry]); a fresh id derived from
+                // the body is the only stable dedup key available,
+                // so the same restore run twice does not double the
+                // note. This means a note edited after its own
+                // backup restores as a second note rather than
+                // overwriting the edit — the safer direction, since
+                // restore must never silently discard a local edit.
+                val id = stableIdFor(entry.body)
+                if (id !in existingIds) {
+                    // The wire format only carries a date, not a
+                    // time-of-day (see [BackupEntry]) — start-of-day
+                    // is the closest reconstructable timestamp. That
+                    // is coarser than the original device's millisecond
+                    // createdAt, but it is enough to sort the note into
+                    // the right day; the alternative (createdAt = 0L)
+                    // would silently dump every restored note into the
+                    // 1970-01-01 group in NoteStore.groupedByDay.
+                    val restoredAt = runCatching { LocalDate.parse(entry.date) }
+                        .getOrNull()
+                        ?.let(::millisAtStartOfDay)
+                        ?: 0L
+                    notesPrefs.add(Note(id = id, body = entry.body, createdAt = restoredAt, updatedAt = restoredAt))
+                    written++
+                }
+            }
         return written
     }
 
@@ -378,13 +390,15 @@ class BackupScheduler(
         val bytes = lettersTarget.download(ContentType.Letters) ?: return 0
         val existingDates = letterStore.letters.firstOrEmpty(emptyList()).map { it.date }.toSet()
         var written = 0
-        for (line in linesOf(bytes)) {
-            val entry = decodeLine(BackupEntry.serializer(), line) ?: continue
-            val date = runCatching { LocalDate.parse(entry.date) }.getOrNull() ?: continue
-            if (date in existingDates) continue
-            letterStore.save(Letter(date = date, body = entry.body))
-            written++
-        }
+        linesOf(bytes)
+            .mapNotNull { decodeLine(BackupEntry.serializer(), it) }
+            .mapNotNull { entry -> runCatching { LocalDate.parse(entry.date) }.getOrNull()?.let { it to entry } }
+            .forEach { (date, entry) ->
+                if (date !in existingDates) {
+                    letterStore.save(Letter(date = date, body = entry.body))
+                    written++
+                }
+            }
         return written
     }
 
@@ -392,35 +406,40 @@ class BackupScheduler(
         val bytes = checkInsTarget.download(ContentType.CheckIns) ?: return 0
         val existing = momentStore.moments.firstOrEmpty(emptyList()).map { it.momentKey() }.toSet()
         var written = 0
-        for (line in linesOf(bytes)) {
-            val entry = decodeLine(CheckInEntry.serializer(), line) ?: continue
-            val moment = Moment(
-                valence = entry.valence,
-                arousal = entry.arousal,
-                atMinuteOfDay = entry.atMinuteOfDay,
-                day = entry.day,
-            )
-            if (moment.momentKey() in existing) continue
-            momentStore.append(moment)
-            written++
-        }
+        linesOf(bytes)
+            .mapNotNull { decodeLine(CheckInEntry.serializer(), it) }
+            .map { entry ->
+                Moment(
+                    valence = entry.valence,
+                    arousal = entry.arousal,
+                    atMinuteOfDay = entry.atMinuteOfDay,
+                    day = entry.day,
+                )
+            }
+            .forEach { moment ->
+                if (moment.momentKey() !in existing) {
+                    momentStore.append(moment)
+                    written++
+                }
+            }
         return written
     }
 
     private suspend fun restoreWellness(): Int {
         val bytes = wellnessTarget.download(ContentType.WellnessReadings) ?: return 0
         var written = 0
-        for (line in linesOf(bytes)) {
-            val entry = decodeLine(WellnessEntry.serializer(), line) ?: continue
-            val day = runCatching { LocalDate.parse(entry.day) }.getOrNull() ?: continue
-            // record() upserts by (day, key), so restoring an
-            // entry that already exists locally is a harmless
-            // no-op overwrite with the same value rather than a
-            // duplicate — unlike notes/check-ins, this type
-            // needs no separate existing-set check.
-            measuredStore.record(day, entry.key, entry.value)
-            written++
-        }
+        linesOf(bytes)
+            .mapNotNull { decodeLine(WellnessEntry.serializer(), it) }
+            .mapNotNull { entry -> runCatching { LocalDate.parse(entry.day) }.getOrNull()?.let { it to entry } }
+            .forEach { (day, entry) ->
+                // record() upserts by (day, key), so restoring an
+                // entry that already exists locally is a harmless
+                // no-op overwrite with the same value rather than a
+                // duplicate — unlike notes/check-ins, this type
+                // needs no separate existing-set check.
+                measuredStore.record(day, entry.key, entry.value)
+                written++
+            }
         return written
     }
 
@@ -524,9 +543,12 @@ class BackupScheduler(
          * times, which is what makes the dedup-by-id
          * check in [restoreNotes] work at all.
          */
+        private const val STABLE_ID_HASH_SEED = 1125899906842597L
+        private const val STABLE_ID_HASH_MULTIPLIER = 31L
+
         private fun stableIdFor(body: String): Long {
-            var h = 1125899906842597L
-            for (c in body) h = 31L * h + c.code
+            var h = STABLE_ID_HASH_SEED
+            for (c in body) h = STABLE_ID_HASH_MULTIPLIER * h + c.code
             // Notes.id is also used as a sort/display
             // key elsewhere; forcing it negative marks
             // a restored note as distinguishable from

@@ -1,5 +1,6 @@
 package org.mindanchor.settings
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
@@ -38,12 +39,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.mindanchor.R
 import org.mindanchor.llm.LlmProvider
+import org.mindanchor.llm.LlmTestResult
 import org.mindanchor.ui.Spacing
 
 @Suppress("FunctionNaming")
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun LlmSettingsScreen(viewModel: LlmSettingsViewModel) {
+fun LlmSettingsScreen(viewModel: LlmSettingsViewModel, onOpenLetters: () -> Unit = {}) {
     val apiKey by viewModel.apiKey.collectAsState()
     val model by viewModel.model.collectAsState()
     val lastTestResult by viewModel.lastTestResult.collectAsState()
@@ -68,44 +70,9 @@ fun LlmSettingsScreen(viewModel: LlmSettingsViewModel) {
             modifier = Modifier.padding(bottom = Spacing.Loose),
         )
 
-        FlowRow(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = Spacing.Loose),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            for (p in LlmProvider.values()) {
-                val label = if (p.isFree) {
-                    "${p.displayName} ✓ Free"
-                } else {
-                    p.displayName
-                }
-                FilterChip(
-                    selected = provider == p,
-                    onClick = { viewModel.setProvider(p) },
-                    label = { Text(label) },
-                )
-            }
-        }
+        ProviderChipRow(selected = provider, onSelect = { viewModel.setProvider(it) })
 
-        val keyButtonLabel = if (provider.isFree) {
-            stringResource(R.string.settings_llm_get_key_free, provider.displayName)
-        } else {
-            stringResource(R.string.settings_llm_get_key, provider.displayName)
-        }
-        OutlinedButton(
-            onClick = {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(signupUrl))
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(intent)
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = Spacing.Loose),
-        ) {
-            Text(keyButtonLabel)
-        }
+        GetApiKeyButton(provider = provider, signupUrl = signupUrl, context = context)
 
         ModelPickerRow(
             current = model,
@@ -124,26 +91,88 @@ fun LlmSettingsScreen(viewModel: LlmSettingsViewModel) {
         )
         Spacer(modifier = Modifier.height(Spacing.Loose))
 
-        SettingsRow(
-            label = stringResource(R.string.settings_llm_connection),
-            value = if (lastTestResult.testedAtMillis == 0L) {
-                stringResource(R.string.settings_llm_never_tested)
-            } else {
-                lastTestResult.message
-            },
-            valueColor = if (lastTestResult.success) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.error
-            },
-        )
+        ConnectionStatusSection(lastTestResult = lastTestResult, onTestConnection = { viewModel.testConnection() })
         Spacer(modifier = Modifier.height(Spacing.Loose))
 
-        OutlinedButton(
-            onClick = { viewModel.testConnection() },
+        TextButton(
+            onClick = onOpenLetters,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(stringResource(R.string.settings_llm_test_connection))
+            Text(stringResource(R.string.settings_llm_open_inbox))
+        }
+    }
+}
+
+@Suppress("FunctionNaming")
+@Composable
+private fun ConnectionStatusSection(lastTestResult: LlmTestResult, onTestConnection: () -> Unit) {
+    SettingsRow(
+        label = stringResource(R.string.settings_llm_connection),
+        value = if (lastTestResult.testedAtMillis == 0L) {
+            stringResource(R.string.settings_llm_never_tested)
+        } else {
+            lastTestResult.message
+        },
+        valueColor = if (lastTestResult.success) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.error
+        },
+    )
+    Spacer(modifier = Modifier.height(Spacing.Loose))
+
+    OutlinedButton(
+        onClick = onTestConnection,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(stringResource(R.string.settings_llm_test_connection))
+    }
+}
+
+@Suppress("FunctionNaming")
+@Composable
+private fun GetApiKeyButton(provider: LlmProvider, signupUrl: String, context: Context) {
+    val keyButtonLabel = if (provider.isFree) {
+        stringResource(R.string.settings_llm_get_key_free, provider.displayName)
+    } else {
+        stringResource(R.string.settings_llm_get_key, provider.displayName)
+    }
+    OutlinedButton(
+        onClick = {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(signupUrl))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = Spacing.Loose),
+    ) {
+        Text(keyButtonLabel)
+    }
+}
+
+@Suppress("FunctionNaming")
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ProviderChipRow(selected: LlmProvider, onSelect: (LlmProvider) -> Unit) {
+    FlowRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = Spacing.Loose),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        for (p in LlmProvider.values()) {
+            val label = if (p.isFree) {
+                "${p.displayName} ✓ Free"
+            } else {
+                p.displayName
+            }
+            FilterChip(
+                selected = selected == p,
+                onClick = { onSelect(p) },
+                label = { Text(label) },
+            )
         }
     }
 }

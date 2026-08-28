@@ -177,7 +177,6 @@ class CorosSyncWorker(
      * region is persisted so the next sync — and the
      * Settings screen's connection line — start right.
      */
-    @Suppress("SwallowedException", "detekt.TooGenericExceptionCaught")
     private suspend fun healRegion(
         ctx: Context,
         api: CorosApi,
@@ -186,22 +185,32 @@ class CorosSyncWorker(
         val store = CorosCredentialStore(ctx)
         val creds = store.read() ?: return null
         val hash = CorosPasswordHasher.md5Hex(creds.second)
-        for (region in CANDIDATE_REGIONS) {
-            if (region == badRegion) continue
-            val payload = try {
-                api.login(creds.first, hash, region)
-            } catch (e: Exception) {
-                continue
-            }
-            val dashboard = try {
-                api.fetchDashboard(payload)
-            } catch (e: Exception) {
-                continue
-            }
-            store.write(creds.first, creds.second, region)
-            return HealedRegion(payload, dashboard)
+        val (region, healed) = CANDIDATE_REGIONS
+            .filter { it != badRegion }
+            .firstNotNullOfOrNull { region -> tryRegion(api, region, creds.first, hash)?.let { region to it } }
+            ?: return null
+        store.write(creds.first, creds.second, region)
+        return healed
+    }
+
+    @Suppress("SwallowedException", "detekt.TooGenericExceptionCaught")
+    private suspend fun tryRegion(
+        api: CorosApi,
+        region: String,
+        username: String,
+        hash: String,
+    ): HealedRegion? {
+        val payload = try {
+            api.login(username, hash, region)
+        } catch (e: Exception) {
+            return null
         }
-        return null
+        val dashboard = try {
+            api.fetchDashboard(payload)
+        } catch (e: Exception) {
+            return null
+        }
+        return HealedRegion(payload, dashboard)
     }
 
     companion object {

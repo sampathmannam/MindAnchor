@@ -66,7 +66,8 @@ class LlmProviderContractTest {
     fun `defaultModel is always a member of suggestedModels`() {
         for (provider in LlmProvider.entries) {
             assertTrue(
-                "provider ${provider.name} defaultModel ${provider.defaultModel} not in suggestedModels ${provider.suggestedModels}",
+                "provider ${provider.name} defaultModel ${provider.defaultModel} " +
+                    "not in suggestedModels ${provider.suggestedModels}",
                 provider.defaultModel in provider.suggestedModels,
             )
         }

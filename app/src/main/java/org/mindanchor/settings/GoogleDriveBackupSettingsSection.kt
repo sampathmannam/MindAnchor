@@ -27,6 +27,7 @@ import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import org.mindanchor.R
 import org.mindanchor.backup.BackupScheduler
+import org.mindanchor.backup.BackupTargets
 import org.mindanchor.backup.ContentType
 import org.mindanchor.backup.GoogleDriveAuth
 import org.mindanchor.backup.GoogleDriveBackupTarget
@@ -261,10 +262,12 @@ private fun buildScheduler(context: android.content.Context, auth: GoogleDriveAu
     val appContext = context.applicationContext
     return BackupScheduler(
         context = appContext,
-        notesTarget = GoogleDriveBackupTarget(client = client, auth = auth, type = ContentType.Notes),
-        lettersTarget = GoogleDriveBackupTarget(client = client, auth = auth, type = ContentType.Letters),
-        checkInsTarget = GoogleDriveBackupTarget(client = client, auth = auth, type = ContentType.CheckIns),
-        wellnessTarget = GoogleDriveBackupTarget(client = client, auth = auth, type = ContentType.WellnessReadings),
+        targets = BackupTargets(
+            notes = GoogleDriveBackupTarget(client = client, auth = auth, type = ContentType.Notes),
+            letters = GoogleDriveBackupTarget(client = client, auth = auth, type = ContentType.Letters),
+            checkIns = GoogleDriveBackupTarget(client = client, auth = auth, type = ContentType.CheckIns),
+            wellness = GoogleDriveBackupTarget(client = client, auth = auth, type = ContentType.WellnessReadings),
+        ),
     )
 }
 

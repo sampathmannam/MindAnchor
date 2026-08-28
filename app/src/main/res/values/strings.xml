@@ -1009,6 +1009,7 @@
     <string name="settings_llm_connection">Connection</string>
     <string name="settings_llm_never_tested">Not tested</string>
     <string name="settings_llm_test_connection">Test connection</string>
+    <string name="settings_llm_open_inbox">Open inbox</string>
     <!--
         v0.26+ (multi-provider): the "Get API key"
         button copy. The free variant leads with

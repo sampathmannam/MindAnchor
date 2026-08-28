@@ -94,7 +94,10 @@ style:
     # 60 in LetterRow.take(60) — same UX-standard inbox-row preview
     # length, just longer for the pinned Today slot that has more
     # vertical room).
-    ignoreNumbers: ['-1', '0', '1', '2', '3', '4', '6', '7', '9', '10', '12', '14', '60', '80', '100', '1000', '3600', '1000000', '86400']
+    # v0.70.x: added 5 — AnchorDatabase's Migration(4, 5) target
+    # schema version, the same kind of structural literal as the
+    # already-ignored 3/4 migration versions above it.
+    ignoreNumbers: ['-1', '0', '1', '2', '3', '4', '5', '6', '7', '9', '10', '12', '14', '60', '80', '100', '1000', '3600', '1000000', '86400']
   UnusedPrivateMember:
     active: true
   RedundantVisibilityModifierRule:

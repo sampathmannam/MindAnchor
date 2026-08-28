@@ -40,15 +40,30 @@ class BackupSchedulerFindingTest {
         // shared target would not match the per-type file model,
         // and dropping a target from the constructor would mean
         // that content type quietly stops being backed up.
-        assertTrue("must take notesTarget: BackupTarget", source.contains("private val notesTarget: BackupTarget"))
-        assertTrue("must take lettersTarget: BackupTarget", source.contains("private val lettersTarget: BackupTarget"))
+        //
+        // v0.70.x: the 4 targets moved from flat constructor
+        // params into a BackupTargets(notes, letters, checkIns,
+        // wellness) holder (LongParameterList cleanup), destructured
+        // straight into the same 4 private vals the class always
+        // had. The contract this test pins — 4 distinct,
+        // BackupTarget-typed fields, one per content type — is
+        // unchanged; only where the typing lives moved.
+        assertTrue("BackupTargets must type notes: BackupTarget", source.contains("val notes: BackupTarget"))
+        assertTrue("BackupTargets must type letters: BackupTarget", source.contains("val letters: BackupTarget"))
+        assertTrue("BackupTargets must type checkIns: BackupTarget", source.contains("val checkIns: BackupTarget"))
+        assertTrue("BackupTargets must type wellness: BackupTarget", source.contains("val wellness: BackupTarget"))
+        assertTrue("must take notesTarget = targets.notes", source.contains("private val notesTarget = targets.notes"))
         assertTrue(
-            "must take checkInsTarget: BackupTarget",
-            source.contains("private val checkInsTarget: BackupTarget"),
+            "must take lettersTarget = targets.letters",
+            source.contains("private val lettersTarget = targets.letters"),
         )
         assertTrue(
-            "must take wellnessTarget: BackupTarget",
-            source.contains("private val wellnessTarget: BackupTarget"),
+            "must take checkInsTarget = targets.checkIns",
+            source.contains("private val checkInsTarget = targets.checkIns"),
+        )
+        assertTrue(
+            "must take wellnessTarget = targets.wellness",
+            source.contains("private val wellnessTarget = targets.wellness"),
         )
     }
 

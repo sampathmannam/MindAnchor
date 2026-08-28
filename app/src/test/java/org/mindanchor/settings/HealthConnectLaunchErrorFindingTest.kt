@@ -93,8 +93,21 @@ class HealthConnectLaunchErrorFindingTest {
         // v0.26+ extends the Log.e to the "all three launches
         // failed" path. The pattern check is the same: both tag
         // strings must appear.
-        val launchLogIdx = screen.indexOf("Log.w(\"MindAnchor/HealthConnect\"")
-        val failureLogIdx = screen.indexOf("Log.e(\"MindAnchor/HealthConnect\"")
+        //
+        // v0.70.x: the repeated literal was extracted to
+        // HEALTH_CONNECT_LOG_TAG (StringLiteralDuplication cleanup).
+        // Pin the constant's value plus both call sites referencing
+        // it, so the actual logcat tag string is still guaranteed.
+        assertTrue(
+            "HEALTH_CONNECT_LOG_TAG must still be the MindAnchor/HealthConnect tag",
+            screen.contains("private const val HEALTH_CONNECT_LOG_TAG = \"MindAnchor/HealthConnect\""),
+        )
+        // Log.w calls are single-line (tag inline); Log.e calls are
+        // multi-line (tag on its own line, so the message/throwable
+        // args fit under MaxLineLength) — the regex tolerates either
+        // shape as long as HEALTH_CONNECT_LOG_TAG is the first arg.
+        val launchLogIdx = screen.indexOf("Log.w(HEALTH_CONNECT_LOG_TAG")
+        val failureLogFound = Regex("""Log\.e\(\s*HEALTH_CONNECT_LOG_TAG""").containsMatchIn(screen)
         assertTrue(
             "The launch site must call Log.w with the " +
                 "MindAnchor/HealthConnect tag so the launch attempt is " +
@@ -105,9 +118,8 @@ class HealthConnectLaunchErrorFindingTest {
         assertTrue(
             "The onFailure block must call Log.e with the " +
                 "MindAnchor/HealthConnect tag so a dispatch failure " +
-                "is visible in adb logcat. " +
-                "failureLogIdx=$failureLogIdx",
-            failureLogIdx >= 0,
+                "is visible in adb logcat.",
+            failureLogFound,
         )
     }
 
