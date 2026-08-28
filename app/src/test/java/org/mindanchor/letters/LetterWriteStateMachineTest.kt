@@ -98,7 +98,7 @@ class LetterWriteStateMachineTest {
 
     @Test
     fun `generateToday with api key and a successful response transitions to Reader`() {
-        runBlocking { llmPrefs.setApiKey("gsk_test") }
+        runBlocking { llmPrefs.setApiKey(LlmProvider.GOOGLE_AI_STUDIO, "gsk_test") }
         fakeClient.nextResult = Result.success(
             LlmResponse(
                 content = "It was a quiet Tuesday.\n\nThe note sat there.\n\nWhat was the loudest thing?",
@@ -123,7 +123,7 @@ class LetterWriteStateMachineTest {
 
     @Test
     fun `generateToday with an InvalidApiKey error transitions to Error and logs the failure`() {
-        runBlocking { llmPrefs.setApiKey("bad") }
+        runBlocking { llmPrefs.setApiKey(LlmProvider.GOOGLE_AI_STUDIO, "bad") }
         fakeClient.nextResult = Result.failure(LetterError.InvalidApiKey())
         val vm = newVm()
         runBlocking { vm.runGeneration(LocalDate.now(), isRegenerate = false) }
@@ -135,7 +135,7 @@ class LetterWriteStateMachineTest {
 
     @Test
     fun `acknowledgeError returns to Idle`() {
-        runBlocking { llmPrefs.setApiKey("bad") }
+        runBlocking { llmPrefs.setApiKey(LlmProvider.GOOGLE_AI_STUDIO, "bad") }
         fakeClient.nextResult = Result.failure(LetterError.InvalidApiKey())
         val vm = newVm()
         runBlocking { vm.runGeneration(LocalDate.now(), isRegenerate = false) }
@@ -147,7 +147,7 @@ class LetterWriteStateMachineTest {
     @Test
     fun `regenerate deletes today's letter first, then runs generation`() {
         runBlocking {
-            llmPrefs.setApiKey("gsk_test")
+            llmPrefs.setApiKey(LlmProvider.GOOGLE_AI_STUDIO, "gsk_test")
             letterStore.save(
                 Letter(
                     date = LocalDate.now(),

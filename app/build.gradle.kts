@@ -283,8 +283,30 @@ android {
         // stateIn() StateFlow before writing, the exact pattern the
         // old code silently failed.
         // versionCode 108→109.
-        versionCode = 109
-        versionName = "0.70.15"
+        // v0.70.16: the v0.70.15 reactivity fix made the API key
+        // actually stick, but "Test connection" still failed —
+        // confirmed live via a temporary debug log that a
+        // Groq-formatted key (`gsk_...`) was being sent to
+        // OpenRouter's and Google AI Studio's endpoints too. The
+        // real bug: apiKey was one shared slot regardless of which
+        // provider chip was selected. Google AI Studio, OpenRouter
+        // and Groq are three separate services with incompatible
+        // keys; switching providers left whatever key was typed for
+        // the previous one sitting there, silently tested/used
+        // against the new one. Every provider now gets its own
+        // encrypted slot (LlmKeyStore keyed by provider) and its own
+        // cached flow (LlmPrefs.apiKeyFor(provider)); the Settings
+        // ViewModel's apiKey follows the selected provider via
+        // flatMapLatest, and the actual letter-writer
+        // (LetterViewModel) reads the key for whichever provider is
+        // current instead of the old single slot. Also hardened
+        // setApiKeyNow to read the current provider fresh rather
+        // than a cached StateFlow value, closing a narrow race where
+        // a key typed immediately after switching providers could
+        // land in the previous provider's slot.
+        // versionCode 109→110.
+        versionCode = 110
+        versionName = "0.70.16"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every
