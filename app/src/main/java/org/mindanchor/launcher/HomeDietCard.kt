@@ -3,7 +3,6 @@ package org.mindanchor.launcher
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
@@ -105,19 +104,14 @@ private fun HomeDietCardContent(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(
-                    text = stringResource(R.string.diet_card_demoted, released),
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-                Text(
-                    text = stringResource(R.string.diet_card_saved, savedHours),
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-            }
+            Text(
+                text = stringResource(R.string.diet_card_demoted, released),
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            Text(
+                text = stringResource(R.string.diet_card_saved, savedHours),
+                style = MaterialTheme.typography.bodyLarge,
+            )
             Text(
                 text = stringResource(R.string.diet_card_footnote),
                 style = MaterialTheme.typography.bodySmall,
