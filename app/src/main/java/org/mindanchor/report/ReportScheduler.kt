@@ -21,7 +21,6 @@ import kotlinx.coroutines.launch
 import org.mindanchor.corpus.CorpusStore
 import org.mindanchor.model.Moment
 import org.mindanchor.model.MomentStore
-import org.mindanchor.narrate.Narrators
 import org.mindanchor.sleep.Deviation
 import org.mindanchor.sleep.SleepRepository
 import org.mindanchor.sleep.SleepWindow
@@ -333,12 +332,11 @@ object ReportScheduler {
             history = history,
             corpus = CorpusStore.load(context),
         )
-        // A model failing to write anything — no engine yet, this phone
-        // cannot run one, generation itself threw — is not a reason to
-        // fail the whole night's report; the report stands on its own
-        // without a paragraph on top of it. See Narrator's own KDoc for
-        // why null is the ordinary outcome here, not an error.
-        val narration = runCatching { Narrators.forDevice(context).narrate(report) }.getOrNull()
+        // v0.70.5: the on-device model that used to write this
+        // paragraph (Settings → Reading → Model) has been removed.
+        // No model ever meant no paragraph — the report always stood
+        // on its own without one — so the field simply stays null now.
+        val narration: String? = null
         // A failure here — LinkFinder's permutation test throwing on some
         // unexpected shape of data, say — is no different from finding
         // nothing: the report still stands on its own without it.
@@ -368,7 +366,7 @@ object ReportScheduler {
         val store = ReportStore(context)
         store.save(
             report = report,
-            narration = narration?.text,
+            narration = narration,
             patterns = patterns,
             generatedDay = LocalDate.now(zone).toString(),
             patternsStillLearning = patternsStillLearning,

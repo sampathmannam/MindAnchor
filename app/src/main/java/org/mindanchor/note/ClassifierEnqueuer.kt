@@ -66,13 +66,8 @@ class ClassifierEnqueuer(private val context: Context) {
      */
     private val prefs = NotesPrefs(context.applicationContext)
 
-    /**
-     * The classifier. A new instance per enqueue is
-     * fine — the classifier holds no state beyond
-     * the [Context]; the model file path and thread
-     * budget are constants.
-     */
-    private val classifier = NoteClassifier(context.applicationContext)
+    /** The classifier. Holds no state, so one shared instance is fine. */
+    private val classifier = NoteClassifier()
 
     /**
      * Enqueue a single note for classification.

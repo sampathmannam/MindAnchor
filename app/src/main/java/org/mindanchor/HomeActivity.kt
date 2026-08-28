@@ -21,7 +21,6 @@ import kotlinx.coroutines.launch
 import org.mindanchor.data.SunsetPrefs
 import org.mindanchor.friction.SessionManager
 import org.mindanchor.launcher.LauncherRoot
-import org.mindanchor.letters.LetterScheduler
 import org.mindanchor.onboarding.OnboardingPrefs
 import org.mindanchor.onboarding.OnboardingScreen
 import org.mindanchor.sunset.SunsetController
@@ -32,6 +31,15 @@ import org.mindanchor.update.UpdateChecker
 // 2026-08-24); the auto-update flow is gone.
 
 import org.mindanchor.update.UpdatePrefs
+
+/**
+ * v0.70.6: was [org.mindanchor.letters.LetterScheduler.ACTION_OPEN_LETTER]
+ * before that class — the only thing that ever sent this intent — was
+ * removed with the on-device model feature. Kept as a plain constant
+ * so [HomeActivity.handleLetterIntent]'s dead-but-harmless check still
+ * compiles against a real value rather than a magic string.
+ */
+private const val ACTION_OPEN_LETTER = "org.mindanchor.letters.OPEN_LETTER"
 
 /**
  * The single HOME activity. As the default launcher this activity is the
@@ -181,14 +189,23 @@ class HomeActivity : ComponentActivity() {
     }
 
     /**
-     * v0.25.2-A (Task 8): read the [LetterScheduler.ACTION_OPEN_LETTER]
-     * intent's `letter_date` extra and push it into [letterDateSignal].
-     * No-op when the intent is missing, the action is wrong, the
-     * extra is missing, or the date string is unparseable — any of
-     * those is an intent the launcher should not act on.
+     * v0.25.2-A (Task 8): read a letter-notification intent's
+     * `letter_date` extra and push it into [letterDateSignal]. No-op
+     * when the intent is missing, the action is wrong, the extra is
+     * missing, or the date string is unparseable — any of those is an
+     * intent the launcher should not act on.
+     *
+     * v0.70.6: the only sender of that intent, the on-device model's
+     * legacy letter scheduler (Settings → Reading → Model), has been
+     * removed along with the model feature — no code anywhere posts a
+     * letter notification any more, so this action string can never
+     * arrive again. [letterDateSignal] and the launcher-root plumbing
+     * that reads it stay, harmlessly always-null, rather than
+     * unpicking a cross-file signal for a path that costs nothing to
+     * leave wired.
      */
     private fun handleLetterIntent(intent: Intent?) {
-        if (intent?.action != LetterScheduler.ACTION_OPEN_LETTER) return
+        if (intent?.action != ACTION_OPEN_LETTER) return
         val raw = intent.getStringExtra("letter_date") ?: return
         val date = runCatching { LocalDate.parse(raw) }.getOrNull() ?: return
         letterDateSignal.value = date

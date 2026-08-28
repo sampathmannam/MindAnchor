@@ -108,8 +108,21 @@ android {
         // fire on a critically low battery. Both now defer until
         // the level recovers or the phone is charging.
         // versionCode 98→99.
-        versionCode = 99
-        versionName = "0.70.5"
+        // v0.70.6: removed the on-device model feature (Settings →
+        // Reading → Model: import/download a GGUF, run it for report
+        // narration, note classification, and the legacy Phi-4 letter
+        // path) — the user does not want it. All three consumers
+        // already fell back to their no-model behavior on every real
+        // phone (nothing had ever imported one), so nothing observable
+        // changes; the capability to ever add one is simply gone, along
+        // with the vendored llama.cpp native library, the legacy
+        // AlarmManager-based letter scheduler that only that model
+        // could feed, and ~20 now-orphaned strings. The modern cloud-LLM
+        // daily letter (Settings → Reading → Daily letter (LLM)) is a
+        // separate, untouched feature.
+        // versionCode 99→100.
+        versionCode = 100
+        versionName = "0.70.6"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every
@@ -121,25 +134,21 @@ android {
 
         externalNativeBuild {
             cmake {
-                // The off-list is load-bearing, not tidiness. LLAMA_CURL
-                // and WHISPER_CURL must be OFF because this app's
-                // privacy promise is that no path to the network
-                // exists anywhere in it, native code included.
-                // GGML_NATIVE must be OFF because -march=native on
-                // a build machine produces code the phone may not
-                // run. The rest keeps the vendored trees to
-                // exactly the libraries — no tools, no tests, no
-                // server, no examples, no models. The same
-                // BUILD_SHARED_LIBS=OFF applies to both
-                // add_subdirectory()s; every llama/ggml and
-                // whisper/ggml object is linked statically into
-                // its respective .so.
+                // The off-list is load-bearing, not tidiness. WHISPER_CURL
+                // must be OFF because this app's privacy promise is that
+                // no path to the network exists anywhere in it, native
+                // code included. GGML_NATIVE must be OFF because
+                // -march=native on a build machine produces code the
+                // phone may not run. The rest keeps the vendored tree to
+                // exactly the library — no tools, no tests, no server,
+                // no examples, no models. BUILD_SHARED_LIBS=OFF means
+                // every whisper/ggml object is linked statically into
+                // the one .so.
+                //
+                // v0.70.5: the LLAMA_* entries this list used to carry
+                // are gone along with the llama.cpp target itself —
+                // see app/src/main/cpp/CMakeLists.txt.
                 arguments += listOf(
-                    "-DLLAMA_CURL=OFF",
-                    "-DLLAMA_BUILD_COMMON=OFF",
-                    "-DLLAMA_BUILD_TESTS=OFF",
-                    "-DLLAMA_BUILD_EXAMPLES=OFF",
-                    "-DLLAMA_BUILD_SERVER=OFF",
                     "-DGGML_NATIVE=OFF",
                     "-DGGML_OPENMP=OFF",
                     "-DBUILD_SHARED_LIBS=OFF",

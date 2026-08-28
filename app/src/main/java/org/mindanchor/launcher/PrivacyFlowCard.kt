@@ -35,9 +35,9 @@ import androidx.compose.ui.unit.dp
  *     interface (no tunnel), the screen. Explicit
  *     on-device, not implied.
  *  3. **Where the data does not go.** The negative
- *     list closes the privacy surface (no cloud, no
- *     analytics, no device-to-device transfer, no LLM
- *     cloud).
+ *     list closes the privacy surface (no cloud backup,
+ *     no analytics, no device-to-device transfer, no
+ *     LLM call unless the user opts in).
  *  4. **What the user can do.** Delete everything;
  *     export the on-device log. The two affordances
  *     that make the negative list actionable.
@@ -87,8 +87,9 @@ fun PrivacyFlowCard(
                 title = "Where the data does not go",
                 body = "The phone's network (the INTERNET permission is held only because the VpnService API requires it; " +
                     "the runtime telemetry confirms zero outbound bytes). A cloud backup. An analytics service. " +
-                    "A device-to-device transfer. A cloud LLM (the on-device Phi-4 runs entirely on the device; " +
-                    "the Groq cloud fallback exists in code but is disabled by the same network-call test).",
+                    "A device-to-device transfer. There is no on-device model or LLM of any kind running on the " +
+                    "phone: the daily letter's writing is opt-in and cloud-only, silent until you add a provider " +
+                    "key in Settings → Reading — no key, no outbound call, ever.",
             )
             PrivacySection(
                 title = "What you can do",

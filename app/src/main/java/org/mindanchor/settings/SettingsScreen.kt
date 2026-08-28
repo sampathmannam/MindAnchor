@@ -73,7 +73,6 @@ import org.mindanchor.admin.DeviceOwner
 import org.mindanchor.friction.AppWatchService
 import org.mindanchor.grayscale.Grayscale
 import org.mindanchor.launcher.DisplayApp
-import org.mindanchor.narrate.ModelSlot
 import org.mindanchor.notifications.BatchSchedule
 import org.mindanchor.onboarding.Goal
 import org.mindanchor.report.MeasureSource
@@ -412,54 +411,6 @@ private fun ChronotypeRadioRow(
             modifier = Modifier.padding(start = 8.dp),
         )
     }
-}
-
-/**
- * v0.25.2-A (Task 10): the dialog for picking the daily letter's
- * time. Lives in its own sub-Composable so the parent
- * [SettingsScreen] does not grow past the detekt [LongMethod]
- * threshold — the dialog's [rememberTimePickerState] + [TimePicker]
- * + [AlertDialog] wiring is the part the parent would otherwise
- * inline.
- *
- * 24-hour because the spec is local-time-of-day, and a user who
- * has just chosen "08:00" in the toggle row should not have to
- * translate AM/PM in a second control. The confirm button hands
- * the picked [TimePickerState.hour] / [TimePickerState.minute]
- * straight back to the caller; nothing in here writes to the
- * store, so the dialog is safe to open, dismiss, and reopen
- * without ever touching [org.mindanchor.letters.LetterStore.setTime].
- */
-@Suppress("FunctionNaming")
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun LetterTimePickerDialog(
-    initialHour: Int,
-    initialMinute: Int,
-    onDismiss: () -> Unit,
-    onConfirm: (hour: Int, minute: Int) -> Unit,
-) {
-    val state = rememberTimePickerState(
-        initialHour = initialHour,
-        initialMinute = initialMinute,
-        is24Hour = true,
-    )
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(onClick = { onConfirm(state.hour, state.minute) }) {
-                Text(stringResource(R.string.action_save))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.action_close))
-            }
-        },
-        text = {
-            TimePicker(state = state)
-        },
-    )
 }
 
 /**
@@ -1804,96 +1755,6 @@ fun SettingsScreen(
         }
 
         if (group == SettingsGroup.READING) {
-            // --- Daily letter (v0.25.2-A) ---
-            //
-            // The headline entry on the Reading surface. The
-            // toggle is always editable, on purpose: a person who
-            // has not yet imported a model needs to be able to
-            // *say* they want a letter without the row being
-            // dead, and the daily alarm is held by the
-            // [org.mindanchor.letters.LetterScheduler] which
-            // already does the right thing when the model is
-            // missing (a quiet "nothing today" — see
-            // [org.mindanchor.letters.LetterScheduler.onFire]).
-            // The "Generate now" button is the one row that
-            // gates on `modelFits`, because pushing a button
-            // that visibly does nothing is its own small
-            // dishonesty. The inbox count gates on
-            // `unreadCount > 0` for the same reason — a button
-            // that says "Open inbox (0)" reads as a stat
-            // rather than an affordance.
-            SectionHeading(R.string.letters_section, null, goals)
-            Text(
-                text = stringResource(R.string.letters_explainer),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            val modelFits by viewModel.modelFits.collectAsState()
-            val lettersEnabled by viewModel.lettersEnabled.collectAsState()
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp)
-                    .toggleable(value = lettersEnabled, role = Role.Switch) {
-                        viewModel.setLettersEnabled(it)
-                    }
-                    .padding(top = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(R.string.letters_toggle),
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.weight(1f),
-                )
-                Switch(checked = lettersEnabled, onCheckedChange = null)
-            }
-            val lettersTime by viewModel.lettersTime.collectAsState()
-            var showLetterTimePicker by remember { mutableStateOf(false) }
-            TextButton(
-                enabled = lettersEnabled,
-                onClick = { showLetterTimePicker = true },
-            ) {
-                Text(
-                    stringResource(
-                        R.string.letters_time,
-                        lettersTime.first,
-                        lettersTime.second,
-                    ),
-                )
-            }
-            if (showLetterTimePicker) {
-                LetterTimePickerDialog(
-                    initialHour = lettersTime.first,
-                    initialMinute = lettersTime.second,
-                    onDismiss = { showLetterTimePicker = false },
-                    onConfirm = { hour, minute ->
-                        viewModel.setLettersTime(hour, minute)
-                        showLetterTimePicker = false
-                    },
-                )
-            }
-            val letterRunning by viewModel.letterRunning.collectAsState()
-            TextButton(
-                enabled = !letterRunning && lettersEnabled && modelFits,
-                onClick = viewModel::runLetterNow,
-            ) {
-                Text(
-                    stringResource(
-                        if (letterRunning) R.string.letters_running_now
-                        else R.string.letters_run_now,
-                    ),
-                )
-            }
-            val unreadCount by viewModel.unreadLetterCount.collectAsState()
-            TextButton(
-                enabled = unreadCount > 0,
-                onClick = onOpenLetters,
-            ) {
-                Text(stringResource(R.string.letters_open_inbox, unreadCount))
-            }
-        }
-
-        if (group == SettingsGroup.READING) {
             // --- Daily letter (LLM) (v0.25.7) ---
             //
             // The LLM-driven daily letter path. BYOK: the
@@ -2092,77 +1953,6 @@ fun SettingsScreen(
         }
 
         if (group == SettingsGroup.READING) {
-            // --- Model (the small model a future writing engine would run) ---
-            //
-            // No inference engine is built into this app yet — see
-            // org.mindanchor.narrate.NoEngineNarrator. Importing a model here
-            // does not yet make any writing happen; it records the file and,
-            // exactly like ModelSlot was built to, reports honestly whether
-            // this phone has enough memory to run it once an engine exists.
-            SectionHeading(R.string.model_section, null, goals)
-            Text(
-                text = stringResource(R.string.model_explainer),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = stringResource(R.string.model_no_engine),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-            val modelPresent by viewModel.modelPresent.collectAsState()
-            val modelFit by viewModel.modelFit.collectAsState()
-            val modelImportFailed by viewModel.modelImportFailed.collectAsState()
-            LaunchedEffect(Unit) { viewModel.refreshModel() }
-            Text(
-                text = stringResource(if (modelPresent) R.string.model_present else R.string.model_none),
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(top = 8.dp),
-            )
-            if (modelPresent) {
-                val fitRes = when (modelFit) {
-                    ModelSlot.Fit.FITS -> R.string.model_fit_fits
-                    ModelSlot.Fit.TIGHT -> R.string.model_fit_tight
-                    ModelSlot.Fit.TOO_LARGE -> R.string.model_fit_too_large
-                    ModelSlot.Fit.UNSUPPORTED -> R.string.model_fit_unsupported
-                }
-                Text(
-                    text = stringResource(fitRes),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            val modelPicker = rememberLauncherForActivityResult(
-                // OpenDocument, and "*/*", for the same reason as the corpus
-                // picker above: a GGUF is not a MIME type every file provider
-                // on every phone reports, and a picker offering nothing
-                // selectable is a dead end.
-                ActivityResultContracts.OpenDocument(),
-            ) { uri -> uri?.let(viewModel::importModel) }
-            TextButton(onClick = { modelPicker.launch(arrayOf("*/*")) }) {
-                Text(stringResource(R.string.model_import))
-            }
-            if (modelImportFailed) {
-                Text(
-                    text = stringResource(R.string.model_import_failed),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (modelPresent) {
-                TextButton(onClick = viewModel::clearModel) {
-                    Text(stringResource(R.string.model_clear))
-                }
-            }
-            // v0.23.0: one-tap Phi-4 mini download.
-            // The download runs through the system
-            // DownloadManager; when it finishes, the
-            // launcher listens for
-            // ACTION_DOWNLOAD_COMPLETE and prompts the
-            // user with a Yes-then-import.
-            Phi4ModelDownloadSection(viewModel = viewModel)
-
             // v0.25.4: Google Drive backup (replaces
             // v0.23.0 WebDAV). The section lives in
             // the Reading group because the "what

@@ -182,12 +182,12 @@ fun ReportScreen(
             modifier = Modifier.padding(vertical = Spacing.Comfortable),
         )
 
-        // The paragraph a narrator wrote, shown above the sections it was
-        // drawn from and never in place of them — see NarrationGuard's own
-        // KDoc for why a rejected or unwritten paragraph costs nothing but
-        // itself. Blank is treated the same as absent: a narrator that
-        // returned an all-whitespace string, which nothing here should
-        // ever do, must not render an empty label above nothing.
+        // The paragraph a model once wrote about the sections below,
+        // shown above them and never in place of them. v0.70.5 removed
+        // that on-device model, so narration is always null now; the
+        // field and this rendering stay so a report saved before that
+        // version still displays unchanged. Blank is treated the same
+        // as absent, on the same reasoning it always was.
         if (!narration.isNullOrBlank()) {
             Text(
                 text = stringResource(R.string.report_generated_label),
