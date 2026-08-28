@@ -2198,18 +2198,22 @@ fun SettingsScreen(
             // user with a Yes-then-import.
             Phi4ModelDownloadSection(viewModel = viewModel)
 
-            // v0.25.4: Google Drive backup (replaces
-            // v0.23.0 WebDAV). The section lives in
-            // the Reading group because the "what
-            // you wrote" surface is the natural
+            // Task 12 (Program 0): continuity backup
+            // health, recovery key, and kill switches —
+            // replaces the v0.25.4 Google Drive backup
+            // sub-section (per-type Notes/Letters toggles
+            // + a direct-network "Back up now"). The
+            // section lives in the Reading group because
+            // the "what you wrote" surface is the natural
             // home for "where the writes go" — the
-            // letters feature sits here, the
-            // nightly report reuses the same
-            // ReaderPrefs, and the user looking
-            // for the "I lost my phone, where's
-            // my data?" affordance is reading the
-            // same screen.
-            GoogleDriveBackupSettingsSection(viewModel = viewModel)
+            // letters feature sits here, the nightly
+            // report reuses the same ReaderPrefs, and the
+            // user looking for the "I lost my phone,
+            // where's my data?" affordance is reading the
+            // same screen. The section owns its own state
+            // (see ContinuitySettingsViewModel) rather than
+            // reading SettingsViewModel.
+            GoogleDriveBackupSettingsSection()
         }
 
         if (group == SettingsGroup.MEASURING) {

@@ -172,6 +172,18 @@ class ContinuityPrefs(private val context: Context) {
     private fun verifiedRecordOf(at: Long?, id: String?, hash: String?): VerifiedRecord? =
         if (at == null || id == null || hash == null) null else VerifiedRecord(at, id, hash)
 
+    /**
+     * Test-only: clears every key in the underlying DataStore. Mirrors
+     * [org.mindanchor.backup.BackupPrefs.reset] and the same-named helper
+     * on several other DataStore-backed prefs classes in this codebase —
+     * DataStore is a process-wide singleton keyed on the preferences name,
+     * so tests in the same class (or process) share state without an
+     * explicit reset. Production code never calls this.
+     */
+    internal suspend fun reset() {
+        context.continuityDataStore.edit { it.clear() }
+    }
+
     /** A verified checkpoint or nightly snapshot's time, snapshot id, and content hash. */
     data class VerifiedRecord(val at: Long, val snapshotId: String, val contentHash: String)
 

@@ -1086,25 +1086,75 @@
     <string name="settings_llm_get_key">Get a %1$s API key</string>
 
     <!--
-        v0.25.4: Google Drive backup (replaces v0.23.0 WebDAV).
-        Opt-in (Settings → Reading → Google Drive). The
-        launcher uses the narrowest "per-file" scope
-        (drive.file), so the app only ever sees files it
-        created. The "by the person, to a location they
-        pick" path (the local file picker) is unchanged.
+        Task 12 (Program 0): continuity backup health, recovery
+        key, and kill switches. Replaces the v0.25.4 Google Drive
+        per-type Notes/Letters toggles + direct-network "Back up
+        now". The Google sign-in strings below (drive_sign_in
+        through drive_forgot) are unchanged and reused as-is; the
+        per-type auto-sync strings and the old "uploaded" success
+        copy are removed with the toggles/direct-upload path they
+        described.
+
+        Product-honesty rule pinned by this section's own tests:
+        no string here ever claims a backup happened just because
+        an upload was scheduled or attempted — only
+        continuity_health_verified may claim a verified backup,
+        because it is driven by BackupHealth.Verified, which Task
+        10's ContinuityBackupCoordinator only sets after upload +
+        download + envelope authentication + content-hash checks
+        all succeed.
     -->
-    <string name="drive_section">Google Drive backup (opt-in)</string>
-    <string name="drive_explainer">A second, automatic copy in your own Google Drive — encrypted before it leaves this phone, in two text files (notes and letters). The app can only see files it created; the rest of your Drive is invisible.</string>
     <string name="drive_sign_in">Sign in with Google</string>
     <string name="drive_signed_in_as">Signed in as %1$s</string>
-    <string name="drive_backup_now">Back up now</string>
-    <string name="drive_backup_uploaded">Backed up. The remote copy is encrypted with the same key as the local backup.</string>
-    <string name="drive_upload_failed">Couldn\'t back up right now. Will retry on the next entry.</string>
     <string name="drive_sign_in_failed">Couldn\'t sign in. Check the account picker and try again.</string>
     <string name="drive_forget_account">Forget this account</string>
     <string name="drive_forgot">Forgot the account. The remote copy is still in your Drive; turn the bridge back on any time.</string>
-    <string name="drive_auto_sync_notes">Auto-back up new notes</string>
-    <string name="drive_auto_sync_letters">Auto-back up new letters</string>
+
+    <string name="continuity_section">Continuity backup (opt-in)</string>
+    <string name="continuity_explainer">A second, automatic copy of your Journal, Notes, and Letters in your own Google Drive — encrypted on this phone with a recovery key only you hold. The app can only see files it created; the rest of your Drive is invisible.</string>
+
+    <string name="continuity_recovery_key_section">Recovery key</string>
+    <string name="continuity_recovery_key_not_created">Not created</string>
+    <string name="continuity_recovery_key_needs_verification">Needs verification</string>
+    <string name="continuity_recovery_key_verified">Verified</string>
+    <string name="continuity_recovery_key_generate">Generate recovery key</string>
+    <string name="continuity_recovery_key_warning">Write this down somewhere safe — it will not be shown again after this screen. Without it, a backup can\'t be restored on a new phone.</string>
+    <string name="continuity_recovery_key_verify_prompt">Type the key back exactly as written, to prove you\'ve saved it.</string>
+    <string name="continuity_recovery_key_verify_hint">Recovery key</string>
+    <string name="continuity_recovery_key_verify_action">Verify</string>
+    <string name="continuity_recovery_key_verify_mismatch">That doesn\'t match what was generated. Check what you wrote down and try again.</string>
+
+    <string name="continuity_backup_switch">Automatic continuity backup</string>
+    <string name="continuity_backup_switch_gated_hint">Sign in with Google and verify your recovery key first.</string>
+    <string name="continuity_nightly_switch">Nightly snapshots</string>
+    <string name="continuity_context_extraction_switch">Structural context extraction</string>
+    <string name="continuity_context_extraction_explainer">Lets Journal entries derive structural facts (e.g. sleep, mood mentions) for your own reports. Turning this off never stops Journal writing.</string>
+
+    <string name="continuity_back_up_now">Back up now</string>
+    <string name="continuity_checkpoint_requested">Checkpoint requested.</string>
+    <string name="continuity_restore">Restore on this phone</string>
+    <string name="continuity_save_encrypted_copy">Save encrypted copy to a file</string>
+    <string name="continuity_save_encrypted_copy_success">Saved.</string>
+    <string name="continuity_save_encrypted_copy_failed">Couldn\'t save the file.</string>
+
+    <string name="continuity_export_research">Export research JSON</string>
+    <string name="continuity_export_research_privacy_title">Before you export</string>
+    <string name="continuity_export_research_privacy_body">This file is plain, unencrypted text — your Journal entries and the structural facts derived from them. Anyone who can open the file can read it. Only share it with people or services you trust.</string>
+    <string name="continuity_export_research_privacy_confirm">Export</string>
+    <string name="continuity_export_research_privacy_cancel">Cancel</string>
+    <string name="continuity_export_research_success">Exported. Content hash: %1$s</string>
+    <string name="continuity_export_research_failed">Couldn\'t export the file.</string>
+
+    <string name="continuity_health_pending">Pending — no verified checkpoint yet.</string>
+    <string name="continuity_health_verified">Verified %1$s</string>
+    <string name="continuity_health_needs_sign_in">Needs sign-in — nothing is retrying in the background.</string>
+    <string name="continuity_health_recovery_key_required">Recovery key required — automatic backup is off.</string>
+    <string name="continuity_health_verification_failed">Verification didn\'t match — your last verified backup is still safe.</string>
+    <string name="continuity_health_last_nightly">Last verified nightly snapshot: %1$s</string>
+    <string name="continuity_health_last_nightly_never">Last verified nightly snapshot: never</string>
+    <string name="continuity_health_last_restore">Last restore: %1$s</string>
+    <string name="continuity_health_last_restore_never">Last restore: never</string>
+    <string name="continuity_health_local_changes_pending">Local changes since %1$s not yet in a verified checkpoint.</string>
     <!--
         Both block sets (tile strings + anchor strings)
         are real features in this build. Combined here as a
