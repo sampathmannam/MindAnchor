@@ -220,8 +220,23 @@ android {
         // screen; guarded the Sleep Lock's startLockTask call
         // against re-triggering while already locked.
         // versionCode 105→106.
-        versionCode = 106
-        versionName = "0.70.12"
+        // v0.70.13: two follow-ups from the sleep-window UI audit.
+        // (1) The home screen still scrolled after the "This week"
+        // card was removed — reproduced live with 6 favourites (the
+        // documented max) plus a couple of quick notes, measured
+        // ~95dp of real overflow on-device. Fixed by tightening the
+        // favourites list's padding (still floors at the 48dp touch
+        // target) and collapsing the quick-notes preview from up to
+        // 3 rows to just the latest note — verified live, all 6
+        // favourites now fit with room to spare and a swipe no
+        // longer moves anything. (2) The Sleep Lock's unlock field
+        // was missing the bringIntoViewOnFocus() modifier every
+        // other input field in the app already uses for the same
+        // imePadding + verticalScroll Column — the likely cause of
+        // the reported gap between the field and the keyboard.
+        // versionCode 106→107.
+        versionCode = 107
+        versionName = "0.70.13"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every

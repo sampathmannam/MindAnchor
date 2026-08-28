@@ -887,31 +887,35 @@ private fun QuickNotesCard(
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
             )
         } else {
-            recent.forEach { note ->
-                // The note row is intentionally
-                // compact: first line of the body
-                // (the title by convention) plus a
-                // small timestamp. Full body is in
-                // the activity; the home only
-                // surfaces the *fact* the user
-                // wrote it, and the rough when.
-                val title = note.title.ifBlank { note.body.take(60) }
-                val whenText = noteTimeText(note)
-                TextButton(
-                    onClick = onOpenAll,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(
-                        text = stringResource(
-                            R.string.quick_notes_saved_at,
-                            title,
-                            whenText,
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = sky.textSecondary,
-                        textAlign = TextAlign.Center,
-                    )
-                }
+            // v0.70+: this used to list up to
+            // QUICK_NOTES_RECENT_CAP (3) notes here,
+            // each its own row. That's a real
+            // contributor to the home screen
+            // overflowing a typical screen (measured
+            // ~95dp with 6 favourites + 2 notes on a
+            // real device) and forcing a scroll that
+            // used to be avoidable. The card's job is
+            // to confirm the capture landed, not to
+            // preview the list — full browsing is
+            // "View all" one tap away — so only the
+            // single latest note shows here now.
+            val note = recent.first()
+            val title = note.title.ifBlank { note.body.take(60) }
+            val whenText = noteTimeText(note)
+            TextButton(
+                onClick = onOpenAll,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    text = stringResource(
+                        R.string.quick_notes_saved_at,
+                        title,
+                        whenText,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = sky.textSecondary,
+                    textAlign = TextAlign.Center,
+                )
             }
             TextButton(onClick = onOpenAll) {
                 Text(stringResource(R.string.quick_notes_view_all), color = sky.textSecondary)
@@ -1573,7 +1577,16 @@ private fun HomeSurface(
             }
 
             Column(
-                modifier = Modifier.padding(top = 40.dp),
+                // v0.70+: 40dp used to sit above the favourites
+                // list unconditionally. With 6 favourites (the
+                // documented max) plus a couple of quick notes,
+                // the column overflows a typical screen by
+                // ~95dp, forcing a scroll that did not used to
+                // be there. 16dp keeps the visual break between
+                // the notes card and favourites without being
+                // the single biggest contributor to that
+                // overflow.
+                modifier = Modifier.padding(top = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 favorites.forEach { app ->
@@ -1597,7 +1610,15 @@ private fun HomeSurface(
                             style = MaterialTheme.typography.headlineSmall,
                             color = sky.textPrimary,
                             textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(vertical = 10.dp),
+                            // v0.70+: 10dp of vertical padding pushed
+                            // each row past the 48dp touch-target floor
+                            // above (52dp measured), which added up
+                            // across up to 6 favourites. 6dp lets the
+                            // Box's heightIn floor do the work instead,
+                            // so every row still meets the 48dp minimum
+                            // but none of them exceed it just from
+                            // padding.
+                            modifier = Modifier.padding(vertical = 6.dp),
                         )
                     }
                 }
