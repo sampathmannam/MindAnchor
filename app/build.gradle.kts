@@ -84,8 +84,20 @@ android {
         // always wins) with Sourcing.pick precedence (a
         // camera-PPG measurement beats the watch's number).
         // versionCode 96→97.
-        versionCode = 97
-        versionName = "0.70.3"
+        // v0.70.4: HomeActivity + PreHomeActivity locked to
+        // portrait. Neither activity declared screenOrientation,
+        // by deliberate prior design (free rotation for
+        // mounts/stands/tablets) — but no other launcher on the
+        // phone behaves that way, so the home screen rotating
+        // whenever the phone is set down or tilted read as the
+        // system's own auto-rotate switching itself on. Reported
+        // against the real device 2026-08-28; no code anywhere
+        // in this app touches the actual rotation setting
+        // (grepped, and a 35s idle poll showed zero drift) — the
+        // manifest's free-rotation stance was the whole cause.
+        // versionCode 97→98.
+        versionCode = 98
+        versionName = "0.70.4"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every

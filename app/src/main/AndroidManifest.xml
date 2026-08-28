@@ -205,8 +205,7 @@
             PreHome is a one-shot screen that
             precedes it on cold start.
 
-            Orientation is deliberately not locked
-            (same reason as [HomeActivity]).
+            Locked to portrait (same reason as [HomeActivity]).
         -->
         <activity
             android:name=".prehome.PreHomeActivity"
@@ -214,7 +213,8 @@
             android:launchMode="singleTask"
             android:stateNotNeeded="true"
             android:excludeFromRecents="true"
-            android:configChanges="orientation|screenSize|keyboard|keyboardHidden">
+            android:screenOrientation="portrait"
+            android:configChanges="screenSize|keyboard|keyboardHidden">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.HOME" />
@@ -227,12 +227,21 @@
             launcher entry so it can be opened and explored before being set
             as the default home.
 
-            Orientation is deliberately not locked. A launcher that refuses
-            to work the way the phone is being held is a launcher fighting
-            its owner, and that bites hardest for anyone using a mount, a
-            stand, a keyboard or a tablet. This is only safe because every
-            surface now scrolls rather than clipping, so a short screen is
-            no longer a screen with unreachable content.
+            v0.70.4: locked to portrait. The free-rotation stance above
+            was deliberate but wrong in practice — every mainstream
+            launcher (including the Moto launcher this app replaced)
+            locks the home screen to portrait regardless of the
+            system-wide auto-rotate setting, precisely because a home
+            screen that rotates whenever the phone is set down or held
+            at an angle reads as the *system* auto-rotate switching
+            itself on, not as a deliberate feature. Reported exactly
+            that way against a real device 2026-08-28. No code in this
+            app ever touches Settings.System/Secure rotation keys —
+            confirmed by search and by a 35s idle poll showing zero
+            drift — so the fix is here, not in a phantom setting write.
+            Mounts/stands/tablets lose free rotation as a result; this
+            app ships to phones, and the near-universal launcher
+            convention is the one to follow until that changes.
         -->
         <activity
             android:name=".HomeActivity"
@@ -240,7 +249,8 @@
             android:launchMode="singleTask"
             android:stateNotNeeded="true"
             android:excludeFromRecents="true"
-            android:configChanges="orientation|screenSize|keyboard|keyboardHidden">
+            android:screenOrientation="portrait"
+            android:configChanges="screenSize|keyboard|keyboardHidden">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
