@@ -7,6 +7,7 @@ import java.util.Base64
 import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -123,6 +124,17 @@ object BackupEnvelopeCodec {
 
     /** Serializes [envelope] to JSON — the form a caller would write to a `.mab` file. */
     fun encode(envelope: BackupEnvelope): String = json.encodeToString(envelope)
+
+    /**
+     * Parses [json] (e.g. bytes downloaded from Drive, or read back from a
+     * `.mab` file) into a [BackupEnvelope]. Returns `null` — never throws —
+     * on malformed, truncated, or non-envelope JSON; a decode failure at
+     * this stage just means "not valid envelope JSON," which doesn't need
+     * the finer-grained [DecryptResult] distinctions that only apply once
+     * an envelope has actually been parsed.
+     */
+    fun decode(json: String): BackupEnvelope? =
+        runCatching { this.json.decodeFromString<BackupEnvelope>(json) }.getOrNull()
 
     private fun secretKey(key: RecoveryKey): SecretKeySpec = SecretKeySpec(key.bytes, AES_KEY_ALGORITHM)
 

@@ -172,4 +172,45 @@ class BackupEnvelopeCodecTest {
         assertFalse(envelopeJson.contains(journalBody))
         assertFalse(envelopeJson.contains("bridge"))
     }
+
+    @Test
+    fun `encode then decode round-trips an envelope back to an equal object`() {
+        val plaintext = sampleSnapshotJson()
+        val key = fixedRecoveryKey(1)
+        val envelope = BackupEnvelopeCodec.encrypt(plaintext, key, now = 5_000L, random = fixedIv(1))
+
+        val json = BackupEnvelopeCodec.encode(envelope)
+        val decoded = BackupEnvelopeCodec.decode(json)
+
+        assertEquals(envelope, decoded)
+    }
+
+    @Test
+    fun `decode returns null instead of throwing on malformed, truncated, or non-JSON input`() {
+        val plaintext = sampleSnapshotJson()
+        val key = fixedRecoveryKey(1)
+        val envelope = BackupEnvelopeCodec.encrypt(plaintext, key, now = 5_000L, random = fixedIv(1))
+        val validJson = BackupEnvelopeCodec.encode(envelope)
+
+        assertEquals(null, BackupEnvelopeCodec.decode("not json at all"))
+        assertEquals(null, BackupEnvelopeCodec.decode(""))
+        assertEquals(null, BackupEnvelopeCodec.decode(validJson.dropLast(10)))
+        assertEquals(null, BackupEnvelopeCodec.decode("""{"formatVersion":1,"keyId":"abc"}"""))
+    }
+
+    @Test
+    fun `a downloaded envelope round-trips through decode into a successful decrypt`() {
+        val plaintext = sampleSnapshotJson()
+        val key = fixedRecoveryKey(1)
+
+        val envelope = BackupEnvelopeCodec.encrypt(plaintext, key, now = 5_000L, random = fixedIv(1))
+        val downloadedBytes = BackupEnvelopeCodec.encode(envelope)
+
+        val decoded = BackupEnvelopeCodec.decode(downloadedBytes)
+        assertTrue(decoded != null)
+        val result = BackupEnvelopeCodec.decrypt(decoded!!, key)
+
+        assertTrue(result is BackupEnvelopeCodec.DecryptResult.Success)
+        assertEquals(plaintext, (result as BackupEnvelopeCodec.DecryptResult.Success).plaintextJson)
+    }
 }
