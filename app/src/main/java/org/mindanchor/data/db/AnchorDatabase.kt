@@ -238,6 +238,24 @@ abstract class AnchorDatabase : RoomDatabase() {
             }
         }
 
+        // v0.70.x (MigrationTest audit): a fresh v1 database
+        // walking every registered migration up to the current
+        // version failed with "A migration from 1 to 5 was
+        // required but not found" — MIGRATION_4_5 (below) drops
+        // a `tier` column that no migration ever added, so the
+        // 1→2→3→…→5 chain had a gap at 3→4. MIGRATION_4_5's own
+        // KDoc says real v0.69.x on-device DBs reach version 4
+        // with this column present; this migration is the add
+        // half of that add-then-drop history, matching the
+        // column MIGRATION_4_5 already expects to find.
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE held_notifications ADD COLUMN tier TEXT NOT NULL DEFAULT ''",
+                )
+            }
+        }
+
         // v0.70.x (Tier 2 audit): on-device DBs from
         // v0.69.x have a `tier` column on held_notifications
         // that v0.70.0 dropped. The column is a denormalised
@@ -292,7 +310,8 @@ abstract class AnchorDatabase : RoomDatabase() {
         }
 
         /** Exposed so instrumented tests can walk an old database forward. */
-        fun migrations(): Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_4_5)
+        fun migrations(): Array<Migration> =
+            arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
 
         @Volatile
         private var instance: AnchorDatabase? = null
