@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import org.mindanchor.friction.SealedCodecs
 import org.mindanchor.model.Note
@@ -153,4 +154,36 @@ class NotesPrefs(private val context: Context) {
             prefs[notesKey] = SealedCodecs.encodeNotes(next)
         }
     }
+
+    /**
+     * Replaces the entire notes list. Task 7's [org.mindanchor.continuity]
+     * package uses this to write back a merged list after reconciling with
+     * a continuity-restore payload — see `mergeRestored` there.
+     */
+    suspend fun replaceAll(notes: List<Note>) {
+        context.notesDataStore.edit { prefs ->
+            prefs[notesKey] = SealedCodecs.encodeNotes(NotesState(notes))
+        }
+    }
+}
+
+/**
+ * Task 7 — merges a restored snapshot's notes into the local store,
+ * deduplicating by [Note.id] and keeping whichever record (local or
+ * incoming) has the larger [Note.updatedAt]. Idempotent: running this
+ * twice with the same [incoming] list produces the same result both
+ * times, since a note that already won on the first pass never loses to
+ * an incoming copy with an equal (not greater) `updatedAt`.
+ */
+suspend fun NotesPrefs.mergeRestored(incoming: List<Note>) {
+    if (incoming.isEmpty()) return
+    val merged = LinkedHashMap<Long, Note>()
+    for (note in notes.first().notes) merged[note.id] = note
+    for (note in incoming) {
+        val existing = merged[note.id]
+        if (existing == null || note.updatedAt > existing.updatedAt) {
+            merged[note.id] = note
+        }
+    }
+    replaceAll(merged.values.toList())
 }

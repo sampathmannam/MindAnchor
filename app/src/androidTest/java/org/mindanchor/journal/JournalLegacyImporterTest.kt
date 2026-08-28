@@ -178,6 +178,7 @@ class JournalLegacyImporterTest {
         override suspend fun acknowledgePending(snapshotId: String) = delegate.acknowledgePending(snapshotId)
         override suspend fun entriesNow() = delegate.entriesNow()
         override suspend fun morningMeasuresNow() = delegate.morningMeasuresNow()
+        override suspend fun allChangesNow() = delegate.allChangesNow()
     }
 
     companion object {

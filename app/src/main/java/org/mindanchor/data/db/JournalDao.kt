@@ -66,4 +66,10 @@ interface JournalDao {
 
     @Query("SELECT * FROM morning_measures ORDER BY localDate DESC")
     suspend fun morningMeasuresNow(): List<MorningMeasureEntity>
+
+    // The full change ledger (not just pending), so a snapshot's payload
+    // reflects everything continuity has ever recorded, not only what is
+    // still unacknowledged.
+    @Query("SELECT * FROM continuity_changes ORDER BY occurredAt, id")
+    suspend fun allChangesNow(): List<ContinuityChangeEntity>
 }
