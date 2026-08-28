@@ -27,8 +27,8 @@ import java.time.ZoneId
  *
  * The model is "one Drive file per content type" —
  * see [ContentType]'s KDoc for why. The scheduler's
- * job is to take every entry currently on file for a
- * type and append it as one JSON-Lines line; it does
+ * job is to take every entry not yet on file for a
+ * type and append it as JSON-Lines lines; it does
  * not know or care which [BackupTarget]
  * implementation is wired.
  *
@@ -84,6 +84,21 @@ import java.time.ZoneId
  * delay: whatever did not make it up is simply still
  * "not yet in Drive" and is picked up by the next
  * successful run.
+ *
+ * v0.70.9: [backupAll] used to call [BackupTarget.append]
+ * once per new entry. [GoogleDriveBackupTarget.append]
+ * finds-or-creates the Drive file on every call, and
+ * Drive's search index does not reliably see a file
+ * the instant it is created — a second entry's find
+ * could still say "no such file" moments after the
+ * first entry's call had just created it, so Drive
+ * created a second file with the same name instead of
+ * appending to the first. Confirmed live: two notes
+ * backed up on the same run produced two separate
+ * `MindAnchor-Notes.txt` files in Drive. [appendLines]
+ * is the fix — every new entry for a type is collected
+ * first, so each run makes exactly one find-or-create
+ * decision per type, not one per entry.
  *
  * ## Triggers
  *
@@ -171,17 +186,11 @@ class BackupScheduler(
         val already = downloadedKeys(notesTarget, ContentType.Notes) {
             decodeLine(BackupEntry.serializer(), it)?.body
         }
-        var ok = 0
-        var fail = 0
-        for (note in notes) {
-            if (note.body in already) continue
-            val entry = BackupEntry(date = dayOf(note.createdAt).toString(), body = note.body)
-            when (append(ContentType.Notes, entry)) {
-                is AppendResult.Ok -> ok++
-                else -> fail++
-            }
-        }
-        return ok to fail
+        val fresh = notes.filter { it.body !in already }
+            .map { BackupEntry(date = dayOf(it.createdAt).toString(), body = it.body) }
+        if (fresh.isEmpty()) return 0 to 0
+        val lines = fresh.map { json.encodeToString(BackupEntry.serializer(), it) }
+        return countOf(fresh.size, appendLines(notesTarget, ContentType.Notes, lines))
     }
 
     /** Letters are keyed by [Letter.date] — see [restoreLetters] for the same key on the way back. */
@@ -191,17 +200,11 @@ class BackupScheduler(
         val already = downloadedKeys(lettersTarget, ContentType.Letters) {
             decodeLine(BackupEntry.serializer(), it)?.date
         }
-        var ok = 0
-        var fail = 0
-        for (letter in letters) {
-            if (letter.date.toString() in already) continue
-            val entry = BackupEntry(date = letter.date.toString(), body = letter.body)
-            when (append(ContentType.Letters, entry)) {
-                is AppendResult.Ok -> ok++
-                else -> fail++
-            }
-        }
-        return ok to fail
+        val fresh = letters.filter { it.date.toString() !in already }
+            .map { BackupEntry(date = it.date.toString(), body = it.body) }
+        if (fresh.isEmpty()) return 0 to 0
+        val lines = fresh.map { json.encodeToString(BackupEntry.serializer(), it) }
+        return countOf(fresh.size, appendLines(lettersTarget, ContentType.Letters, lines))
     }
 
     /** Check-ins are immutable once answered, so [Moment.momentKey] alone is a complete key. */
@@ -211,22 +214,18 @@ class BackupScheduler(
         val already = downloadedKeys(checkInsTarget, ContentType.CheckIns) {
             decodeLine(CheckInEntry.serializer(), it)?.let(::checkInKey)
         }
-        var ok = 0
-        var fail = 0
-        for (moment in moments) {
-            if (moment.momentKey() in already) continue
-            val entry = CheckInEntry(
-                valence = moment.valence,
-                arousal = moment.arousal,
-                atMinuteOfDay = moment.atMinuteOfDay,
-                day = moment.day,
-            )
-            when (appendCheckIn(entry)) {
-                is AppendResult.Ok -> ok++
-                else -> fail++
+        val fresh = moments.filter { it.momentKey() !in already }
+            .map {
+                CheckInEntry(
+                    valence = it.valence,
+                    arousal = it.arousal,
+                    atMinuteOfDay = it.atMinuteOfDay,
+                    day = it.day,
+                )
             }
-        }
-        return ok to fail
+        if (fresh.isEmpty()) return 0 to 0
+        val lines = fresh.map { json.encodeToString(CheckInEntry.serializer(), it) }
+        return countOf(fresh.size, appendLines(checkInsTarget, ContentType.CheckIns, lines))
     }
 
     /**
@@ -245,17 +244,42 @@ class BackupScheduler(
         val already = downloadedKeys(wellnessTarget, ContentType.WellnessReadings) {
             decodeLine(WellnessEntry.serializer(), it)?.let(::wellnessKey)
         }
-        var ok = 0
-        var fail = 0
-        for (reading in readings) {
-            if (wellnessKey(reading.day, reading.key, reading.value) in already) continue
-            val entry = WellnessEntry(day = reading.day, key = reading.key, value = reading.value)
-            when (appendWellness(entry)) {
-                is AppendResult.Ok -> ok++
-                else -> fail++
-            }
-        }
-        return ok to fail
+        val fresh = readings.filter { wellnessKey(it.day, it.key, it.value) !in already }
+            .map { WellnessEntry(day = it.day, key = it.key, value = it.value) }
+        if (fresh.isEmpty()) return 0 to 0
+        val lines = fresh.map { json.encodeToString(WellnessEntry.serializer(), it) }
+        return countOf(fresh.size, appendLines(wellnessTarget, ContentType.WellnessReadings, lines))
+    }
+
+    /**
+     * [count] entries went into one [AppendResult]: all of them landed if
+     * it was [AppendResult.Ok], none did otherwise — the batched append
+     * below is one HTTP round trip for the whole type, not one per entry,
+     * so there is no partial-success case to report.
+     */
+    private fun countOf(count: Int, result: AppendResult): Pair<Int, Int> =
+        if (result is AppendResult.Ok) count to 0 else 0 to count
+
+    /**
+     * Joins [lines] (each already one JSON-encoded entry) with `\n` and
+     * appends the whole block in a single [BackupTarget.append] call.
+     *
+     * This is why [syncNotes] and its three siblings collect every new
+     * entry before appending anything, rather than calling append once
+     * per entry in a loop: [GoogleDriveBackupTarget.append] finds-or-creates
+     * the file itself on every call, and Drive's file-search index does
+     * not reliably see a file the moment it is created. Calling append
+     * once per entry meant the second entry's "does this file already
+     * exist" query could still say no immediately after the first entry's
+     * call had just created it — Drive would then create a *second* file
+     * with the same name instead of appending to the first, and a third
+     * entry could do it again. One call per type per [backupAll] run is
+     * one find-or-create decision, not one per entry, so the race has
+     * nothing left to trigger on.
+     */
+    private suspend fun appendLines(target: BackupTarget, type: ContentType, lines: List<String>): AppendResult {
+        val payload = lines.joinToString("\n").toByteArray(Charsets.UTF_8)
+        return target.append(type, payload)
     }
 
     /**
@@ -413,31 +437,6 @@ class BackupScheduler(
 
     private fun <T> decodeLine(serializer: kotlinx.serialization.KSerializer<T>, line: String): T? =
         runCatching { json.decodeFromString(serializer, line) }.getOrNull()
-
-    /**
-     * Appends [entry] (JSON-encoded, no further
-     * wrapping) to the Notes target.
-     */
-    private suspend fun append(type: ContentType, entry: BackupEntry): AppendResult {
-        val jsonStr = json.encodeToString(BackupEntry.serializer(), entry)
-        val target = when (type) {
-            ContentType.Notes -> notesTarget
-            ContentType.Letters -> lettersTarget
-            ContentType.CheckIns, ContentType.WellnessReadings ->
-                error("append(BackupEntry) does not route $type")
-        }
-        return target.append(type, jsonStr.toByteArray(Charsets.UTF_8))
-    }
-
-    private suspend fun appendCheckIn(entry: CheckInEntry): AppendResult {
-        val jsonStr = json.encodeToString(CheckInEntry.serializer(), entry)
-        return checkInsTarget.append(ContentType.CheckIns, jsonStr.toByteArray(Charsets.UTF_8))
-    }
-
-    private suspend fun appendWellness(entry: WellnessEntry): AppendResult {
-        val jsonStr = json.encodeToString(WellnessEntry.serializer(), entry)
-        return wellnessTarget.append(ContentType.WellnessReadings, jsonStr.toByteArray(Charsets.UTF_8))
-    }
 
     /**
      * The result of a [backupAll] call. The caller

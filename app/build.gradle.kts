@@ -150,8 +150,25 @@ android {
         // the actual byte sequence around the closing boundary rather
         // than a loose substring match.
         // versionCode 101→102.
-        versionCode = 102
-        versionName = "0.70.8"
+        // v0.70.9: fixed a second live-only bug in the Drive backup —
+        // BackupScheduler called BackupTarget.append once per new entry
+        // in a loop, and GoogleDriveBackupTarget.append finds-or-creates
+        // the Drive file on every call. Drive's file-search index does
+        // not reliably see a file the instant it is created, so a
+        // second entry's "does this file exist" check could still say
+        // no immediately after the first entry's call had just created
+        // it, spawning a second file with the same name instead of
+        // appending to the first. Confirmed live: backing up 2 notes in
+        // one run produced 2 separate MindAnchor-Notes.txt files in
+        // Drive. Fixed by collecting every new entry for a type before
+        // appending anything, so each backupAll run makes exactly one
+        // find-or-create decision per type. Re-verified live after
+        // cleaning up the duplicates this bug had already created: one
+        // file per type, correct combined content, restore correctly
+        // finds nothing new.
+        // versionCode 102→103.
+        versionCode = 103
+        versionName = "0.70.9"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every
