@@ -418,9 +418,6 @@ fun LauncherRoot(
                     // notifier owns the trigger.
                     viewModel.recordCompassionateWrap(event)
                 },
-                heldNotificationsDao = org.mindanchor.data.db.AnchorDatabase
-                    .get(context.applicationContext as android.app.Application)
-                    .heldNotifications(),
                 goingLightSchedule = goingLightScheduleByState.collectAsState().value,
                 onGoingLightConsentDismissed = viewModel::dismissGoingLightConsent,
                 morningCompassionEnabled = morningCompassionEnabledByState.collectAsState().value,
@@ -1024,17 +1021,6 @@ private fun HomeSurface(
      */
     onAddCompassionateWrapNote: (CompassionateWrapNotifier.Event) -> Unit = {},
     /**
-     * v0.26+ (Phase 1 G-20) — the held-notifications DAO
-     * for the [HomeDietCard]. The card's data layer is the
-     * `releasedCountSince(since)` query (added in
-     * commit `75029c8`). The DAO is the read-side; the
-     * [AnchorNotificationListenerService] is the write
-     * side. Default null so existing call sites still
-     * compile; the launcher view-model wires the real
-     * DAO in [LauncherRoot].
-     */
-    heldNotificationsDao: org.mindanchor.data.db.HeldNotificationDao? = null,
-    /**
      * v0.26+ (Phase 1 G-1) — the Going Light schedule for
      * the [GoingLightConsentCard]. The card shows when
      * the schedule is enabled but the OS-level VpnService
@@ -1489,13 +1475,6 @@ private fun HomeSurface(
                     },
                 )
             }
-
-            // v0.26+ (Phase 1 G-20) — the notification diet card.
-            // Reports the trailing-7-day released count and the
-            // Mark 2005 23-minute-interruption-recovery cost.
-            // The card hides itself on a fresh install (zero
-            // released) — never pre-fill with zeros.
-            heldNotificationsDao?.let { HomeDietCard(dao = it) }
 
             // v0.26+ (Phase 1 G-19) — the compassionate-wrap
             // Snackbar host. AppWatchService posts events to

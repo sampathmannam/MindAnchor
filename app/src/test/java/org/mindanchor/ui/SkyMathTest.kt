@@ -166,6 +166,61 @@ class SkyMathTest {
         )
     }
 
+    // --- Stars --------------------------------------------------------
+
+    @Test
+    fun `stars are fully out at midday and fully in at midnight`() {
+        assertEquals(0f, SkyMath.starOpacity(at(13)), 0.001f)
+        assertEquals(1f, SkyMath.starOpacity(at(0)), 0.001f)
+    }
+
+    @Test
+    fun `stars hold flat through the night and day plateaus`() {
+        assertEquals(1f, SkyMath.starOpacity(at(0)))
+        assertEquals(1f, SkyMath.starOpacity(at(3)))
+        assertEquals(1f, SkyMath.starOpacity(at(5)))
+        assertEquals(0f, SkyMath.starOpacity(at(9)))
+        assertEquals(0f, SkyMath.starOpacity(at(12)))
+        assertEquals(0f, SkyMath.starOpacity(at(17)))
+    }
+
+    @Test
+    fun `stars fade out monotonically at dawn and in monotonically at dusk`() {
+        var previous = SkyMath.starOpacity(at(5))
+        for (hour in 6..9) {
+            val current = SkyMath.starOpacity(at(hour))
+            assertTrue("stars brightened during dawn at $hour", current <= previous + 1e-9)
+            previous = current
+        }
+        previous = SkyMath.starOpacity(at(17))
+        for (hour in 18..21) {
+            val current = SkyMath.starOpacity(at(hour))
+            assertTrue("stars dimmed during dusk at $hour", current >= previous - 1e-9)
+            previous = current
+        }
+    }
+
+    @Test
+    fun `star opacity never leaves 0 to 1`() {
+        for (minute in 0 until 24 * 60) {
+            val alpha = SkyMath.starOpacity(minute)
+            assertTrue("star opacity $alpha out of range at minute $minute", alpha in 0f..1f)
+        }
+    }
+
+    @Test
+    fun `star opacity is continuous across the midnight wrap`() {
+        val before = SkyMath.starOpacity(at(23, 59))
+        val after = SkyMath.starOpacity(at(0, 0))
+        assertTrue(kotlin.math.abs(before - after) < 0.01f)
+    }
+
+    @Test
+    fun `star opacity wraps instead of crashing out of range`() {
+        assertEquals(SkyMath.starOpacity(at(3)), SkyMath.starOpacity(at(3) + 24 * 60), 0.001f)
+        assertEquals(SkyMath.starOpacity(at(3)), SkyMath.starOpacity(at(3) - 24 * 60), 0.001f)
+    }
+
     // --- Colour maths sanity ---------------------------------------------
 
     @Test

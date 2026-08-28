@@ -160,23 +160,6 @@
     <string name="morning_compassion_skip">Not now</string>
 
     <!--
-        v0.26+ (Phase 1 G-20) — the home-screen notification diet
-        card. Reports the number of held notifications released
-        in the last 7 days multiplied by the Mark 2005
-        23-minute-interruption-recovery cost. The wording is
-        factual, not celebratory: "released" is the same word
-        the digest UI uses, and "estimated" frames the
-        Mark 2005 figure as a heuristic, not a fact.
-    -->
-    <string name="diet_card_title">This week</string>
-    <plurals name="diet_card_demoted">
-        <item quantity="one">%1$d notification released</item>
-        <item quantity="other">%1$d notifications released</item>
-    </plurals>
-    <string name="diet_card_saved">%1$.1f hours of attention estimated saved</string>
-    <string name="diet_card_footnote">based on the 23-minute interruption-recovery cost (Mark 2005)</string>
-
-    <!--
         v0.26+ (Phase 1 G-19) — the compassionate wrap on
         app-close after a long session. The Snackbar copy is
         factual, never judgemental: "you were on %1$s for %2$s,

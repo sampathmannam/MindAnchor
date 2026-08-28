@@ -43,26 +43,6 @@ interface HeldNotificationDao {
     @Query("SELECT COUNT(*) FROM held_notifications WHERE releasedAt IS NULL")
     fun pendingCount(): Flow<Int>
 
-    /**
-     * The number of held notifications that have been
-     * released since the [since] epoch-millis timestamp.
-     * The home-screen "notification diet" card uses this
-     * with `since = now - 7 days` to report the user's
-     * weekly batch count, multiplied by the Mark 2005
-     * 23-minute attention-recovery cost to estimate the
-     * attention saved (citations in the home card KDoc).
-     *
-     * Released notifications stay in the table until
-     * [clearReleased] is called by the digest UI, so this
-     * query is the right basis for the analytics — no
-     * separate "demote log" table is needed. A user who
-     * clears the digest loses the historical record by
-     * design, the same way a person who clears a paper
-     * notebook loses the history.
-     */
-    @Query("SELECT COUNT(*) FROM held_notifications WHERE releasedAt IS NOT NULL AND releasedAt >= :since")
-    fun releasedCountSince(since: Long): Flow<Int>
-
     @Query("SELECT * FROM held_notifications ORDER BY postedAt DESC LIMIT 300")
     fun journal(): Flow<List<HeldNotification>>
 

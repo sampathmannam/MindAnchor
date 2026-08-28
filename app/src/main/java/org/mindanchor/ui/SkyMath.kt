@@ -168,6 +168,34 @@ object SkyMath {
     fun primaryTextFor(palette: SkyPalette): Rgb =
         if (palette.lightText) TEXT_LIGHT else TEXT_DARK
 
+    // --- Stars --------------------------------------------------------
+
+    private const val NIGHT_END_MINUTE = 5 * 60
+    private const val DAWN_END_MINUTE = 9 * 60
+    private const val DUSK_START_MINUTE = 17 * 60
+    private const val NIGHT_START_MINUTE = 21 * 60 + 30
+
+    /**
+     * How visible stars should be, 0 (day) to 1 (full night).
+     *
+     * Reuses the exact same dawn/dusk windows the sky palette anchors
+     * above use, rather than a separate schedule — stars fade in and out
+     * exactly as the sky itself visibly darkens and lightens, so the two
+     * are never fighting or out of step with each other.
+     */
+    fun starOpacity(minutesOfDay: Int): Float {
+        val minutes = ((minutesOfDay % DAY_MINUTES) + DAY_MINUTES) % DAY_MINUTES
+        return when {
+            minutes < NIGHT_END_MINUTE -> 1f
+            minutes < DAWN_END_MINUTE ->
+                1f - (minutes - NIGHT_END_MINUTE).toFloat() / (DAWN_END_MINUTE - NIGHT_END_MINUTE)
+            minutes < DUSK_START_MINUTE -> 0f
+            minutes < NIGHT_START_MINUTE ->
+                (minutes - DUSK_START_MINUTE).toFloat() / (NIGHT_START_MINUTE - DUSK_START_MINUTE)
+            else -> 1f
+        }
+    }
+
     /** The composited background a caller's text actually sits on. */
     fun withHaze(background: Rgb, palette: SkyPalette): Rgb =
         blend(background, palette.haze, palette.hazeAlpha.toDouble())
