@@ -22,6 +22,41 @@ class GoogleDriveBackupSettingsSectionFindingTest {
     private val sourcePath = "src/main/java/org/mindanchor/settings/GoogleDriveBackupSettingsSection.kt"
     private val source by lazy { File(sourcePath).readText() }
 
+    /**
+     * Every other production file that can carry user-facing continuity
+     * backup/health copy, for the honesty-guardrail test below. Kept as an
+     * explicit, commented list rather than a scan of all of `app/src/main`
+     * — scanning the whole tree would false-positive on unrelated,
+     * legitimate uses of "backed up" elsewhere (e.g. `backup_explainer` in
+     * strings.xml, which describes the pre-Program-0 local-file "Keep a
+     * copy" feature and correctly says local data is *not* backed up to
+     * the cloud).
+     */
+    private val otherHonestyScanFiles = listOf(
+        // BackupHealth is the domain type whose KDoc/variant docs define
+        // what "verified" means; a future edit here could restate the
+        // claim loosely.
+        "src/main/java/org/mindanchor/continuity/BackupHealth.kt",
+        // The other user-facing continuity export path (Journal research
+        // JSON) — its outcome copy is built here, not just in this file.
+        "src/main/java/org/mindanchor/continuity/ResearchExportBuilder.kt",
+        // Restore's Composable copy is hardcoded (not routed through
+        // strings.xml), so it needs its own scan.
+        "src/main/java/org/mindanchor/continuity/RestoreScreen.kt",
+    )
+
+    /**
+     * res/values/strings.xml scanned by string-resource name prefix, not as
+     * a whole-file blob: the file also holds `backup_*` strings for the
+     * unrelated pre-Program-0 local-file backup feature (e.g.
+     * `backup_explainer`'s legitimate "Nothing here is backed up to the
+     * cloud"), which would false-positive a naive full-file scan.
+     */
+    private val continuityStringResourceLines by lazy {
+        File("src/main/res/values/strings.xml").readLines()
+            .filter { Regex("""<string name="(continuity_|drive_)""").containsMatchIn(it) }
+    }
+
     @Test fun `file is in the settings package and is internal`() {
         assertTrue("package must be org.mindanchor.settings", source.contains("package org.mindanchor.settings"))
         assertTrue(
@@ -195,22 +230,39 @@ class GoogleDriveBackupSettingsSectionFindingTest {
     }
 
     /**
-     * The hard product-honesty rule: no string this file renders ever
-     * says an upload alone was "backed up" — only BackupHealth.Verified's
-     * own copy may claim a verified backup. Scans the Kotlin source
-     * itself (not just the strings.xml resource *values*, which a
-     * separate check below also covers) so a hardcoded literal would be
-     * caught too.
+     * The hard product-honesty rule: no string ever says an upload alone
+     * was "backed up" — only BackupHealth.Verified's own copy may claim a
+     * verified backup. Widened (see the Task 12 post-review fix) from
+     * scanning only this file's Kotlin source to the real set of places
+     * user-facing continuity copy lives: this file, [otherHonestyScanFiles],
+     * and the continuity_/drive_ string resources in strings.xml (via
+     * [continuityStringResourceLines]) — so an edit to
+     * ResearchExportBuilder.kt, BackupHealth.kt, RestoreScreen.kt, or a
+     * continuity/drive string resource introducing this phrasing is caught
+     * too, not just an edit to GoogleDriveBackupSettingsSection.kt.
      */
     @Test fun `no string anywhere conflates an upload with a verified backup`() {
-        val lower = source.lowercase()
-        val occurrences = Regex("backed up").findAll(lower).toList()
-        assertTrue(
-            "the phrase 'backed up' must never appear in this file " +
-                "(found ${occurrences.size} occurrence(s)) — see continuity_checkpoint_requested / " +
-                "continuity_health_verified for the only sanctioned phrasing",
-            occurrences.isEmpty(),
-        )
+        val needlePattern = Regex("backed up")
+        val filesToScan = listOf(sourcePath) + otherHonestyScanFiles
+        for (path in filesToScan) {
+            val occurrences = needlePattern.findAll(File(path).readText().lowercase()).toList()
+            assertTrue(
+                "the phrase 'backed up' must never appear in $path " +
+                    "(found ${occurrences.size} occurrence(s)) — see continuity_checkpoint_requested / " +
+                    "continuity_health_verified for the only sanctioned phrasing",
+                occurrences.isEmpty(),
+            )
+        }
+
+        assertTrue("expected continuity_/drive_ string resources in strings.xml", continuityStringResourceLines.isNotEmpty())
+        for (line in continuityStringResourceLines) {
+            val occurrences = needlePattern.findAll(line.lowercase()).toList()
+            assertTrue(
+                "the phrase 'backed up' must never appear in a continuity_/drive_ string resource " +
+                    "(found ${occurrences.size} occurrence(s) in: $line)",
+                occurrences.isEmpty(),
+            )
+        }
     }
 
     @Test fun `forget account still calls signOut`() {
