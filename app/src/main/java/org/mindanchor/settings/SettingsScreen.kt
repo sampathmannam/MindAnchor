@@ -10,6 +10,8 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -529,6 +531,101 @@ private fun GroupRow(titleRes: Int, descriptionRes: Int, marked: Boolean, onClic
 }
 
 /**
+ * The "Apps to batch" list, as its own screen.
+ *
+ * v0.70.x (UI audit): this used to render every installed app inline
+ * inside Quiet — an alphabetical dump of the whole app drawer, with no
+ * way to jump to a specific app, was the single biggest reason that
+ * screen read as cluttered. Splitting it out costs one tap to reach
+ * and buys back a scrollable-in-its-own-right screen, plus room for
+ * the search field a list this long actually needs.
+ */
+@Suppress("FunctionNaming")
+@Composable
+private fun AppPickerScreen(
+    allApps: List<org.mindanchor.launcher.DisplayApp>,
+    batchedApps: Set<String>,
+    onSetAppBatched: (String, Boolean) -> Unit,
+    onBack: () -> Unit,
+) {
+    var query by remember { mutableStateOf("") }
+    val filtered = remember(allApps, query) {
+        if (query.isBlank()) {
+            allApps
+        } else {
+            allApps.filter { it.label.contains(query, ignoreCase = true) }
+        }
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .safeDrawingPadding()
+            .imePadding()
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+    ) {
+        TextButton(onClick = onBack) {
+            Text(stringResource(R.string.action_back))
+        }
+        Text(
+            text = stringResource(R.string.batching_apps_picker_title),
+            style = MaterialTheme.typography.headlineMedium,
+            modifier = Modifier.padding(vertical = 16.dp),
+        )
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            singleLine = true,
+            placeholder = { Text(stringResource(R.string.batching_apps_picker_search_hint)) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
+        )
+        if (filtered.isEmpty()) {
+            Text(
+                text = stringResource(R.string.batching_apps_picker_none_match, query),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 16.dp),
+            )
+        } else {
+            LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
+                items(filtered, key = { it.component }) { app ->
+                    AppPickerRow(
+                        app = app,
+                        batched = app.component.substringBefore('/') in batchedApps,
+                        onSetAppBatched = onSetAppBatched,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Suppress("FunctionNaming")
+@Composable
+private fun AppPickerRow(
+    app: org.mindanchor.launcher.DisplayApp,
+    batched: Boolean,
+    onSetAppBatched: (String, Boolean) -> Unit,
+) {
+    val packageName = app.component.substringBefore('/')
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .toggleable(value = batched, role = Role.Switch) { onSetAppBatched(packageName, it) },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = app.label,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f),
+        )
+        Switch(checked = batched, onCheckedChange = null)
+    }
+}
+
+/**
  * Minimal settings: default-launcher role, notification batching, hidden
  * apps, and a short honest "about". Everything else waits for its milestone.
  */
@@ -621,19 +718,39 @@ fun SettingsScreen(
     // group's own screen in its place.
     var group by remember { mutableStateOf<SettingsGroup?>(null) }
 
-    // Back closes an open group first and only leaves the
-    // screen on a second press. Without this, the global
-    // back handler in [HomeScreen] would short-circuit to
-    // the home surface the moment a group is open and the
-    // user would lose the index. The visible "back" text
-    // button below has the same predicate, so both paths
-    // behave identically.
+    // v0.70.x (UI audit): the "Apps to batch" list used to inline
+    // every installed app directly into Quiet, which is what made
+    // that screen read as cluttered — a settings tab whose length
+    // was dominated by an alphabetical dump of the whole app
+    // drawer. It now opens as its own screen instead, the same way
+    // "group" already does for the six top-level destinations.
+    var showAppPicker by remember { mutableStateOf(false) }
+
+    // Back closes the app picker first, then an open group, and
+    // only leaves the screen on a third press. Without this, the
+    // global back handler in [HomeScreen] would short-circuit to
+    // the home surface the moment something is open and the user
+    // would lose whatever they were in the middle of. The visible
+    // "back" text button below has the same predicate, so both
+    // paths behave identically.
     BackHandler(enabled = true) {
-        if (group != null) {
+        if (showAppPicker) {
+            showAppPicker = false
+        } else if (group != null) {
             group = null
         } else {
             onBack()
         }
+    }
+
+    if (showAppPicker) {
+        AppPickerScreen(
+            allApps = allApps,
+            batchedApps = batchedApps,
+            onSetAppBatched = viewModel::setAppBatched,
+            onBack = { showAppPicker = false },
+        )
+        return
     }
 
     // COROS bridge form state. Held at the screen level so
@@ -1113,30 +1230,16 @@ fun SettingsScreen(
                         }
                     }
 
-                    Text(
-                        text = stringResource(R.string.batching_choose_apps),
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
-                    )
-                    allApps.forEach { app ->
-                        val packageName = app.component.substringBefore('/')
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 48.dp)
-                                .toggleable(
-                                    value = packageName in batchedApps,
-                                    role = Role.Switch,
-                                ) { viewModel.setAppBatched(packageName, it) },
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = app.label,
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.weight(1f),
-                            )
-                            Switch(checked = packageName in batchedApps, onCheckedChange = null)
-                        }
+                    TextButton(
+                        onClick = { showAppPicker = true },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp, bottom = 4.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.batching_apps_button, batchedApps.size) + "  →",
+                            modifier = Modifier.weight(1f),
+                        )
                     }
 
                     // v0.30+ (spec Phase 2) — the active-hours

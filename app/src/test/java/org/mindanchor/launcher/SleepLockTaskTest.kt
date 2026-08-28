@@ -1,16 +1,19 @@
 package org.mindanchor.launcher
 
 import android.app.Activity
+import android.app.ActivityManager
 import android.content.Context
 import android.content.ContextWrapper
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /**
@@ -69,5 +72,25 @@ class SleepLockTaskTest {
     fun findActivity_returnsNullForApplicationContext() {
         val appContext = ApplicationProvider.getApplicationContext<Context>()
         assertNull(appContext.findActivity())
+    }
+
+    // --- The re-trigger loop found live: startLockTask while already
+    // locked made the OS re-show its pin-confirmation banner repeatedly
+    // instead of once per sleep window. isAlreadyLockTaskLocked is the
+    // guard that keeps startLockTaskOn from calling startLockTask again
+    // in that case. ---
+
+    @Test
+    fun isAlreadyLockTaskLocked_isFalseByDefault() {
+        val activity = Robolectric.buildActivity(Activity::class.java).create().get()
+        assertFalse(isAlreadyLockTaskLocked(activity))
+    }
+
+    @Test
+    fun isAlreadyLockTaskLocked_isTrueWhenTheSystemIsAlreadyLocked() {
+        val activity = Robolectric.buildActivity(Activity::class.java).create().get()
+        val activityManager = activity.getSystemService(ActivityManager::class.java)
+        shadowOf(activityManager).setLockTaskModeState(ActivityManager.LOCK_TASK_MODE_LOCKED)
+        assertTrue(isAlreadyLockTaskLocked(activity))
     }
 }

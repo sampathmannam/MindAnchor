@@ -2002,12 +2002,30 @@ class DearManDialogState {
  * the activity is paused or in a transition. The
  * sleep lock is a UX safeguard, not a security
  * boundary, so a missed call is a soft fail.
+ *
+ * v0.70.x (UI audit): guarded on [ActivityManager]'s own lock-task
+ * state before calling [Activity.startLockTask] again. Reproduced
+ * live: [LaunchedEffect] re-running startLockTask while the task
+ * was already pinned made the OS re-show its "App is pinned"
+ * confirmation banner repeatedly instead of once per sleep window,
+ * which made the phone hard to use even for the "I am awake and I
+ * want to use it" case the unlock phrase exists for. Calling
+ * startLockTask only when not already locked is correct regardless
+ * of what exactly re-triggered the composable — a pin request while
+ * already pinned should always be a no-op, not a repeat prompt.
  */
 internal fun startLockTaskOn(context: android.content.Context) {
+    if (isAlreadyLockTaskLocked(context)) return
     val activity = context.findActivity()
     if (activity != null) {
         runCatching { activity.startLockTask() }
     }
+}
+
+/** Whether some task on the device is already in lock task mode. */
+internal fun isAlreadyLockTaskLocked(context: android.content.Context): Boolean {
+    val activityManager = context.getSystemService(android.app.ActivityManager::class.java)
+    return activityManager?.lockTaskModeState != android.app.ActivityManager.LOCK_TASK_MODE_NONE
 }
 
 /**

@@ -191,7 +191,17 @@
     <string name="batching_toggle">Batch notifications</string>
     <string name="batching_times_explainer">When the batches arrive. The default three follow the trial this is drawn from, not anything about your day — move them to where you can actually take an interruption.</string>
     <string name="batching_time_slot">Arrives at</string>
-    <string name="batching_choose_apps">Apps to batch:</string>
+    <!--
+        v0.70.x (UI audit): "Apps to batch" used to inline every
+        installed app directly into Quiet — an alphabetical dump of
+        the whole app drawer was the single biggest contributor to
+        that screen reading as cluttered. It now opens its own
+        screen instead; this is the button that opens it.
+    -->
+    <string name="batching_apps_button">Apps to batch: %1$d chosen</string>
+    <string name="batching_apps_picker_title">Apps to batch</string>
+    <string name="batching_apps_picker_search_hint">Search apps</string>
+    <string name="batching_apps_picker_none_match">No apps match \"%1$s\".</string>
 
     <string name="digest_channel_name">Digest</string>
     <string name="digest_channel_description">One calm summary per batch of held notifications.</string>
