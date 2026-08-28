@@ -6,6 +6,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -1328,15 +1329,34 @@ private fun HomeSurface(
         // opts in to BringIntoViewRequester so the
         // focused field is scrolled into view above the
         // keyboard.
-        Column(
+        // v0.70+: verticalScroll measures its child with
+        // unbounded height, so the Arrangement.CenterVertically
+        // below was never actually centring anything — the
+        // content just packed to the top and the slack landed
+        // below it as dead space. That dead space is easy to
+        // miss when it is just blank area below the favourites,
+        // but it reads as a clearly broken empty block between
+        // the Sleep Lock card and the keyboard once the IME is
+        // open and shrinks the space available here.
+        // BoxWithConstraints gives the Column a real height
+        // (heightIn(min = ...) below) to centre within — it can
+        // still grow past that and scroll if the content is
+        // taller.
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
-                .imePadding()
-                .padding(start = 32.dp, end = 32.dp, top = 32.dp, bottom = 88.dp)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+                .imePadding(),
         ) {
+            val minHeight = maxHeight
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = minHeight)
+                    .padding(start = 32.dp, end = 32.dp, top = 32.dp, bottom = 88.dp)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+            ) {
             Text(
                 text = now.format(DateTimeFormatter.ofPattern(clockFormat)),
                 style = MaterialTheme.typography.displayLarge.copy(
@@ -1622,6 +1642,7 @@ private fun HomeSurface(
                         )
                     }
                 }
+            }
             }
         }
 

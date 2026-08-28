@@ -221,6 +221,33 @@ class SkyMathTest {
         assertEquals(SkyMath.starOpacity(at(3)), SkyMath.starOpacity(at(3) - 24 * 60), 0.001f)
     }
 
+    // --- Sun ------------------------------------------------------------
+
+    @Test
+    fun `sun is fully out at midnight and fully in at midday`() {
+        assertEquals(0f, SkyMath.sunOpacity(at(0)), 0.001f)
+        assertEquals(1f, SkyMath.sunOpacity(at(13)), 0.001f)
+    }
+
+    @Test
+    fun `sun opacity is the exact complement of star opacity at every minute`() {
+        for (minute in 0 until 24 * 60) {
+            assertEquals(
+                1f - SkyMath.starOpacity(minute),
+                SkyMath.sunOpacity(minute),
+                0.0001f,
+            )
+        }
+    }
+
+    @Test
+    fun `sun and stars are never both bright at once`() {
+        for (minute in 0 until 24 * 60) {
+            val total = SkyMath.sunOpacity(minute) + SkyMath.starOpacity(minute)
+            assertEquals("sun+star should sum to 1 at minute $minute", 1f, total, 0.0001f)
+        }
+    }
+
     // --- Colour maths sanity ---------------------------------------------
 
     @Test

@@ -196,6 +196,13 @@ object SkyMath {
         }
     }
 
+    /**
+     * How visible the sun should be, 0 (night) to 1 (full day) — the exact
+     * complement of [starOpacity] on the same dawn/dusk windows, so the two
+     * are never both faint or both bright at once.
+     */
+    fun sunOpacity(minutesOfDay: Int): Float = 1f - starOpacity(minutesOfDay)
+
     /** The composited background a caller's text actually sits on. */
     fun withHaze(background: Rgb, palette: SkyPalette): Rgb =
         blend(background, palette.haze, palette.hazeAlpha.toDouble())

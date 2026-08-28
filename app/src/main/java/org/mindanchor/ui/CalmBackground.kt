@@ -83,6 +83,7 @@ fun CalmBackground(content: @Composable (SkyContent) -> Unit) {
     val hillTint = landColor
 
     val starOpacity = SkyMath.starOpacity(minuteOfDay)
+    val sunOpacity = SkyMath.sunOpacity(minuteOfDay)
 
     Box(modifier = Modifier.fillMaxSize()) {
         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -97,6 +98,18 @@ fun CalmBackground(content: @Composable (SkyContent) -> Unit) {
             // part of the same palette instead of a decoration bolted on.
             if (starOpacity > 0f) {
                 drawStars(opacity = starOpacity, tint = SkyMath.TEXT_LIGHT.toColor())
+            }
+
+            // The sun, drawn the same way as the stars above: a soft,
+            // deterministic shape whose only movement is its opacity,
+            // fading in and out on the exact same dawn/dusk windows
+            // (sunOpacity is the complement of starOpacity), so the two
+            // are never both on screen at once. A soft radial glow
+            // rather than a hard disc, for the same "distance reads as
+            // atmosphere, not as an object demanding attention" reason
+            // the hills are filled shapes and not a spotlight.
+            if (sunOpacity > 0f) {
+                drawSun(opacity = sunOpacity, tint = SUN_TINT.toColor())
             }
 
             // Two hills, drawn as shapes rather than as glows.
@@ -202,6 +215,49 @@ private fun DrawScope.drawStars(opacity: Float, tint: Color) {
             ),
         )
     }
+}
+
+/**
+ * Where the sun sits: upper-left, clear of the centred clock and the
+ * top-right corner buttons (letter / notes / history). Fixed, like the
+ * stars — this file's premise is that nothing here animates, so the sun
+ * does not arc across the sky, it only fades in and out with the day.
+ */
+private const val SUN_X_FRACTION = 0.22f
+private const val SUN_Y_FRACTION = 0.15f
+
+/** How far the glow reaches, as a fraction of the sky's width. */
+private const val SUN_RADIUS_FRACTION = 0.28f
+
+/** Peak alpha at the glow's centre; it falls to 0 at [SUN_RADIUS_FRACTION]. */
+private const val SUN_CORE_ALPHA = 0.5f
+
+/**
+ * A soft warm gold — the same low-saturation register as the dawn/dusk
+ * anchors above, rather than a bright, attention-grabbing yellow.
+ */
+private val SUN_TINT = Rgb(0xF2, 0xDC, 0xAD)
+
+/**
+ * A soft glow standing in for the sun, the same treatment [drawStars] gives
+ * the night sky: a radial gradient rather than a hard-edged disc, so it
+ * reads as daylight rather than as a shape sitting on top of the sky.
+ */
+private fun DrawScope.drawSun(opacity: Float, tint: Color) {
+    val center = Offset(size.width * SUN_X_FRACTION, size.height * SUN_Y_FRACTION)
+    val radius = size.width * SUN_RADIUS_FRACTION
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(
+                tint.copy(alpha = (SUN_CORE_ALPHA * opacity).coerceIn(0f, 1f)),
+                tint.copy(alpha = 0f),
+            ),
+            center = center,
+            radius = radius,
+        ),
+        radius = radius,
+        center = center,
+    )
 }
 
 /**

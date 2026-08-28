@@ -235,8 +235,30 @@ android {
         // imePadding + verticalScroll Column — the likely cause of
         // the reported gap between the field and the keyboard.
         // versionCode 106→107.
-        versionCode = 107
-        versionName = "0.70.13"
+        // v0.70.14: the v0.70.13 bringIntoViewOnFocus fix on its own
+        // wasn't the whole story — a live screenshot from the real
+        // device showed the field correctly scrolled clear of the
+        // keyboard, but with a large dead gap between the Sleep Lock
+        // card and the keyboard, with the bottom nav row floating in
+        // the middle of it. Root cause: Modifier.verticalScroll()
+        // measures its Column with unbounded height, so
+        // Arrangement.CenterVertically was never actually centring —
+        // content just packed to the top and the slack landed below
+        // it as dead space, on the home screen and (much more
+        // visibly) here once the keyboard shrank the usable area.
+        // Wrapped the Column in BoxWithConstraints and gave it
+        // heightIn(min = maxHeight) so it has a real height to centre
+        // within — verified live against the real sleep window: the
+        // dead gap is gone and the layout no longer looks top-packed
+        // with the keyboard open or closed.
+        //
+        // Also added a sun to the daytime sky, the same treatment
+        // the v0.70.12 night stars got: a fixed, non-animating glow
+        // whose opacity is the exact complement of the stars' (same
+        // dawn/dusk windows), so the two are never both on screen.
+        // versionCode 107→108.
+        versionCode = 108
+        versionName = "0.70.14"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every
