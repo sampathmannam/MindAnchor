@@ -186,8 +186,24 @@ android {
         // redundant and wrong. TokenStore is now purely a fallback for
         // when a fresh fetch cannot be made at all.
         // versionCode 103→104.
-        versionCode = 104
-        versionName = "0.70.10"
+        // v0.70.11: UI/alignment audit across the app. Fixed the home
+        // screen's "search" button rendering at titleMedium (visibly
+        // larger) instead of labelMedium like its "settings" and
+        // "Digest" siblings in the same row; the Settings → Reading
+        // "Model" label wrapping mid-word into "Mo"/"del" because the
+        // model-name button had no width cap; and "1 notifications
+        // released" on the home diet card (now a proper plurals
+        // resource, correct at any count). Also fixed three places
+        // that still flatly claimed nothing backs up to the cloud /
+        // backup is off — stale since v0.70.7 added opt-in Google
+        // Drive backup: the "Keep a copy" intro, the About paragraph,
+        // and the privacy card's "Where the data goes" / "Where the
+        // data does not go" sections, all now describe Drive backup
+        // as a second opt-in exception and are explicit that the
+        // safety plan and crisis contacts never leave the phone.
+        // versionCode 104→105.
+        versionCode = 105
+        versionName = "0.70.11"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every

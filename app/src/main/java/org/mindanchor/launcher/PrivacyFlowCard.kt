@@ -35,7 +35,9 @@ import androidx.compose.ui.unit.dp
  *     interface (no tunnel), the screen. Explicit
  *     on-device, not implied.
  *  3. **Where the data does not go.** The negative
- *     list closes the privacy surface (no cloud backup,
+ *     list closes the privacy surface (no cloud backup
+ *     unless Google Drive backup is turned on — and even
+ *     then, never the safety plan or crisis contacts —
  *     no analytics, no device-to-device transfer, no
  *     LLM call unless the user opts in).
  *  4. **What the user can do.** Delete everything;
@@ -77,16 +79,21 @@ fun PrivacyFlowCard(
             )
             PrivacySection(
                 title = "Where the data goes",
-                body = "The phone. Every byte of the above lives on the device, in the app's private storage, " +
-                    "encrypted with the Android Keystore. Backup is off. Device-to-device transfer is refused. " +
+                body = "The phone, by default. Every byte of the above lives on the device, in the app's private storage, " +
+                    "encrypted with the Android Keystore. Backup is off unless you turn on Google Drive backup " +
+                    "(Settings → Reading, opt-in) — that syncs your notes, letters, check-ins and wellness readings " +
+                    "to your own Drive each night; your safety plan and crisis contacts never go, even then. " +
+                    "Device-to-device transfer is refused. " +
                     "The Going Light VPN captures loopback traffic and decides forward-or-drop per packet, locally; " +
                     "the loopback interface is the only place the captured packet goes. " +
                     "Everything you see is rendered from local data.",
             )
             PrivacySection(
                 title = "Where the data does not go",
-                body = "The phone's network (the INTERNET permission is held only because the VpnService API requires it; " +
-                    "the runtime telemetry confirms zero outbound bytes). A cloud backup. An analytics service. " +
+                body = "The phone's network by default (the INTERNET permission is held only because the VpnService API " +
+                    "requires it; the runtime telemetry confirms zero outbound bytes unless you've opted into Google " +
+                    "Drive backup or the COROS bridge). Your safety plan and crisis contacts, full stop — those never " +
+                    "leave the phone, even with Google Drive backup on. An analytics service. " +
                     "A device-to-device transfer. There is no on-device model or LLM of any kind running on the " +
                     "phone: the daily letter's writing is opt-in and cloud-only, silent until you add a provider " +
                     "key in Settings → Reading — no key, no outbound call, ever.",

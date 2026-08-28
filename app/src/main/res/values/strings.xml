@@ -169,7 +169,10 @@
         Mark 2005 figure as a heuristic, not a fact.
     -->
     <string name="diet_card_title">This week</string>
-    <string name="diet_card_demoted">%1$d notifications released</string>
+    <plurals name="diet_card_demoted">
+        <item quantity="one">%1$d notification released</item>
+        <item quantity="other">%1$d notifications released</item>
+    </plurals>
     <string name="diet_card_saved">%1$.1f hours of attention estimated saved</string>
     <string name="diet_card_footnote">based on the 23-minute interruption-recovery cost (Mark 2005)</string>
 
@@ -695,14 +698,14 @@
     <string name="grayscale_at_night">Go grey through the quiet hours</string>
     <string name="grayscale_shares_a_switch">This borrows Android\&#39;s colour correction, so the two cannot both be on at once. Whatever correction you had set is put back when the grey screen goes off. If you rely on it during the day, you may still want to leave the night setting alone.</string>
     <string name="backup_section">Keep a copy</string>
-    <string name="backup_explainer">Nothing here is backed up to the cloud, on purpose — so a reset or lost phone would take your plan, your people, your check-ins and your readings with it. Save a copy somewhere you trust, and bring it back whenever you need to. Restoring only ever adds to what is already here.</string>
+    <string name="backup_explainer">Nothing here is backed up to the cloud by default — so a reset or lost phone would take your plan, your people, your check-ins and your readings with it, unless you\'ve turned on Google Drive backup under Settings → Reading. Save a copy somewhere you trust, and bring it back whenever you need to. Restoring only ever adds to what is already here.</string>
     <string name="backup_save">Save a copy…</string>
     <string name="backup_restore">Restore from a copy…</string>
     <string name="backup_saved">Saved. Keep it somewhere only you can reach.</string>
     <string name="backup_restored">Restored.</string>
     <string name="backup_not_a_backup">That file isn\'t a MindAnchor copy, or it came from a newer version. Nothing was changed.</string>
     <string name="backup_failed">Couldn\'t read or write that file. Nothing was changed.</string>
-    <string name="about_text">MindAnchor is an open-source, research-backed launcher. It has no accounts, no server and no analytics — by default, your data never leaves this phone. The one opt-in exception is the COROS Training Hub bridge under Settings → Measuring: when you connect it, the launcher fetches HRV and resting heart rate from COROS, over an encrypted connection, with your COROS password held in this phone\'s secure Keystore. The connection is off until you turn it on. It is a wellness tool, not a medical device, and it is no substitute for talking to someone.</string>
+    <string name="about_text">MindAnchor is an open-source, research-backed launcher. It has no accounts, no server and no analytics — by default, your data never leaves this phone. Two opt-in exceptions, both off until you turn them on: the COROS Training Hub bridge under Settings → Measuring, which fetches HRV and resting heart rate from COROS over an encrypted connection with your COROS password held in this phone\'s secure Keystore; and Google Drive backup under Settings → Reading, which syncs your notes, letters, check-ins and wellness readings — never your safety plan or crisis contacts — to your own Drive each night. It is a wellness tool, not a medical device, and it is no substitute for talking to someone.</string>
     <!--
         v0.25.11 (deployability §privacy): a one-line
         pointer to the full privacy policy. The URL is

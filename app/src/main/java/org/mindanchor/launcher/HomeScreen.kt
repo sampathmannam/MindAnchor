@@ -1645,7 +1645,7 @@ private fun HomeSurface(
         ) {
             Text(
                 text = stringResource(R.string.open_drawer),
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.labelMedium,
                 color = sky.textSecondary,
             )
         }
