@@ -118,6 +118,8 @@
     <ID>LoopWithTooManyJumpStatements:ScreenRhythm.kt$ScreenRhythm$for</ID>
     <ID>LoopWithTooManyJumpStatements:SourceUidResolver.kt$SourceUidResolver$for</ID>
     <ID>LoopWithTooManyJumpStatements:StringResourcesTest.kt$StringResourcesTest$for</ID>
+    <ID>MagicNumber:AnchorDatabase.kt$AnchorDatabase.Companion.&lt;no name provided&gt;$35</ID>
+    <ID>MagicNumber:AnchorDatabase.kt$AnchorDatabase.Companion.&lt;no name provided&gt;$5</ID>
     <ID>MagicNumber:BatchSchedule.kt$BatchSchedule$18</ID>
     <ID>MagicNumber:BatchSchedule.kt$BatchSchedule$30</ID>
     <ID>MagicNumber:BatchSchedule.kt$BatchSchedule$8</ID>
@@ -367,6 +369,9 @@
     <ID>MagicNumber:WatchPolicy.kt$WatchPolicy$60_000L</ID>
     <ID>MatchingDeclarationName:CalmBackground.kt$SkyContent</ID>
     <ID>MatchingDeclarationName:DigestScreen.kt$DigestViewModel : AndroidViewModel</ID>
+    <ID>MaxLineLength:AnchorDatabase.kt$AnchorDatabase.Companion.&lt;no name provided&gt;$"INSERT INTO held_notifications_new (id, packageName, appLabel, title, text, postedAt, releasedAt) "</ID>
+    <ID>MaxLineLength:AnchorDatabase.kt$AnchorDatabase.Companion.&lt;no name provided&gt;$"SELECT id, packageName, appLabel, title, text, postedAt, releasedAt FROM held_notifications"</ID>
+    <ID>MaxLineLength:CorosPasswordHasher.kt$CorosPasswordHasher$val digest = MessageDigest.getInstance("MD5").digest(bytes) // nosemgrep: use-of-md5 — COROS Training Hub web API requires hex MD5 of UTF-8 password bytes (mobile API logs user out). Class KDoc documents the 2025-12-04 contract test.</ID>
     <ID>MaxLineLength:CorpusImportTest.kt$CorpusImportTest$val outcome = CorpusImport.merge(seed, row("hrv-rmssd", "Shaffer &amp; Ginsberg 2017", "RMSSD reflects vagal tone."))</ID>
     <ID>MaxLineLength:GoingLightConsentCard.kt$text = "Going Light blocks mobile-internet traffic during a window you choose. The system will ask once; you can turn it off any time."</ID>
     <ID>MaxLineLength:LauncherViewModel.kt$LauncherViewModel$.</ID>
@@ -376,6 +381,7 @@
     <ID>MaxLineLength:LetterContextTest.kt$LetterContextTest$val newer = CheckIn(rating = 4, reflection = "today felt lighter", atMillis = today.atStartOfDay(zone).toInstant().toEpochMilli() + 10 * 3600_000L)</ID>
     <ID>MaxLineLength:LetterContextTest.kt$LetterContextTest$val oldNote = Note(id = 1L, body = "from 4 days ago", createdAt = today.minusDays(4).atStartOfDay(zone).toInstant().toEpochMilli())</ID>
     <ID>MaxLineLength:LetterContextTest.kt$LetterContextTest$val older = CheckIn(rating = 3, reflection = "yesterday", atMillis = today.minusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() + 18 * 3600_000L)</ID>
+    <ID>MaxLineLength:LlmProviderContractTest.kt$LlmProviderContractTest$"provider ${provider.name} defaultModel ${provider.defaultModel} not in suggestedModels ${provider.suggestedModels}"</ID>
     <ID>MaxLineLength:OpenAiCompatibleClient.kt$OpenAiCompatibleClient$return LlmResponse(content = content, promptTokens = promptTokens, completionTokens = completionTokens, durationMs = durationMs)</ID>
     <ID>MaxLineLength:OpenAiCompatibleClient.kt$OpenAiCompatibleClient.OpenAiRequestBody$private</ID>
     <ID>MaxLineLength:PatternsTest.kt$PatternsTest$val labels = mapOf(Label.VALENCE to (0 until n).associate { start.plusDays(it.toLong()) to (it % 5).toDouble() })</ID>

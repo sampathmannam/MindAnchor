@@ -56,6 +56,8 @@ android {
         //   versionCode 92→93.
         versionCode = 94
         versionName = "0.70.0"
+    }
+
   // secrets are absent, as they are for every fork and every local
     // build, signingConfig stays null and Gradle falls back to the debug
     // key exactly as before. Nothing breaks for anyone who does not have
