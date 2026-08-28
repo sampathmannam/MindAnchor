@@ -637,7 +637,6 @@
         pulse area.
     -->
 
-
     <string name="notes_shortcut">notes</string>
     <string name="support_section">Your people and your plan</string>
     <string name="support_section_explainer">Somewhere to write down what helps, and the people you would want to talk to. Yours to fill in, whenever you feel like it.</string>
@@ -1046,19 +1045,52 @@
     <string name="drive_restore_nothing">Nothing new to restore — this phone already has everything in Drive.</string>
     <string name="drive_restore_failed">Couldn\'t restore right now. Check your connection and try again.</string>
     <!--
-        AnchorCore (v0.70 v1 of the wellbeing loop). The master
-        toggle defaults OFF (opt-out-by-silence); the per-hook
-        toggles flip ON the first time the master is enabled
-        (AnchorPrefs.setEnabled owns the latch).
+        Both block sets (tile strings + anchor strings)
+        are real features in this build. Combined here as a
+        merge resolution.
     -->
-    <string name="settings_anchor_title">AnchorCore</string>
-    <string name="settings_anchor_subtitle">A quiet weekly picture from your own patterns. Off until you ask.</string>
-    <string name="settings_anchor_letter_title">Letter knows the week</string>
-    <string name="settings_anchor_letter_subtitle">The daily letter sees this week\'s own-data notes.</string>
-    <string name="settings_anchor_friction_title">Gentler repetition in hard weeks</string>
-    <string name="settings_anchor_friction_subtitle">Pauses keep their breath longer during flagged weeks.</string>
-    <string name="settings_anchor_proposal_title">Wind-down suggestion</string>
-    <string name="settings_anchor_proposal_subtitle">One quiet suggestion after late-night weeks.</string>
-    <string name="settings_anchor_override_active">Wind-down is 30 minutes earlier until %1$s.</string>
-    <string name="settings_anchor_override_remove">Return to usual</string>
+
+    
+        <!--
+            Quick Settings tiles (Phase 1 T-1.4). The labels are the only
+            user-facing copy on the tile; they are short by Android QS
+            guidelines and avoid clinical claims. The toast strings are
+            the user feedback path for the action-only tiles (Release
+            batch, Support is a launcher and has no toast). All tile copy
+            has been through the clinical-review wordlist gate.
+        -->
+        <string name="tile_sunset_label">Sunset</string>
+        <string name="tile_going_light_label">Going light</string>
+        <string name="tile_release_batch_label">Release batch</string>
+        <string name="tile_support_label">Support</string>
+        <string name="tile_release_batch_toast">Releasing the held batch.</string>
+        <string name="tile_release_batch_failed">Couldn\'t release right now. Try again in a moment.</string>
+    
+        <!--
+            Morning protection (Phase 1 T-1.5). The user
+            opts in; default is OFF. The copy is held to
+            the project's clinical-review wordlist gate.
+        -->
+        <string name="settings_morning_protection_title">Morning protection</string>
+        <string name="settings_morning_protection_subtitle">Gate feeds for the first few minutes after the phone comes alive in the morning.</string>
+        <string name="settings_morning_protection_minutes_title">Minutes</string>
+        <string name="settings_morning_protection_minutes_value">%1$d minutes</string>
+        <string name="settings_morning_protection_minutes_zero">Off</string>
+
+        <!--
+            AnchorCore (v0.70 v1 of the wellbeing loop). The master
+            toggle defaults OFF (opt-out-by-silence); the per-hook
+            toggles flip ON the first time the master is enabled
+            (AnchorPrefs.setEnabled owns the latch).
+        -->
+        <string name="settings_anchor_title">AnchorCore</string>
+        <string name="settings_anchor_subtitle">A quiet weekly picture from your own patterns. Off until you ask.</string>
+        <string name="settings_anchor_letter_title">Letter knows the week</string>
+        <string name="settings_anchor_letter_subtitle">The daily letter sees this week\'s own-data notes.</string>
+        <string name="settings_anchor_friction_title">Gentler repetition in hard weeks</string>
+        <string name="settings_anchor_friction_subtitle">Pauses keep their breath longer during flagged weeks.</string>
+        <string name="settings_anchor_proposal_title">Wind-down suggestion</string>
+        <string name="settings_anchor_proposal_subtitle">One quiet suggestion after late-night weeks.</string>
+        <string name="settings_anchor_override_active">Wind-down is 30 minutes earlier until %1$s.</string>
+        <string name="settings_anchor_override_remove">Return to usual</string>
 </resources>

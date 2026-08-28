@@ -1,3 +1,43 @@
+v0.69.0 — protective-layer follow-up + LLM security-audit cleanup
+
+What's new:
+
+* PreHome moment-of-pause: a new HOME-intent activity reaches the user between unlock and the launcher home screen, with an opt-in doomscroll-app prompt ("Hold for a moment" / "Open anyway" / "Pick a different app") and a daily morning intention. Off by default.
+* Notification batching gains two dials in Settings: active hours (default 21:00-07:00) and held-notification retention (default 7 days, capped 1-30), both enforced by the listener service.
+* Healthy defaults walkthrough: a per-category (browser/SMS/email/dialer) "we like these, you pick" screen, reachable from Settings → About, routing to the system default-apps settings.
+* G-5: the Sleep Lock card now actually pins the launcher task during the sunset window via startLockTask/stopLockTask, released by the existing 30-second typed-phrase unlock.
+* G-28: whisper.cpp JNI scaffold landed (WhisperEngine/Whisper mirror the LlamaEngine pattern) — the voice-journal transcription pipeline is not wired yet; this is the scaffold only.
+
+Security (LLM bridge audit):
+
+* CRITICAL: removed an outbound GitHub call from the update checker.
+* HIGH: hardened setApiKey against adversarial payloads.
+* HIGH: moved the LLM provider API key into EncryptedSharedPreferences.
+* HIGH: wired real certificate pins (SPKI, captured off each provider's live TLS handshake) into the LLM HTTPS client — the previous commit had shipped placeholder pin strings that were never actually applied to the OkHttp client, so every request was still unpinned; both gaps are closed now.
+
+Bug fixes (CodeRabbit PR #38 follow-ups):
+
+* DearManDialog long-press now actually opens (visible-state wiring was broken).
+* AppWatchService's foreground-timestamp map is now concurrency-safe.
+* LogScrubber's notification-body redaction regex no longer stops at the first comma.
+* The sleep-window card now re-evaluates on a minute tick, not just when the sunset window is edited.
+* SleepLockCard enforces a real 30-second dwell instead of accepting a single pasted match.
+* SettingsViewModel.startSunsetTrial reserves its Running state before the first suspension, closing a double-countdown race.
+* JournalStore gives BA/DEAR MAN/gratitude/expressive-writing entries their own store, so a same-day entry no longer overwrites the day's LLM letter.
+* Reframer now runs LLM output through NarrationGuard before display.
+
+Verifications:
+
+* :app:assembleDebug, :app:testDebugUnitTest, :app:lintDebug, :app:detekt — all green.
+* 1297/1297 unit tests pass.
+* No new network endpoints (NetworkCallsForbiddenTest unchanged).
+* No clinical-review-gated wording changed (ClinicalReviewWordlistTest unchanged).
+
+Build artifacts:
+
+* app/build/outputs/apk/release/app-release-unsigned.apk
+* app/build/outputs/apk/debug/app-debug.apk
+
 v0.68.0 — LLM multi-provider picker + free-tier defaults
 
 What's new:

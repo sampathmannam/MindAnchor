@@ -36,6 +36,7 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -1329,6 +1330,40 @@ fun SettingsScreen(
                 checked = prehome,
                 onCheckedChange = { viewModel.setPrehomeEnabled(it) },
             )
+
+            // v0.70+ (Phase 1 T-1.5) — morning
+            // protection. The user picks a duration;
+            // 0 is the same as off. The toggle gates
+            // the gate: the minute picker is
+            // greyed-out when the toggle is off, so a
+            // user cannot accidentally configure
+            // minutes they have not opted in to.
+            val morningEnabled by viewModel.morningProtectionEnabled.collectAsState()
+            val morningMinutes by viewModel.morningProtectionMinutes.collectAsState()
+            SettingsRowSwitch(
+                title = stringResource(R.string.settings_morning_protection_title),
+                subtitle = stringResource(R.string.settings_morning_protection_subtitle),
+                checked = morningEnabled,
+                onCheckedChange = { viewModel.setMorningProtectionEnabled(it) },
+            )
+            if (morningEnabled) {
+                val minutesLabel = if (morningMinutes == 0) {
+                    stringResource(R.string.settings_morning_protection_minutes_zero)
+                } else {
+                    stringResource(
+                        R.string.settings_morning_protection_minutes_value,
+                        morningMinutes,
+                    )
+                }
+                SettingsRowSlider(
+                    title = stringResource(R.string.settings_morning_protection_minutes_title),
+                    valueLabel = minutesLabel,
+                    value = morningMinutes.toFloat(),
+                    onValueChange = { viewModel.setMorningProtectionMinutes(it.toInt()) },
+                    valueRange = 0f..org.mindanchor.friction.MorningProtectionState.MAX_MINUTES.toFloat(),
+                    steps = org.mindanchor.friction.MorningProtectionState.MAX_MINUTES - 1,
+                )
+            }
         }
 
         if (group == SettingsGroup.PAUSES) {
@@ -3479,5 +3514,61 @@ private fun SettingsRowSwitch(
             }
         }
         Switch(checked = checked, onCheckedChange = null)
+    }
+}
+
+/**
+ * v0.70+ (Phase 1 T-1.5) — slider row for the
+ * morning-protection minutes picker. The shape
+ * mirrors [SettingsRowSwitch]: title above, value
+ * label, the slider below. The slider's
+ * [onValueChange] is debounced by Compose's
+ * recomposition; the underlying
+ * [org.mindanchor.data.FrictionPrefs] write is
+ * already asynchronous.
+ *
+ * The [steps] parameter is `MAX - 1` for a
+ * per-integer slider (0..60 with steps = 59 gives
+ * 61 stops). A continuous slider with steps = 0
+ * would let the user pick fractional minutes,
+ * which is a Settings surface for a clinical
+ * feature, not a feature anyone has asked for.
+ */
+@Composable
+private fun SettingsRowSlider(
+    title: String,
+    valueLabel: String,
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    valueRange: ClosedFloatingPointRange<Float>,
+    steps: Int,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp, horizontal = 16.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = valueLabel,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            valueRange = valueRange,
+            steps = steps,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }

@@ -17,7 +17,7 @@ class OpenAiCompatibleClient(
     private val apiKey: String,
     private val model: String,
     private val baseUrl: String,
-    private val httpClient: OkHttpClient = defaultClient(),
+    private val httpClient: OkHttpClient = defaultClient(baseUrl),
 ) : LlmClient {
 
     override suspend fun complete(req: LlmRequest): Result<LlmResponse> = withContext(Dispatchers.IO) {
@@ -124,11 +124,14 @@ class OpenAiCompatibleClient(
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
         private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
-        fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
-            .callTimeout(30, TimeUnit.SECONDS)
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .build()
+        fun defaultClient(baseUrl: String): OkHttpClient {
+            val builder = OkHttpClient.Builder()
+                .callTimeout(30, TimeUnit.SECONDS)
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+            CertificatePinning.forBaseUrl(baseUrl)?.let { builder.certificatePinner(it) }
+            return builder.build()
+        }
     }
 }
 

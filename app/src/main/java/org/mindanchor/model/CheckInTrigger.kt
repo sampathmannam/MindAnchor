@@ -18,6 +18,21 @@ import org.mindanchor.data.CheckInPrefs
  * launches [CheckInActivity] if the engine says
  * one should fire.
  *
+ * ## Registration: runtime, not manifest
+ *
+ * v0.70+ fix: this receiver was declared in the
+ * manifest with a USER_PRESENT intent filter, but
+ * ACTION_USER_PRESENT is an implicit broadcast and
+ * manifest-declared receivers targeting API 26+ are
+ * never delivered it (it is not in the exemption
+ * list) — the trigger has been silently dead on
+ * every device this app supports. It is now
+ * registered at runtime by
+ * [org.mindanchor.friction.AppWatchService], whose
+ * accessibility-service lifetime is the window in
+ * which launching a full-screen moment is possible
+ * anyway.
+ *
  * ## Why ACTION_USER_PRESENT
  *
  * The brief is explicit: the user wants the
