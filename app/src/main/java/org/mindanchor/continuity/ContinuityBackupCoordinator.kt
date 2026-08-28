@@ -62,13 +62,22 @@ sealed class CheckpointResult {
  *
  * ## Why "upload success" is never "backup success"
  *
- * [runCheckpoint] always downloads [ContinuityFiles.LATEST] back after
- * [put] and compares it byte-for-byte to what was uploaded, then decrypts
- * the *downloaded* envelope and compares its content hash to the snapshot
+ * [runCheckpoint] always downloads the just-uploaded file back after [put]
+ * and compares it byte-for-byte to what was uploaded, then decrypts the
+ * *downloaded* envelope and compares its content hash to the snapshot
  * captured in step 3. Only when both checks pass does this class call
  * [acknowledgePending] or [recordVerified] — a network layer that reports
  * "200 OK" on a truncated or corrupted body is exactly the failure mode
  * this guards against.
+ *
+ * ## Which file gets verified
+ *
+ * [runCheckpoint]'s `targetFileName` parameter picks the Drive object name
+ * this verify sequence runs against — it defaults to [ContinuityFiles.LATEST]
+ * for [CheckpointBackupWorker]'s on-write checkpoint, but [NightlySnapshotWorker]
+ * passes it a versioned name instead, so the SAME upload → download →
+ * byte-compare → decrypt → content-hash sequence verifies the nightly
+ * snapshot too, rather than a second, unverified `put()`.
  */
 class ContinuityBackupCoordinator(
     private val isBackupEnabled: suspend () -> Boolean,
@@ -81,7 +90,9 @@ class ContinuityBackupCoordinator(
     private val now: () -> Long = System::currentTimeMillis,
 ) {
 
-    suspend fun runCheckpoint(): CheckpointResult {
+    suspend fun runCheckpoint(
+        targetFileName: (snapshot: ContinuitySnapshot) -> String = { ContinuityFiles.LATEST },
+    ): CheckpointResult {
         if (!isBackupEnabled()) return CheckpointResult.BackupDisabled
 
         val key = currentVerifiedKey()
@@ -95,9 +106,10 @@ class ContinuityBackupCoordinator(
         val plaintext = ContinuitySnapshotCodec.encode(snapshot)
         val envelope = BackupEnvelopeCodec.encrypt(plaintext, key, nowMs)
         val envelopeBytes = BackupEnvelopeCodec.encode(envelope).encodeToByteArray()
+        val fileName = targetFileName(snapshot)
 
         // Step 5: upload.
-        when (val putResult = remoteBackupStore.put(ContinuityFiles.LATEST, envelopeBytes)) {
+        when (val putResult = remoteBackupStore.put(fileName, envelopeBytes)) {
             is RemoteResult.AuthExpired -> {
                 recordError(ContinuityErrorCode.AUTH)
                 return CheckpointResult.AuthExpired
@@ -114,7 +126,7 @@ class ContinuityBackupCoordinator(
         }
 
         // Step 6: immediately download back. Upload success alone is never acknowledged.
-        val downloaded = when (val getResult = remoteBackupStore.get(ContinuityFiles.LATEST)) {
+        val downloaded = when (val getResult = remoteBackupStore.get(fileName)) {
             is RemoteResult.AuthExpired -> {
                 recordError(ContinuityErrorCode.AUTH)
                 return CheckpointResult.AuthExpired

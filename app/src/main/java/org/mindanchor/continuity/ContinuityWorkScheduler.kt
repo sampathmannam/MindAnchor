@@ -1,6 +1,7 @@
 package org.mindanchor.continuity
 
 import android.content.Context
+import android.util.Log
 import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
@@ -104,11 +105,22 @@ object ContinuityWorkScheduler {
      * predate Task 10 and exercise [org.mindanchor.data.NotesPrefs] /
      * [org.mindanchor.letters.LetterStore] writes directly. Scheduling a
      * checkpoint is best-effort, local convenience — never something a
-     * save should fail over — so this degrades to a silent no-op rather
-     * than propagate the exception into every write-path caller.
+     * save should fail over — so this degrades to a no-op (with a
+     * warning logged) rather than propagate the exception into every
+     * write-path caller. Only this specific, documented exception is
+     * caught — anything else (a [SecurityException], an
+     * [OutOfMemoryError], or any other unexpected failure) propagates
+     * normally instead of vanishing silently.
      */
     private fun workManagerOrNull(context: Context): WorkManager? =
-        runCatching { WorkManager.getInstance(context) }.getOrNull()
+        try {
+            WorkManager.getInstance(context)
+        } catch (e: IllegalStateException) {
+            Log.w(LOG_TAG, "WorkManager not initialized: ${e.message}")
+            null
+        }
+
+    private const val LOG_TAG = "MindAnchor/ContinuityWorkScheduler"
 
     /**
      * The checkpoint's constraints: connected-network only, no battery

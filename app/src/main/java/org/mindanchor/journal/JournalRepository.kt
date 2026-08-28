@@ -5,10 +5,8 @@ import androidx.room.withTransaction
 import java.time.LocalDate
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
-import org.mindanchor.continuity.ContinuityPrefs
 import org.mindanchor.continuity.ContinuityWorkScheduler
 import org.mindanchor.data.db.AnchorDatabase
 import org.mindanchor.data.db.ContinuityChangeEntity
@@ -52,13 +50,7 @@ class JournalRepository(
         // state; requested after the transaction above already
         // committed, purely additive.
         ContinuityWorkScheduler.requestCheckpoint(context)
-        // Task 10 (minimal, safe addition): the flag is stored by
-        // ContinuityPrefs (Task 10's job); actually gating the
-        // extraction call on it is a one-line check, so it is done here
-        // rather than leaving the flag unread until a later task.
-        if (ContinuityPrefs(context).contextExtractionEnabled.first()) {
-            deriveContext(entry, now)
-        }
+        deriveContext(entry, now)
         return entry
     }
 

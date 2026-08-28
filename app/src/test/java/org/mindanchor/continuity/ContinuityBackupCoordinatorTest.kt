@@ -229,6 +229,45 @@ class ContinuityBackupCoordinatorTest {
     }
 
     @Test
+    fun `runCheckpoint uploads to and verifies against a custom targetFileName, not LATEST`() = runBlocking {
+        // Finding 1's fix: NightlySnapshotWorker points runCheckpoint at a
+        // versioned name instead of LATEST, so the SAME upload-download-
+        // byte-compare-decrypt-hash sequence verifies the nightly file too.
+        val store = FakeRemoteBackupStore()
+        val recorder = Recorder()
+        val snapshot = sampleSnapshot(id = "snap-nightly", contentHash = "hash-nightly")
+
+        val result = coordinator(recorder, store, snapshot = snapshot)
+            .runCheckpoint(targetFileName = { "custom-versioned-name.mab" })
+
+        assertTrue(result is CheckpointResult.Verified)
+        assertEquals(1, store.putCalls)
+        assertEquals(1, store.getCalls)
+        assertTrue("the custom name must be the one actually written to", store.stored.containsKey("custom-versioned-name.mab"))
+        assertTrue("LATEST must not be touched by runCheckpoint itself", !store.stored.containsKey(ContinuityFiles.LATEST))
+        assertEquals(listOf("snap-nightly"), recorder.acknowledged)
+    }
+
+    @Test
+    fun `a versioned upload whose downloaded bytes do not match is VERIFY_FAILED and never acknowledged`() = runBlocking {
+        // Mirrors the LATEST-path byte-mismatch test above, but for the
+        // versioned-file target NightlySnapshotWorker uses: a corrupted
+        // round-trip on the versioned name must fail exactly the same way
+        // — nothing acknowledged, no verified state recorded, so
+        // NightlySnapshotWorker.doWork() bails out via `toWorkResult()`
+        // before ever touching LATEST.
+        val store = FakeRemoteBackupStore(getOverride = RemoteResult.Ok("corrupted-not-the-same-bytes".encodeToByteArray()))
+        val recorder = Recorder()
+
+        val result = coordinator(recorder, store)
+            .runCheckpoint(targetFileName = { "custom-versioned-name.mab" })
+
+        assertEquals(CheckpointResult.VerificationFailed(ContinuityErrorCode.VERIFY_FAILED), result)
+        assertTrue(recorder.acknowledged.isEmpty())
+        assertNull(recorder.verifiedCall)
+    }
+
+    @Test
     fun `a save that never runs the worker leaves the change unacknowledged (Task 3-2 guarantee holds)`() = runBlocking {
         // Re-confirms Task 3/2's guarantee: an offline (or never-executed)
         // checkpoint attempt must never acknowledge a pending change. This
