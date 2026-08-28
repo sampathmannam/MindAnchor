@@ -348,3 +348,9 @@ dependencies {
 dependencies {
     kover(project(":app"))
 }
+
+// Commits AnchorDatabase's Room schema exports (app/schemas) so migrations
+// are validated against the exact prior schema rather than trusted blind.
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}

@@ -70,6 +70,178 @@ class MigrationTest {
         }
     }
 
+    /** Creates the schema exactly as version 3 shipped it (MIGRATION_1_2 + MIGRATION_2_3 applied to a v1 base). */
+    private fun createVersion3() {
+        val config = SupportSQLiteOpenHelper.Configuration.builder(context)
+            .name(dbName)
+            .callback(object : SupportSQLiteOpenHelper.Callback(3) {
+                override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                    db.execSQL(
+                        "CREATE TABLE IF NOT EXISTS held_notifications (" +
+                            "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                            "packageName TEXT NOT NULL, " +
+                            "appLabel TEXT NOT NULL, " +
+                            "title TEXT NOT NULL, " +
+                            "text TEXT NOT NULL, " +
+                            "postedAt INTEGER NOT NULL, " +
+                            "releasedAt INTEGER)",
+                    )
+                    db.execSQL(
+                        "CREATE TABLE IF NOT EXISTS pulse_results (" +
+                            "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                            "takenAt INTEGER NOT NULL, " +
+                            "score INTEGER NOT NULL)",
+                    )
+                    db.execSQL(
+                        "CREATE TABLE IF NOT EXISTS safety_plan (" +
+                            "id INTEGER NOT NULL, " +
+                            "warningSigns TEXT NOT NULL, " +
+                            "copingSteps TEXT NOT NULL, " +
+                            "distractions TEXT NOT NULL, " +
+                            "reasonsForLiving TEXT NOT NULL, " +
+                            "environmentSafety TEXT NOT NULL, " +
+                            "updatedAt INTEGER NOT NULL, " +
+                            "PRIMARY KEY(id))",
+                    )
+                    db.execSQL(
+                        "CREATE TABLE IF NOT EXISTS crisis_contacts (" +
+                            "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                            "name TEXT NOT NULL, " +
+                            "phone TEXT NOT NULL, " +
+                            "isProfessional INTEGER NOT NULL)",
+                    )
+                }
+
+                override fun onUpgrade(
+                    db: androidx.sqlite.db.SupportSQLiteDatabase,
+                    oldVersion: Int,
+                    newVersion: Int,
+                ) = Unit
+            })
+            .build()
+        val helper = FrameworkSQLiteOpenHelperFactory().create(config)
+        helper.writableDatabase.use { }
+    }
+
+    /** Creates the schema exactly as version 4 shipped it (MIGRATION_3_4's tier column present). */
+    private fun createVersion4WithTier() {
+        val config = SupportSQLiteOpenHelper.Configuration.builder(context)
+            .name(dbName)
+            .callback(object : SupportSQLiteOpenHelper.Callback(4) {
+                override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                    db.execSQL(
+                        "CREATE TABLE IF NOT EXISTS held_notifications (" +
+                            "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                            "packageName TEXT NOT NULL, " +
+                            "appLabel TEXT NOT NULL, " +
+                            "title TEXT NOT NULL, " +
+                            "text TEXT NOT NULL, " +
+                            "postedAt INTEGER NOT NULL, " +
+                            "releasedAt INTEGER, " +
+                            "tier TEXT NOT NULL DEFAULT 'MACHINE')",
+                    )
+                    db.execSQL(
+                        "CREATE TABLE IF NOT EXISTS pulse_results (" +
+                            "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                            "takenAt INTEGER NOT NULL, " +
+                            "score INTEGER NOT NULL)",
+                    )
+                    db.execSQL(
+                        "CREATE TABLE IF NOT EXISTS safety_plan (" +
+                            "id INTEGER NOT NULL, " +
+                            "warningSigns TEXT NOT NULL, " +
+                            "copingSteps TEXT NOT NULL, " +
+                            "distractions TEXT NOT NULL, " +
+                            "reasonsForLiving TEXT NOT NULL, " +
+                            "environmentSafety TEXT NOT NULL, " +
+                            "updatedAt INTEGER NOT NULL, " +
+                            "PRIMARY KEY(id))",
+                    )
+                    db.execSQL(
+                        "CREATE TABLE IF NOT EXISTS crisis_contacts (" +
+                            "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                            "name TEXT NOT NULL, " +
+                            "phone TEXT NOT NULL, " +
+                            "isProfessional INTEGER NOT NULL)",
+                    )
+                }
+
+                override fun onUpgrade(
+                    db: androidx.sqlite.db.SupportSQLiteDatabase,
+                    oldVersion: Int,
+                    newVersion: Int,
+                ) = Unit
+            })
+            .build()
+        val helper = FrameworkSQLiteOpenHelperFactory().create(config)
+        helper.writableDatabase.use { db ->
+            db.execSQL(
+                "INSERT INTO held_notifications " +
+                    "(packageName, appLabel, title, text, postedAt, releasedAt, tier) " +
+                    "VALUES ('com.example', 'Example', 'Hello', 'Body', 1000, NULL, 'HUMAN')",
+            )
+        }
+    }
+
+    /** Creates the schema exactly as version 5 shipped it (MIGRATION_4_5's tier column dropped). */
+    private fun createVersion5WithNotification() {
+        val config = SupportSQLiteOpenHelper.Configuration.builder(context)
+            .name(dbName)
+            .callback(object : SupportSQLiteOpenHelper.Callback(5) {
+                override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                    db.execSQL(
+                        "CREATE TABLE IF NOT EXISTS held_notifications (" +
+                            "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                            "packageName TEXT NOT NULL, " +
+                            "appLabel TEXT NOT NULL, " +
+                            "title TEXT NOT NULL, " +
+                            "text TEXT NOT NULL, " +
+                            "postedAt INTEGER NOT NULL, " +
+                            "releasedAt INTEGER)",
+                    )
+                    db.execSQL(
+                        "CREATE TABLE IF NOT EXISTS pulse_results (" +
+                            "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                            "takenAt INTEGER NOT NULL, " +
+                            "score INTEGER NOT NULL)",
+                    )
+                    db.execSQL(
+                        "CREATE TABLE IF NOT EXISTS safety_plan (" +
+                            "id INTEGER NOT NULL, " +
+                            "warningSigns TEXT NOT NULL, " +
+                            "copingSteps TEXT NOT NULL, " +
+                            "distractions TEXT NOT NULL, " +
+                            "reasonsForLiving TEXT NOT NULL, " +
+                            "environmentSafety TEXT NOT NULL, " +
+                            "updatedAt INTEGER NOT NULL, " +
+                            "PRIMARY KEY(id))",
+                    )
+                    db.execSQL(
+                        "CREATE TABLE IF NOT EXISTS crisis_contacts (" +
+                            "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                            "name TEXT NOT NULL, " +
+                            "phone TEXT NOT NULL, " +
+                            "isProfessional INTEGER NOT NULL)",
+                    )
+                }
+
+                override fun onUpgrade(
+                    db: androidx.sqlite.db.SupportSQLiteDatabase,
+                    oldVersion: Int,
+                    newVersion: Int,
+                ) = Unit
+            })
+            .build()
+        val helper = FrameworkSQLiteOpenHelperFactory().create(config)
+        helper.writableDatabase.use { db ->
+            db.execSQL(
+                "INSERT INTO held_notifications " +
+                    "(packageName, appLabel, title, text, postedAt, releasedAt) " +
+                    "VALUES ('com.example', 'Example', 'Hello', 'Body', 1000, NULL)",
+            )
+        }
+    }
+
     private fun openCurrent(): AnchorDatabase =
         Room.databaseBuilder(context, AnchorDatabase::class.java, dbName)
             .addMigrations(*AnchorDatabase.migrations())
@@ -132,6 +304,62 @@ class MigrationTest {
 
             dao.removeContact(stored.first())
             assertEquals(1, dao.contacts().first().size)
+        } finally {
+            db.close()
+        }
+    }
+
+    // NOTE: the plan's snippet used `openCurrent().use { db -> ... }`.
+    // androidx.room:room-runtime 2.6.1's RoomDatabase does not implement
+    // java.io.Closeable (compileDebugAndroidTestKotlin fails to resolve
+    // `.use` against it — "receiver type mismatch" against
+    // `fun <T : Closeable?, R> T.use(...)`), so these follow the
+    // try/finally + db.close() pattern the existing tests in this file
+    // already use for the same open-then-close shape.
+
+    @Test
+    fun aVersion3DatabaseUpgradesThroughTheMissingTierMigration() = runBlocking {
+        createVersion3()
+        val db = openCurrent()
+        try {
+            assertTrue(db.heldNotifications().journal().first().isEmpty())
+            assertTrue(db.journal().entries().first().isEmpty())
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun aVersion4DatabaseDropsTierAndCreatesProgramZeroTables() = runBlocking {
+        createVersion4WithTier()
+        val db = openCurrent()
+        try {
+            db.journal().insertEntry(
+                JournalEntryEntity(
+                    id = "entry-1",
+                    createdAt = 1_000L,
+                    updatedAt = 1_000L,
+                    localDate = "2026-08-28",
+                    title = "A day",
+                    body = "Original words",
+                    kind = "DAILY",
+                    sourceDeviceId = "device-a",
+                    deletedAt = null,
+                ),
+            )
+            assertEquals("Original words", db.journal().entry("entry-1")?.body)
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun aVersion5DatabaseKeepsExistingRowsWhenProgramZeroTablesAreAdded() = runBlocking {
+        createVersion5WithNotification()
+        val db = openCurrent()
+        try {
+            assertEquals(1, db.heldNotifications().journal().first().size)
+            assertTrue(db.journal().entries().first().isEmpty())
         } finally {
             db.close()
         }

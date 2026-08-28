@@ -175,6 +175,10 @@ interface SafetyDao {
         PulseResult::class,
         SafetyPlan::class,
         CrisisContact::class,
+        JournalEntryEntity::class,
+        JournalContextEntity::class,
+        MorningMeasureEntity::class,
+        ContinuityChangeEntity::class,
     ],
     // v0.70.x (Tier 2 audit finding): the on-device DB
     // created by v0.69.x sits at version 4 with a 'tier'
@@ -192,8 +196,8 @@ interface SafetyDao {
     // column migration in-place. The tier data is in the
     // DataStore key (NotificationPrefs.tier), so the column
     // drop is safe — it was just denormalised data.
-    version = 5,
-    exportSchema = false,
+    version = 6,
+    exportSchema = true,
 )
 abstract class AnchorDatabase : RoomDatabase() {
 
@@ -202,6 +206,8 @@ abstract class AnchorDatabase : RoomDatabase() {
     abstract fun pulses(): PulseDao
 
     abstract fun safety(): SafetyDao
+
+    abstract fun journal(): JournalDao
 
     companion object {
         private val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -234,6 +240,15 @@ abstract class AnchorDatabase : RoomDatabase() {
                         "name TEXT NOT NULL, " +
                         "phone TEXT NOT NULL, " +
                         "isProfessional INTEGER NOT NULL)",
+                )
+            }
+        }
+
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE held_notifications " +
+                        "ADD COLUMN tier TEXT NOT NULL DEFAULT 'MACHINE'",
                 )
             }
         }
@@ -279,8 +294,55 @@ abstract class AnchorDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS journal_entries (" +
+                        "id TEXT NOT NULL, createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL, " +
+                        "localDate TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL, " +
+                        "kind TEXT NOT NULL, sourceDeviceId TEXT NOT NULL, deletedAt INTEGER, " +
+                        "PRIMARY KEY(id))",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_journal_entries_localDate ON journal_entries(localDate)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_journal_entries_createdAt ON journal_entries(createdAt)")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS journal_context (" +
+                        "id TEXT NOT NULL, entryId TEXT NOT NULL, recordType TEXT NOT NULL, " +
+                        "`key` TEXT NOT NULL, value TEXT NOT NULL, sourceStart INTEGER, sourceEnd INTEGER, " +
+                        "confidence REAL NOT NULL, extractorVersion TEXT NOT NULL, createdAt INTEGER NOT NULL, " +
+                        "PRIMARY KEY(id), FOREIGN KEY(entryId) REFERENCES journal_entries(id) " +
+                        "ON UPDATE NO ACTION ON DELETE CASCADE)",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_journal_context_entryId ON journal_context(entryId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_journal_context_recordType ON journal_context(recordType)")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS morning_measures (" +
+                        "id TEXT NOT NULL, localDate TEXT NOT NULL, createdAt INTEGER NOT NULL, " +
+                        "updatedAt INTEGER NOT NULL, mood INTEGER NOT NULL, anxiety INTEGER NOT NULL, " +
+                        "angerUrge INTEGER NOT NULL, energyFunction INTEGER NOT NULL, sleepQuality INTEGER NOT NULL, " +
+                        "instrumentVersion TEXT NOT NULL, sourceDeviceId TEXT NOT NULL, PRIMARY KEY(id))",
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_morning_measures_localDate " +
+                        "ON morning_measures(localDate)",
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS continuity_changes (" +
+                        "id TEXT NOT NULL, entityType TEXT NOT NULL, entityId TEXT NOT NULL, " +
+                        "operation TEXT NOT NULL, occurredAt INTEGER NOT NULL, " +
+                        "acknowledgedSnapshotId TEXT, PRIMARY KEY(id))",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_continuity_changes_occurredAt ON continuity_changes(occurredAt)")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_continuity_changes_acknowledgedSnapshotId " +
+                        "ON continuity_changes(acknowledgedSnapshotId)",
+                )
+            }
+        }
+
         /** Exposed so instrumented tests can walk an old database forward. */
-        fun migrations(): Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_4_5)
+        fun migrations(): Array<Migration> =
+            arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
 
         @Volatile
         private var instance: AnchorDatabase? = null
