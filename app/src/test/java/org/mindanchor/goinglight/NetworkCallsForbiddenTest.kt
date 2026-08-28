@@ -128,6 +128,10 @@ class NetworkCallsForbiddenTest {
         "app/src/main/java/org/mindanchor/backup/GoogleDriveBackupTarget.kt",
         "app/src/main/java/org/mindanchor/backup/ContentType.kt",
         "app/src/main/java/org/mindanchor/backup/BackupTarget.kt",
+        // Task 9: the verified Drive object store that replaces the
+        // fragile append-only path. Same opt-in/encrypted/drive.file
+        // consent shape as the other files in this set.
+        "app/src/main/java/org/mindanchor/backup/GoogleDriveObjectStore.kt",
     )
 
     /**
@@ -426,9 +430,10 @@ class NetworkCallsForbiddenTest {
         // (clinical-review-required: this is a
         // user-consent surface, not a carve-out for
         // convenience).
+        // Task 9 adds GoogleDriveObjectStore.kt (4 -> 5).
         assertEquals(
             "googleDriveBackupFiles drift. Got: $googleDriveBackupFiles",
-            4,
+            5,
             googleDriveBackupFiles.size,
         )
     }
