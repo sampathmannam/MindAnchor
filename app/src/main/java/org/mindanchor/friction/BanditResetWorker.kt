@@ -1,6 +1,7 @@
 package org.mindanchor.friction
 
 import android.content.Context
+import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
@@ -103,7 +104,13 @@ class BanditResetWorker(
         fun ensureScheduled(context: Context) {
             val request = PeriodicWorkRequestBuilder<BanditResetWorker>(
                 1, TimeUnit.DAYS,
-            ).setInitialDelay(2, TimeUnit.HOURS).build()
+            ).setInitialDelay(2, TimeUnit.HOURS)
+                // The reset itself costs nothing, but there is no
+                // reason to wake the process at all on a critically
+                // low battery for a piece of nightly housekeeping —
+                // it picks back up next cycle.
+                .setConstraints(Constraints.Builder().setRequiresBatteryNotLow(true).build())
+                .build()
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 PERIODIC_NAME,
                 ExistingPeriodicWorkPolicy.UPDATE,

@@ -96,8 +96,20 @@ android {
         // (grepped, and a 35s idle poll showed zero drift) — the
         // manifest's free-rotation stance was the whole cause.
         // versionCode 97→98.
-        versionCode = 98
-        versionName = "0.70.4"
+        // v0.70.5: battery audit. Checked every background/
+        // continuous-resource mechanism (clock tick, notification
+        // listener, nightly report scheduling, Going Light's VPN
+        // packet loop, the accessibility service's event scope,
+        // camera+torch teardown) — all already correctly built
+        // against real drain (lifecycle-gated, bounded retries,
+        // blocking I/O, NonCancellable cleanup). The two real gaps:
+        // CorosSyncWorker and BanditResetWorker had no
+        // setRequiresBatteryNotLow constraint, so both would still
+        // fire on a critically low battery. Both now defer until
+        // the level recovers or the phone is charging.
+        // versionCode 98→99.
+        versionCode = 99
+        versionName = "0.70.5"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every

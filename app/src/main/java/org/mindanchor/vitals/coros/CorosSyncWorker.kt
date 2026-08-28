@@ -248,11 +248,24 @@ class CorosSyncWorker(
         /**
          * Arms the periodic worker. Called from
          * [org.mindanchor.settings.SettingsViewModel]
-         * when the user connects the bridge. The
-         * [ExistingPeriodicWorkPolicy.KEEP] policy
-         * means a second call is a no-op: an already
-         * running schedule is left alone. Use [cancel]
-         * to drop the schedule.
+         * when the user connects the bridge.
+         *
+         * v0.70.5: was [ExistingPeriodicWorkPolicy.KEEP]. KEEP
+         * treats an already-scheduled unique work as untouchable —
+         * a later change to this worker's constraints or interval
+         * silently never reaches a device that connected the
+         * bridge under an older version, because the call that
+         * would apply it is a no-op by design. Confirmed live: the
+         * [setRequiresBatteryNotLow] constraint below did not
+         * appear in `dumpsys jobscheduler`'s JobInfo for the
+         * already-running periodic work on a real device until
+         * this policy changed. [ExistingPeriodicWorkPolicy.UPDATE]
+         * (sibling [org.mindanchor.friction.BanditResetWorker]
+         * already uses it) replaces the stored definition —
+         * constraints, interval — while preserving the original
+         * enqueue phase, so this does not reset the 6-hour cycle
+         * or cause an immediate re-sync; it only makes today's
+         * definition the one that is actually running.
          */
         fun ensureScheduled(context: Context) {
             val request = PeriodicWorkRequestBuilder<CorosSyncWorker>(
@@ -260,11 +273,16 @@ class CorosSyncWorker(
             ).setConstraints(
                 Constraints.Builder()
                     .setRequiredNetworkType(NetworkType.CONNECTED)
+                    // A watch sync every 6 hours is not worth spending
+                    // the last of a critically low battery on; the OS
+                    // defers this run and picks it back up once the
+                    // level recovers or the phone is charging.
+                    .setRequiresBatteryNotLow(true)
                     .build(),
             ).build()
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 PERIODIC_NAME,
-                ExistingPeriodicWorkPolicy.KEEP,
+                ExistingPeriodicWorkPolicy.UPDATE,
                 request,
             )
         }
