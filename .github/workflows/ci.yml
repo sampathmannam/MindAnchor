@@ -75,13 +75,27 @@ jobs:
 
       - name: Semgrep
         run: |
-          docker pull returntocorp/semgrep:latest
-          docker run --rm -v "$PWD:/src" returntocorp/semgrep:latest \
+          # v0.70.x: pinned the image (was :latest) so the *engine* is
+          # deterministic across runs — verified fixed at 1.174.0 the day
+          # this was pinned. The p/security-audit, p/secrets, and p/kotlin
+          # configs below are still Semgrep Registry aliases, resolved
+          # live over the network on every run; their rule *content* can
+          # still change server-side between identical commits (observed:
+          # 0, 12, 6, and 8 findings across runs of the exact same code).
+          # If that recurs often enough to be a problem, the real fix is
+          # vendoring a pinned rule set into this repo instead of using
+          # the p/ aliases — there is no CLI flag to export the resolved
+          # registry rules to do that automatically as of 1.174.0.
+          docker pull returntocorp/semgrep:1.174.0
+          docker run --rm -v "$PWD:/src" returntocorp/semgrep:1.174.0 \
             semgrep --config=p/security-audit --config=p/secrets \
             --config=p/kotlin --exclude=third_party --json --metrics=off /src \
             > /tmp/semgrep.json 2>/dev/null
           findings=$(python3 -c "import json; print(len(json.load(open('/tmp/semgrep.json')).get('results', [])))" 2>/dev/null || echo 0)
           echo "Semgrep findings: $findings"
+          if [ "$findings" != 0 ]; then
+            python3 -c "import json; d = json.load(open('/tmp/semgrep.json')); [print(r['check_id'], r['path']+':'+str(r['start']['line'])+chr(10)+'  '+r['extra']['message'].splitlines()[0]) for r in d.get('results', [])]"
+          fi
           test "$findings" = 0
 
       - name: OWASP dependency-check
