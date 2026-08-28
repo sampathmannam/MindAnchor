@@ -132,6 +132,40 @@ private fun SectionHeading(titleRes: Int, section: SettingsSection?, goals: Set<
     }
 }
 
+/**
+ * A rationale paragraph, collapsed behind a small "Why?" tap by default.
+ *
+ * v0.70.x (UI audit): this app explains itself before it asks anything
+ * of you — a deliberate, cite-the-research stance, not filler. But
+ * stacking that explanation in front of every single control turned
+ * Quiet and Measuring into a wall of prose a person had to read past
+ * just to find the switch. The text itself is untouched — nothing is
+ * shortened or removed — it is just not shown until someone asks for it.
+ */
+@Suppress("FunctionNaming")
+@Composable
+private fun WhyExplainer(text: String, modifier: Modifier = Modifier) {
+    var expanded by remember { mutableStateOf(false) }
+    Column(modifier = modifier) {
+        TextButton(
+            onClick = { expanded = !expanded },
+            contentPadding = PaddingValues(vertical = 4.dp, horizontal = 0.dp),
+        ) {
+            Text(
+                text = stringResource(if (expanded) R.string.why_hide else R.string.why_show),
+                style = MaterialTheme.typography.labelMedium,
+            )
+        }
+        if (expanded) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
 private val HOUR_MINUTE: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
 /**
@@ -945,11 +979,7 @@ fun SettingsScreen(
         if (group == SettingsGroup.QUIET) {
             // --- Notification batching (F1) ---
             SectionHeading(R.string.batching_section, SettingsSection.BATCHING, goals)
-            Text(
-                text = stringResource(R.string.batching_explainer),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            WhyExplainer(stringResource(R.string.batching_explainer))
 
             if (!hasNotificationAccess) {
                 TextButton(
@@ -1004,10 +1034,8 @@ fun SettingsScreen(
                     // meaningless, and the whole point of batching is that
                     // interruptions land when a person can absorb them.
                     val releaseTimes by viewModel.releaseTimes.collectAsState()
-                    Text(
+                    WhyExplainer(
                         text = stringResource(R.string.batching_times_explainer),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 12.dp),
                     )
                     releaseTimes.forEachIndexed { slot, time ->
@@ -1627,11 +1655,7 @@ fun SettingsScreen(
             // thrown that away. So it is measured here instead — which also
             // means it survives changing watch, or wearing none at all.
             SectionHeading(R.string.ppg_section, SettingsSection.SLEEP, goals)
-            Text(
-                text = stringResource(R.string.ppg_explainer),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            WhyExplainer(stringResource(R.string.ppg_explainer))
             TextButton(onClick = onOpenPpg) {
                 Text(stringResource(R.string.ppg_start))
             }
@@ -1708,23 +1732,16 @@ fun SettingsScreen(
                         )
                         Switch(checked = mirrorOn, onCheckedChange = null)
                     }
-                    Text(
-                        text = stringResource(R.string.mirror_explainer),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                     val laterNights by viewModel.nightsLaterThanUsual.collectAsState()
                     laterNights?.let { count ->
                         Text(
                             text = stringResource(R.string.mirror_line, count),
                             style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(top = 8.dp),
                         )
                     }
-                    Text(
-                        text = stringResource(R.string.sleep_regularity_note),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    WhyExplainer(
+                        text = stringResource(R.string.mirror_explainer) +
+                            " " + stringResource(R.string.sleep_regularity_note),
                         modifier = Modifier.padding(top = 4.dp),
                     )
                     // Suggested wind-down, opt-in. Built from the user's
@@ -2026,11 +2043,7 @@ fun SettingsScreen(
             // that drops the evidence anchor is
             // caught at review time.
             SectionHeading(R.string.ema_section, null, goals)
-            Text(
-                text = stringResource(R.string.ema_explainer),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            WhyExplainer(stringResource(R.string.ema_explainer))
             Text(
                 text = stringResource(R.string.ema_research_link),
                 style = MaterialTheme.typography.bodySmall,

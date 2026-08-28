@@ -194,6 +194,14 @@
     <string name="session_extend_action">+5 minutes</string>
     <string name="action_back">← back</string>
 
+    <!--
+        v0.70.x (UI audit): a rationale paragraph collapsed behind a
+        tap, used across Quiet and Measuring so a control is reachable
+        without reading past its explanation first. See WhyExplainer.
+    -->
+    <string name="why_show">Why?</string>
+    <string name="why_hide">Hide why</string>
+
     <string name="batching_section">Notification batching</string>
     <string name="batching_explainer">Chosen apps stop interrupting you; their notifications wait quietly and arrive together at 8:00, 12:30 and 18:00. Conversations, calls and alarms always come through instantly.</string>
     <string name="grant_notification_access">Grant notification access to enable batching</string>
