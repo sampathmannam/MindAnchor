@@ -214,36 +214,48 @@ class GoogleDriveAuth(private val context: Context) {
     }
 
     /**
-     * Returns a fresh access token, or null if
-     * the user is not signed in / the token fetch
-     * failed. The implementation reads the
-     * [TokenStore] cache first; on a cache miss
-     * (the user just signed in, the token has
-     * been cleared, or the first call after a
-     * fresh install) it falls through to
-     * [GoogleAuthUtil.getToken] via
-     * [fetchAndStoreAccessToken]. The token, when
-     * fetched, is written back to the [TokenStore]
-     * cache so the next caller doesn't pay the
-     * same cost.
+     * Returns a fresh access token, or null if the
+     * user is not signed in and nothing usable is
+     * cached.
      *
-     * The cache-first shape is the test surface:
-     * the WP-B test sets a token directly on the
-     * store and asserts the round-trip; the
-     * platform `GoogleSignIn` lazy is never
-     * triggered.
+     * v0.70.9: this used to read the [TokenStore]
+     * cache first and only call
+     * [GoogleAuthUtil.getToken] on a cache miss —
+     * meaning once any token was cached, it was
+     * treated as good forever. Access tokens expire
+     * (about an hour); the nightly sync
+     * ([org.mindanchor.backup.DriveNightlySync]) runs
+     * hours after whenever the user last had the app
+     * open, which is exactly the gap in which that
+     * token goes stale. Confirmed live: a backup that
+     * worked at sign-in time failed with HTTP 401
+     * "Invalid Credentials" about ninety minutes
+     * later, and would have kept failing every night
+     * after, forever, since nothing ever cleared the
+     * cache to force a refresh.
+     *
+     * The fix is to always ask for a fresh token when
+     * an account is signed in — [GoogleAuthUtil.getToken]
+     * has its own internal cache-and-refresh against
+     * Play Services and is cheap to call repeatedly; it
+     * is not this class's job to second-guess that by
+     * caching on top of it. [TokenStore] is now purely a
+     * fallback for when a fresh fetch cannot be made at
+     * all (no signed-in account found, or the fetch
+     * itself failed — offline, Play Services hiccup): a
+     * possibly-stale cached token is still worth trying
+     * then, with the Drive API's own 401 handling as the
+     * backstop if it truly has expired.
      */
     suspend fun currentAccessToken(): String? = withContext(Dispatchers.IO) {
-        val cached = effectiveTokenStore().read()
-        if (!cached.isNullOrBlank()) {
-            return@withContext cached
-        }
         val account = GoogleSignIn.getLastSignedInAccount(context)
-        if (account == null) {
+        if (account != null) {
+            val fresh = fetchAndStoreAccessToken(account)
+            if (!fresh.isNullOrBlank()) return@withContext fresh
+        } else {
             Log.w(LOG_TAG, "currentAccessToken: no signed-in account")
-            return@withContext null
         }
-        fetchAndStoreAccessToken(account)
+        effectiveTokenStore().read()
     }
 
     /**

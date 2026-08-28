@@ -167,8 +167,27 @@ android {
         // file per type, correct combined content, restore correctly
         // finds nothing new.
         // versionCode 102→103.
-        versionCode = 103
-        versionName = "0.70.9"
+        // v0.70.10: fixed a third live-only bug — GoogleDriveAuth.
+        // currentAccessToken read the on-disk TokenStore cache first and
+        // returned it immediately whenever it was non-blank, only ever
+        // calling GoogleAuthUtil.getToken (the real fresh-token fetch)
+        // on a cache miss. Once any token was cached it was treated as
+        // good forever, but Google access tokens expire in about an
+        // hour. Confirmed live: a backup that worked right after sign-in
+        // failed about ninety minutes later with HTTP 401 "Invalid
+        // Credentials" — and would have failed every night after,
+        // forever, since nothing ever cleared the cache to force a
+        // refresh. This would have made the nightly sync (which runs
+        // hours after the user was last in the app) fail permanently
+        // after its first night. Fixed by always asking for a fresh
+        // token when an account is signed in — GoogleAuthUtil.getToken
+        // already has its own correct cache-and-refresh against Play
+        // Services, so this class re-caching on top of it was both
+        // redundant and wrong. TokenStore is now purely a fallback for
+        // when a fresh fetch cannot be made at all.
+        // versionCode 103→104.
+        versionCode = 104
+        versionName = "0.70.10"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every
