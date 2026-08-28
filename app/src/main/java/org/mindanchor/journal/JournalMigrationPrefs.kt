@@ -25,4 +25,18 @@ class JournalMigrationPrefs(private val context: Context) {
             prefs[legacyImportCompleteKey] = true
         }
     }
+
+    /**
+     * Unsets the completion flag. Test-only: an instrumented test that
+     * drives the real [JournalLegacyImporter] (by launching the real
+     * [JournalActivity]) must be able to leave this on-device, process-wide
+     * DataStore singleton exactly as it found it — deleting the backing
+     * file from outside does not reset an already-open DataStore instance,
+     * so this goes through the same singleton every reader/writer shares.
+     */
+    suspend fun clear() {
+        context.journalMigrationDataStore.edit { prefs ->
+            prefs.remove(legacyImportCompleteKey)
+        }
+    }
 }
