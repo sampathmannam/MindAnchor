@@ -46,8 +46,8 @@ class JournalActivity : ComponentActivity() {
         )
 
         val viewModel = JournalViewModel(
-            journalRepository = JournalRepository(database, deviceIdentity, extractor),
-            morningMeasureRepository = MorningMeasureRepository(database, deviceIdentity),
+            journalRepository = JournalRepository(application, database, deviceIdentity, extractor),
+            morningMeasureRepository = MorningMeasureRepository(application, database, deviceIdentity),
             draftStore = JournalDraftStore(application),
             database = database,
             legacyImporter = legacyImporter,

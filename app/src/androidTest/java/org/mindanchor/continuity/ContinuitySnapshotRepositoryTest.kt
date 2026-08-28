@@ -88,7 +88,7 @@ class ContinuitySnapshotRepositoryTest {
     }
 
     private suspend fun seed() {
-        val journalRepository = JournalRepository(db, deviceIdentity, StructuralContextExtractor())
+        val journalRepository = JournalRepository(context, db, deviceIdentity, StructuralContextExtractor())
         journalRepository.create(
             title = "A day",
             body = "Something happened today.",

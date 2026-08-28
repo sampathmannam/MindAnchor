@@ -1,10 +1,12 @@
 package org.mindanchor.research
 
+import android.content.Context
 import androidx.room.withTransaction
 import java.time.LocalDate
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import org.mindanchor.continuity.ContinuityWorkScheduler
 import org.mindanchor.data.db.AnchorDatabase
 import org.mindanchor.data.db.ContinuityChangeEntity
 import org.mindanchor.journal.ChangeOperation
@@ -17,6 +19,7 @@ import org.mindanchor.journal.DeviceIdentityStore
  * second one, so `morning_measures` never holds more than one row per date.
  */
 class MorningMeasureRepository(
+    private val context: Context,
     private val database: AnchorDatabase,
     private val deviceIdentity: DeviceIdentityStore,
 ) {
@@ -57,6 +60,7 @@ class MorningMeasureRepository(
                 ),
             )
         }
+        ContinuityWorkScheduler.requestCheckpoint(context)
         return measure
     }
 

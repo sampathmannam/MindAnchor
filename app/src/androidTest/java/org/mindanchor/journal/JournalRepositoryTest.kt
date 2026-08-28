@@ -39,7 +39,7 @@ class JournalRepositoryTest {
 
     @Test
     fun createCommitsEntryAndContinuityChangeTogether() = runBlocking {
-        val repository = JournalRepository(db, deviceIdentity, StructuralContextExtractor())
+        val repository = JournalRepository(context, db, deviceIdentity, StructuralContextExtractor())
 
         val entry = repository.create(
             title = "A day",
@@ -62,7 +62,7 @@ class JournalRepositoryTest {
                 throw IllegalStateException("boom")
             }
         }
-        val repository = JournalRepository(db, deviceIdentity, failingExtractor)
+        val repository = JournalRepository(context, db, deviceIdentity, failingExtractor)
 
         val entry = repository.create(
             title = "A day",

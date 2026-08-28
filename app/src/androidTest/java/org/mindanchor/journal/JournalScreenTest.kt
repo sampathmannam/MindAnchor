@@ -56,7 +56,7 @@ class JournalScreenTest {
     fun setUp() {
         db = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java).build()
         deviceIdentity = DeviceIdentityStore(context)
-        journalRepository = JournalRepository(db, deviceIdentity, StructuralContextExtractor())
+        journalRepository = JournalRepository(context, db, deviceIdentity, StructuralContextExtractor())
         draftStore = JournalDraftStore(context)
         runBlocking { draftStore.clear() }
     }
@@ -68,7 +68,7 @@ class JournalScreenTest {
 
     private fun newViewModel(): JournalViewModel = JournalViewModel(
         journalRepository = journalRepository,
-        morningMeasureRepository = MorningMeasureRepository(db, deviceIdentity),
+        morningMeasureRepository = MorningMeasureRepository(context, db, deviceIdentity),
         draftStore = draftStore,
         database = db,
     )

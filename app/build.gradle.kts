@@ -325,6 +325,12 @@ dependencies {
     // inside the Robolectric sandbox. Same version as the catalog
     // entry; the Robolectric test would fail to compile without it.
     testImplementation(libs.androidx.test.core)
+    // work-testing's WorkManagerTestInitHelper needs a real Android
+    // Context (Robolectric, same as the rest of this test classpath) —
+    // Task 10's ContinuityWorkSchedulerTest runs as a plain
+    // testDebugUnitTest JVM test, not a connectedDebugAndroidTest, so
+    // this goes on testImplementation, not androidTestImplementation.
+    testImplementation(libs.androidx.work.testing)
 
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.androidx.test.junit)

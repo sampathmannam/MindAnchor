@@ -18,6 +18,7 @@ import androidx.compose.runtime.setValue
 import java.time.LocalDate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import org.mindanchor.continuity.ContinuityWorkScheduler
 import org.mindanchor.data.SunsetPrefs
 import org.mindanchor.friction.SessionManager
 import org.mindanchor.launcher.LauncherRoot
@@ -122,6 +123,14 @@ class HomeActivity : ComponentActivity() {
         // result is consulted first; the network is only hit when
         // the cache is older than 24h.
         maybeRunUpdateCheck()
+        // Task 10: re-arm the nightly continuity snapshot on every cold
+        // start. Idempotent (unique work, REPLACE policy) and purely
+        // local WorkManager scheduling — no network call is made here;
+        // the worker itself gates on ContinuityPrefs.backupEnabled and
+        // only runs once WorkManager's own CONNECTED constraint is met.
+        // This is also the self-repair path for a process death between
+        // a successful nightly upload and it rescheduling itself.
+        ContinuityWorkScheduler.ensureNightlyScheduled(applicationContext)
         setContent {
             MindAnchorTheme {
                 val done by onboardingPrefs.done.collectAsState(initial = null)

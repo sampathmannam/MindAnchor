@@ -7,6 +7,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import org.mindanchor.continuity.ContinuityWorkScheduler
 import org.mindanchor.friction.SealedCodecs
 import org.mindanchor.model.Note
 import org.mindanchor.model.NotesState
@@ -68,6 +69,7 @@ class NotesPrefs(private val context: Context) {
             val next = current.add(note)
             prefs[notesKey] = SealedCodecs.encodeNotes(next)
         }
+        ContinuityWorkScheduler.requestCheckpoint(context)
     }
 
     /**
@@ -90,6 +92,7 @@ class NotesPrefs(private val context: Context) {
             val next = current.edit(id, body, editTimestamp)
             prefs[notesKey] = SealedCodecs.encodeNotes(next)
         }
+        ContinuityWorkScheduler.requestCheckpoint(context)
     }
 
     /**
@@ -112,6 +115,7 @@ class NotesPrefs(private val context: Context) {
             if (next === current) return@edit // id not found
             prefs[notesKey] = SealedCodecs.encodeNotes(next)
         }
+        ContinuityWorkScheduler.requestCheckpoint(context)
     }
 
     /**
@@ -130,6 +134,7 @@ class NotesPrefs(private val context: Context) {
             if (next === current) return@edit // nothing to do
             prefs[notesKey] = SealedCodecs.encodeNotes(next)
         }
+        ContinuityWorkScheduler.requestCheckpoint(context)
     }
 
     /**
@@ -141,6 +146,7 @@ class NotesPrefs(private val context: Context) {
             val next = current.togglePinned(id)
             prefs[notesKey] = SealedCodecs.encodeNotes(next)
         }
+        ContinuityWorkScheduler.requestCheckpoint(context)
     }
 
     /**
@@ -153,6 +159,7 @@ class NotesPrefs(private val context: Context) {
             val next = current.delete(id)
             prefs[notesKey] = SealedCodecs.encodeNotes(next)
         }
+        ContinuityWorkScheduler.requestCheckpoint(context)
     }
 
     /**

@@ -10,6 +10,7 @@ import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import org.mindanchor.continuity.ContinuityWorkScheduler
 
 private val Context.letterDataStore by preferencesDataStore(name = "letters")
 
@@ -93,6 +94,7 @@ class LetterStore(private val context: Context) {
             val current = prefs[readDatesKey] ?: emptySet()
             prefs[readDatesKey] = if (read) current + date.toString() else current - date.toString()
         }
+        ContinuityWorkScheduler.requestCheckpoint(context)
     }
 
     /**
@@ -125,6 +127,7 @@ class LetterStore(private val context: Context) {
             val deduped = current.filter { it.date != letter.date } + letter
             prefs[lettersKey] = LetterLedger.encode(deduped)
         }
+        ContinuityWorkScheduler.requestCheckpoint(context)
     }
 
     suspend fun delete(date: LocalDate) {
@@ -133,6 +136,7 @@ class LetterStore(private val context: Context) {
             val kept = current.filter { it.date != date }
             prefs[lettersKey] = LetterLedger.encode(kept)
         }
+        ContinuityWorkScheduler.requestCheckpoint(context)
     }
 
     /**

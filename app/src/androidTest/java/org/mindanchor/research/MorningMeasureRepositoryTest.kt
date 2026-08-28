@@ -41,7 +41,7 @@ class MorningMeasureRepositoryTest {
 
     @Test
     fun saveCommitsMeasureAndContinuityChangeTogether() = runBlocking {
-        val repository = MorningMeasureRepository(db, deviceIdentity)
+        val repository = MorningMeasureRepository(context, db, deviceIdentity)
         val localDate = LocalDate.of(2026, 8, 28)
 
         val measure = repository.save(
@@ -68,7 +68,7 @@ class MorningMeasureRepositoryTest {
 
     @Test
     fun secondSaveForSameDateUpdatesInPlaceInsteadOfInserting() = runBlocking {
-        val repository = MorningMeasureRepository(db, deviceIdentity)
+        val repository = MorningMeasureRepository(context, db, deviceIdentity)
         val localDate = LocalDate.of(2026, 8, 28)
 
         val first = repository.save(
@@ -109,7 +109,7 @@ class MorningMeasureRepositoryTest {
 
     @Test
     fun savesForDifferentDatesProduceTwoRows() = runBlocking {
-        val repository = MorningMeasureRepository(db, deviceIdentity)
+        val repository = MorningMeasureRepository(context, db, deviceIdentity)
 
         repository.save(
             localDate = LocalDate.of(2026, 8, 27),
