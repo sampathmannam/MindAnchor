@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -27,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import java.time.Instant
 import java.time.ZoneId
@@ -297,7 +300,25 @@ private fun BackupSwitchesSection(viewModel: ContinuitySettingsViewModel) {
     val switchInteractive = backupEnabled || canEnable
 
     Row(
-        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+        // toggleable on the Row (not a bare onCheckedChange on the
+        // Switch alone) is this codebase's established pattern for a
+        // label+switch row: it merges the Text and the switch state
+        // into one TalkBack-focusable node ("Automatic continuity
+        // backup, off"), matching SettingsRowSwitch and every other
+        // toggle row in SettingsScreen.kt. The Switch itself becomes
+        // decorative (onCheckedChange = null) so it does not also
+        // register as a second, separately-focusable, unlabeled node.
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .toggleable(
+                value = backupEnabled,
+                enabled = switchInteractive,
+                role = Role.Switch,
+                onValueChange = { viewModel.setBackupEnabled(it, signedInEmail != null) },
+            )
+            .padding(top = 12.dp)
+            .testTag("continuity_backup_switch"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -308,8 +329,7 @@ private fun BackupSwitchesSection(viewModel: ContinuitySettingsViewModel) {
         Switch(
             checked = backupEnabled,
             enabled = switchInteractive,
-            onCheckedChange = { viewModel.setBackupEnabled(it, signedInEmail != null) },
-            modifier = Modifier.testTag("continuity_backup_switch"),
+            onCheckedChange = null,
         )
     }
     if (!backupEnabled && !canEnable) {
@@ -322,7 +342,16 @@ private fun BackupSwitchesSection(viewModel: ContinuitySettingsViewModel) {
 
     if (backupEnabled) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .toggleable(
+                    value = nightlyEnabled,
+                    role = Role.Switch,
+                    onValueChange = viewModel::setNightlySnapshotsEnabled,
+                )
+                .padding(top = 4.dp)
+                .testTag("continuity_nightly_switch"),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -332,14 +361,22 @@ private fun BackupSwitchesSection(viewModel: ContinuitySettingsViewModel) {
             )
             Switch(
                 checked = nightlyEnabled,
-                onCheckedChange = viewModel::setNightlySnapshotsEnabled,
-                modifier = Modifier.testTag("continuity_nightly_switch"),
+                onCheckedChange = null,
             )
         }
     }
 
     Row(
-        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .toggleable(
+                value = contextExtractionEnabled,
+                role = Role.Switch,
+                onValueChange = viewModel::setContextExtractionEnabled,
+            )
+            .padding(top = 4.dp)
+            .testTag("continuity_context_extraction_switch"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -349,8 +386,7 @@ private fun BackupSwitchesSection(viewModel: ContinuitySettingsViewModel) {
         )
         Switch(
             checked = contextExtractionEnabled,
-            onCheckedChange = viewModel::setContextExtractionEnabled,
-            modifier = Modifier.testTag("continuity_context_extraction_switch"),
+            onCheckedChange = null,
         )
     }
     Text(
