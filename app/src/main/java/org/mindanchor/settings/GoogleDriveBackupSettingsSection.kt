@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -30,6 +31,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import java.time.Instant
 import java.time.ZoneId
@@ -238,6 +241,17 @@ private fun RecoveryKeySection(viewModel: ContinuitySettingsViewModel) {
             onValueChange = { typed = it },
             singleLine = true,
             label = { Text(stringResource(R.string.continuity_recovery_key_verify_hint)) },
+            // The base64url payload is case-sensitive (upper/lower case
+            // are distinct symbols, not a stylistic choice), so this
+            // field must never let the keyboard "helpfully" autocorrect
+            // or auto-capitalize what looks like nonsense words —
+            // exactly the failure mode a real phone keyboard hits on a
+            // field with default KeyboardOptions.
+            keyboardOptions = KeyboardOptions(
+                autoCorrectEnabled = false,
+                capitalization = KeyboardCapitalization.None,
+                keyboardType = KeyboardType.Ascii,
+            ),
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp).testTag("continuity_recovery_key_verify_field"),
         )
         if (verifyError) {

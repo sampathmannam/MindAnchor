@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -24,6 +25,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import java.time.Instant
 import java.time.ZoneId
@@ -274,6 +277,16 @@ private fun RecoveryKeySection(
         onValueChange = onValueChange,
         enabled = enabled,
         label = { Text("Recovery key") },
+        // Same reasoning as GoogleDriveBackupSettingsSection's own
+        // re-entry field: the base64url payload is case-sensitive, so
+        // this field must not let the keyboard autocorrect/capitalize
+        // what it sees as nonsense words while the user is typing a
+        // key by hand from a written-down copy.
+        keyboardOptions = KeyboardOptions(
+            autoCorrectEnabled = false,
+            capitalization = KeyboardCapitalization.None,
+            keyboardType = KeyboardType.Ascii,
+        ),
         modifier = Modifier.fillMaxWidth().testTag("restore_recovery_key_field"),
     )
     Button(
