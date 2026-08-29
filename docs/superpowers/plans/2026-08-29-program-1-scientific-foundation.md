@@ -106,18 +106,22 @@ In `ContinuityContract.kt`:
 
 ```kotlin
 object ContinuityContract {
-    const val SNAPSHOT_FORMAT_VERSION = 2
+    // Stays 1 here. A version constant moves in the SAME commit as the
+    // shape it names — Task 10 raises this to 2 when ContinuityPayload
+    // actually gains its fields. Stamping 2 now would mean every nightly
+    // checkpoint written before Task 10 carried a ten-field hash under a
+    // twelve-field stamp, and no later reader could tell those files apart
+    // from real version-2 files.
+    const val SNAPSHOT_FORMAT_VERSION = 1
     const val PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION = 1
-    val SUPPORTED_SNAPSHOT_FORMAT_VERSIONS = setOf(PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION, SNAPSHOT_FORMAT_VERSION)
+    val SUPPORTED_SNAPSHOT_FORMAT_VERSIONS = setOf(PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION)
 
     const val ENVELOPE_FORMAT_VERSION = 1
-
-    const val RESEARCH_DICTIONARY_VERSION = "mindanchor-research-v2"
-    const val PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION = "mindanchor-research-v1"
-    val SUPPORTED_RESEARCH_DICTIONARY_VERSIONS =
-        setOf(PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION, RESEARCH_DICTIONARY_VERSION)
-
     const val LATEST_FILE_NAME = "MindAnchor-Continuity-Latest.mab"
+
+    // Likewise: Task 11 raises this to "mindanchor-research-v2" in the
+    // commit that changes the export document.
+    const val RESEARCH_DICTIONARY_VERSION = "mindanchor-research-v1"
 }
 ```
 
@@ -137,17 +141,17 @@ fun hash(payload: ContinuityPayload, formatVersion: Int = ContinuityContract.SNA
 }
 ```
 
-`canonicalize` is the existing sort + `acknowledgedSnapshotId = null` + `normalizeLegacyBackup` block, extracted so both projections share it.
+`canonicalize` is the existing sort + `acknowledgedSnapshotId = null` + `normalizeLegacyBackup` block, extracted so both projections share it. The `when` is exhaustive over versions that have a projection and `error()`s otherwise, so a version added to the supported set without a projection fails loudly instead of being hashed against whatever the current shape happens to be.
 
-In `ContinuitySnapshotCodec.decode`, replace the equality check with membership:
+`V1Payload` is extracted as an `internal` top-level `ContinuityPayloadV1` so the test can read its serialised element names directly rather than inferring the shape from a digest the same code produced.
 
-```kotlin
-if (parsed.formatVersion !in ContinuityContract.SUPPORTED_SNAPSHOT_FORMAT_VERSIONS) {
-    return DecodeResult.UnsupportedVersion(parsed.formatVersion)
-}
-```
+`normalizeLegacyBackup` gains a KDoc warning: it re-encodes through today's `BackupCodec.Backup`, so appending a field to *that* class changes the content hash of every continuity snapshot ever written, whatever the snapshot format version says.
 
-Update `ContinuityContractTest` to assert `SNAPSHOT_FORMAT_VERSION == 2`, `ENVELOPE_FORMAT_VERSION == 1`, `LATEST_FILE_NAME`, `RESEARCH_DICTIONARY_VERSION == "mindanchor-research-v2"`, and that both supported sets still contain the Program 0 values.
+In `ContinuitySnapshotCodec.decode`, replace the equality check with membership against `SUPPORTED_SNAPSHOT_FORMAT_VERSIONS`. It is behaviour-neutral today (the set holds only 1) and becomes load-bearing in Task 10.
+
+Update `ContinuityContractTest` to assert `SNAPSHOT_FORMAT_VERSION == 1`, `PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION == 1`, `ENVELOPE_FORMAT_VERSION == 1`, `LATEST_FILE_NAME`, `RESEARCH_DICTIONARY_VERSION == "mindanchor-research-v1"`, and that Program 0 is in the supported set.
+
+Before pinning the golden, prove it is genuinely a Program 0 value: write a throwaway test that reimplements Program 0's algorithm from scratch (sort, null the acknowledged id, normalise the legacy backup, serialise `ContinuityPayload` itself, SHA-256) and assert it equals `hash(payload, 1)`. Record the result, then delete the throwaway.
 
 Run:
 
@@ -361,6 +365,7 @@ git commit -m "feat: seed the protocol registry from verified citations only"
 
 `LedgerChainTest`:
 
+0. The event hash is frozen twice over, the way Task 1 freezes the continuity hash: a pinned digest for a fixture event, and an assertion that `LedgerCanonicalEvent`'s serialised element names match a literal list. The kind names are pinned by test 13 for the same reason — `kind.name` is hash input.
 1. `LedgerChain.link` is deterministic — the same unlinked event and the same previous hash produce the same `eventHash` twice.
 2. Changing any single field of the unlinked event changes the hash (parameterised over `kind`, `occurredAt`, `recordedAt`, `localDate`, `studyPhaseId`, `sourceDeviceId`, `note`, `payloadJson`, `sequence`).
 3. Changing `previousEventHash` changes the hash.
@@ -368,6 +373,9 @@ git commit -m "feat: seed the protocol registry from verified citations only"
 5. A correctly-built three-event chain verifies.
 6. Editing event 2's `note` without relinking gives `BROKEN`.
 7. Deleting event 2 from a three-event chain gives `BROKEN` (sequence gap).
+7b. Deleting the *newest* event gives `VERIFIED` without an anchor and `BROKEN` with one. Tail truncation leaves a shorter but perfectly self-consistent chain, so it is the one tampering direction the chain alone cannot see — and, for a self-experiment where the subject is also the custodian, the likeliest one. `LedgerAnchor(headHash, eventCount)` is the part that cannot live inside the chain; `ContinuityPrefs` holds the local anchor and the export carries one. The limit is asserted explicitly so it stays documented rather than discovered.
+7c. `link` refuses a sequence below 1 and a note longer than `MAX_LEDGER_NOTE_LENGTH`. An append-only table has no repair path, so both are checked before the row can exist.
+7d. Two *different* events at the same sequence give `BROKEN` — the fork case, not the same-object-twice case.
 8. A chain whose first event has a non-empty `previousEventHash` gives `BROKEN`.
 9. A chain not starting at sequence 1 gives `BROKEN`.
 10. Two events sharing a sequence number give `BROKEN`.
@@ -414,14 +422,19 @@ data class ResearchLedgerEvent(/* the above plus previousEventHash, eventHash, a
 ```kotlin
 enum class LedgerIntegrity { VERIFIED, BROKEN, NOT_APPLICABLE }
 
+data class LedgerAnchor(val headHash: String, val eventCount: Int)
+
 object LedgerChain {
     const val GENESIS_PREVIOUS_HASH = ""
     fun link(event: UnlinkedLedgerEvent, previousEventHash: String): ResearchLedgerEvent
-    fun verify(events: List<ResearchLedgerEvent>): LedgerIntegrity
+    fun verify(events: List<ResearchLedgerEvent>, expected: LedgerAnchor? = null): LedgerIntegrity
     fun headHash(events: List<ResearchLedgerEvent>): String
+    fun anchorOf(events: List<ResearchLedgerEvent>): LedgerAnchor
     fun nextSequence(events: List<ResearchLedgerEvent>): Long
 }
 ```
+
+`LedgerChain`'s KDoc scopes the guarantee honestly in three parts: interior edits and corruption are detected by the chain; tail truncation needs an anchor; a custodian who re-links the whole file is not detectable at all without a head hash published at handover. It also states that `headHash` → `link` → insert is a read-modify-write the caller must serialise, which `ResearchLedgerRepository` does inside one Room transaction.
 
 `link` serialises a private `@Serializable` canonical record (the nine unlinked fields plus `previousEventHash`, in that declaration order) with `Json { encodeDefaults = true }` and takes its SHA-256 as both `eventHash` and `id`. `verify` sorts by sequence, then checks contiguity from 1, no duplicate sequence, `previousEventHash` linkage, and that recomputing `link` reproduces each stored `eventHash`.
 
@@ -852,11 +865,14 @@ Expected: FAIL.
 
 **Step 2: Make it pass**
 
-- `ContinuitySnapshot.kt`: add `@Serializable data class ResearchLedgerEventDto(...)` and `StudyPhaseDto(...)` mirroring the entities field-for-field, append `researchLedgerEvents` and `studyPhases` (both defaulting to `emptyList()`) to `ContinuityPayload`, and add the `toDto()` / `toEntity()` mappers.
+- `ContinuityContract.kt`: **now** raise `SNAPSHOT_FORMAT_VERSION` to 2 and widen `SUPPORTED_SNAPSHOT_FORMAT_VERSIONS` to `{1, 2}` — in this commit, atomically with the field append below, never before it.
+- `ContinuityContentHasher.hash`: add the `SNAPSHOT_FORMAT_VERSION -> canonical` branch alongside the existing version-1 projection.
+- `ContinuitySnapshotCodec`: add a test that takes an encoded snapshot, rewrites `"formatVersion":2` to `"formatVersion":1`, and asserts `DecodeResult.Success` — the change that makes a Program 0 checkpoint readable at all, which until this commit had no version other than the current one to exercise it.
+- `ContinuitySnapshot.kt`: add `@Serializable data class ResearchLedgerEventDto(...)` and `StudyPhaseDto(...)` mirroring the entities field-for-field, append `researchLedgerEvents` and `studyPhases` (both defaulting to `emptyList()`) to `ContinuityPayload`, and add the `toDto()` / `toEntity()` mappers. Appending — never inserting — keeps `ContinuityHashVersionTest`'s "the live payload still begins with Program 0's fields" assertion true.
 - `ContinuityContentHasher.sorted`: sort ledger events by `(sequence, id)` and phases by `(ordinal, id)`.
 - `ContinuitySnapshotRepository.capture`: read both new tables.
 - `RestoreStateStore`: add `expectedFormatVersion: Int?` to `RestoreStageInfo`, an `intPreferencesKey("restore_expected_format_version")`, and the parameter on `markDownloaded`/`markDecrypted`.
-- `RestoreCoordinator`: widen `persistDownloaded`/`persistDecrypted` seams by one `formatVersion` parameter, carry `expectedFormatVersion` through `resume`, and use it in the final `ContinuityContentHasher.hash(recaptured.payload, expectedFormatVersion)`. Default to `PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION` when the persisted value is absent, since an interrupted restore staged by a Program 0 build can only be a version-1 snapshot. Extend `mergeRoom` with `dao.insertLedgerEvents(...)` and per-phase `insertStudyPhase(...)`, and extend `preflightIsLocalDataEmpty` with `research().ledgerEventCount() == 0 && research().studyPhaseCount() == 0`.
+- `RestoreCoordinator`: widen `persistDownloaded`/`persistDecrypted` seams by one `formatVersion` parameter, carry `expectedFormatVersion` through `resume`, and use it in the final `ContinuityContentHasher.hash(recaptured.payload, expectedFormatVersion)`. Default to `PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION` when the persisted value is absent: because Task 1 kept the constant at 1, every snapshot staged before this commit genuinely is a version-1 snapshot, so the fallback is sound rather than merely convenient. Extend `mergeRoom` with `dao.insertLedgerEvents(...)` and per-phase `insertStudyPhase(...)`, and extend `preflightIsLocalDataEmpty` with `research().ledgerEventCount() == 0 && research().studyPhaseCount() == 0`.
 - Update `docs/backup/program-0-data-inventory.md` with two new "Protected" rows.
 
 Run the JVM suite, then:
@@ -915,7 +931,9 @@ Expected: FAIL.
 
 **Step 2: Make it pass**
 
-`ResearchExport.kt` gains, all defaulted so v1 files still decode: `ledgerEvents`, `ledgerHeadHash`, `ledgerIntegrity` (default `NOT_APPLICABLE`), `studyPhases`, `protocolRegistry`, `protocolCatalogSha256`, `transformations`, `transformationSetVersion`, `missingData`, `missingDataPolicyVersion`, `missingDataStatement`, `dataDictionary` (nullable, default null), `dataDictionarySha256`.
+`ContinuityContract.RESEARCH_DICTIONARY_VERSION` is raised to `"mindanchor-research-v2"` **in this commit**, atomically with the export shape below, and `SUPPORTED_RESEARCH_DICTIONARY_VERSIONS` is introduced here (not earlier) so it lands with the code that reads it.
+
+`ResearchExport.kt` gains, all defaulted so v1 files still decode: `ledgerEvents`, `ledgerHeadHash`, `ledgerEventCount`, `ledgerIntegrity` (default `NOT_APPLICABLE`), `studyPhases`, `protocolRegistry`, `protocolCatalogSha256`, `transformations`, `transformationSetVersion`, `missingData`, `missingDataPolicyVersion`, `missingDataStatement`, `dataDictionary` (nullable, default null), `dataDictionarySha256`. `ledgerHeadHash` + `ledgerEventCount` are the exported `LedgerAnchor`, so a reader can re-verify the chain against the anchor rather than only against itself.
 
 `ResearchExportCodec` gains a private `V1Content` projection (the four Program 0 lists), a `V2Content` projection (those four plus ledger events, head hash, phases, protocol registry, catalogue hash, transformations, missing data), `hashContent(content, dictionaryVersion)`, `fun verify(export: ResearchExport): Boolean`, a `DecodeResult.UnsupportedVersion(version)` case, and a version check in `decode`.
 

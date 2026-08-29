@@ -256,12 +256,47 @@ This is the same discipline §4.4's seeding policy applies to protocols.
    that somehow bypassed 1 and 2 is still detectable. `LedgerChain.verify`
    returns a typed verdict; the export carries it.
 
-### 5.4 Why a hash chain rather than trust
+### 5.4 Why a hash chain, and exactly what it proves
 
 The ledger is the object a future research report rests on. "Append-only
 because we only call insert" is a claim; "append-only because sequence
 `n`'s hash covers sequence `n−1`'s hash" is a property a reader can check
 against a file we handed them. It costs one SHA-256 per row.
+
+Scoped honestly, because an overstated provenance claim is worse than
+none:
+
+| Tampering | Detected? |
+| --- | --- |
+| Edit, delete, reorder, or insert anywhere in the interior | Yes, by the chain alone |
+| Accidental corruption | Yes, by the chain alone |
+| Truncating the newest events | Only against a `LedgerAnchor` |
+| Re-linking the whole file from scratch | No — see below |
+
+Tail truncation is the gap that matters most here: drop the last *k*
+rows and what remains is a shorter but perfectly self-consistent chain.
+In a self-experiment the subject is also the custodian, so "quietly drop
+the last few rows" is the likeliest direction. `LedgerAnchor` — the head
+hash plus the event count — is the part that cannot live inside the
+chain. `ContinuityPrefs` holds the local anchor, and the research export
+carries one.
+
+A custodian who re-links every event is not detectable by any
+self-contained file. A recipient who wants that guarantee records the
+head hash at handover; the chain then tells them whether the file they
+hold is the file they were given.
+
+### 5.5 Appending is a read-modify-write
+
+Read the head, link, insert. Two concurrent appends that both read the
+same head either land two rows at one sequence — permanently `BROKEN`,
+and §5.3's triggers mean it cannot be repaired — or, for byte-identical
+content, silently collapse to one row under `INSERT OR IGNORE`.
+`ResearchLedgerRepository` runs the whole sequence inside a single Room
+transaction, and `LedgerChain`'s KDoc states the requirement so a second
+caller cannot arrive without seeing it. `LedgerChain.link` additionally
+refuses a sequence below 1 or a note over `MAX_LEDGER_NOTE_LENGTH`,
+because a row that violates either can never be deleted.
 
 ## 6. Study phases and the provenance version vector
 
@@ -411,6 +446,14 @@ data dictionary with its hash.
 `SUPPORTED_SNAPSHOT_FORMAT_VERSIONS` is `{1, 2}`.
 `ContinuitySnapshotCodec.decode` accepts any supported version instead of
 only the current one, so a Program 0 checkpoint still decodes.
+
+**A version constant moves in the same commit as the shape it names.**
+Raising it earlier would stamp `2` on checkpoints whose payload still had
+Program 0's ten fields, and every nightly snapshot written in that window
+would carry a ten-field hash under a twelve-field stamp — indistinguishable
+afterwards from a real version-2 file, with the one discriminator a reader
+needs already spent. The same rule governs
+`RESEARCH_DICTIONARY_VERSION` and the export shape.
 
 ### 10.2 Versioned content hashing — the load-bearing part
 
