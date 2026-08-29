@@ -77,7 +77,7 @@ import okhttp3.CertificatePinner
  *   is the intended behavior of certificate pinning,
  *   not a bug to route around with a broader pin set.
  * - The [LlmPrefs] contract reads the API key from the
- *   [LlmTokenStore]; the [CertificatePinner] is set
+ *   [LlmKeyStore]; the [CertificatePinner] is set
  *   at client construction in [OpenAiCompatibleClient].
  *
  * ## Why this is a [CertificatePinner] and not a
