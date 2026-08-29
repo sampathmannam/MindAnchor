@@ -206,6 +206,7 @@ class RestoreResumeTest {
         readGuard: ThrowOnce = ThrowOnce(),
         mergeRoomGuard: ThrowOnce = ThrowOnce(),
         mergeDataStoresGuard: ThrowOnce = ThrowOnce(),
+        recaptureGuard: ThrowOnce = ThrowOnce(),
     ): RestoreCoordinator {
         val dao = db.journal()
         return RestoreCoordinator(
@@ -261,7 +262,7 @@ class RestoreResumeTest {
                     frictionPrefs.replaceAlwaysOpen(payload.alwaysOpenApps.toSet())
                 }
             },
-            recapture = { snapshotRepository.capture(System.currentTimeMillis()) },
+            recapture = { recaptureGuard.guard { snapshotRepository.capture(System.currentTimeMillis()) } },
             recordRestoreVerified = { at, hash -> continuityPrefs.recordRestore(at, hash) },
             recordVerifyFailed = { continuityPrefs.recordError(ContinuityErrorCode.RESTORE_VERIFY_FAILED) },
         )
@@ -363,6 +364,55 @@ class RestoreResumeTest {
 
         assertTrue(result is RestoreResult.Verified)
         assertNoDuplication()
+    }
+
+    @Test
+    fun interruptedRightAfterDataStoresMergedResumesToTheSameEndStateAsACleanRun() = runBlocking {
+        val snapshot = sampleSnapshot(samplePayload())
+        val bytes = envelopeBytes(snapshot)
+        stagingFile.parentFile?.mkdirs()
+        stagingFile.writeBytes(bytes)
+        restoreStateStore.markDownloaded("x.mab", "sha", snapshot.contentSha256)
+        restoreStateStore.markDecrypted(snapshot.contentSha256)
+        restoreStateStore.markRoomMerged()
+        db.withTransaction {
+            val dao = db.journal()
+            dao.upsertEntries(snapshot.payload.journalEntries.map { it.toEntity() })
+            dao.upsertContext(snapshot.payload.contextRows.map { it.toEntity() })
+            dao.upsertMorningMeasures(snapshot.payload.morningMeasures.map { it.toEntity() })
+            snapshot.payload.continuityChanges.forEach { dao.insertChange(it.toEntity()) }
+        }
+        // The persisted stage claims the DataStores merge already durably
+        // completed too — real NotesPrefs/LetterStore/FrictionPrefs/
+        // BackupRepository I/O, the exact interleaving a JVM-fake test
+        // cannot reach.
+        backupRepository.import(snapshot.payload.legacyBackupJson, System.currentTimeMillis())
+        notesPrefs.mergeRestored(snapshot.payload.notes.map { it.toDomain() })
+        letterStore.mergeRestored(
+            snapshot.payload.letters.mapNotNull { it.toDomain() },
+            snapshot.payload.readLetterDates.mapNotNull { raw -> runCatching { LocalDate.parse(raw) }.getOrNull() }.toSet(),
+        )
+        frictionPrefs.replaceFlagged(snapshot.payload.frictionedApps.toSet())
+        frictionPrefs.replaceAlwaysOpen(snapshot.payload.alwaysOpenApps.toSet())
+        restoreStateStore.markDataStoresMerged()
+        val recaptureGuard = ThrowOnce().apply { armed = true }
+        val coordinator = realCoordinator(recaptureGuard = recaptureGuard)
+
+        try {
+            coordinator.resume()
+            fail("expected the injected failure to propagate")
+        } catch (e: IllegalStateException) {
+            // expected — interrupted between DATASTORES_MERGED and VERIFIED
+        }
+        assertEquals(RestoreStage.DATASTORES_MERGED, restoreStateStore.currentInfo().stage)
+        assertTrue("the staged file is kept while not yet VERIFIED", stagingFile.exists())
+
+        val result = coordinator.resume()
+
+        assertTrue(result is RestoreResult.Verified)
+        assertNoDuplication()
+        assertEquals(RestoreStage.VERIFIED, restoreStateStore.currentInfo().stage)
+        assertFalse("staged file deleted only after VERIFIED is durable", stagingFile.exists())
     }
 
     @Test
