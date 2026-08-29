@@ -12,6 +12,7 @@ import org.mindanchor.continuity.ContinuityPrefs
 import org.mindanchor.continuity.ContinuityWorkScheduler
 import org.mindanchor.data.db.AnchorDatabase
 import org.mindanchor.data.db.ContinuityChangeEntity
+import org.mindanchor.research.ResearchProvenanceCoordinator
 
 /**
  * Owns Journal authorship (the entry itself) and its derived structural
@@ -24,10 +25,12 @@ class JournalRepository(
     private val database: AnchorDatabase,
     private val deviceIdentity: DeviceIdentityStore,
     private val extractor: JournalContextExtractor,
+    private val provenance: ResearchProvenanceCoordinator,
 ) {
     private val dao = database.journal()
 
     suspend fun create(title: String, body: String, now: Long, localDate: LocalDate): JournalEntry {
+        ensurePhase(now)
         val entry = JournalEntry.create(
             title = title,
             body = body,
@@ -84,6 +87,22 @@ class JournalRepository(
             )
         }
         ContinuityWorkScheduler.requestCheckpoint(context)
+    }
+
+    /**
+     * Opens a study phase so the entry about to be written falls inside
+     * one, using the same [now] the entry will carry — `phaseAt` is
+     * inclusive of `startedAt`, so equal timestamps attribute correctly.
+     *
+     * Fail-soft, and deliberately *before* the entry rather than after:
+     * running it first is what guarantees attribution when it succeeds,
+     * and swallowing its failure is what guarantees the person never
+     * loses their words when it does not. An entry with no phase is
+     * honest — it simply predates any recorded phase — where an entry
+     * timestamped before the phase that supposedly covers it would not be.
+     */
+    private suspend fun ensurePhase(now: Long) {
+        runCatching { provenance.ensureCurrentPhase(now) }
     }
 
     /**

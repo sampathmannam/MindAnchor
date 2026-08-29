@@ -11,8 +11,11 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import org.mindanchor.data.db.AnchorDatabase
+import org.mindanchor.research.LedgerEventKind
 import org.mindanchor.research.MorningMeasure
 import org.mindanchor.research.MorningMeasureRepository
+import org.mindanchor.research.ResearchLedgerEvent
+import org.mindanchor.research.ResearchLedgerRepository
 import org.mindanchor.research.toDomain
 
 /** The three Journal destinations (Task 6 brief): Today, Entries, Patterns. */
@@ -31,9 +34,11 @@ enum class JournalDestination { TODAY, ENTRIES, PATTERNS }
  * mechanism a real process kill depends on — rather than by an incidental
  * retained `ViewModelStore` surviving a configuration change.
  */
+@Suppress("LongParameterList")
 class JournalViewModel(
     private val journalRepository: JournalRepository,
     private val morningMeasureRepository: MorningMeasureRepository,
+    private val ledgerRepository: ResearchLedgerRepository,
     private val draftStore: JournalDraftStore,
     database: AnchorDatabase,
     private val legacyImporter: JournalLegacyImporter? = null,
@@ -46,6 +51,10 @@ class JournalViewModel(
 
     val entries: Flow<List<JournalEntry>> = journalRepository.entries()
     val morningMeasureForToday: Flow<MorningMeasure?> = morningMeasureRepository.forDate(todayDate)
+
+    /** Only what the person recorded today, and only what they recorded themselves. */
+    val researchLogForToday: Flow<List<ResearchLedgerEvent>> =
+        ledgerRepository.selfReportedOn(todayDate.toString())
 
     // Task 5 built no aggregate "history" query on MorningMeasureRepository
     // (only forDate); the underlying DAO already exposes one, and reading
@@ -139,6 +148,18 @@ class JournalViewModel(
             }.onFailure {
                 saveError = true
             }
+        }
+    }
+
+    /**
+     * Records one self-reported research-log event. Fire-and-forget in the
+     * same shape as [saveMorningMeasure]: the card is a list of chips, not
+     * a form that can half-fail.
+     */
+    fun recordResearchEvent(kind: LedgerEventKind, note: String) {
+        scope.launch {
+            val at = clock()
+            runCatching { ledgerRepository.record(kind, occurredAt = at, note = note, now = at) }
         }
     }
 

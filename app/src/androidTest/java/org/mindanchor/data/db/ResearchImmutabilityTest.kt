@@ -8,6 +8,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -23,10 +24,10 @@ import org.junit.runner.RunWith
  * whose immutability rests on nobody writing the wrong query is not
  * immutable, it is merely unedited so far.
  *
- * A fresh in-memory database is used deliberately: Room's generated
- * `createAllTables` contains no triggers, so if these pass here, the
- * `onCreate` callback that installs them on a brand-new install is
- * working.
+ * A fresh in-memory database is used deliberately, built through the same
+ * `withResearchImmutability` every production and test builder uses:
+ * Room's generated `createAllTables` contains no triggers, so if these
+ * pass, the callback a brand-new install depends on is working.
  */
 @RunWith(AndroidJUnit4::class)
 class ResearchImmutabilityTest {
@@ -68,14 +69,11 @@ class ResearchImmutabilityTest {
 
     @Before
     fun open() {
+        // The production callback, not a look-alike: a test that installs
+        // its own triggers proves nothing about the builder every install
+        // actually goes through.
         database = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java)
-            .addCallback(
-                object : androidx.room.RoomDatabase.Callback() {
-                    override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
-                        AnchorDatabase.installResearchImmutability(db)
-                    }
-                },
-            )
+            .withResearchImmutability()
             .build()
     }
 
@@ -157,5 +155,60 @@ class ResearchImmutabilityTest {
             ),
         )
         assertEquals(listOf("""{"ordinal":0}"""), dao.payloadsForKind("STUDY_PHASE_STARTED"))
+    }
+
+    @Test
+    fun theFourTriggersExistByName() {
+        val cursor = database.openHelper.writableDatabase.query(
+            "SELECT name FROM sqlite_master WHERE type = 'trigger' ORDER BY name",
+        )
+        val names = mutableListOf<String>()
+        cursor.use { while (it.moveToNext()) names += it.getString(0) }
+        // Pinned by name so a future migration that re-creates either
+        // table -- the 12-step dance MIGRATION_4_5 uses drops triggers
+        // along with the table -- goes red instead of silently shipping
+        // mutable research history.
+        assertEquals(
+            listOf(
+                "research_ledger_events_no_delete",
+                "research_ledger_events_no_update",
+                "study_phases_no_delete",
+                "study_phases_no_update",
+            ),
+            names,
+        )
+    }
+
+    @Test
+    fun anInsertOrReplaceCannotOverwriteALedgerRow() = runBlocking {
+        database.research().insertLedgerEvents(listOf(event("event-1", 1L)))
+        // REPLACE is a delete followed by an insert. SQLite only fires
+        // DELETE triggers for it when recursive triggers are on, which is
+        // why the immutability callback turns them on -- without that this
+        // would silently overwrite an immutable, hash-chained row.
+        assertThrows(android.database.sqlite.SQLiteConstraintException::class.java) {
+            database.openHelper.writableDatabase.execSQL(
+                "INSERT OR REPLACE INTO research_ledger_events " +
+                    "(id, sequence, kind, occurredAt, recordedAt, localDate, studyPhaseId, " +
+                    "sourceDeviceId, note, payloadJson, previousEventHash, eventHash) " +
+                    "VALUES ('event-1', 1, 'EXERCISE', 1, 1, '2026-08-29', 'phase-0', " +
+                    "'device-a', 'rewritten', '{}', '', 'event-1')",
+            )
+        }
+        assertEquals("morning run", database.research().ledgerEventsNow().single().note)
+    }
+
+    @Test
+    fun anIgnoredInsertReportsThatItWasIgnored() = runBlocking {
+        val dao = database.research()
+        assertEquals(listOf(1L), dao.insertLedgerEvents(listOf(event("event-1", 1L))).map { if (it > 0) 1L else it })
+        // INSERT OR IGNORE treats a conflict as success, so the row id is
+        // the only way a caller can tell a dropped row from a written one.
+        assertEquals(listOf(-1L), dao.insertLedgerEvents(listOf(event("event-1", 1L))))
+        assertTrue(dao.insertStudyPhase(phase("phase-0", 0)) > 0)
+        assertEquals(-1L, dao.insertStudyPhase(phase("phase-0", 0)))
+        // A different id colliding on the unique ordinal index is the
+        // dangerous case: silently ignored, not an error.
+        assertEquals(-1L, dao.insertStudyPhase(phase("phase-0-again", 0)))
     }
 }

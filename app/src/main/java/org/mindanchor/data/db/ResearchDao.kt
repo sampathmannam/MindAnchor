@@ -19,18 +19,30 @@ import kotlinx.coroutines.flow.Flow
  * this file's source text for exactly that mistake, because Room's
  * annotations have binary retention and cannot be inspected at runtime.
  *
- * Kept to ten functions on purpose: detekt's TooManyFunctions threshold
- * for an interface is eleven, and a DAO that keeps growing is a sign the
- * caller wants a query it should be composing itself.
+ * Kept to ten functions on purpose: detekt's default TooManyFunctions
+ * threshold for an interface is eleven, and a DAO that keeps growing is a
+ * sign the caller wants a query it should be composing itself.
  */
 @Dao
 interface ResearchDao {
 
+    /**
+     * Returns one row id per event, or -1 for an event the table already
+     * held. The caller must look: `INSERT OR IGNORE` treats a conflict as
+     * success, so a dropped row is otherwise indistinguishable from a
+     * written one.
+     */
     @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insertLedgerEvents(events: List<ResearchLedgerEventEntity>)
+    suspend fun insertLedgerEvents(events: List<ResearchLedgerEventEntity>): List<Long>
 
+    /**
+     * Returns the new row id, or -1 if the insert was ignored. Two
+     * conflict sources exist — the content-addressed `id`, and the unique
+     * index on `ordinal` — and a silently dropped phase would leave every
+     * event of that phase pointing at a row that does not exist.
+     */
     @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insertStudyPhase(phase: StudyPhaseEntity)
+    suspend fun insertStudyPhase(phase: StudyPhaseEntity): Long
 
     @Query("SELECT * FROM research_ledger_events ORDER BY sequence")
     fun ledgerEvents(): Flow<List<ResearchLedgerEventEntity>>

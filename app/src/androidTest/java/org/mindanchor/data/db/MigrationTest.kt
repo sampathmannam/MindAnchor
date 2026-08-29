@@ -286,6 +286,7 @@ class MigrationTest {
     private fun openCurrent(): AnchorDatabase =
         Room.databaseBuilder(context, AnchorDatabase::class.java, dbName)
             .addMigrations(*AnchorDatabase.migrations())
+            .withResearchImmutability()
             .build()
 
     @Test

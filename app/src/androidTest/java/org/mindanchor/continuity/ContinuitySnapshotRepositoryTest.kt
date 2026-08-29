@@ -18,6 +18,8 @@ import org.mindanchor.backup.BackupRepository
 import org.mindanchor.data.FrictionPrefs
 import org.mindanchor.data.NotesPrefs
 import org.mindanchor.data.db.AnchorDatabase
+import org.mindanchor.research.testLedgerRepository
+import org.mindanchor.data.db.withResearchImmutability
 import org.mindanchor.journal.DeviceIdentityStore
 import org.mindanchor.journal.JournalRepository
 import org.mindanchor.journal.StructuralContextExtractor
@@ -47,7 +49,9 @@ class ContinuitySnapshotRepositoryTest {
 
     @Before
     fun setUp() = runBlocking {
-        db = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java).build()
+        db = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java)
+            .withResearchImmutability()
+            .build()
         deviceIdentity = DeviceIdentityStore(context)
         notesPrefs = NotesPrefs(context)
         letterStore = LetterStore(context)
@@ -88,7 +92,13 @@ class ContinuitySnapshotRepositoryTest {
     }
 
     private suspend fun seed() {
-        val journalRepository = JournalRepository(context, db, deviceIdentity, StructuralContextExtractor())
+        val journalRepository = JournalRepository(
+            context,
+            db,
+            deviceIdentity,
+            StructuralContextExtractor(),
+            testLedgerRepository(context, db).provenance,
+        )
         journalRepository.create(
             title = "A day",
             body = "Something happened today.",

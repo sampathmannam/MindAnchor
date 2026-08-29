@@ -8,6 +8,7 @@ import androidx.activity.enableEdgeToEdge
 import org.mindanchor.data.db.AnchorDatabase
 import org.mindanchor.letters.JournalStore
 import org.mindanchor.research.MorningMeasureRepository
+import org.mindanchor.research.ResearchLedgerRepository
 import org.mindanchor.ui.MindAnchorTheme
 
 /**
@@ -33,6 +34,10 @@ class JournalActivity : ComponentActivity() {
         val deviceIdentity = DeviceIdentityStore(application)
         val extractor = StructuralContextExtractor()
         val migrationPrefs = JournalMigrationPrefs(application)
+        // One repository, one coordinator: Journal entries, morning
+        // measures and research-log events must all open phases through
+        // the same instance, or two of them could race to open ordinal 1.
+        val ledgerRepository = ResearchLedgerRepository.build(application)
 
         // This is the one place in the whole plan the one-time legacy
         // import (Task 4's JournalLegacyImporter) actually gets wired up
@@ -46,8 +51,20 @@ class JournalActivity : ComponentActivity() {
         )
 
         val viewModel = JournalViewModel(
-            journalRepository = JournalRepository(application, database, deviceIdentity, extractor),
-            morningMeasureRepository = MorningMeasureRepository(application, database, deviceIdentity),
+            journalRepository = JournalRepository(
+                application,
+                database,
+                deviceIdentity,
+                extractor,
+                ledgerRepository.provenance,
+            ),
+            morningMeasureRepository = MorningMeasureRepository(
+                application,
+                database,
+                deviceIdentity,
+                ledgerRepository.provenance,
+            ),
+            ledgerRepository = ledgerRepository,
             draftStore = JournalDraftStore(application),
             database = database,
             legacyImporter = legacyImporter,

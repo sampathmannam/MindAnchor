@@ -19,6 +19,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.MethodSorters
 import org.mindanchor.data.db.AnchorDatabase
+import org.mindanchor.data.db.withResearchImmutability
 import org.mindanchor.data.db.ContinuityChangeEntity
 import org.mindanchor.data.db.JournalContextEntity
 import org.mindanchor.data.db.JournalDao
@@ -57,7 +58,9 @@ class JournalLegacyImporterTest {
 
     @Before
     fun setUp() {
-        db = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java).build()
+        db = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java)
+            .withResearchImmutability()
+            .build()
         journalStore = JournalStore(context)
         migrationPrefs = JournalMigrationPrefs(context)
     }

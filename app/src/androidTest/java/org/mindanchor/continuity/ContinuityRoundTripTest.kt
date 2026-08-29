@@ -23,6 +23,7 @@ import org.mindanchor.data.FrictionPrefs
 import org.mindanchor.data.LauncherPrefs
 import org.mindanchor.data.NotesPrefs
 import org.mindanchor.data.db.AnchorDatabase
+import org.mindanchor.data.db.withResearchImmutability
 import org.mindanchor.data.db.SafetyPlan
 import org.mindanchor.data.mergeRestored
 import org.mindanchor.data.replaceAlwaysOpen
@@ -35,6 +36,7 @@ import org.mindanchor.letters.LetterStore
 import org.mindanchor.letters.mergeRestored
 import org.mindanchor.model.Note
 import org.mindanchor.research.MorningMeasureRepository
+import org.mindanchor.research.testLedgerRepository
 
 /**
  * Task 14, Step 1: the end-to-end proof that everything Tasks 3, 7, 8, and
@@ -95,7 +97,9 @@ class ContinuityRoundTripTest {
 
     @Before
     fun setUp() = runBlocking {
-        sourceDb = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java).build()
+        sourceDb = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java)
+            .withResearchImmutability()
+            .build()
         notesPrefs = NotesPrefs(context)
         letterStore = LetterStore(context)
         frictionPrefs = FrictionPrefs(context)
@@ -137,7 +141,13 @@ class ContinuityRoundTripTest {
     fun aFullCaptureEncryptRestoreCycleReproducesEveryFieldAndIsIdempotent() = runBlocking {
         // --- Steps 1/2: one multiline Journal entry, verify it and its four
         // structural facts land as five separate rows ---
-        val journalRepository = JournalRepository(context, sourceDb, deviceIdentity, StructuralContextExtractor())
+        val journalRepository = JournalRepository(
+            context,
+            sourceDb,
+            deviceIdentity,
+            StructuralContextExtractor(),
+            testLedgerRepository(context, sourceDb).provenance,
+        )
         val multilineBody = "Line one of the day.\nLine two, a different thought entirely.\nLine three, still going."
         val entry = journalRepository.create(
             title = "Round trip day",
@@ -155,7 +165,12 @@ class ContinuityRoundTripTest {
         assertEquals("Round trip day", sourceFacts["user_title"])
 
         // --- Step 3: one morning measure ---
-        val measureRepository = MorningMeasureRepository(context, sourceDb, deviceIdentity)
+        val measureRepository = MorningMeasureRepository(
+            context,
+            sourceDb,
+            deviceIdentity,
+            testLedgerRepository(context, sourceDb).provenance,
+        )
         val measure = measureRepository.save(
             localDate = LocalDate.of(2026, 8, 27),
             now = 1_500L,
@@ -196,7 +211,9 @@ class ContinuityRoundTripTest {
         // --- Step 6: wipe the destination — a genuinely separate Room
         // database standing in for the replacement phone's own store, plus
         // the shared DataStores/singleton reset to empty (see class KDoc) ---
-        val destDb = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java).build()
+        val destDb = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java)
+            .withResearchImmutability()
+            .build()
         try {
             letterStore.reset()
             notesPrefs.replaceAll(emptyList())

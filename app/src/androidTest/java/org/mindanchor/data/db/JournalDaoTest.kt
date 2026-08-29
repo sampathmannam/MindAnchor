@@ -29,7 +29,9 @@ class JournalDaoTest {
 
     @Before
     fun setUp() {
-        db = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java).build()
+        db = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java)
+            .withResearchImmutability()
+            .build()
         dao = db.journal()
     }
 

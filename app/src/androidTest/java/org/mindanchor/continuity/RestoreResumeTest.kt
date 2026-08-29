@@ -26,6 +26,7 @@ import org.mindanchor.data.FrictionPrefs
 import org.mindanchor.data.LauncherPrefs
 import org.mindanchor.data.NotesPrefs
 import org.mindanchor.data.db.AnchorDatabase
+import org.mindanchor.data.db.withResearchImmutability
 import org.mindanchor.data.db.CrisisContact
 import org.mindanchor.data.db.JournalEntryEntity
 import org.mindanchor.data.db.PulseResult
@@ -73,7 +74,9 @@ class RestoreResumeTest {
 
     @Before
     fun setUp() = runBlocking {
-        db = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java).build()
+        db = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java)
+            .withResearchImmutability()
+            .build()
         notesPrefs = NotesPrefs(context)
         letterStore = LetterStore(context)
         frictionPrefs = FrictionPrefs(context)
@@ -471,10 +474,13 @@ class RestoreResumeTest {
      * the app's real on-disk [AnchorDatabase] singleton (not this class's
      * own in-memory [db]) — the one place in this file that touches it for
      * more than [clearEverything]'s existing safety/contacts cleanup.
-     * `realDb.clearAllTables()` in the `finally` block is needed because
-     * [org.mindanchor.data.db.PulseDao] exposes no delete method at all —
-     * Room's own table-clear is the only way to remove the seeded pulse
-     * afterward.
+     * The `finally` block cleans up with targeted `DELETE` statements
+     * rather than `clearAllTables()`. Room's table-clear issues a
+     * `DELETE FROM` for *every* entity, including the two append-only
+     * research tables — whose triggers reject it. Once any research row
+     * exists on the device, `clearAllTables()` would throw inside the
+     * `finally`, masking the real assertion and leaving the app's
+     * production database dirty for the rest of the suite.
      */
     @Test
     fun theRealProductionPreflightBlocksANewRestoreWhenSafetyPlanContactsOrPulsesExist() = runBlocking {
@@ -502,7 +508,12 @@ class RestoreResumeTest {
             assertEquals(RestoreStage.NONE, restoreStateStore.currentInfo().stage)
             assertFalse(stagingFile.exists())
         } finally {
-            realDb.clearAllTables()
+            realDb.openHelper.writableDatabase.run {
+                execSQL("DELETE FROM pulse_results")
+                execSQL("DELETE FROM safety_plan")
+                execSQL("DELETE FROM crisis_contacts")
+                execSQL("DELETE FROM journal_entries")
+            }
         }
     }
 

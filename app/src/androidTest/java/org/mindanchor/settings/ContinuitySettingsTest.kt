@@ -33,6 +33,7 @@ import org.mindanchor.continuity.crypto.RecoveryKey
 import org.mindanchor.continuity.crypto.RecoveryKeyCodec
 import org.mindanchor.continuity.crypto.RecoveryKeyStore
 import org.mindanchor.data.db.AnchorDatabase
+import org.mindanchor.data.db.withResearchImmutability
 import org.mindanchor.data.db.JournalEntryEntity
 import org.mindanchor.ui.MindAnchorTheme
 
@@ -66,7 +67,9 @@ class ContinuitySettingsTest {
 
     @Before
     fun setUp() = runBlocking {
-        db = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java).build()
+        db = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java)
+            .withResearchImmutability()
+            .build()
         continuityPrefs = ContinuityPrefs(context)
         recoveryKeyStore = RecoveryKeyStore.create(context)
         continuityPrefs.reset()

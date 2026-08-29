@@ -14,6 +14,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mindanchor.continuity.ContinuityPrefs
 import org.mindanchor.data.db.AnchorDatabase
+import org.mindanchor.research.testLedgerRepository
+import org.mindanchor.data.db.withResearchImmutability
 
 /**
  * Proves the core Task 3 guarantee: a Journal entry's authorship is durable
@@ -29,7 +31,9 @@ class JournalRepositoryTest {
 
     @Before
     fun setUp() {
-        db = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java).build()
+        db = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java)
+            .withResearchImmutability()
+            .build()
         deviceIdentity = DeviceIdentityStore(context)
     }
 
@@ -45,7 +49,13 @@ class JournalRepositoryTest {
 
     @Test
     fun createCommitsEntryAndContinuityChangeTogether() = runBlocking {
-        val repository = JournalRepository(context, db, deviceIdentity, StructuralContextExtractor())
+        val repository = JournalRepository(
+            context,
+            db,
+            deviceIdentity,
+            StructuralContextExtractor(),
+            testLedgerRepository(context, db).provenance,
+        )
 
         val entry = repository.create(
             title = "A day",
@@ -68,7 +78,13 @@ class JournalRepositoryTest {
                 throw IllegalStateException("boom")
             }
         }
-        val repository = JournalRepository(context, db, deviceIdentity, failingExtractor)
+        val repository = JournalRepository(
+            context,
+            db,
+            deviceIdentity,
+            failingExtractor,
+            testLedgerRepository(context, db).provenance,
+        )
 
         val entry = repository.create(
             title = "A day",
@@ -90,7 +106,13 @@ class JournalRepositoryTest {
     @Test
     fun disablingContextExtractionSkipsItWithoutAffectingEntryCreation() = runBlocking {
         ContinuityPrefs(context).setContextExtractionEnabled(false)
-        val repository = JournalRepository(context, db, deviceIdentity, StructuralContextExtractor())
+        val repository = JournalRepository(
+            context,
+            db,
+            deviceIdentity,
+            StructuralContextExtractor(),
+            testLedgerRepository(context, db).provenance,
+        )
 
         val entry = repository.create(
             title = "A day",

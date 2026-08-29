@@ -13,9 +13,10 @@ import androidx.room.PrimaryKey
  * an `INSERT OR IGNORE` on the same primary key.
  *
  * The table is append-only, enforced three ways: `ResearchDao` declares no
- * mutating operation, `MIGRATION_6_7` installs `BEFORE UPDATE` and
- * `BEFORE DELETE` triggers that `RAISE(ABORT, ...)`, and every row's hash
- * covers its predecessor's.
+ * mutating operation; `BEFORE UPDATE` and `BEFORE DELETE` triggers
+ * `RAISE(ABORT, ...)`, installed by `MIGRATION_6_7` on an upgrade and by
+ * `AnchorDatabase.researchImmutabilityCallback` on every open; and every
+ * row's hash covers its predecessor's.
  */
 @Entity(
     tableName = "research_ledger_events",

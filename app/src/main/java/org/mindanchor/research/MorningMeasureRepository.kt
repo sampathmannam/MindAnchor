@@ -17,11 +17,16 @@ import org.mindanchor.journal.DeviceIdentityStore
  * an accidental duplicate tap for the same day updates the existing record
  * in place (preserving its original `createdAt`) rather than creating a
  * second one, so `morning_measures` never holds more than one row per date.
+ *
+ * The measure itself is unchanged from Program 0: same five items, same
+ * table, same instrument version, no total and no threshold anywhere.
+ * Program 1 adds only the study-phase attribution.
  */
 class MorningMeasureRepository(
     private val context: Context,
     private val database: AnchorDatabase,
     private val deviceIdentity: DeviceIdentityStore,
+    private val provenance: ResearchProvenanceCoordinator,
 ) {
     private val dao = database.journal()
 
@@ -48,6 +53,10 @@ class MorningMeasureRepository(
             createdAt = existing?.createdAt ?: now,
         )
         database.withTransaction {
+            // Inside the same transaction, and before the write: a measure
+            // that fell outside every recorded phase could not be
+            // attributed to the software that produced it.
+            provenance.ensureCurrentPhase(now)
             dao.upsertMorningMeasure(measure.toEntity())
             dao.insertChange(
                 ContinuityChangeEntity(

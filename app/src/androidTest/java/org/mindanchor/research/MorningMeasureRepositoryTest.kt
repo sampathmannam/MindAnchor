@@ -13,6 +13,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mindanchor.data.db.AnchorDatabase
+import org.mindanchor.data.db.withResearchImmutability
 import org.mindanchor.journal.DeviceIdentityStore
 
 /**
@@ -30,7 +31,9 @@ class MorningMeasureRepositoryTest {
 
     @Before
     fun setUp() {
-        db = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java).build()
+        db = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java)
+            .withResearchImmutability()
+            .build()
         deviceIdentity = DeviceIdentityStore(context)
     }
 
@@ -41,7 +44,12 @@ class MorningMeasureRepositoryTest {
 
     @Test
     fun saveCommitsMeasureAndContinuityChangeTogether() = runBlocking {
-        val repository = MorningMeasureRepository(context, db, deviceIdentity)
+        val repository = MorningMeasureRepository(
+            context,
+            db,
+            deviceIdentity,
+            testLedgerRepository(context, db).provenance,
+        )
         val localDate = LocalDate.of(2026, 8, 28)
 
         val measure = repository.save(
@@ -68,7 +76,12 @@ class MorningMeasureRepositoryTest {
 
     @Test
     fun secondSaveForSameDateUpdatesInPlaceInsteadOfInserting() = runBlocking {
-        val repository = MorningMeasureRepository(context, db, deviceIdentity)
+        val repository = MorningMeasureRepository(
+            context,
+            db,
+            deviceIdentity,
+            testLedgerRepository(context, db).provenance,
+        )
         val localDate = LocalDate.of(2026, 8, 28)
 
         val first = repository.save(
@@ -109,7 +122,12 @@ class MorningMeasureRepositoryTest {
 
     @Test
     fun savesForDifferentDatesProduceTwoRows() = runBlocking {
-        val repository = MorningMeasureRepository(context, db, deviceIdentity)
+        val repository = MorningMeasureRepository(
+            context,
+            db,
+            deviceIdentity,
+            testLedgerRepository(context, db).provenance,
+        )
 
         repository.save(
             localDate = LocalDate.of(2026, 8, 27),

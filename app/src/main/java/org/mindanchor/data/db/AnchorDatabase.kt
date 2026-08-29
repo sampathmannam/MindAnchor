@@ -182,22 +182,9 @@ interface SafetyDao {
         ResearchLedgerEventEntity::class,
         StudyPhaseEntity::class,
     ],
-    // v0.70.x (Tier 2 audit finding): the on-device DB
-    // created by v0.69.x sits at version 4 with a 'tier'
-    // column on held_notifications (the v0.69.x Phase-2
-    // G-5 retention tier field). v0.70.0 ships without tier
-    // (the tier metadata moved to a separate DataStore key
-    // when held_notifications was collapsed from a single
-    // row per (tier, packet) to a single row per packet).
-    // Bumping to version 5 + adding MIGRATION_4_5 to drop
-    // the now-orphan column resolves the on-device crash
-    // `Room cannot verify the data integrity. Expected
-    // identity hash: 1fc7ea00..., found: 5e78fa6f...`. The
-    // new installation starts at v5 (the column never
-    // existed); the upgrade installation runs the drop
-    // column migration in-place. The tier data is in the
-    // DataStore key (NotificationPrefs.tier), so the column
-    // drop is safe — it was just denormalised data.
+    // v7 (Program 1): the append-only research ledger and
+    // study phases. See MIGRATION_6_7 for what the upgrade
+    // does and MIGRATION_4_5 for the v4/v5 tier history.
     version = 7,
     exportSchema = true,
 )
@@ -434,13 +421,37 @@ abstract class AnchorDatabase : RoomDatabase() {
             arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
 
         /**
-         * A fresh install never runs MIGRATION_6_7, and Room's generated
-         * createAllTables carries no triggers, so without this a
-         * brand-new database would have the research tables and none of
-         * their immutability.
+         * The callback **every** [AnchorDatabase] builder must add — use
+         * [withResearchImmutability] rather than referencing this
+         * directly, and see `ResearchBuilderCallbackTest`, which fails the
+         * build if a builder anywhere in this repository forgets.
+         *
+         * Two hooks, for two different holes:
+         *
+         *  - `onCreate`: a fresh install never runs MIGRATION_6_7, and
+         *    Room's generated `createAllTables` carries no triggers, so
+         *    without this a brand-new database would have the research
+         *    tables and none of their immutability.
+         *  - `onOpen`: self-healing. A database created by a build that
+         *    lacked this callback would otherwise stay mutable forever,
+         *    because `onCreate` never runs twice and MIGRATION_6_7 never
+         *    runs on a database already at version 7. The statements are
+         *    `IF NOT EXISTS`, so re-running them costs nothing.
+         *
+         * `onOpen` also turns on recursive triggers. Without it, SQLite
+         * performs `INSERT OR REPLACE`'s implicit delete *without* firing
+         * DELETE triggers — so a stray `OnConflictStrategy.REPLACE` would
+         * silently overwrite an immutable, hash-chained row with no error
+         * at all, which is exactly the outcome the triggers exist to
+         * prevent.
          */
-        private val researchImmutabilityCallback = object : RoomDatabase.Callback() {
+        val researchImmutabilityCallback = object : RoomDatabase.Callback() {
             override fun onCreate(db: SupportSQLiteDatabase) {
+                installResearchImmutability(db)
+            }
+
+            override fun onOpen(db: SupportSQLiteDatabase) {
+                db.execSQL("PRAGMA recursive_triggers = ON")
                 installResearchImmutability(db)
             }
         }
@@ -455,9 +466,22 @@ abstract class AnchorDatabase : RoomDatabase() {
                     AnchorDatabase::class.java,
                     "mindanchor.db",
                 ).addMigrations(*migrations())
-                    .addCallback(researchImmutabilityCallback)
+                    .withResearchImmutability()
                     .build()
                     .also { instance = it }
             }
     }
 }
+
+/**
+ * Adds the research-immutability callback. **Every** [AnchorDatabase]
+ * builder in this repository must call it — production and test alike.
+ *
+ * A test database without it has `research_ledger_events` and
+ * `study_phases` that are not append-only, which would let a restore or
+ * merge path quietly rewrite the ledger and let every test still pass.
+ * `ResearchBuilderCallbackTest` reads this repository's own source and
+ * fails if a builder forgets.
+ */
+fun <T : AnchorDatabase> RoomDatabase.Builder<T>.withResearchImmutability(): RoomDatabase.Builder<T> =
+    addCallback(AnchorDatabase.researchImmutabilityCallback)

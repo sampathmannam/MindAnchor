@@ -33,6 +33,7 @@ import org.mindanchor.data.FrictionPrefs
 import org.mindanchor.data.LauncherPrefs
 import org.mindanchor.data.NotesPrefs
 import org.mindanchor.data.db.AnchorDatabase
+import org.mindanchor.data.db.withResearchImmutability
 import org.mindanchor.data.mergeRestored
 import org.mindanchor.data.replaceAlwaysOpen
 import org.mindanchor.data.replaceFlagged
@@ -86,7 +87,9 @@ class RestoreScreenTest {
 
     @Before
     fun setUp() = runBlocking {
-        db = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java).build()
+        db = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java)
+            .withResearchImmutability()
+            .build()
         notesPrefs = NotesPrefs(context)
         letterStore = LetterStore(context)
         frictionPrefs = FrictionPrefs(context)

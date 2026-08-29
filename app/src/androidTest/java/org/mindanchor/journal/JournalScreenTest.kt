@@ -30,8 +30,11 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mindanchor.research.testLedgerRepository
 import org.mindanchor.data.db.AnchorDatabase
+import org.mindanchor.data.db.withResearchImmutability
 import org.mindanchor.research.MorningMeasureRepository
+import org.mindanchor.research.ResearchLedgerRepository
 import org.mindanchor.ui.MindAnchorTheme
 
 /**
@@ -50,13 +53,23 @@ class JournalScreenTest {
     private lateinit var db: AnchorDatabase
     private lateinit var deviceIdentity: DeviceIdentityStore
     private lateinit var journalRepository: JournalRepository
+    private lateinit var ledgerRepository: ResearchLedgerRepository
     private lateinit var draftStore: JournalDraftStore
 
     @Before
     fun setUp() {
-        db = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java).build()
+        db = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java)
+            .withResearchImmutability()
+            .build()
         deviceIdentity = DeviceIdentityStore(context)
-        journalRepository = JournalRepository(context, db, deviceIdentity, StructuralContextExtractor())
+        ledgerRepository = testLedgerRepository(context, db)
+        journalRepository = JournalRepository(
+            context,
+            db,
+            deviceIdentity,
+            StructuralContextExtractor(),
+            ledgerRepository.provenance,
+        )
         draftStore = JournalDraftStore(context)
         runBlocking { draftStore.clear() }
     }
@@ -68,7 +81,13 @@ class JournalScreenTest {
 
     private fun newViewModel(): JournalViewModel = JournalViewModel(
         journalRepository = journalRepository,
-        morningMeasureRepository = MorningMeasureRepository(context, db, deviceIdentity),
+        morningMeasureRepository = MorningMeasureRepository(
+                context,
+                db,
+                deviceIdentity,
+                ledgerRepository.provenance,
+            ),
+            ledgerRepository = ledgerRepository,
         draftStore = draftStore,
         database = db,
     )
