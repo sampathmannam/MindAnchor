@@ -1,5 +1,5 @@
 {
-  "version": "mindanchor-research-v1",
+  "version": "mindanchor-research-v2",
   "statement": "Every variable a MindAnchor research export can contain. Frozen: a change to this document requires a new version, and the old version stays readable forever.",
   "missingDataPolicyVersion": "missing-data-v1",
   "missingDataStatement": "Nothing is imputed, interpolated, carried forward, or filled in. Every absence is listed with a reason.",

@@ -24,7 +24,15 @@ import org.mindanchor.data.db.StudyPhaseEntity
  */
 class ResearchDataDictionaryTest {
 
-    private val golden = File("src/test/resources/research/data-dictionary.json")
+    /**
+     * Named by version, so v2's document survives v3's arrival. A single
+     * `data-dictionary.json` would have to be overwritten, and the version
+     * it described would then exist nowhere — which is the opposite of
+     * "the old version stays readable forever".
+     */
+    private val golden = File(
+        "src/test/resources/research/data-dictionary-${ContinuityContract.RESEARCH_DICTIONARY_VERSION}.json",
+    )
 
     private fun instanceFieldNames(type: Class<*>): List<String> = type.declaredFields
         .filter { !it.isSynthetic && !Modifier.isStatic(it.modifiers) }
@@ -41,9 +49,21 @@ class ResearchDataDictionaryTest {
     }
 
     @Test
-    fun `the dictionary hash is frozen`() {
+    fun `the dictionary hash is frozen, keyed by version`() {
+        // Keyed rather than a bare constant: bumping the version without
+        // changing the content, or changing the content without bumping
+        // the version, both have to be visible here rather than looking
+        // like the same one-line re-pin.
+        val frozen = mapOf(
+            "mindanchor-research-v2" to "78b06ec1b69e85eff7a3fa6fe775af6f92d97b98fc937a5e3ddb0f4b7eacba98",
+        )
         assertEquals(
-            "1fcb99abb0f59f0bb0abb36e4af5537f93a2a6e356fead228ab3f2b0658b26b6",
+            "the current dictionary version needs a frozen hash",
+            true,
+            ContinuityContract.RESEARCH_DICTIONARY_VERSION in frozen,
+        )
+        assertEquals(
+            frozen.getValue(ContinuityContract.RESEARCH_DICTIONARY_VERSION),
             ResearchDataDictionary.sha256,
         )
     }
