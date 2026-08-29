@@ -433,18 +433,26 @@ forward, or filled in; every absence *in the reported window* is
 enumerated explicitly with a reason.**
 
 The window qualifier is not a hedge, it is the honest statement of what
-the report contains. The window ends at the export date and reaches back
-at most `MAX_REPORT_DAYS` (ten years); a record dated more than
-`MAX_FUTURE_DAYS` (thirty days) beyond the export date, or further back
-than the reach, is excluded from choosing the window *and* from deciding
-the reasons inside it, and still appears verbatim in the data.
+the report contains. The window **ends on the export date** and reaches
+back at most `MAX_REPORT_DAYS` (ten years). A record dated after the
+export date, or further back than that reach, is excluded from choosing
+the window *and* from deciding the reasons inside it, and still appears
+verbatim in the data.
 
-The two bounds are deliberately asymmetric. A symmetric one was a real
-defect: a row dated 2126 instead of 2026 — one digit — sat inside a
-century-wide bound, dragged the window forward, and pushed every real
-date out of the report. Nothing legitimately records the future; the only
-reason to tolerate any of it is a device clock that is behind, which does
-not run to years.
+Both bounds were learned the hard way, over three attempts.
+
+A record dated *ahead* of the export date is never an absence: the day
+had not happened when the file was written. An earlier version ran the
+window on to the newest record, to cover a device whose clock had fallen
+behind — and produced absences on five days that had not occurred.
+Under-reporting the tail of a slow clock is the smaller wrong, and the
+statement says so rather than claiming neither happens.
+
+A record dated far *behind* it is a corrupt row, not a long study. Two
+earlier bounds failed here: first a clamp that let one row from the year
+3026 define a 36,600-row report about the thirtieth century, then a
+symmetric century-wide filter that a row dated 2126 instead of 2026 — one
+digit — walked straight through.
 
 `MissingDataPolicy.report(...)` is a pure function producing
 `MissingDataRecord(localDate, variable, reason)` for every local date from
