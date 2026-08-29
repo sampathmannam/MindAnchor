@@ -1,5 +1,6 @@
 package org.mindanchor.llm
 
+import android.util.Log
 import java.io.IOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
@@ -80,7 +81,17 @@ class OpenAiCompatibleClient(
         return LlmResponse(content = content, promptTokens = promptTokens, completionTokens = completionTokens, durationMs = durationMs)
     }
 
-    private fun mapHttpStatusToLetterError(code: Int, body: String): LetterError = when (code) {
+    private fun mapHttpStatusToLetterError(code: Int, body: String): LetterError = run {
+        // Temporary diagnostic (Program 0 real-device debugging session,
+        // 2026-08-29) — none of the mapped LetterError cases carry the
+        // provider's actual response body, so a real 404/403/etc. is
+        // indistinguishable from any other cause of the same status
+        // without this. Remove once the current investigation is done.
+        Log.w(LOG_TAG, "HTTP $code from $baseUrl: $body")
+        mapHttpStatusToLetterErrorInner(code)
+    }
+
+    private fun mapHttpStatusToLetterErrorInner(code: Int): LetterError = when (code) {
         401 -> LetterError.InvalidApiKey()
         403 -> LetterError.AccountUnauthorized()
         404 -> LetterError.ModelNotFound()
@@ -121,6 +132,7 @@ class OpenAiCompatibleClient(
     }
 
     companion object {
+        private const val LOG_TAG = "MindAnchor/LlmClient"
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
         private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
