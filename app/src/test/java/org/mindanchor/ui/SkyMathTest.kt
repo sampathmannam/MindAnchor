@@ -248,6 +248,72 @@ class SkyMathTest {
         }
     }
 
+    // --- Sun arc ----------------------------------------------------------
+
+    @Test
+    fun `sun sits low on the left at sunrise and low on the right at sunset`() {
+        assertEquals(0.12f, SkyMath.sunXFraction(at(5)), 0.001f)
+        assertEquals(0.58f, SkyMath.sunYFraction(at(5)), 0.001f)
+        assertEquals(0.88f, SkyMath.sunXFraction(at(21, 30)), 0.001f)
+        assertEquals(0.58f, SkyMath.sunYFraction(at(21, 30)), 0.001f)
+    }
+
+    @Test
+    fun `sun is centred and highest at solar noon`() {
+        val solarNoon = at(13, 15)
+        assertEquals(0.5f, SkyMath.sunXFraction(solarNoon), 0.001f)
+        assertEquals(0.12f, SkyMath.sunYFraction(solarNoon), 0.001f)
+    }
+
+    @Test
+    fun `sun moves left to right monotonically across the day`() {
+        var previous = SkyMath.sunXFraction(at(5))
+        for (hour in 6..21) {
+            val current = SkyMath.sunXFraction(at(hour))
+            assertTrue("sun moved backwards at $hour", current >= previous - 1e-6f)
+            previous = current
+        }
+    }
+
+    @Test
+    fun `sun's height is symmetric around solar noon`() {
+        val solarNoon = at(13, 15)
+        for (offsetMinutes in 0..400 step 20) {
+            val before = SkyMath.sunYFraction(solarNoon - offsetMinutes)
+            val after = SkyMath.sunYFraction(solarNoon + offsetMinutes)
+            assertEquals(
+                "height should mirror around solar noon at +/-$offsetMinutes minutes",
+                before,
+                after,
+                0.001f,
+            )
+        }
+    }
+
+    @Test
+    fun `sun position never leaves its designed range`() {
+        for (minute in 0 until 24 * 60) {
+            val x = SkyMath.sunXFraction(minute)
+            val y = SkyMath.sunYFraction(minute)
+            assertTrue("sun x $x out of range at minute $minute", x in 0.12f..0.88f)
+            assertTrue("sun y $y out of range at minute $minute", y in 0.12f..0.58f)
+        }
+    }
+
+    @Test
+    fun `sun position wraps instead of crashing out of range`() {
+        assertEquals(
+            SkyMath.sunXFraction(at(13)),
+            SkyMath.sunXFraction(at(13) + 24 * 60),
+            0.001f,
+        )
+        assertEquals(
+            SkyMath.sunYFraction(at(13)),
+            SkyMath.sunYFraction(at(13) + 24 * 60),
+            0.001f,
+        )
+    }
+
     // --- Colour maths sanity ---------------------------------------------
 
     @Test

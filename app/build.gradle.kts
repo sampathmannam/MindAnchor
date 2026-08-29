@@ -322,8 +322,19 @@ android {
         // disclosure. Neither claim was ever true app-wide; both are
         // now precisely scoped to what they actually describe.
         // versionCode 110→111.
-        versionCode = 111
-        versionName = "0.70.17"
+        // v0.70.18: the sun now moves. User picked a "high overhead arc"
+        // (low at sunrise/sunset, sweeping up near the top of the sky at
+        // solar noon) from a set of sampled options, and chose to keep
+        // the existing glow style as-is rather than the other sampled
+        // looks. Position is a pure function of the clock — SkyMath.
+        // sunXFraction/sunYFraction — computed the same way the palette
+        // itself already is, so it steps once a minute rather than
+        // animating continuously, matching this file's "nothing here
+        // animates" premise. Not verified live yet — the device was mid
+        // GitHub 2FA login when this shipped.
+        // versionCode 111→112.
+        versionCode = 112
+        versionName = "0.70.18"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every

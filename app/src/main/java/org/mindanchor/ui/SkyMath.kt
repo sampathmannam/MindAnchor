@@ -203,6 +203,49 @@ object SkyMath {
      */
     fun sunOpacity(minutesOfDay: Int): Float = 1f - starOpacity(minutesOfDay)
 
+    /** Sun rises at the same minute the stars finish fading in and sets when they start fading out. */
+    private const val SUNRISE_MINUTE = NIGHT_END_MINUTE
+    private const val SUNSET_MINUTE = NIGHT_START_MINUTE
+
+    private const val SUN_SUNRISE_X = 0.12f
+    private const val SUN_SET_X = 0.88f
+    private const val SUN_HORIZON_Y = 0.58f
+    private const val SUN_ZENITH_Y = 0.12f
+
+    /**
+     * 0 at sunrise, 1 at sunset — where the sun is along today's arc.
+     * Clamped, so a call during the night (when [sunOpacity] is already 0
+     * and the sun is not drawn) still returns a defined value.
+     */
+    private fun sunDayProgress(minutesOfDay: Int): Float {
+        val minutes = ((minutesOfDay % DAY_MINUTES) + DAY_MINUTES) % DAY_MINUTES
+        val span = (SUNSET_MINUTE - SUNRISE_MINUTE).toFloat()
+        return ((minutes - SUNRISE_MINUTE) / span).coerceIn(0f, 1f)
+    }
+
+    /**
+     * Horizontal position of the sun, 0 (left edge) to 1 (right edge),
+     * moving left to right over the course of the day. Like the palette
+     * itself, this only changes with the once-a-minute clock tick — the
+     * sun does not animate, it steps, the same way the sky's colour does.
+     */
+    fun sunXFraction(minutesOfDay: Int): Float {
+        val t = sunDayProgress(minutesOfDay)
+        return SUN_SUNRISE_X + (SUN_SET_X - SUN_SUNRISE_X) * t
+    }
+
+    /**
+     * Vertical position of the sun, 0 (top of the sky) to 1 (bottom).
+     * A high overhead arc: low at sunrise and sunset, sweeping up near
+     * the top of the sky at solar noon. `sin` of the day-progress traces
+     * that arc in one line — 0 at both ends, 1 at the midpoint.
+     */
+    fun sunYFraction(minutesOfDay: Int): Float {
+        val t = sunDayProgress(minutesOfDay)
+        val height = kotlin.math.sin(t * Math.PI).toFloat().coerceIn(0f, 1f)
+        return SUN_HORIZON_Y - (SUN_HORIZON_Y - SUN_ZENITH_Y) * height
+    }
+
     /** The composited background a caller's text actually sits on. */
     fun withHaze(background: Rgb, palette: SkyPalette): Rgb =
         blend(background, palette.haze, palette.hazeAlpha.toDouble())

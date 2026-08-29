@@ -100,16 +100,24 @@ fun CalmBackground(content: @Composable (SkyContent) -> Unit) {
                 drawStars(opacity = starOpacity, tint = SkyMath.TEXT_LIGHT.toColor())
             }
 
-            // The sun, drawn the same way as the stars above: a soft,
-            // deterministic shape whose only movement is its opacity,
-            // fading in and out on the exact same dawn/dusk windows
-            // (sunOpacity is the complement of starOpacity), so the two
-            // are never both on screen at once. A soft radial glow
-            // rather than a hard disc, for the same "distance reads as
-            // atmosphere, not as an object demanding attention" reason
-            // the hills are filled shapes and not a spotlight.
+            // The sun: a soft radial glow rather than a hard disc, for
+            // the same "distance reads as atmosphere, not as an object
+            // demanding attention" reason the hills are filled shapes
+            // and not a spotlight. It fades in and out on the exact
+            // same dawn/dusk windows as the stars (sunOpacity is their
+            // complement), so the two are never both on screen at
+            // once. Its position traces a high overhead arc across the
+            // day — low at sunrise and sunset, near the top of the sky
+            // at solar noon — computed the same way the palette itself
+            // is: a pure function of the clock, stepping once a minute
+            // rather than animating.
             if (sunOpacity > 0f) {
-                drawSun(opacity = sunOpacity, tint = SUN_TINT.toColor())
+                drawSun(
+                    opacity = sunOpacity,
+                    tint = SUN_TINT.toColor(),
+                    xFraction = SkyMath.sunXFraction(minuteOfDay),
+                    yFraction = SkyMath.sunYFraction(minuteOfDay),
+                )
             }
 
             // Two hills, drawn as shapes rather than as glows.
@@ -218,15 +226,13 @@ private fun DrawScope.drawStars(opacity: Float, tint: Color) {
 }
 
 /**
- * Where the sun sits: upper-left, clear of the centred clock and the
- * top-right corner buttons (letter / notes / history). Fixed, like the
- * stars — this file's premise is that nothing here animates, so the sun
- * does not arc across the sky, it only fades in and out with the day.
+ * How far the glow reaches, as a fraction of the sky's width. The sun's
+ * arc (see [SkyMath.sunXFraction] / [SkyMath.sunYFraction]) does cross
+ * behind the clock and the corner buttons at points in the day — the
+ * same thing already happens with the star field, which scatters across
+ * the full width. A soft, low-opacity glow behind opaque text reads as
+ * atmosphere, not as something competing with it.
  */
-private const val SUN_X_FRACTION = 0.22f
-private const val SUN_Y_FRACTION = 0.15f
-
-/** How far the glow reaches, as a fraction of the sky's width. */
 private const val SUN_RADIUS_FRACTION = 0.28f
 
 /** Peak alpha at the glow's centre; it falls to 0 at [SUN_RADIUS_FRACTION]. */
@@ -242,9 +248,13 @@ private val SUN_TINT = Rgb(0xF2, 0xDC, 0xAD)
  * A soft glow standing in for the sun, the same treatment [drawStars] gives
  * the night sky: a radial gradient rather than a hard-edged disc, so it
  * reads as daylight rather than as a shape sitting on top of the sky.
+ *
+ * [xFraction] / [yFraction] place it along today's arc — like the
+ * palette itself, position only changes on the once-a-minute clock
+ * tick that redraws this whole Canvas, not a continuous animation.
  */
-private fun DrawScope.drawSun(opacity: Float, tint: Color) {
-    val center = Offset(size.width * SUN_X_FRACTION, size.height * SUN_Y_FRACTION)
+private fun DrawScope.drawSun(opacity: Float, tint: Color, xFraction: Float, yFraction: Float) {
+    val center = Offset(size.width * xFraction, size.height * yFraction)
     val radius = size.width * SUN_RADIUS_FRACTION
     drawCircle(
         brush = Brush.radialGradient(
