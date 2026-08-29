@@ -78,14 +78,19 @@ had started that measure at all. Nothing is imputed, interpolated, or
 carried forward. A series that quietly looks complete is worse than one
 with visible holes.
 
-The report says which window it covers rather than promising more than it
-can deliver: it ends on the day you exported and reaches back at most ten
-years. A row carrying an impossible date — a corrupt restore, or a clock
-that was wrong when it was written — is left out of choosing that window
-and out of deciding the reasons inside it, so one bad row cannot bury
-your real history under thousands of invented absences, and cannot turn
-"you hadn't started this yet" into "you skipped it". The row itself is
-still exported exactly as stored.
+The file states which window it covered rather than leaving you to guess:
+it ends on the day you exported — never after, because a day that hasn't
+happened can't be missing — and reaches back about ten years. A row
+carrying an impossible date, from a corrupt restore or a clock that was
+wrong when it was written, is left out of choosing that window and out of
+deciding the reasons inside it, so one bad row cannot bury your real
+history under thousands of invented absences, and cannot turn "you hadn't
+started this yet" into "you skipped it". The row itself is still exported
+exactly as stored.
+
+If your phone's clock is wrong enough that nothing falls inside a window
+it can vouch for, the file says it reported on nothing at all, rather
+than showing an empty list that would read as a perfect record.
 
 ### The export explains itself
 
