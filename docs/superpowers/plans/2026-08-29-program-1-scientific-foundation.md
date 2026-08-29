@@ -518,7 +518,7 @@ object MissingDataPolicy {
     // Final wording (see Task 13 review fixes): names the window, because
     // a report that silently covers less than it promises is the failure
     // this policy exists to prevent.
-    const val STATEMENT = "Nothing is imputed, interpolated, carried forward, or filled in. Every absence in the reported window is listed with a reason. The window is stated in this file: it ends on the export date — never after it, because a day that has not happened cannot be missing — and reaches back about ten years. When no record falls inside it the window is absent and no absence is reported, which is not the same as having missed nothing. Records dated outside the window are excluded from it and from the reasons given inside it, and still appear in the data."
+    const val STATEMENT = "Nothing is imputed, interpolated, carried forward, or filled in. Every absence in the reported window is listed with a reason. The window is stated in this file, in the exporting device\u2019s local dates: it ends on the device\u2019s export date — never after it, because a day that has not happened cannot be missing — and reaches back about ten years. When no record could be an observation, the window is absent and no absence is reported, which is not the same as having missed nothing. Records dated outside the window are excluded from it and from the reasons given inside it, and still appear in the data."
     fun report(
         firstRecordDate: LocalDate?, throughDate: LocalDate,
         measureDates: Set<String>, entryDatesWithoutContext: Set<String>, contextExtractionEnabled: Boolean,
