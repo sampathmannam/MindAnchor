@@ -70,6 +70,7 @@ class LlmPrefs(private val context: Context) {
             LlmProvider.GOOGLE_AI_STUDIO.name -> LlmProvider.GOOGLE_AI_STUDIO
             LlmProvider.OPENROUTER.name -> LlmProvider.OPENROUTER
             LlmProvider.GROQ.name -> LlmProvider.GROQ
+            LlmProvider.DEEPSEEK.name -> LlmProvider.DEEPSEEK
             else -> LlmProvider.GOOGLE_AI_STUDIO
         }
     }

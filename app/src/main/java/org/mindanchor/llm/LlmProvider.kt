@@ -40,4 +40,26 @@ enum class LlmProvider(
             "meta-llama/llama-4-maverick-17b-128e-instruct",
         ),
     ),
+    DEEPSEEK(
+        displayName = "DeepSeek",
+        signupUrl = "https://platform.deepseek.com/api_keys",
+        baseUrl = "https://api.deepseek.com/v1/",
+        defaultModel = "deepseek-chat",
+        isFree = false,
+        // v0.72+ (2026-08-29) — api.deepseek.com has no
+        // CertificatePinning entry: this dev environment
+        // could not reach the host at all to capture a
+        // live chain (unlike generativelanguage.googleapis.com,
+        // which was reachable but through a proxy that
+        // showed a different, wrong chain — the exact
+        // failure mode that produced the stale Google
+        // pins this session had to fix). Shipping a
+        // guessed pin risks repeating that bug closed;
+        // CertificatePinning.forBaseUrl returns null for
+        // this host, so calls fall back to the platform
+        // trust store (the same posture every host had
+        // before pinning existed). Add a real pin once
+        // captured from a real device on a real network.
+        suggestedModels = listOf("deepseek-chat", "deepseek-reasoner"),
+    ),
 }

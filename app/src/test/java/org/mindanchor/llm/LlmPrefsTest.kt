@@ -53,7 +53,7 @@ class LlmPrefsTest {
     }
 
     @Test
-    fun `setProvider round-trips for all three values`() = runBlocking {
+    fun `setProvider round-trips for all provider values`() = runBlocking {
         for (p in LlmProvider.values()) {
             prefs.setProvider(p)
             assertEquals(p, prefs.provider.first())
