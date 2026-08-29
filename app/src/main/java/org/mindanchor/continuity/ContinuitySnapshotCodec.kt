@@ -31,7 +31,7 @@ object ContinuitySnapshotCodec {
     fun decode(text: String): DecodeResult {
         val parsed = runCatching { json.decodeFromString<ContinuitySnapshot>(text) }
             .getOrElse { return DecodeResult.Corrupt }
-        if (parsed.formatVersion != ContinuitySnapshot.CURRENT_FORMAT_VERSION) {
+        if (parsed.formatVersion !in ContinuityContract.SUPPORTED_SNAPSHOT_FORMAT_VERSIONS) {
             return DecodeResult.UnsupportedVersion(parsed.formatVersion)
         }
         return DecodeResult.Success(parsed)
