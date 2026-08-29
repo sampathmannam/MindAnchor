@@ -5,6 +5,8 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -456,7 +458,18 @@ private fun ActionsSection(viewModel: ContinuitySettingsViewModel) {
         AlertDialog(
             onDismissRequest = { showResearchPrivacyDialog = false },
             title = { Text(stringResource(R.string.continuity_export_research_privacy_title)) },
-            text = { Text(stringResource(R.string.continuity_export_research_privacy_body)) },
+            // Scrollable because the body enumerates every category that
+            // leaves the device and ends with the sentence that matters
+            // most -- that anyone who opens the file can read all of it.
+            // material3's alert-dialog text slot does not scroll on its
+            // own, so at a large font scale that tail was unreachable and
+            // the consent was for less than the file contains.
+            text = {
+                Text(
+                    text = stringResource(R.string.continuity_export_research_privacy_body),
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                )
+            },
             confirmButton = {
                 TextButton(
                     onClick = {

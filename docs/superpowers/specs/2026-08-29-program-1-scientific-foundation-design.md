@@ -284,7 +284,7 @@ none:
 | --- | --- |
 | Edit, delete, reorder, or insert anywhere in the interior | Yes, by the chain alone |
 | Accidental corruption | Yes, by the chain alone |
-| Truncating the newest events | Only against a `LedgerAnchor` |
+| Truncating the newest events | Only against a count recorded outside the ledger |
 | Re-linking the whole file from scratch | No — see below |
 
 Tail truncation is the gap that matters most here: drop the last *k*
@@ -294,12 +294,23 @@ the last few rows" is the likeliest direction. The count has to be
 recorded somewhere the chain is not.
 
 `ContinuityPrefs` holds a **high-water mark**: the largest ledger this
-device has ever held, raised after every research write and never
-lowered. The export compares against it, and reports
-`LedgerIntegrity.BROKEN` when the ledger has *shrunk* below it. Only
-shrinking is evidence — a mark that is behind means a write that did not
-refresh it, or a ledger restored onto a phone that has not written since,
-so a missed refresh weakens detection and can never raise a false alarm.
+device has ever held, raised after any transaction that grew the ledger —
+a research-log entry, and also a study phase opened by a Journal save or
+a morning measure — and never lowered. The export compares against it,
+and reports `LedgerIntegrity.BROKEN` when the ledger has *shrunk* below
+it. Only shrinking is evidence — a mark that is behind means a write that
+did not refresh it, or a ledger restored onto a phone that has not
+written since, so a missed refresh weakens detection and can never raise
+a false alarm.
+
+The mark is also **carried in the export**, as `ledgerHighWaterCount`.
+Without it a recipient could only take the app's verdict on trust: every
+other integrity field in the file is computed from the list the file
+itself contains. With it they can reproduce the verdict, and tell the two
+failures apart — a chain that verifies while the count sits below the
+mark is a truncation, not a corrupted chain, and those want different
+responses. A zero means the device had no mark to report and is evidence
+of nothing.
 
 The anchor the export *carries* (`ledgerHeadHash`, `ledgerEventCount`) is
 derived from the very list the file contains, so on its own it tells a
@@ -337,7 +348,7 @@ produced or interpreted:
 | `ruleSetVersion` | `rule-set-none-v1` | Program 1 ships no decision rules |
 | `modelSetVersion` | `model-set-none-v1` | Program 1 ships no models |
 | `transformationSetVersion` | hash of the transformation registry | §7 |
-| `missingDataPolicyVersion` | `missing-data-v1` | §7 |
+| `missingDataPolicyVersion` | `missing-data-v2` | §7 |
 | `instrumentVersion` | `morning-v1` | `MorningMeasure.INSTRUMENT_VERSION` |
 | `dictionaryVersion` | `mindanchor-research-v2` | §8 |
 | `sourceDeviceId` | `DeviceIdentityStore.id()` | Program 0 |
@@ -417,7 +428,7 @@ change opens a new phase, correctly.
 
 ### 7.2 Missing-data policy
 
-`missing-data-v1`, stated in one sentence: **nothing is ever imputed,
+`missing-data-v2`, stated in one sentence: **nothing is ever imputed,
 interpolated, carried forward, or filled in; every absence is enumerated
 explicitly with a reason.**
 
@@ -665,6 +676,22 @@ Conservative in-scope calls made without interrupting the owner:
     plaintext file handed to a clinician or an insurer is not
     recoverable, so consent obtained for a smaller dataset must not be
     reused for a larger one.
+
+11. **The missing-data window is chosen by excluding implausible records,
+    not by clamping around them.** The first implementation took the
+    window from the outermost recorded dates and clamped the result. That
+    is not equivalent: one row stamped a thousand years in the future
+    dragged the window with it, and the report listed thirty-six thousand
+    absences in the thirtieth century while dropping every date the person
+    had actually lived — in a document whose own policy statement promises
+    that every absence is listed. Excluding a record that is implausibly
+    far from the export date, in either direction, keeps the report about
+    the person. The excluded row is still exported verbatim in the data
+    itself; only the derived report ignores it. This changed the policy's
+    meaning, so it is `missing-data-v2` rather than an edit to v1, and the
+    provenance vector carries it — a device that recorded under the old
+    rule opens a new study phase rather than having its history
+    reinterpreted.
 
 ## 15. Sources used
 

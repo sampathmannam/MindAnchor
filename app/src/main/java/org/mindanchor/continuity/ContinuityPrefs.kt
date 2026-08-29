@@ -35,7 +35,7 @@ enum class ContinuityErrorCode { NONE, AUTH, NETWORK, KEY_MISSING, VERIFY_FAILED
  *    derive the UI-facing state.
  *
  * CRITICAL: every field stored here is a timestamp, an opaque id/hash
- * string, a boolean, or a closed [ContinuityErrorCode] — never an
+ * string, a boolean, a count of records, or a closed [ContinuityErrorCode] — never an
  * exception message, Journal text, an access token, or recovery-key
  * material. Nothing in this class ever logs a field's value either.
  */
@@ -189,7 +189,10 @@ class ContinuityPrefs(private val context: Context) {
     /** Raises the mark to [eventCount]/[headHash]. Never lowers it — see [ledgerHighWater]. */
     suspend fun raiseLedgerHighWater(eventCount: Int, headHash: String) {
         context.continuityDataStore.edit { prefs ->
-            if ((prefs[ledgerHighWaterCountKey] ?: 0) <= eventCount) {
+            // Strictly greater: an equal count with a different head is
+            // not a higher mark, and overwriting the head on equality would
+            // quietly replace the recorded anchor with a rewritten one.
+            if ((prefs[ledgerHighWaterCountKey] ?: 0) < eventCount) {
                 prefs[ledgerHighWaterCountKey] = eventCount
                 prefs[ledgerHighWaterHeadKey] = headHash
             }

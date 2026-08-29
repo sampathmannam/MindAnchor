@@ -76,7 +76,8 @@ class StudyPhaseTest {
             StudyPhaseReason.RULE_VERSION_CHANGE to vector.copy(ruleSetVersion = "rule-set-sunset-v1"),
             StudyPhaseReason.MODEL_VERSION_CHANGE to vector.copy(modelSetVersion = "model-set-baseline-v1"),
             StudyPhaseReason.TRANSFORMATION_VERSION_CHANGE to vector.copy(transformationSetVersion = "other"),
-            StudyPhaseReason.MISSING_DATA_POLICY_CHANGE to vector.copy(missingDataPolicyVersion = "missing-data-v2"),
+            StudyPhaseReason.MISSING_DATA_POLICY_CHANGE to
+                vector.copy(missingDataPolicyVersion = "not-a-real-policy-version"),
             StudyPhaseReason.INSTRUMENT_VERSION_CHANGE to vector.copy(instrumentVersion = "morning-v2"),
             StudyPhaseReason.DICTIONARY_VERSION_CHANGE to vector.copy(dictionaryVersion = "mindanchor-research-v9"),
             StudyPhaseReason.DEVICE_CHANGE to vector.copy(sourceDeviceId = "device-b"),

@@ -2,6 +2,7 @@ package org.mindanchor.research
 
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
+import kotlin.math.abs
 import kotlinx.serialization.Serializable
 
 /**
@@ -64,11 +65,21 @@ data class MissingDataRecord(val localDate: String, val variable: String, val re
  */
 object MissingDataPolicy {
 
-    const val VERSION = "missing-data-v1"
+    /**
+     * v2: the report's window is now chosen by [windowFor], which excludes
+     * implausibly dated records instead of letting one define the span.
+     * A new version rather than an edit, because the provenance vector
+     * carries this string: devices that recorded under the old rule open a
+     * new study phase rather than having their history reinterpreted.
+     */
+    const val VERSION = "missing-data-v2"
 
     const val STATEMENT =
         "Nothing is imputed, interpolated, carried forward, or filled in. " +
-            "Every absence is listed with a reason."
+            "Every absence in the reported window is listed with a reason. " +
+            "The window spans the recorded dates, excluding any so far from " +
+            "the export date that they indicate a wrong clock rather than an " +
+            "observation."
 
     /** The morning research measure, one per local date. */
     const val VARIABLE_MORNING_MEASURE = "morning_measure"
@@ -82,6 +93,44 @@ object MissingDataPolicy {
      * and materialising one would hang the export.
      */
     const val MAX_REPORT_DAYS = 36_600L
+
+    /** The span a missing-data report covers: [start] to [through], inclusive. */
+    data class ReportWindow(val start: LocalDate, val through: LocalDate)
+
+    /**
+     * Chooses the window a report should cover, from the dates actually
+     * recorded and the date the export was taken.
+     *
+     * The rule is that an implausible date is *excluded* from choosing the
+     * window, never allowed to define it. That distinction is the whole
+     * point of this function. Taking the window from the outermost records
+     * and clamping afterwards looks equivalent and is not: a single row
+     * stamped a thousand years in the future moved the window with it, so
+     * the report listed thirty-six thousand absences in the thirtieth
+     * century and not one about a date the person had lived - in a
+     * document whose own policy statement says every absence is listed.
+     * A confidently wrong report is worse than the crash the clamp was
+     * added to prevent.
+     *
+     * "Implausible" is measured against the export date, in either
+     * direction, at [MAX_REPORT_DAYS]. It is deliberately generous: a
+     * record a few days ahead of a slow device clock is ordinary and must
+     * still be reported through, and only something like a corrupt row or
+     * a clock set to the wrong millennium falls outside it.
+     *
+     * Returns null when no record is plausible, because reporting a
+     * century of absences around one corrupt row asserts a history that
+     * did not happen.
+     */
+    fun windowFor(recordDates: List<LocalDate>, exportDate: LocalDate): ReportWindow? {
+        val plausible = recordDates.filter {
+            abs(ChronoUnit.DAYS.between(it, exportDate)) <= MAX_REPORT_DAYS
+        }
+        val through = maxOf(exportDate, plausible.maxOrNull() ?: return null)
+        val earliest = through.minusDays(MAX_REPORT_DAYS)
+        val start = plausible.filter { !it.isBefore(earliest) }.minOrNull() ?: return null
+        return ReportWindow(start = start, through = through)
+    }
 
     /**
      * Enumerates every absence between [firstRecordDate] and [throughDate]

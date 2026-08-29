@@ -66,10 +66,33 @@ data class ResearchExport(
     val ledgerEventCount: Int = 0,
 
     /**
-     * What this build made of the chain when it exported. A convenience,
-     * not the authority: a reader holding the file should re-run
-     * `LedgerChain.verify` against [ledgerHeadHash] and [ledgerEventCount]
-     * themselves rather than trust a verdict the file carries about itself.
+     * The largest ledger the exporting device ever recorded holding, from
+     * its own storage rather than from the list above.
+     *
+     * This is the one number here that is not derived from the carried
+     * events, and it is what makes truncation visible: [ledgerHeadHash]
+     * and [ledgerEventCount] are computed from the very list they describe,
+     * so they can only show that the *file* changed after it was written.
+     * A count kept elsewhere can show that events were already gone when
+     * the file was written.
+     *
+     * Zero means the device had no mark to report -- a phone that had not
+     * written since a restore, or a build older than the mark. Zero is not
+     * evidence of anything; only [ledgerEventCount] falling *below* a
+     * non-zero value here is.
+     */
+    val ledgerHighWaterCount: Int = 0,
+
+    /**
+     * What this build made of the chain when it exported.
+     *
+     * Reproducible rather than trusted: re-run `LedgerChain.verify` over
+     * [ledgerEvents], and separately compare [ledgerEventCount] against
+     * [ledgerHighWaterCount]. Those two checks also tell the two failures
+     * apart, which this single field cannot -- a chain that verifies while
+     * the count sits below the high-water mark is a truncation, not a
+     * broken chain, and reporting it as `BROKEN` without that comparison
+     * would send a reader looking for corruption that is not there.
      */
     val ledgerIntegrity: LedgerIntegrity = LedgerIntegrity.NOT_APPLICABLE,
 

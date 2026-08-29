@@ -2,6 +2,8 @@ package org.mindanchor.research
 
 import java.lang.reflect.Modifier
 import java.time.LocalDate
+import org.junit.Assert.assertNull
+import java.time.temporal.ChronoUnit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -32,8 +34,15 @@ class MissingDataPolicyTest {
 
     @Test
     fun `the policy states its version and its rule`() {
-        assertEquals("missing-data-v1", MissingDataPolicy.VERSION)
+        assertEquals("missing-data-v2", MissingDataPolicy.VERSION)
         assertTrue(MissingDataPolicy.STATEMENT.contains("Nothing is imputed"))
+        // The statement has to describe the window it actually reports.
+        // It once promised every absence outright, while the report
+        // silently covered a window chosen from the records.
+        assertTrue(
+            "the statement must say the report is windowed",
+            MissingDataPolicy.STATEMENT.contains("in the reported window"),
+        )
     }
 
     @Test
@@ -214,5 +223,108 @@ class MissingDataPolicyTest {
         )
         assertTrue(MissingDataReason.SENSOR_GAP !in produced)
         assertTrue(MissingDataReason.DEVICE_CHANGE_GAP !in produced)
+    }
+
+    // --- window selection -------------------------------------------------
+    //
+    // These exist because a probe found that one corrupt row could define
+    // the whole window. The rule under test is that an implausible date is
+    // *excluded* from choosing the window, never allowed to set it.
+
+    @Test
+    fun `a single far-future row does not push the window past every real date`() {
+        // A row stamped 3026-01-01 -- a mis-set clock, or a corrupt import.
+        // Letting it set `throughDate` moved the window start to 2925 and
+        // produced 36,601 absences, not one of which was about a date the
+        // person had lived, in a document still claiming every absence was
+        // listed.
+        val window = requireNotNull(
+            MissingDataPolicy.windowFor(
+                recordDates = listOf("2026-08-01", "2026-08-27", "2026-08-29", "3026-01-01").map(LocalDate::parse),
+                exportDate = LocalDate.parse("2026-08-29"),
+            ),
+        )
+        assertEquals(LocalDate.parse("2026-08-01"), window.start)
+        assertEquals(LocalDate.parse("2026-08-29"), window.through)
+    }
+
+    @Test
+    fun `a single far-past row does not stretch the window back a century`() {
+        val window = requireNotNull(
+            MissingDataPolicy.windowFor(
+                recordDates = listOf("1000-01-01", "2026-08-01", "2026-08-29").map(LocalDate::parse),
+                exportDate = LocalDate.parse("2026-08-29"),
+            ),
+        )
+        assertEquals(LocalDate.parse("2026-08-01"), window.start)
+        assertEquals(LocalDate.parse("2026-08-29"), window.through)
+    }
+
+    @Test
+    fun `an outlier at each end still produces a bounded report`() {
+        val window = requireNotNull(
+            MissingDataPolicy.windowFor(
+                recordDates = listOf("1000-01-01", "2026-08-29", "3026-01-01").map(LocalDate::parse),
+                exportDate = LocalDate.parse("2026-08-29"),
+            ),
+        )
+        val report = MissingDataPolicy.report(
+            firstRecordDate = window.start,
+            throughDate = window.through,
+            allMeasureDates = emptySet(),
+            entryDatesWithoutContext = emptySet(),
+        )
+        assertEquals(1, report.size)
+    }
+
+    @Test
+    fun `a clock behind the newest record still reports through that record`() {
+        // The narrower reading of "implausible" would have dropped this row
+        // and silently ended the report nine days early. A record a few
+        // days ahead of a slow clock is ordinary; one a thousand years
+        // ahead is not.
+        val window = requireNotNull(
+            MissingDataPolicy.windowFor(
+                recordDates = listOf("2026-08-01", "2026-08-29").map(LocalDate::parse),
+                exportDate = LocalDate.parse("2026-08-20"),
+            ),
+        )
+        assertEquals(LocalDate.parse("2026-08-01"), window.start)
+        assertEquals(LocalDate.parse("2026-08-29"), window.through)
+    }
+
+    @Test
+    fun `the window never runs backwards and never exceeds the policy maximum`() {
+        val window = requireNotNull(
+            MissingDataPolicy.windowFor(
+                // Far apart, but each within a lifetime of the export date,
+                // so both survive the plausibility filter and the span has
+                // to be bounded by the clamp rather than by the filter.
+                recordDates = listOf("1930-01-01", "2026-08-29").map(LocalDate::parse),
+                exportDate = LocalDate.parse("2026-08-29"),
+            ),
+        )
+        assertTrue("the window must not run backwards", !window.through.isBefore(window.start))
+        assertTrue(
+            "the window must stay inside MAX_REPORT_DAYS so `report` cannot throw",
+            ChronoUnit.DAYS.between(window.start, window.through) <= MissingDataPolicy.MAX_REPORT_DAYS,
+        )
+    }
+
+    @Test
+    fun `no records at all means no window rather than an invented one`() {
+        assertNull(MissingDataPolicy.windowFor(emptyList(), LocalDate.parse("2026-08-29")))
+    }
+
+    @Test
+    fun `records that are all implausible leave no window`() {
+        // Reporting a century of absences around a single corrupt row
+        // asserts a history that did not happen.
+        assertNull(
+            MissingDataPolicy.windowFor(
+                listOf(LocalDate.parse("3026-01-01")),
+                LocalDate.parse("2026-08-29"),
+            ),
+        )
     }
 }

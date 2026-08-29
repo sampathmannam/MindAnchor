@@ -5,6 +5,7 @@ import androidx.room.withTransaction
 import java.time.Instant
 import java.time.ZoneId
 import java.util.UUID
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.mindanchor.continuity.ContinuityPrefs
@@ -118,12 +119,20 @@ open class ResearchLedgerRepository(
      * here must not cost the person the event they just recorded, which is
      * already committed by this point.
      */
+    override suspend fun afterLedgerGrew() = raiseLedgerHighWater()
+
+    @Suppress("detekt.SwallowedException")
     private suspend fun raiseLedgerHighWater() {
-        runCatching {
+        try {
             val head = dao.ledgerHead()
             if (head != null) {
                 ContinuityPrefs(context).raiseLedgerHighWater(dao.ledgerEventCount(), head.eventHash)
             }
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+            // Best-effort by design -- see the KDoc above. A failure here
+            // must not cost the person the event already committed.
         }
     }
 

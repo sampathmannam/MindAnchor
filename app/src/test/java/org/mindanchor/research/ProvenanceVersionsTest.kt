@@ -57,7 +57,7 @@ class ProvenanceVersionsTest {
             "ruleSetVersion" to base.copy(ruleSetVersion = "rule-set-sunset-v1"),
             "modelSetVersion" to base.copy(modelSetVersion = "model-set-baseline-v1"),
             "transformationSetVersion" to base.copy(transformationSetVersion = "other"),
-            "missingDataPolicyVersion" to base.copy(missingDataPolicyVersion = "missing-data-v2"),
+            "missingDataPolicyVersion" to base.copy(missingDataPolicyVersion = "not-a-real-policy-version"),
             "instrumentVersion" to base.copy(instrumentVersion = "morning-v2"),
             "dictionaryVersion" to base.copy(dictionaryVersion = "mindanchor-research-v9"),
             "sourceDeviceId" to base.copy(sourceDeviceId = "device-b"),

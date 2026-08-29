@@ -5,6 +5,7 @@ import android.net.Uri
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -61,6 +62,7 @@ object ResearchExportBuilder {
      * a crash. A typed [ExportOutcome.BuildFailed] is what a caller can
      * actually show.
      */
+    @Suppress("detekt.SwallowedException")
     suspend fun export(
         context: Context,
         database: AnchorDatabase,
@@ -68,17 +70,26 @@ object ResearchExportBuilder {
         now: Long = System.currentTimeMillis(),
         zone: ZoneId = ZoneId.systemDefault(),
     ): ExportOutcome {
-        val export = runCatching {
-            val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-            build(
-                database = database,
-                highWater = ContinuityPrefs(context).ledgerHighWater.first(),
-                now = now,
-                zone = zone,
-                appVersionCode = packageInfo.longVersionCode.toInt(),
-                appVersionName = packageInfo.versionName.orEmpty(),
-            )
-        }.getOrElse { return ExportOutcome.BuildFailed }
+        val export = try {
+            withContext(Dispatchers.IO) {
+                val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+                build(
+                    database = database,
+                    highWater = ContinuityPrefs(context).ledgerHighWater.first(),
+                    now = now,
+                    zone = zone,
+                    appVersionCode = packageInfo.longVersionCode.toInt(),
+                    appVersionName = packageInfo.versionName.orEmpty(),
+                )
+            }
+        } catch (cancellation: CancellationException) {
+            // Not a build failure. Reporting one would show the person
+            // "Couldn't export the file" for an export they navigated away
+            // from, which is a wrong statement rather than a wrong outcome.
+            throw cancellation
+        } catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+            return ExportOutcome.BuildFailed
+        }
 
         val wrote = withContext(Dispatchers.IO) {
             BackupRepository.write(context, uri, ResearchExportCodec.encode(export))
@@ -134,6 +145,7 @@ object ResearchExportBuilder {
                 ledgerHeadHash = LedgerChain.headHash(ledgerDomain),
                 ledgerEventCount = ledger.size,
                 ledgerIntegrity = integrityOf(ledgerDomain, highWater),
+                ledgerHighWaterCount = highWater?.eventCount ?: 0,
                 studyPhases = phases,
                 protocolRegistry = catalog.protocols,
                 protocolCatalogSha256 = catalog.catalogSha256,
@@ -177,22 +189,13 @@ object ResearchExportBuilder {
     }
 
     /**
-     * Every absence between the first record and the later of "now" and the
-     * newest record.
+     * Every absence across the window [MissingDataPolicy.windowFor] picks
+     * from the dates actually recorded.
      *
-     * Using the newest record rather than the clock alone closes two holes.
-     * A device whose clock is behind its own newest row would otherwise
-     * produce an empty report while the document still says every absence
-     * is listed; and a window that ran backwards would report nothing at
-     * all, indistinguishable from a person who had missed nothing.
-     *
-     * The window is also clamped to the policy's maximum span. A single
-     * corrupt or mis-clocked `localDate` — a row stamped 1000-01-01, say —
-     * would otherwise ask for four hundred thousand records and throw, and
-     * an export that throws leaves the person a zero-byte file. Reporting
-     * the most recent span is worse than reporting all of it and much
-     * better than reporting none of it, and the clamp is visible: the
-     * earliest absence listed is later than the earliest record.
+     * The window choice lives in the policy rather than here because it is
+     * policy: which records are allowed to define the span a report claims
+     * to cover. This function's only job is to gather the dates and hand
+     * them over.
      */
     @Suppress("LongParameterList")
     private fun missingDataReport(
@@ -205,16 +208,14 @@ object ResearchExportBuilder {
     ): List<MissingDataRecord> {
         val recordDates = (entries.map { it.localDate } + measures.map { it.localDate } + ledgerDates)
             .mapNotNull { parseDate(it) }
-        val firstRecordDate = recordDates.minOrNull() ?: return emptyList()
-        val throughDate = maxOf(
-            Instant.ofEpochMilli(now).atZone(zone).toLocalDate(),
-            recordDates.max(),
-        )
-        val windowStart = maxOf(firstRecordDate, throughDate.minusDays(MissingDataPolicy.MAX_REPORT_DAYS))
+        val window = MissingDataPolicy.windowFor(
+            recordDates = recordDates,
+            exportDate = Instant.ofEpochMilli(now).atZone(zone).toLocalDate(),
+        ) ?: return emptyList()
 
         return MissingDataPolicy.report(
-            firstRecordDate = windowStart,
-            throughDate = throughDate,
+            firstRecordDate = window.start,
+            throughDate = window.through,
             allMeasureDates = measures.mapNotNull { parseDate(it.localDate) }.toSet(),
             entryDatesWithoutContext = entries
                 .filterNot { it.id in entryIdsWithFacts }

@@ -477,7 +477,8 @@ git commit -m "feat: chain research ledger events so tampering is detectable"
 
 `MissingDataPolicyTest`:
 
-1. `MissingDataPolicy.VERSION == "missing-data-v1"`.
+1. `MissingDataPolicy.VERSION == "missing-data-v2"` (v1 during Task 7;
+   raised to v2 by the review fix that reworked window selection).
 2. `report` over a date range with no measures returns one `NOT_RECORDED` record per date for the `morning_measure` variable.
 3. A date that has a measure produces no record for it.
 4. Dates before the first record produce `BEFORE_FIRST_RECORD`, not `NOT_RECORDED`.
@@ -513,7 +514,7 @@ enum class MissingDataReason { NOT_RECORDED, EXTRACTION_DISABLED, EXTRACTION_FAI
 @Serializable data class MissingDataRecord(val localDate: String, val variable: String, val reason: MissingDataReason)
 
 object MissingDataPolicy {
-    const val VERSION = "missing-data-v1"
+    const val VERSION = "missing-data-v2"
     const val STATEMENT = "Nothing is imputed, interpolated, carried forward, or filled in. Every absence is listed with a reason."
     fun report(
         firstRecordDate: LocalDate?, throughDate: LocalDate,

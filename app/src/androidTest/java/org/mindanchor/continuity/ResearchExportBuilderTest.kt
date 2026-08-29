@@ -266,6 +266,9 @@ class ResearchExportBuilderTest {
         assertTrue(ResearchExportCodec.verify(export))
     }
 
+    /** Generous for any fixture here, and orders of magnitude below a clamp artefact. */
+    private val MAX_PLAUSIBLE_REPORT_ROWS = 400
+
     @Test
     fun anAbsurdStoredDateDoesNotCrashTheExport() = runBlocking {
         seedADayOfRecords()
@@ -293,12 +296,60 @@ class ResearchExportBuilderTest {
 
         assertTrue("the export must still be produced", ResearchExportCodec.verify(export))
         assertEquals(2, export.journalEntries.size)
-        // The clamp is visible rather than silent: the earliest absence
-        // listed is far later than the earliest record.
-        assertTrue(export.missingData.isNotEmpty())
+        // The row itself is still exported verbatim -- only the derived
+        // report ignores it. Nothing about the record is altered.
         assertTrue(
-            "the window must be clamped, not run from the year 1000",
-            export.missingData.first().localDate > "1900-01-01",
+            "the impossible row must still appear in the data",
+            export.journalEntries.any { it.localDate == "1000-01-01" },
+        )
+        // The previous version of this assertion was `first().localDate >
+        // "1900-01-01"`, which was true of a 36,600-row report starting in
+        // 1926 -- it could not tell a sane window from a three-megabyte
+        // one. Bounding the count is what actually distinguishes them.
+        assertTrue(
+            "one corrupt row must not expand the report: ${export.missingData.size} rows",
+            export.missingData.size <= MAX_PLAUSIBLE_REPORT_ROWS,
+        )
+        assertTrue(
+            "the report must be about the dates actually recorded",
+            export.missingData.all { it.localDate.startsWith("2026") },
+        )
+    }
+
+    @Test
+    fun aFutureDatedRowDoesNotReplaceTheWholeReport() = runBlocking {
+        seedADayOfRecords()
+        // The mirror image, and the worse one: a row stamped a thousand
+        // years *ahead* used to drag the window forward with it, so the
+        // report covered the thirtieth century and dropped every date the
+        // person had lived -- while still claiming every absence was
+        // listed. A confidently wrong report is worse than a crash.
+        database.journal().upsertEntries(
+            listOf(
+                org.mindanchor.data.db.JournalEntryEntity(
+                    id = "entry-from-the-year-3026",
+                    createdAt = dayOne,
+                    updatedAt = dayOne,
+                    localDate = "3026-01-01",
+                    title = "",
+                    body = "A row from a clock set to the wrong millennium",
+                    kind = "DAILY",
+                    sourceDeviceId = "device-a",
+                    deletedAt = null,
+                ),
+            ),
+        )
+
+        val export = build()
+
+        assertTrue("the export must still be produced", ResearchExportCodec.verify(export))
+        assertTrue(
+            "one corrupt row must not expand the report: ${export.missingData.size} rows",
+            export.missingData.size <= MAX_PLAUSIBLE_REPORT_ROWS,
+        )
+        assertTrue(
+            "the report must be about the dates actually recorded",
+            export.missingData.all { it.localDate.startsWith("2026") },
         )
     }
 

@@ -34,6 +34,24 @@ interface ResearchProvenanceStore {
     suspend fun insertPhase(phase: StudyPhase)
 
     suspend fun appendEvents(events: List<ResearchLedgerEvent>)
+
+    /**
+     * Called after a transaction that grew the ledger has committed, so an
+     * implementation can refresh whatever it keeps outside the database.
+     *
+     * A no-op by default because most implementations (the in-memory ones
+     * in tests) keep nothing outside it. `ResearchLedgerRepository`
+     * overrides it to raise the ledger high-water mark, which is otherwise
+     * only raised by the research-log card: a person who journals and
+     * takes morning measures but never opens that card would accumulate
+     * machine-written provenance events with no mark at all, and so no
+     * truncation detection whatsoever.
+     *
+     * Deliberately *after* commit, not inside: raising the mark is a
+     * DataStore write, and holding the SQLite write lock across an fsync
+     * is what [ensureCurrentPhase] already goes out of its way to avoid.
+     */
+    suspend fun afterLedgerGrew() = Unit
 }
 
 /**
@@ -103,7 +121,16 @@ class ResearchProvenanceCoordinator(
         return openPhaseIfChanged(now, vector)
     }
 
-    private suspend fun openPhaseIfChanged(now: Long, vector: ProvenanceVector): StudyPhase = store.inTransaction {
+    private suspend fun openPhaseIfChanged(now: Long, vector: ProvenanceVector): StudyPhase {
+        val before = store.ledgerHead()
+        val phase = openPhaseTransaction(now, vector)
+        // Only when this actually appended something, so an ordinary
+        // no-change call does not spend a DataStore write per journal save.
+        if (store.ledgerHead()?.id != before?.id) store.afterLedgerGrew()
+        return phase
+    }
+
+    private suspend fun openPhaseTransaction(now: Long, vector: ProvenanceVector): StudyPhase = store.inTransaction {
         val current = store.latestPhase()
         val opened = StudyPhaseDecision.next(current, vector, now)
             ?: return@inTransaction requireNotNull(current) {

@@ -36,6 +36,14 @@ class ResearchExportDisclosureTest {
      * values, and the columns are covered by the fields they belong to.
      */
     private val exemptFromDisclosure = setOf(
+        // Identical on every device and derived from no one's data: the
+        // catalogue of protocol definitions and the descriptions of how
+        // MindAnchor derives what it derives. Naming them in a consent
+        // dialog about personal disclosure would pad it without telling
+        // the person anything about themselves.
+        "protocolRegistry",
+        "transformations",
+        "ledgerHighWaterCount",
         "dataDictionaryVersion",
         "exportedAt",
         "appVersionCode",
@@ -60,10 +68,29 @@ class ResearchExportDisclosureTest {
         "morningMeasures" to "morning check-in ratings",
         "ledgerEvents" to "notes you wrote about illness, medication changes",
         "studyPhases" to "study phases, version identifiers and device identifiers",
-        "protocolRegistry" to "version identifiers",
-        "transformations" to "version identifiers",
         "missingData" to "day-by-day list of what you did and did not record",
     )
+
+    /**
+     * Two fields legitimately share one phrase: [ResearchExport.contextFacts]
+     * and `contextInferences` are both structural context derived from an
+     * entry, and one sentence describes both accurately. Every other
+     * disclosed field must contribute a phrase no other field supplies, so
+     * a new field cannot be waved through by pointing it at words the
+     * dialog already contains.
+     */
+    @Test
+    fun `each disclosed field but the two context lists names something of its own`() {
+        val shared = setOf("contextFacts", "contextInferences")
+        disclosedAs.forEach { (field, phrase) ->
+            if (field in shared) return@forEach
+            val others = disclosedAs.filterKeys { it != field }.values.toSet()
+            assertTrue(
+                "`$field` is disclosed only by \"$phrase\", which another field already supplies",
+                phrase !in others,
+            )
+        }
+    }
 
     private fun disclosure(): String {
         assertTrue("strings.xml must be readable from the test working directory", strings.isFile)

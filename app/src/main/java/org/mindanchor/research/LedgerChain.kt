@@ -43,11 +43,14 @@ data class LedgerAnchor(val headHash: String, val eventCount: Int)
  *  - **Detected without an anchor:** any edit, deletion, reordering, or
  *    insertion in the interior of the chain, and any accidental
  *    corruption.
- *  - **Detected only with a [LedgerAnchor]:** truncation of the newest
- *    events. Drop the last *k* rows and what remains is a valid chain of
- *    length *n−k*; only an expected head hash and count, recorded
- *    somewhere other than the ledger, catches that. `ContinuityPrefs`
- *    holds the local anchor, and the research export carries one.
+ *  - **Detected only against a count recorded elsewhere:** truncation of
+ *    the newest events. Drop the last *k* rows and what remains is a valid
+ *    chain of length *n−k*; only a count kept somewhere other than the
+ *    ledger catches that. `ContinuityPrefs` keeps one as a high-water
+ *    mark, and the research export carries it as `ledgerHighWaterCount`
+ *    so a recipient can make the same comparison. [LedgerAnchor] and the
+ *    two-argument [verify] express the same check against a full expected
+ *    head; nothing in the app calls them yet.
  *  - **Not detected at all:** somebody who holds the whole file and
  *    re-links every event from scratch. A hash chain with no externally
  *    published head cannot defend against its own custodian. If a

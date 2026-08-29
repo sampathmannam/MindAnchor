@@ -306,6 +306,7 @@ class ResearchExportCodecTest {
             missingDataStatement = "Absences are carried forward from the previous day.",
         ),
         "dataDictionarySha256" to original.copy(dataDictionarySha256 = "a different dictionary"),
+        "ledgerHighWaterCount" to original.copy(ledgerHighWaterCount = 4096),
     )
 
     @Test
@@ -376,8 +377,33 @@ class ResearchExportCodecTest {
     fun `the dictionary travels beside the content hash, never inside it`() {
         val original = sample()
         assertEquals(ResearchDataDictionary.sha256, original.dataDictionarySha256)
-        // Swapping the carried dictionary must not read as a data change.
-        assertTrue(ResearchExportCodec.verify(original.copy(dataDictionary = null)))
+        // The dictionary's *bytes* are outside the hash, so bumping the
+        // dictionary is not a data change. Its hash is inside, so the
+        // document still commits to which dictionary it was written under.
+        assertNotEquals(
+            "the dictionary itself must not be digested",
+            original.contentSha256,
+            ResearchExportCodec.seal(
+                original.copy(contentSha256 = "", dataDictionarySha256 = "another dictionary"),
+            ).contentSha256,
+        )
+    }
+
+    @Test
+    fun `a version 2 document with its dictionary stripped out does not verify`() {
+        // This previously passed with the dictionary removed, which made
+        // the file's whole "still readable in five years" claim optional.
+        // It is the same argument that carries `protocolRegistry` in full:
+        // emptying a self-describing part while leaving the seal intact
+        // must not produce a document that verifies.
+        assertFalse(ResearchExportCodec.verify(sample().copy(dataDictionary = null)))
+    }
+
+    @Test
+    fun `a Program 0 document still verifies without a dictionary`() {
+        // The v1 shape never had one, so absent is correct there and the
+        // stricter v2 rule must not reach back and invalidate it.
+        assertTrue(ResearchExportCodec.verify(programZeroExport().copy(dataDictionary = null)))
     }
 
     @Test
@@ -428,7 +454,35 @@ class ResearchExportCodecTest {
         // files this build writes: reordering a field of the version-2
         // projection, or retuning the encoder, would otherwise invalidate
         // every export already taken, with the suite still green.
-        assertEquals("1d987835be87c985de1b0aa5d96ee47b2411985ef05d73b16dcfdf82b4d83cf6", sample().contentSha256)
+        //
+        // When this goes red, the question is which of two things happened.
+        // If the *projection or encoder* changed, that invalidates files
+        // already in people's hands and needs a new dictionary version, not
+        // a new number here. If only the *content* changed -- a protocol
+        // added, a transformation reworded, the dictionary bumped -- then
+        // the hash is expected to move and re-pinning is correct. This pin
+        // cannot tell those apart on its own, so the reasoning belongs in
+        // the commit message that changes it.
+        assertEquals("4cdd654c237c1e377d5939df7f6136586829067363857958a01e0204658db4e5", sample().contentSha256)
+    }
+
+    @Test
+    fun `verify refuses a version 1 document carrying Program 1 content`() {
+        // `decode` already refuses these, but `verify` is a separate public
+        // entry point and a recipient checking an already-parsed export
+        // never passes through `decode`. A probe found it answering `true`
+        // for a genuine Program 0 file with a fabricated ledger pasted in:
+        // the v1 projection hashes four lists, so everything pasted beside
+        // them sits outside the hash it is checked against.
+        val forged = programZeroExport().copy(
+            ledgerEvents = listOf(ledgerEvent("fabricated", 1L)),
+            ledgerHeadHash = "a fabricated head",
+            ledgerEventCount = 1,
+            ledgerIntegrity = LedgerIntegrity.VERIFIED,
+            missingDataStatement = "Absences are carried forward from the previous day.",
+        )
+        assertTrue("the fixture must still be a genuine v1 document", ResearchExportCodec.verify(programZeroExport()))
+        assertFalse("a v1 document carrying Program 1 content must not verify", ResearchExportCodec.verify(forged))
     }
 
     @Test

@@ -19,9 +19,15 @@ import org.mindanchor.research.Transformation
  * content must produce the identical hash even when exported at different
  * times or from different app builds, so a researcher (or the person
  * themselves) can tell "did anything actually change" apart from "was this
- * exported again". It also excludes the data dictionary, which is carried
- * with its own hash so a dictionary version bump cannot look like a data
- * change.
+ * exported again". The data dictionary itself is excluded so a dictionary
+ * version bump cannot look like a data change -- but its hash *is* inside,
+ * and [verify] recomputes that hash against the carried document, so the
+ * dictionary is still tamper-evident.
+ *
+ * Neither [decode] nor [verify] has a caller in this app: nothing imports a
+ * research export, by design. They exist so the algorithm a recipient needs
+ * is executable code in this repository rather than prose they have to
+ * reimplement from the design document.
  *
  * ## The hash is versioned, for the same reason the snapshot's is
  *
@@ -69,30 +75,47 @@ object ResearchExportCodec {
         // could paste a fabricated ledger into a genuine Program 0 export
         // and `verify` would still say yes. A v1 document that carries
         // Program 1 content is not a v1 document.
-        if (parsed.dataDictionaryVersion == ContinuityContract.PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION &&
-            carriesProgramOneContent(parsed)
-        ) {
-            return DecodeResult.Corrupt
-        }
+        if (smugglesProgramOneContent(parsed)) return DecodeResult.Corrupt
         return DecodeResult.Success(parsed)
     }
 
-    /** Whether [export] holds anything a Program 0 document could not have written. */
-    private fun carriesProgramOneContent(export: ResearchExport): Boolean =
-        export.ledgerEvents.isNotEmpty() ||
-            export.ledgerHeadHash.isNotEmpty() ||
-            export.ledgerEventCount != 0 ||
-            export.ledgerIntegrity != LedgerIntegrity.NOT_APPLICABLE ||
-            export.studyPhases.isNotEmpty() ||
-            export.protocolRegistry.isNotEmpty() ||
-            export.protocolCatalogSha256.isNotEmpty() ||
-            export.transformations.isNotEmpty() ||
-            export.transformationSetVersion.isNotEmpty() ||
-            export.missingData.isNotEmpty() ||
-            export.missingDataPolicyVersion.isNotEmpty() ||
-            export.missingDataStatement.isNotEmpty() ||
-            export.dataDictionary != null ||
-            export.dataDictionarySha256.isNotEmpty()
+    /**
+     * A version-1 document carrying content only Program 1 can write.
+     *
+     * A v1 document is hashed over four content lists, so any Program 1
+     * field it carries sits outside its own hash — somebody could paste a
+     * fabricated ledger into a genuine Program 0 export and the seal would
+     * still check out. A v1 document that carries Program 1 content is not
+     * a v1 document.
+     *
+     * Checked by [verify] as well as [decode]. `decode` alone was not
+     * enough: a recipient checking an already-parsed export never passes
+     * through it, and `verify` answered yes for exactly that forgery.
+     *
+     * The predicates are a list rather than a chain of `||` so that adding
+     * a field to [ResearchExport] is a one-line change here that does not
+     * push the function over a complexity threshold — the pressure to
+     * leave a new field out is the thing worth designing against.
+     */
+    private fun smugglesProgramOneContent(export: ResearchExport): Boolean =
+        export.dataDictionaryVersion == ContinuityContract.PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION &&
+            listOf(
+                export.ledgerEvents.isNotEmpty(),
+                export.ledgerHeadHash.isNotEmpty(),
+                export.ledgerEventCount != 0,
+                export.ledgerHighWaterCount != 0,
+                export.ledgerIntegrity != LedgerIntegrity.NOT_APPLICABLE,
+                export.studyPhases.isNotEmpty(),
+                export.protocolRegistry.isNotEmpty(),
+                export.protocolCatalogSha256.isNotEmpty(),
+                export.transformations.isNotEmpty(),
+                export.transformationSetVersion.isNotEmpty(),
+                export.missingData.isNotEmpty(),
+                export.missingDataPolicyVersion.isNotEmpty(),
+                export.missingDataStatement.isNotEmpty(),
+                export.dataDictionary != null,
+                export.dataDictionarySha256.isNotEmpty(),
+            ).any { it }
 
     /**
      * Returns [export] with its lists in canonical order and
@@ -114,6 +137,7 @@ object ResearchExportCodec {
      */
     fun verify(export: ResearchExport): Boolean =
         export.dataDictionaryVersion in ContinuityContract.SUPPORTED_RESEARCH_DICTIONARY_VERSIONS &&
+            !smugglesProgramOneContent(export) &&
             carriedDictionaryMatchesItsHash(export) &&
             hashContent(sorted(export), export.dataDictionaryVersion) == export.contentSha256
 
@@ -129,7 +153,14 @@ object ResearchExportCodec {
      * assumed.
      */
     private fun carriedDictionaryMatchesItsHash(export: ResearchExport): Boolean {
-        val carried = export.dataDictionary ?: return true
+        val carried = export.dataDictionary
+            // Absent is only legitimate in a Program 0 document, which had
+            // no dictionary. In a version-2 document the dictionary is the
+            // whole "readable in five years" claim, and stripping it out
+            // must not leave a file that still verifies -- the same
+            // argument that puts `protocolRegistry` in the hash in full.
+            ?: return export.dataDictionaryVersion ==
+                ContinuityContract.PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION
         return ResearchDataDictionary.sha256Of(carried) == export.dataDictionarySha256
     }
 
@@ -174,6 +205,7 @@ object ResearchExportCodec {
         ledgerHeadHash = export.ledgerHeadHash,
         ledgerEventCount = export.ledgerEventCount,
         ledgerIntegrity = export.ledgerIntegrity,
+        ledgerHighWaterCount = export.ledgerHighWaterCount,
         studyPhases = export.studyPhases,
         protocolRegistry = export.protocolRegistry,
         protocolCatalogSha256 = export.protocolCatalogSha256,
@@ -234,6 +266,7 @@ object ResearchExportCodec {
         val ledgerHeadHash: String,
         val ledgerEventCount: Int,
         val ledgerIntegrity: LedgerIntegrity,
+        val ledgerHighWaterCount: Int,
         val studyPhases: List<StudyPhaseDto>,
         val protocolRegistry: List<EvidenceProtocol>,
         val protocolCatalogSha256: String,
