@@ -305,8 +305,25 @@ android {
         // a key typed immediately after switching providers could
         // land in the previous provider's slot.
         // versionCode 109→110.
-        versionCode = 110
-        versionName = "0.70.16"
+        // v0.70.17: full live-device QA pass across every Settings
+        // section (Quiet, Pauses, Measuring, Your plan, This phone) —
+        // no crashes found anywhere, all toggles/add-remove flows
+        // verified working. Found and fixed two real privacy-wording
+        // accuracy gaps: (1) the About screen's summary said "Two
+        // opt-in exceptions" (COROS bridge, Drive backup) and never
+        // mentioned the Daily letter (LLM) feature, which is now a
+        // genuinely working third exception since the v0.70.16 fix —
+        // it's a third opt-in exception now; (2) the Health Connect
+        // section's "What this app does NOT do" list had an
+        // unqualified "no network call to a server, ever" claim that
+        // read as an app-wide promise rather than being scoped to
+        // health/wearable data specifically, where it's already
+        // contradicted one paragraph later by the COROS bridge
+        // disclosure. Neither claim was ever true app-wide; both are
+        // now precisely scoped to what they actually describe.
+        // versionCode 110→111.
+        versionCode = 111
+        versionName = "0.70.17"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every

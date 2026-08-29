@@ -705,7 +705,7 @@
     <string name="backup_restored">Restored.</string>
     <string name="backup_not_a_backup">That file isn\'t a MindAnchor copy, or it came from a newer version. Nothing was changed.</string>
     <string name="backup_failed">Couldn\'t read or write that file. Nothing was changed.</string>
-    <string name="about_text">MindAnchor is an open-source, research-backed launcher. It has no accounts, no server and no analytics — by default, your data never leaves this phone. Two opt-in exceptions, both off until you turn them on: the COROS Training Hub bridge under Settings → Measuring, which fetches HRV and resting heart rate from COROS over an encrypted connection with your COROS password held in this phone\'s secure Keystore; and Google Drive backup under Settings → Reading, which syncs your notes, letters, check-ins and wellness readings — never your safety plan or crisis contacts — to your own Drive each night. It is a wellness tool, not a medical device, and it is no substitute for talking to someone.</string>
+    <string name="about_text">MindAnchor is an open-source, research-backed launcher. It has no accounts, no server and no analytics — by default, your data never leaves this phone. Three opt-in exceptions, all off until you turn them on: the COROS Training Hub bridge under Settings → Measuring, which fetches HRV and resting heart rate from COROS over an encrypted connection with your COROS password held in this phone\'s secure Keystore; Google Drive backup under Settings → Reading, which syncs your notes, letters, check-ins and wellness readings — never your safety plan or crisis contacts — to your own Drive each night; and the Daily letter (LLM) feature under Settings → Reading, which sends your recent notes and most recent check-in to a cloud provider you choose — Google AI Studio, OpenRouter or Groq — using your own API key, to write one daily reflection. It is a wellness tool, not a medical device, and it is no substitute for talking to someone.</string>
     <!--
         v0.25.11 (deployability §privacy): a one-line
         pointer to the full privacy policy. The URL is
@@ -866,7 +866,7 @@
     <string name="health_connect_reads_mindfulness">mindfulness sessions — used to surface practice time next to steps and sleep</string>
     <string name="health_connect_what_we_dont_header">What this app does NOT do</string>
     <string name="health_connect_does_not_write">Write back to your watch or any other app. The launcher only reads.</string>
-    <string name="health_connect_does_not_send">Send anything off this phone. There is no network call to a server, ever.</string>
+    <string name="health_connect_does_not_send">Send this data off this phone. There is no network call to a server for it, ever.</string>
     <string name="health_connect_does_not_diagnose">Diagnose or interpret. The numbers are shown, not judged.</string>
     <string name="health_connect_section_data_label" tools:ignore="UnusedResources">What is arriving</string>
 
