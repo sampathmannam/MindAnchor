@@ -30,6 +30,7 @@ fun JournalScreen(viewModel: JournalViewModel, onBack: () -> Unit) {
     val entries by viewModel.entries.collectAsState(initial = emptyList())
     val todayMeasure by viewModel.morningMeasureForToday.collectAsState(initial = null)
     val measureHistory by viewModel.morningMeasureHistory.collectAsState(initial = emptyList())
+    val researchLog by viewModel.researchLogForToday.collectAsState(initial = emptyList())
 
     Scaffold(
         topBar = {
@@ -76,6 +77,9 @@ fun JournalScreen(viewModel: JournalViewModel, onBack: () -> Unit) {
                     saveError = viewModel.saveError,
                     morningMeasure = todayMeasure,
                     onSaveMorningMeasure = viewModel::saveMorningMeasure,
+                    researchLog = researchLog,
+                    onRecordResearchEvent = viewModel::recordResearchEvent,
+                    researchLogError = viewModel.researchLogError,
                 )
                 JournalDestination.ENTRIES -> JournalEntries(
                     entries = entries,
