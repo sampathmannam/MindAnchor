@@ -428,9 +428,23 @@ change opens a new phase, correctly.
 
 ### 7.2 Missing-data policy
 
-`missing-data-v2`, stated in one sentence: **nothing is ever imputed,
-interpolated, carried forward, or filled in; every absence is enumerated
-explicitly with a reason.**
+`missing-data-v2`: **nothing is ever imputed, interpolated, carried
+forward, or filled in; every absence *in the reported window* is
+enumerated explicitly with a reason.**
+
+The window qualifier is not a hedge, it is the honest statement of what
+the report contains. The window ends at the export date and reaches back
+at most `MAX_REPORT_DAYS` (ten years); a record dated more than
+`MAX_FUTURE_DAYS` (thirty days) beyond the export date, or further back
+than the reach, is excluded from choosing the window *and* from deciding
+the reasons inside it, and still appears verbatim in the data.
+
+The two bounds are deliberately asymmetric. A symmetric one was a real
+defect: a row dated 2126 instead of 2026 — one digit — sat inside a
+century-wide bound, dragged the window forward, and pushed every real
+date out of the report. Nothing legitimately records the future; the only
+reason to tolerate any of it is a device clock that is behind, which does
+not run to years.
 
 `MissingDataPolicy.report(...)` is a pure function producing
 `MissingDataRecord(localDate, variable, reason)` for every local date from

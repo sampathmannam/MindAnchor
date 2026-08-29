@@ -2,7 +2,6 @@ package org.mindanchor.research
 
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
-import kotlin.math.abs
 import kotlinx.serialization.Serializable
 
 /**
@@ -77,9 +76,9 @@ object MissingDataPolicy {
     const val STATEMENT =
         "Nothing is imputed, interpolated, carried forward, or filled in. " +
             "Every absence in the reported window is listed with a reason. " +
-            "The window spans the recorded dates, excluding any so far from " +
-            "the export date that they indicate a wrong clock rather than an " +
-            "observation."
+            "The window ends at the export date and reaches back at most ten " +
+            "years. Records outside it are excluded from the window and from " +
+            "the reasons given inside it, and still appear in the data itself."
 
     /** The morning research measure, one per local date. */
     const val VARIABLE_MORNING_MEASURE = "morning_measure"
@@ -88,11 +87,44 @@ object MissingDataPolicy {
     const val VARIABLE_JOURNAL_CONTEXT = "journal_context"
 
     /**
-     * Roughly a century. A report longer than a personal record could
-     * plausibly be is a wrong clock or a corrupt row, not a long study,
-     * and materialising one would hang the export.
+     * Ten years. How far back a report may reach, and so also how old a
+     * record may be and still choose the window.
+     *
+     * Was a century, which bounded nothing that mattered: a single row
+     * dated a century back still produced a 36,600-row, ~3.3 MB report of
+     * absences on dates nobody was alive for. Ten years is longer than any
+     * record this app can hold — it did not exist ten years ago — while
+     * keeping the worst case a few thousand rows.
      */
-    const val MAX_REPORT_DAYS = 36_600L
+    const val MAX_REPORT_DAYS = 3_653L
+
+    /**
+     * How far *ahead* of the export date a record may be dated and still
+     * be treated as an observation.
+     *
+     * Asymmetric with [MAX_REPORT_DAYS], and that asymmetry is the point.
+     * A symmetric bound was the whole defect: a row dated 2126 instead of
+     * 2026 — one digit — sat comfortably inside a century-wide window,
+     * dragged the window forward with it, and pushed every real date out
+     * of the report. Nothing legitimately records the future; the only
+     * reason to tolerate any of it is a device clock that is behind, or a
+     * timezone, and neither runs to years.
+     */
+    const val MAX_FUTURE_DAYS = 30L
+
+    /**
+     * Whether [date] could be an observation made by someone using this
+     * app, as opposed to a wrong clock or a corrupt row.
+     *
+     * Public because the window is not the only thing an implausible date
+     * can wreck: it also decides *reasons*. One row stamped in the year
+     * 1000 made `allMeasureDates.min()` the year 1000, which turned every
+     * "you had not started this measure yet" into "you skipped it" — the
+     * distinction this policy exists to keep.
+     */
+    fun isPlausible(date: LocalDate, exportDate: LocalDate): Boolean =
+        !date.isAfter(exportDate.plusDays(MAX_FUTURE_DAYS)) &&
+            !date.isBefore(exportDate.minusDays(MAX_REPORT_DAYS))
 
     /** The span a missing-data report covers: [start] to [through], inclusive. */
     data class ReportWindow(val start: LocalDate, val through: LocalDate)
@@ -123,12 +155,16 @@ object MissingDataPolicy {
      * did not happen.
      */
     fun windowFor(recordDates: List<LocalDate>, exportDate: LocalDate): ReportWindow? {
-        val plausible = recordDates.filter {
-            abs(ChronoUnit.DAYS.between(it, exportDate)) <= MAX_REPORT_DAYS
-        }
+        val plausible = recordDates.filter { isPlausible(it, exportDate) }
         val through = maxOf(exportDate, plausible.maxOrNull() ?: return null)
-        val earliest = through.minusDays(MAX_REPORT_DAYS)
-        val start = plausible.filter { !it.isBefore(earliest) }.minOrNull() ?: return null
+        // Clamped against `through`, not against the export date: a record
+        // just ahead of a slow clock pushes `through` past it, and the span
+        // is what `report` refuses above MAX_REPORT_DAYS. `start` is still
+        // a real record at or after the boundary, never the boundary
+        // itself -- that distinction is what keeps one old row from
+        // generating thousands of absences nobody recorded.
+        val start = plausible.filter { !it.isBefore(through.minusDays(MAX_REPORT_DAYS)) }.minOrNull()
+            ?: return null
         return ReportWindow(start = start, through = through)
     }
 

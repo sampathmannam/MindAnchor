@@ -111,6 +111,7 @@ class ResearchExportCodecTest {
             ledgerEvents = listOf(ledgerEvent("event-1", 1L)),
             ledgerHeadHash = "event-1",
             ledgerEventCount = 1,
+        ledgerHighWaterCount = 1,
             ledgerIntegrity = LedgerIntegrity.VERIFIED,
             studyPhases = listOf(phase("phase-0", 0)),
             protocolRegistry = EvidenceProtocolCatalog.registry.protocols,
@@ -463,7 +464,57 @@ class ResearchExportCodecTest {
         // the hash is expected to move and re-pinning is correct. This pin
         // cannot tell those apart on its own, so the reasoning belongs in
         // the commit message that changes it.
-        assertEquals("4cdd654c237c1e377d5939df7f6136586829067363857958a01e0204658db4e5", sample().contentSha256)
+        assertEquals("a2a6a7615df8d54239f07067be1463692e04f4bd0d859844c9c8923ad818bc70", sample().contentSha256)
+    }
+
+    /**
+     * The nine fields a Program 0 document could legitimately carry.
+     * Everything else in [ResearchExport] arrived with Program 1 and must
+     * be named in the smuggle predicate.
+     */
+    private val programZeroFields = setOf(
+        "dataDictionaryVersion",
+        "exportedAt",
+        "appVersionCode",
+        "appVersionName",
+        "contentSha256",
+        "journalEntries",
+        "contextFacts",
+        "contextInferences",
+        "morningMeasures",
+    )
+
+    @Test
+    fun `no export field escapes the version 1 smuggle check`() {
+        // Two other hand-maintained field lists in this feature silently
+        // fell behind the class they described; both now have reflection
+        // guards. This is the third.
+        val declared = ResearchExport::class.java.declaredFields
+            .filter { !it.isSynthetic && !Modifier.isStatic(it.modifiers) }
+            .map { it.name }
+            .toSet()
+        assertEquals(
+            "a field was added to ResearchExport without deciding whether a version-1 " +
+                "document could have carried it: name it in `programOneContentByField`, " +
+                "or add it to `programZeroFields` here",
+            declared,
+            programOneContentByField(sample()).keys + programZeroFields,
+        )
+    }
+
+    @Test
+    fun `every Program 1 field alone is enough to condemn a version 1 document`() {
+        // Not just the set membership: each predicate must actually fire.
+        // A mapping that named a field but tested the wrong one would pass
+        // the reflection guard above while smuggling that field through.
+        val fields = programOneContentByField(sample())
+        fields.forEach { (name, isPresent) ->
+            assertTrue("`$name` is absent from the fully-populated sample", isPresent)
+        }
+        assertTrue(
+            "an empty Program 0 document must trip nothing",
+            programOneContentByField(programZeroExport()).values.none { it },
+        )
     }
 
     @Test

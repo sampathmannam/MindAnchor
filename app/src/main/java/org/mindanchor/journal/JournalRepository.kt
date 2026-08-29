@@ -104,7 +104,12 @@ class JournalRepository(
      * timestamped before the phase that supposedly covers it would not be.
      */
     private suspend fun ensurePhase(now: Long) {
-        runCatching { provenance.ensureCurrentPhase(now) }.onFailure { thrown ->
+        runCatching {
+            provenance.ensureCurrentPhase(now)
+            // Outside any transaction here: this runs before the entry's
+            // own `withTransaction`, and the phase has already committed.
+            provenance.refreshAfterCommit()
+        }.onFailure { thrown ->
             // Never swallow a cancellation: the coroutine is being torn
             // down, and turning that into "carry on" would break the
             // caller's structured concurrency.

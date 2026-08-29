@@ -2,7 +2,7 @@
   "version": "mindanchor-research-v2",
   "statement": "Every variable a MindAnchor research export can contain. Frozen: a change to this document requires a new version, and the old version stays readable forever.",
   "missingDataPolicyVersion": "missing-data-v2",
-  "missingDataStatement": "Nothing is imputed, interpolated, carried forward, or filled in. Every absence in the reported window is listed with a reason. The window spans the recorded dates, excluding any so far from the export date that they indicate a wrong clock rather than an observation.",
+  "missingDataStatement": "Nothing is imputed, interpolated, carried forward, or filled in. Every absence in the reported window is listed with a reason. The window ends at the export date and reaches back at most ten years. Records outside it are excluded from the window and from the reasons given inside it, and still appear in the data itself.",
   "variables": [
     {
       "name": "id",

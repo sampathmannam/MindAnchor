@@ -121,16 +121,24 @@ class ResearchProvenanceCoordinator(
         return openPhaseIfChanged(now, vector)
     }
 
-    private suspend fun openPhaseIfChanged(now: Long, vector: ProvenanceVector): StudyPhase {
-        val before = store.ledgerHead()
-        val phase = openPhaseTransaction(now, vector)
-        // Only when this actually appended something, so an ordinary
-        // no-change call does not spend a DataStore write per journal save.
-        if (store.ledgerHead()?.id != before?.id) store.afterLedgerGrew()
-        return phase
-    }
+    /**
+     * Refreshes whatever the store keeps outside the database, after the
+     * caller's own transaction has committed.
+     *
+     * The caller has to make that call, because only the caller knows when
+     * its transaction ends. This was briefly done here instead, which was
+     * wrong in a way worth recording: two of the three write paths invoke
+     * [ensureCurrentPhase] from *inside* their own `withTransaction`, so
+     * "after my transaction" was still inside theirs. That put a DataStore
+     * fsync under the SQLite write lock — the thing this class goes out of
+     * its way to avoid — and, far worse, raised a durable monotonic mark
+     * from an *uncommitted* row count. One rollback and the mark stayed
+     * permanently above the real ledger, so every later export declared
+     * the person's events deleted, unrepairably.
+     */
+    suspend fun refreshAfterCommit() = store.afterLedgerGrew()
 
-    private suspend fun openPhaseTransaction(now: Long, vector: ProvenanceVector): StudyPhase = store.inTransaction {
+    private suspend fun openPhaseIfChanged(now: Long, vector: ProvenanceVector): StudyPhase = store.inTransaction {
         val current = store.latestPhase()
         val opened = StudyPhaseDecision.next(current, vector, now)
             ?: return@inTransaction requireNotNull(current) {

@@ -515,7 +515,10 @@ enum class MissingDataReason { NOT_RECORDED, EXTRACTION_DISABLED, EXTRACTION_FAI
 
 object MissingDataPolicy {
     const val VERSION = "missing-data-v2"
-    const val STATEMENT = "Nothing is imputed, interpolated, carried forward, or filled in. Every absence is listed with a reason."
+    // Final wording (see Task 13 review fixes): names the window, because
+    // a report that silently covers less than it promises is the failure
+    // this policy exists to prevent.
+    const val STATEMENT = "Nothing is imputed, interpolated, carried forward, or filled in. Every absence in the reported window is listed with a reason. The window ends at the export date and reaches back at most ten years. Records outside it are excluded from the window and from the reasons given inside it, and still appear in the data itself."
     fun report(
         firstRecordDate: LocalDate?, throughDate: LocalDate,
         measureDates: Set<String>, entryDatesWithoutContext: Set<String>, contextExtractionEnabled: Boolean,

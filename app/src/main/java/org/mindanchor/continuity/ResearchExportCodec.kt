@@ -99,23 +99,8 @@ object ResearchExportCodec {
      */
     private fun smugglesProgramOneContent(export: ResearchExport): Boolean =
         export.dataDictionaryVersion == ContinuityContract.PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION &&
-            listOf(
-                export.ledgerEvents.isNotEmpty(),
-                export.ledgerHeadHash.isNotEmpty(),
-                export.ledgerEventCount != 0,
-                export.ledgerHighWaterCount != 0,
-                export.ledgerIntegrity != LedgerIntegrity.NOT_APPLICABLE,
-                export.studyPhases.isNotEmpty(),
-                export.protocolRegistry.isNotEmpty(),
-                export.protocolCatalogSha256.isNotEmpty(),
-                export.transformations.isNotEmpty(),
-                export.transformationSetVersion.isNotEmpty(),
-                export.missingData.isNotEmpty(),
-                export.missingDataPolicyVersion.isNotEmpty(),
-                export.missingDataStatement.isNotEmpty(),
-                export.dataDictionary != null,
-                export.dataDictionarySha256.isNotEmpty(),
-            ).any { it }
+            programOneContentByField(export).values.any { it }
+
 
     /**
      * Returns [export] with its lists in canonical order and
@@ -278,3 +263,31 @@ object ResearchExportCodec {
         val dataDictionarySha256: String,
     )
 }
+
+/**
+ * Every field a Program 0 document could not have written, keyed by
+ * name so a test can check the set against [ResearchExport]'s declared
+ * fields.
+ *
+ * Keyed rather than a bare list because this is the third place in
+ * this feature where a hand-maintained field list silently fell behind
+ * the class it described. The other two now have reflection guards;
+ * this is the third.
+ */
+internal fun programOneContentByField(export: ResearchExport): Map<String, Boolean> = mapOf(
+    "ledgerEvents" to export.ledgerEvents.isNotEmpty(),
+    "ledgerHeadHash" to export.ledgerHeadHash.isNotEmpty(),
+    "ledgerEventCount" to (export.ledgerEventCount != 0),
+    "ledgerHighWaterCount" to (export.ledgerHighWaterCount != 0),
+    "ledgerIntegrity" to (export.ledgerIntegrity != LedgerIntegrity.NOT_APPLICABLE),
+    "studyPhases" to export.studyPhases.isNotEmpty(),
+    "protocolRegistry" to export.protocolRegistry.isNotEmpty(),
+    "protocolCatalogSha256" to export.protocolCatalogSha256.isNotEmpty(),
+    "transformations" to export.transformations.isNotEmpty(),
+    "transformationSetVersion" to export.transformationSetVersion.isNotEmpty(),
+    "missingData" to export.missingData.isNotEmpty(),
+    "missingDataPolicyVersion" to export.missingDataPolicyVersion.isNotEmpty(),
+    "missingDataStatement" to export.missingDataStatement.isNotEmpty(),
+    "dataDictionary" to (export.dataDictionary != null),
+    "dataDictionarySha256" to export.dataDictionarySha256.isNotEmpty(),
+)

@@ -43,6 +43,13 @@ class MissingDataPolicyTest {
             "the statement must say the report is windowed",
             MissingDataPolicy.STATEMENT.contains("in the reported window"),
         )
+        // And must not promise a window the policy does not deliver: an
+        // earlier wording said the window "spans the recorded dates",
+        // which was false of any record older than the reach backwards.
+        assertTrue(
+            "the statement must say records outside the window are excluded",
+            MissingDataPolicy.STATEMENT.contains("excluded from the window"),
+        )
     }
 
     @Test
@@ -326,5 +333,76 @@ class MissingDataPolicyTest {
                 LocalDate.parse("2026-08-29"),
             ),
         )
+    }
+
+    @Test
+    fun `a row one digit into the future does not choose the window`() {
+        // 2126 from 2026 -- a single mistyped or corrupted digit, and far
+        // likelier than the year 3026 the first fix was measured against.
+        // A symmetric hundred-year bound called this plausible, let it set
+        // `through`, and pushed every real date out of the report.
+        val window = requireNotNull(
+            MissingDataPolicy.windowFor(
+                recordDates = listOf("2024-08-29", "2026-08-01", "2026-08-29", "2126-08-29").map(LocalDate::parse),
+                exportDate = LocalDate.parse("2026-08-29"),
+            ),
+        )
+        assertEquals(LocalDate.parse("2024-08-29"), window.start)
+        assertEquals(LocalDate.parse("2026-08-29"), window.through)
+    }
+
+    @Test
+    fun `a record only just ahead of a slow clock still ends the window`() {
+        // The tolerance exists for exactly this: a device whose clock is
+        // behind its own newest row. Days, not years.
+        val window = requireNotNull(
+            MissingDataPolicy.windowFor(
+                recordDates = listOf("2026-08-01", "2026-08-29").map(LocalDate::parse),
+                exportDate = LocalDate.parse("2026-08-20"),
+            ),
+        )
+        assertEquals(LocalDate.parse("2026-08-29"), window.through)
+    }
+
+    @Test
+    fun `the future tolerance is far shorter than the reach backwards`() {
+        // The asymmetry is the fix, so state it as a property rather than
+        // leaving it to two examples: nothing legitimately records years
+        // into the future, while a real record can be years long.
+        assertTrue(
+            "a symmetric bound is what let one corrupt row define the window",
+            MissingDataPolicy.MAX_FUTURE_DAYS < MissingDataPolicy.MAX_REPORT_DAYS / 10,
+        )
+        val exportDate = LocalDate.parse("2026-08-29")
+        assertTrue(MissingDataPolicy.isPlausible(exportDate.plusDays(1), exportDate))
+        assertTrue(!MissingDataPolicy.isPlausible(exportDate.plusDays(400), exportDate))
+        assertTrue(MissingDataPolicy.isPlausible(exportDate.minusDays(400), exportDate))
+    }
+
+    @Test
+    fun `no window can ask report for more than it allows`() {
+        // `report` throws above MAX_REPORT_DAYS, and a throwing export
+        // leaves a zero-byte file. Sweep both boundaries rather than trust
+        // the arithmetic.
+        val exportDate = LocalDate.parse("2026-08-29")
+        val offsets = listOf(
+            -MissingDataPolicy.MAX_REPORT_DAYS - 1, -MissingDataPolicy.MAX_REPORT_DAYS,
+            -MissingDataPolicy.MAX_REPORT_DAYS + 1, -1, 0, 1,
+            MissingDataPolicy.MAX_FUTURE_DAYS - 1, MissingDataPolicy.MAX_FUTURE_DAYS,
+            MissingDataPolicy.MAX_FUTURE_DAYS + 1,
+        )
+        offsets.forEach { a ->
+            offsets.forEach { b ->
+                val window = MissingDataPolicy.windowFor(
+                    listOf(exportDate.plusDays(a), exportDate.plusDays(b)),
+                    exportDate,
+                ) ?: return@forEach
+                assertTrue("window ran backwards for $a/$b", !window.through.isBefore(window.start))
+                assertTrue(
+                    "window of ${ChronoUnit.DAYS.between(window.start, window.through)} days for $a/$b",
+                    ChronoUnit.DAYS.between(window.start, window.through) <= MissingDataPolicy.MAX_REPORT_DAYS,
+                )
+            }
+        }
     }
 }

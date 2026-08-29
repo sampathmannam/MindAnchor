@@ -55,7 +55,7 @@ class ResearchDataDictionaryTest {
         // the version, both have to be visible here rather than looking
         // like the same one-line re-pin.
         val frozen = mapOf(
-            "mindanchor-research-v2" to "c5c898b7a5df97d7b67eeea4be08ddaef3eac0fbaf12d0914e7273b09aa844b4",
+            "mindanchor-research-v2" to "54918681d2646565dcde1ed6259dbe6f5cf119593dfde6cf9f2b7d7a2d4ee194",
         )
         assertEquals(
             "the current dictionary version needs a frozen hash",

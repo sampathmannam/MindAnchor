@@ -69,6 +69,10 @@ class MorningMeasureRepository(
                 ),
             )
         }
+        // After the transaction: a morning measure can open a study
+        // phase, which appends to the ledger, and the high-water mark has
+        // to be raised from a committed count.
+        provenance.refreshAfterCommit()
         ContinuityWorkScheduler.requestCheckpoint(context)
         return measure
     }

@@ -56,11 +56,17 @@ object ResearchExportBuilder {
      * Assembles a [ResearchExport] from [database], seals it, and writes it
      * to [uri].
      *
-     * Never throws. The document picker has already created the file by the
-     * time this runs, so an escaping exception would leave the person with
-     * a zero-byte export, no error line, and — on a scope with no handler —
-     * a crash. A typed [ExportOutcome.BuildFailed] is what a caller can
-     * actually show.
+     * Never throws an [Exception]. The document picker has already created
+     * the file by the time this runs, so an escaping exception would leave
+     * the person with a zero-byte export, no error line, and — on a scope
+     * with no handler — a crash. A typed [ExportOutcome.BuildFailed] is
+     * what a caller can actually show.
+     *
+     * An [Error] is deliberately *not* caught, and a [CancellationException]
+     * is rethrown: the first is not a condition a message can help with,
+     * and the second is the caller tearing the coroutine down, where
+     * "couldn't export the file" would be a wrong statement rather than a
+     * wrong outcome.
      */
     @Suppress("detekt.SwallowedException")
     suspend fun export(
@@ -208,15 +214,22 @@ object ResearchExportBuilder {
     ): List<MissingDataRecord> {
         val recordDates = (entries.map { it.localDate } + measures.map { it.localDate } + ledgerDates)
             .mapNotNull { parseDate(it) }
-        val window = MissingDataPolicy.windowFor(
-            recordDates = recordDates,
-            exportDate = Instant.ofEpochMilli(now).atZone(zone).toLocalDate(),
-        ) ?: return emptyList()
+        val exportDate = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
+        val window = MissingDataPolicy.windowFor(recordDates, exportDate) ?: return emptyList()
 
         return MissingDataPolicy.report(
             firstRecordDate = window.start,
             throughDate = window.through,
-            allMeasureDates = measures.mapNotNull { parseDate(it.localDate) }.toSet(),
+            // Filtered by plausibility, not by the window: `report` needs
+            // every real measure date, including ones before the window,
+            // or the window boundary would look like the first measure
+            // ever taken. But an implausible one must not get a vote --
+            // one row from the year 1000 made every skipped day read as
+            // "had not started yet", inverted.
+            allMeasureDates = measures
+                .mapNotNull { parseDate(it.localDate) }
+                .filter { MissingDataPolicy.isPlausible(it, exportDate) }
+                .toSet(),
             entryDatesWithoutContext = entries
                 .filterNot { it.id in entryIdsWithFacts }
                 .mapNotNull { parseDate(it.localDate) }

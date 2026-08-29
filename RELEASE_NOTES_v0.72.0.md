@@ -79,10 +79,13 @@ carried forward. A series that quietly looks complete is worse than one
 with visible holes.
 
 The report says which window it covers rather than promising more than it
-can deliver. A row carrying an impossible date — a corrupt restore, or a
-clock that was wrong when it was written — is left out of choosing that
-window, so one bad row cannot bury your real history under thousands of
-invented absences. The row itself is still exported exactly as stored.
+can deliver: it ends on the day you exported and reaches back at most ten
+years. A row carrying an impossible date — a corrupt restore, or a clock
+that was wrong when it was written — is left out of choosing that window
+and out of deciding the reasons inside it, so one bad row cannot bury
+your real history under thousands of invented absences, and cannot turn
+"you hadn't started this yet" into "you skipped it". The row itself is
+still exported exactly as stored.
 
 ### The export explains itself
 

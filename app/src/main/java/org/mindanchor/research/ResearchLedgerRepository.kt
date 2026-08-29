@@ -6,6 +6,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.mindanchor.continuity.ContinuityPrefs
@@ -124,9 +125,14 @@ open class ResearchLedgerRepository(
     @Suppress("detekt.SwallowedException")
     private suspend fun raiseLedgerHighWater() {
         try {
+            val prefs = ContinuityPrefs(context)
+            val count = dao.ledgerEventCount()
+            // Read before writing so an ordinary Journal save, which grows
+            // nothing, costs a DataStore read rather than an fsync.
+            if ((prefs.ledgerHighWater.first()?.eventCount ?: 0) >= count) return
             val head = dao.ledgerHead()
             if (head != null) {
-                ContinuityPrefs(context).raiseLedgerHighWater(dao.ledgerEventCount(), head.eventHash)
+                prefs.raiseLedgerHighWater(count, head.eventHash)
             }
         } catch (cancellation: CancellationException) {
             throw cancellation

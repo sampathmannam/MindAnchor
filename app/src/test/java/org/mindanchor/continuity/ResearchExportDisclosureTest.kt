@@ -85,9 +85,12 @@ class ResearchExportDisclosureTest {
         disclosedAs.forEach { (field, phrase) ->
             if (field in shared) return@forEach
             val others = disclosedAs.filterKeys { it != field }.values.toSet()
+            // Substring, not equality: "version identifiers" is contained
+            // in another field's phrase, so an exact-match guard would
+            // have waved it through while telling the person nothing new.
             assertTrue(
                 "`$field` is disclosed only by \"$phrase\", which another field already supplies",
-                phrase !in others,
+                others.none { it.contains(phrase) },
             )
         }
     }

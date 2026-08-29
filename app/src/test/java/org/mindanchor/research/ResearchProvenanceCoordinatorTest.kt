@@ -56,6 +56,13 @@ class ResearchProvenanceCoordinatorTest {
             if (failOnAppend) error("the disk filled up")
             this.events += events
         }
+
+        /** Records both that it fired and what the ledger held at the time. */
+        override suspend fun afterLedgerGrew() {
+            refreshes += events.size
+        }
+
+        val refreshes = mutableListOf<Int>()
     }
 
     private fun coordinator(
@@ -292,5 +299,47 @@ class ResearchProvenanceCoordinatorTest {
         assertEquals(2L, store.events[1].sequence)
         assertEquals(restored.eventHash, store.events[1].previousEventHash)
         assertEquals(LedgerIntegrity.VERIFIED, LedgerChain.verify(store.events))
+    }
+
+    @Test
+    fun `opening a phase does not refresh anything by itself`() = runBlocking {
+        // The refresh has to be the caller's call, made after the caller's
+        // own transaction. Doing it here looked equivalent and was not:
+        // two of the three write paths open a phase from inside their own
+        // `withTransaction`, so this ran inside theirs.
+        val store = FakeStore()
+        coordinator(store).ensureCurrentPhase(now = 1_000L)
+
+        assertEquals(1, store.phases.size)
+        assertEquals(emptyList<Int>(), store.refreshes)
+    }
+
+    @Test
+    fun `a refresh after commit sees the committed ledger`() = runBlocking {
+        val store = FakeStore()
+        val coordinator = coordinator(store)
+        coordinator.ensureCurrentPhase(now = 1_000L)
+        coordinator.refreshAfterCommit()
+
+        assertEquals(listOf(store.events.size), store.refreshes)
+    }
+
+    @Test
+    fun `a rolled-back phase leaves nothing for a later refresh to record`() = runBlocking {
+        // The defect this guards: a refresh that ran inside the caller's
+        // transaction raised a durable, monotonic high-water mark from an
+        // uncommitted row count. One rollback and the mark stayed above
+        // the real ledger forever, so every later export declared the
+        // person's events deleted.
+        val store = FakeStore(failOnAppend = true)
+        val coordinator = coordinator(store)
+
+        runCatching { coordinator.ensureCurrentPhase(now = 1_000L) }
+
+        assertEquals("the append must have rolled back", 0, store.events.size)
+        assertEquals("nothing may have been recorded from uncommitted state", emptyList<Int>(), store.refreshes)
+
+        coordinator.refreshAfterCommit()
+        assertEquals("a later refresh sees only what committed", listOf(0), store.refreshes)
     }
 }
