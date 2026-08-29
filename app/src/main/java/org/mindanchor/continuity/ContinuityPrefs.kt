@@ -3,6 +3,7 @@ package org.mindanchor.continuity
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -54,6 +55,9 @@ class ContinuityPrefs(private val context: Context) {
 
     private val lastRestoreAtKey = longPreferencesKey("last_restore_at")
     private val lastRestoreHashKey = stringPreferencesKey("last_restore_hash")
+
+    private val ledgerHighWaterCountKey = intPreferencesKey("ledger_high_water_count")
+    private val ledgerHighWaterHeadKey = stringPreferencesKey("ledger_high_water_head")
 
     private val dirtySinceKey = longPreferencesKey("dirty_since")
     private val lastErrorCodeKey = stringPreferencesKey("last_error_code")
@@ -161,6 +165,37 @@ class ContinuityPrefs(private val context: Context) {
         }
     }
 
+    /**
+     * The largest research ledger this device has ever held: how many
+     * events, and the hash of the newest one.
+     *
+     * This is the part of the chain that cannot live inside the chain.
+     * Removing the newest events leaves a shorter but perfectly
+     * self-consistent history, so the chain alone cannot see the loss — a
+     * count recorded somewhere else can.
+     *
+     * A **high-water mark**, deliberately, not a running mirror. It only
+     * ever rises, so a write path that forgets to refresh it weakens
+     * detection but can never raise a false alarm; and a replacement phone
+     * starts at zero, so a restore is not mistaken for a truncation. Only
+     * a ledger that has *shrunk* below the mark is evidence of loss.
+     */
+    val ledgerHighWater: Flow<LedgerHighWater?> = context.continuityDataStore.data.map { prefs ->
+        val count = prefs[ledgerHighWaterCountKey]
+        val head = prefs[ledgerHighWaterHeadKey]
+        if (count == null || head == null) null else LedgerHighWater(count, head)
+    }
+
+    /** Raises the mark to [eventCount]/[headHash]. Never lowers it — see [ledgerHighWater]. */
+    suspend fun raiseLedgerHighWater(eventCount: Int, headHash: String) {
+        context.continuityDataStore.edit { prefs ->
+            if ((prefs[ledgerHighWaterCountKey] ?: 0) <= eventCount) {
+                prefs[ledgerHighWaterCountKey] = eventCount
+                prefs[ledgerHighWaterHeadKey] = headHash
+            }
+        }
+    }
+
     /** Records a restore's time and the restored content's hash. */
     suspend fun recordRestore(at: Long, contentHash: String) {
         context.continuityDataStore.edit { prefs ->
@@ -189,4 +224,7 @@ class ContinuityPrefs(private val context: Context) {
 
     /** A restore's time and the restored content's hash. */
     data class RestoreRecord(val at: Long, val contentHash: String)
+
+    /** The largest ledger this device has held: [eventCount] events ending at [headHash]. */
+    data class LedgerHighWater(val eventCount: Int, val headHash: String)
 }

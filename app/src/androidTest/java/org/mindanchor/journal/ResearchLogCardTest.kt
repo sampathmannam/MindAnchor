@@ -149,6 +149,14 @@ class ResearchLogCardTest {
         compose.onNodeWithTag("research_log_today").assertExists()
         compose.onNodeWithText("Exercise — a walk").assertExists()
         compose.onNodeWithText("Illness — a sore throat").assertExists()
+        // Newest first: the later sequence must render above the earlier
+        // one. Without this the test's name claimed an ordering nothing
+        // checked.
+        val illness = compose.onNodeWithText("Illness — a sore throat")
+            .fetchSemanticsNode().positionInRoot.y
+        val exercise = compose.onNodeWithText("Exercise — a walk")
+            .fetchSemanticsNode().positionInRoot.y
+        assertTrue("the newer record must appear above the older one", illness < exercise)
         // The rows are append-only in the database. Offering an edit or a
         // delete would be an affordance that cannot work.
         assertEquals(0, compose.onAllNodesWithTag("research_log_edit").fetchSemanticsNodes().size)

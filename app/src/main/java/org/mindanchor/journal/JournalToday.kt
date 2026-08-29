@@ -83,7 +83,7 @@ fun JournalToday(
 
 /** The title, the body, Save, and the two lines that report what happened. */
 @Composable
-@Suppress("FunctionNaming", "LongParameterList")
+@Suppress("FunctionNaming")
 private fun WritingCard(
     title: String,
     body: String,

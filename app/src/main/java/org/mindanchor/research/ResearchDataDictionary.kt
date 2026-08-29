@@ -124,15 +124,27 @@ object ResearchDataDictionary {
         )
     }
 
-    /** SHA-256 of [canonicalJson]. Carried in the export beside, never inside, the content hash. */
-    val sha256: String by lazy {
+    /** SHA-256 of this build's own [dictionary]. */
+    val sha256: String by lazy { sha256Of(dictionary) }
+
+    /**
+     * SHA-256 of an arbitrary [DataDictionary].
+     *
+     * Exists so a *carried* dictionary — the one inside a file somebody
+     * hands you — can be checked, rather than only the one this build
+     * happens to hold. Without it, `dataDictionarySha256` in an export
+     * would be a number nobody could recompute, and a rewritten dictionary
+     * with a matching hash would read as authentic.
+     */
+    fun sha256Of(dictionary: DataDictionary): String =
         MessageDigest.getInstance("SHA-256")
-            .digest(canonicalJson().encodeToByteArray())
+            .digest(canonicalJsonOf(dictionary).encodeToByteArray())
             .joinToString(separator = "") { "%02x".format(it) }
-    }
 
     /** The dictionary as it appears in the golden file and in an export. */
-    fun canonicalJson(): String = json.encodeToString(dictionary)
+    fun canonicalJson(): String = canonicalJsonOf(dictionary)
+
+    private fun canonicalJsonOf(dictionary: DataDictionary): String = json.encodeToString(dictionary)
 
     /**
      * Builds the variables of one dataset. Holding the dataset here rather

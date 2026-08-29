@@ -786,6 +786,7 @@ internal class ContinuitySettingsViewModel(
                 is ResearchExportBuilder.ExportOutcome.Success ->
                     ContinuityMessage.ExportSucceeded(ResearchExportBuilder.truncatedHash(outcome.contentSha256))
                 is ResearchExportBuilder.ExportOutcome.WriteFailed -> ContinuityMessage.ExportFailed
+                is ResearchExportBuilder.ExportOutcome.BuildFailed -> ContinuityMessage.ExportFailed
             }
         }
     }

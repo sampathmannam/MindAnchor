@@ -7,6 +7,7 @@ import java.time.ZoneId
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import org.mindanchor.continuity.ContinuityPrefs
 import org.mindanchor.continuity.ContinuityWorkScheduler
 import org.mindanchor.data.db.AnchorDatabase
 import org.mindanchor.data.db.ContinuityChangeEntity
@@ -100,7 +101,30 @@ open class ResearchLedgerRepository(
             linked
         }
         ContinuityWorkScheduler.requestCheckpoint(context)
+        raiseLedgerHighWater()
         return event
+    }
+
+    /**
+     * Raises the device's record of the largest ledger it has held.
+     *
+     * Outside the transaction on purpose: this is a DataStore write, and
+     * holding the SQLite write lock across an fsync is the one thing the
+     * provenance coordinator already goes out of its way to avoid.
+     *
+     * Best-effort, and safe to miss. The mark only ever rises, so a path
+     * that appends without refreshing it weakens truncation detection
+     * until the next write and can never raise a false alarm. A failure
+     * here must not cost the person the event they just recorded, which is
+     * already committed by this point.
+     */
+    private suspend fun raiseLedgerHighWater() {
+        runCatching {
+            val head = dao.ledgerHead()
+            if (head != null) {
+                ContinuityPrefs(context).raiseLedgerHighWater(dao.ledgerEventCount(), head.eventHash)
+            }
+        }
     }
 
     /** The whole ledger, in chain order. */

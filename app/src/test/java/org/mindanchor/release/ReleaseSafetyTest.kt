@@ -134,18 +134,19 @@ class ReleaseSafetyTest {
     }
 
     @Test
-    fun `versionCode and versionName are pinned to the Program 0 release values`() {
-        // Exact-match pin in addition to the ">94" check above: the
-        // brief's Step 5 wants exactly 95 / "0.71.0" today. This test
-        // is expected to need updating on the next real version bump;
-        // the ">94" test above is the one that survives it unmodified.
+    fun `versionCode and versionName are pinned to the Program 1 release values`() {
+        // Exact-match pin in addition to the ">94" check above: Program 1
+        // ships 96 / "0.72.0". This test is expected to need updating on
+        // every real version bump; the ">94" test above is the one that
+        // survives unmodified, and it guards the property that actually
+        // matters -- a versionCode must never regress.
         assertTrue(
-            "app/build.gradle.kts must set versionCode = 95.",
-            Regex("""versionCode\s*=\s*95\b""").containsMatchIn(appBuildGradleSource),
+            "app/build.gradle.kts must set versionCode = 96.",
+            Regex("""versionCode\s*=\s*96\b""").containsMatchIn(appBuildGradleSource),
         )
         assertTrue(
-            "app/build.gradle.kts must set versionName = \"0.71.0\".",
-            appBuildGradleSource.contains("versionName = \"0.71.0\""),
+            "app/build.gradle.kts must set versionName = \"0.72.0\".",
+            appBuildGradleSource.contains("versionName = \"0.72.0\""),
         )
     }
 

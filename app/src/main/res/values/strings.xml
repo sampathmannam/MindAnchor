@@ -1139,7 +1139,9 @@
 
     <string name="continuity_export_research">Export research JSON</string>
     <string name="continuity_export_research_privacy_title">Before you export</string>
-    <string name="continuity_export_research_privacy_body">This file is plain, unencrypted text — your Journal entries and the structural facts derived from them. Anyone who can open the file can read it. Only share it with people or services you trust.</string>
+    <string name="continuity_export_research_privacy_body">This file is plain, unencrypted text. It contains your Journal entries in full; the structural facts derived from them; your morning check-in ratings; everything in your research log, including the notes you wrote about illness, medication changes and anything that felt worse; a day-by-day list of what you did and did not record; and the study phases, version identifiers and device identifiers MindAnchor recorded alongside them.
+
+Anyone who can open the file can read all of it. Only share it with people or services you trust.</string>
     <string name="continuity_export_research_privacy_confirm">Export</string>
     <string name="continuity_export_research_privacy_cancel">Cancel</string>
     <string name="continuity_export_research_success">Exported. Content hash: %1$s</string>

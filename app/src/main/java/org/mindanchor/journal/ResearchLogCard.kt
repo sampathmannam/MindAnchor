@@ -31,24 +31,11 @@ import org.mindanchor.research.MAX_LEDGER_NOTE_LENGTH
 import org.mindanchor.research.ResearchLedgerEvent
 
 /**
- * The research log: the things that might explain a day, recorded by the
- * person in their own words.
+ * One chip: the kind it records, its label, and the prompt on its dialog.
  *
- * @wording-reviewed — every string here reaches a person recording
- * something about their own health, including a medication change.
- * Changes are clinical-review-required.
- *
- * Three rules this card keeps:
- *
- *  - It records; it never interprets. There is no scoring, no summary, no
- *    "you've logged this a lot lately".
- *  - A medication change is recorded and nothing else. The dialog says so
- *    in plain words, because the one thing a person might reasonably fear
- *    from an app that knows about their medication is that it will have an
- *    opinion.
- *  - Nothing here can be edited or deleted. The rows are append-only in
- *    the database, so offering an affordance that cannot work would be a
- *    lie; a test asserts no edit or delete control exists.
+ * @wording-reviewed — every string in this file reaches a person
+ * recording something about their own health, including a medication
+ * change. Changes are clinical-review-required.
  */
 private data class LogKind(val kind: LedgerEventKind, val label: String, val prompt: String)
 
@@ -62,6 +49,27 @@ private val KINDS = listOf(
     LogKind(LedgerEventKind.ADVERSE_OR_UNINTENDED_EFFECT, "Something felt worse", "What happened?"),
 )
 
+/**
+ * The research log: the things that might explain a day, recorded by the
+ * person in their own words.
+ *
+ * Three rules this card keeps:
+ *
+ *  - It records; it never interprets. There is no scoring, no summary, no
+ *    "you've logged this a lot lately".
+ *  - A medication change is recorded and nothing else. The dialog says so
+ *    in plain words, because the one thing a person might reasonably fear
+ *    from an app that knows about their medication is that it will have an
+ *    opinion about it.
+ *  - Nothing here can be edited or deleted. The rows are append-only in
+ *    the database, so offering an affordance that cannot work would be a
+ *    lie; a test asserts no edit or delete control exists.
+ *
+ * The subtitle says nothing *interprets* what you write, which is true.
+ * It deliberately does not say the notes are private: they leave the
+ * device in plaintext the moment somebody exports, and the export's own
+ * consent dialog is where that is spelled out.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 @Suppress("FunctionNaming")
@@ -90,7 +98,7 @@ fun ResearchLogCard(
             )
             Text(
                 text = "Things that might explain a day. Recorded for research only — " +
-                    "nothing here is advice, and nothing reads your notes.",
+                    "nothing here is advice, and nothing interprets what you write.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -177,7 +185,15 @@ private fun RecordDialog(logKind: LogKind, onDismiss: () -> Unit, onRecord: (Str
                     value = note,
                     onValueChange = { note = it },
                     label = { Text(logKind.prompt) },
-                    supportingText = { Text("Optional. Your words, kept as you write them.") },
+                    supportingText = {
+                        Text(
+                            if (tooLong) {
+                                "Too long by ${note.trim().length - MAX_LEDGER_NOTE_LENGTH} characters."
+                            } else {
+                                "Optional. Your words, kept as you write them."
+                            },
+                        )
+                    },
                     isError = tooLong,
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                     modifier = Modifier

@@ -290,10 +290,21 @@ none:
 Tail truncation is the gap that matters most here: drop the last *k*
 rows and what remains is a shorter but perfectly self-consistent chain.
 In a self-experiment the subject is also the custodian, so "quietly drop
-the last few rows" is the likeliest direction. `LedgerAnchor` — the head
-hash plus the event count — is the part that cannot live inside the
-chain. `ContinuityPrefs` holds the local anchor, and the research export
-carries one.
+the last few rows" is the likeliest direction. The count has to be
+recorded somewhere the chain is not.
+
+`ContinuityPrefs` holds a **high-water mark**: the largest ledger this
+device has ever held, raised after every research write and never
+lowered. The export compares against it, and reports
+`LedgerIntegrity.BROKEN` when the ledger has *shrunk* below it. Only
+shrinking is evidence — a mark that is behind means a write that did not
+refresh it, or a ledger restored onto a phone that has not written since,
+so a missed refresh weakens detection and can never raise a false alarm.
+
+The anchor the export *carries* (`ledgerHeadHash`, `ledgerEventCount`) is
+derived from the very list the file contains, so on its own it tells a
+recipient only whether the file changed after they received it. That is
+worth carrying, and it is not the same guarantee.
 
 A custodian who re-links every event is not detectable by any
 self-contained file. A recipient who wants that guarantee records the
@@ -476,9 +487,30 @@ data dictionary with its hash.
   `UnsupportedVersion` for anything else.
 - `contentSha256` still covers **content only** — never `exportedAt`,
   never the app version — so "did the data change" stays answerable
-  independently of "was this exported again".
+  independently of "was this exported again". It covers every other
+  field, including the protocol registry and the transformation registry
+  in full: `transformationSetVersion` hashes `id@version` only, so the
+  descriptions — one of which is the file's own statement that MindAnchor
+  reads no meaning from journal text — would otherwise be editable in a
+  file that still verified. A reflection test fails the build if a field
+  is added to the export without deciding whether it is content.
 - `dataDictionarySha256` is carried separately, so a dictionary version
-  bump does not masquerade as a data change.
+  bump does not masquerade as a data change. The hash itself *is* inside
+  the content hash, and `verify` separately recomputes it against the
+  carried dictionary — together those make a rewritten dictionary
+  detectable without making a version bump look like edited data.
+- A version-1 document that carries any Program 1 field is rejected as
+  corrupt. Its hash covers four content lists, so anything else it
+  carries sits outside its own hash; without this, a fabricated ledger
+  pasted into a genuine Program 0 export would still verify.
+- The export never throws. The document picker has already created the
+  file by the time the builder runs, so an escaping exception would leave
+  a zero-byte export and no error; a typed `BuildFailed` is what the
+  caller can show. The missing-data window runs from the first record to
+  the later of "now" and the newest record — a clock behind its own data
+  must not produce an empty report under a statement promising a complete
+  one — and is clamped to the policy's maximum span so a single corrupt
+  date cannot ask for four hundred thousand rows.
 - `ResearchExportCodec.verify(export)` recomputes the hash using the
   projection for that file's own version. A Program 0 export written
   months ago stays verifiable by a Program 1 build. Both projections are
@@ -623,6 +655,16 @@ Conservative in-scope calls made without interrupting the owner:
 9. **New user-facing strings will need clinical review before merge.** The
    `clinical-review` workflow gate is a PR gate, and this branch is not
    pushed. Flagged in the final report rather than worked around.
+10. **The export consent dialog enumerates categories, not fields.** The
+    v2 export carries far more than Program 0's did — the whole research
+    log including verbatim notes about illness and medication changes,
+    morning-measure ratings, device identifiers, and a day-by-day record
+    of what was and was not logged. The dialog names each category, and
+    `ResearchExportDisclosureTest` fails the build when a field is added
+    to the export without a decision about what the person is told. A
+    plaintext file handed to a clinician or an insurer is not
+    recoverable, so consent obtained for a smaller dataset must not be
+    reused for a larger one.
 
 ## 15. Sources used
 

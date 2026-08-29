@@ -5,8 +5,11 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import org.mindanchor.research.EvidenceProtocol
 import org.mindanchor.research.LedgerIntegrity
 import org.mindanchor.research.MissingDataRecord
+import org.mindanchor.research.ResearchDataDictionary
+import org.mindanchor.research.Transformation
 
 /**
  * Builds, seals, verifies and (de)serializes a [ResearchExport].
@@ -61,8 +64,35 @@ object ResearchExportCodec {
         if (parsed.dataDictionaryVersion !in ContinuityContract.SUPPORTED_RESEARCH_DICTIONARY_VERSIONS) {
             return DecodeResult.UnsupportedVersion(parsed.dataDictionaryVersion)
         }
+        // A version-1 document is hashed over four content lists, so any
+        // Program 1 field it carries is outside its own hash — somebody
+        // could paste a fabricated ledger into a genuine Program 0 export
+        // and `verify` would still say yes. A v1 document that carries
+        // Program 1 content is not a v1 document.
+        if (parsed.dataDictionaryVersion == ContinuityContract.PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION &&
+            carriesProgramOneContent(parsed)
+        ) {
+            return DecodeResult.Corrupt
+        }
         return DecodeResult.Success(parsed)
     }
+
+    /** Whether [export] holds anything a Program 0 document could not have written. */
+    private fun carriesProgramOneContent(export: ResearchExport): Boolean =
+        export.ledgerEvents.isNotEmpty() ||
+            export.ledgerHeadHash.isNotEmpty() ||
+            export.ledgerEventCount != 0 ||
+            export.ledgerIntegrity != LedgerIntegrity.NOT_APPLICABLE ||
+            export.studyPhases.isNotEmpty() ||
+            export.protocolRegistry.isNotEmpty() ||
+            export.protocolCatalogSha256.isNotEmpty() ||
+            export.transformations.isNotEmpty() ||
+            export.transformationSetVersion.isNotEmpty() ||
+            export.missingData.isNotEmpty() ||
+            export.missingDataPolicyVersion.isNotEmpty() ||
+            export.missingDataStatement.isNotEmpty() ||
+            export.dataDictionary != null ||
+            export.dataDictionarySha256.isNotEmpty()
 
     /**
      * Returns [export] with its lists in canonical order and
@@ -84,10 +114,27 @@ object ResearchExportCodec {
      */
     fun verify(export: ResearchExport): Boolean =
         export.dataDictionaryVersion in ContinuityContract.SUPPORTED_RESEARCH_DICTIONARY_VERSIONS &&
+            carriedDictionaryMatchesItsHash(export) &&
             hashContent(sorted(export), export.dataDictionaryVersion) == export.contentSha256
 
+    /**
+     * The carried dictionary has to be the one its hash names.
+     *
+     * `dataDictionarySha256` is inside the content hash, so it cannot be
+     * edited freely — but the dictionary itself is not, deliberately, so
+     * that a dictionary version bump does not read as a data change. That
+     * leaves exactly one gap: rewriting the carried dictionary and leaving
+     * the hash alone. Recomputing it here closes it, and means a file's
+     * claim about what its own columns mean is checkable rather than
+     * assumed.
+     */
+    private fun carriedDictionaryMatchesItsHash(export: ResearchExport): Boolean {
+        val carried = export.dataDictionary ?: return true
+        return ResearchDataDictionary.sha256Of(carried) == export.dataDictionarySha256
+    }
+
     /** Every list in its stable canonical order — the same keys the continuity hasher uses. */
-    fun sorted(export: ResearchExport): ResearchExport = export.copy(
+    private fun sorted(export: ResearchExport): ResearchExport = export.copy(
         journalEntries = export.journalEntries.sortedBy { it.id },
         contextFacts = export.contextFacts.sortedBy { it.id },
         contextInferences = export.contextInferences.sortedBy { it.id },
@@ -128,9 +175,14 @@ object ResearchExportCodec {
         ledgerEventCount = export.ledgerEventCount,
         ledgerIntegrity = export.ledgerIntegrity,
         studyPhases = export.studyPhases,
+        protocolRegistry = export.protocolRegistry,
         protocolCatalogSha256 = export.protocolCatalogSha256,
+        transformations = export.transformations,
         transformationSetVersion = export.transformationSetVersion,
         missingData = export.missingData,
+        missingDataPolicyVersion = export.missingDataPolicyVersion,
+        missingDataStatement = export.missingDataStatement,
+        dataDictionarySha256 = export.dataDictionarySha256,
     )
 
     /**
@@ -148,11 +200,29 @@ object ResearchExportCodec {
     /**
      * Program 1's export content.
      *
-     * The protocol registry and the transformation registry appear as their
-     * content hashes rather than in full: the hashes already cover them, and
-     * a digest is not the place to carry a page of prose. The data
-     * dictionary is absent on purpose — its own hash travels beside this
-     * one, so bumping the dictionary does not read as a data change.
+     * The protocol registry is carried in full rather than as its
+     * catalogue hash alone. The hash does fold in each protocol's own
+     * `definitionSha256`, but only for the protocols it was computed
+     * over — emptying the carried list while leaving the hash intact
+     * would otherwise verify, and a file that claims a catalogue hash for
+     * protocols it does not contain is not self-describing.
+     *
+     * The transformation registry is carried in full for a related but
+     * different reason.
+     * `TransformationRegistry.setVersionOf` hashes `id@version` only — by
+     * design, so a typo fix in a description does not split the study
+     * series — which means the descriptions are not covered by
+     * `transformationSetVersion`. One of those descriptions is the file's
+     * own statement that MindAnchor reads no meaning from journal text;
+     * left out of the hash, it could be inverted in an exported file with
+     * the hash still verifying. So the list is carried in full here.
+     *
+     * The data dictionary is still absent, on purpose: its own hash
+     * travels beside this one so that bumping the dictionary does not read
+     * as a data change. `dataDictionarySha256` **is** here, and `verify`
+     * separately recomputes it against the carried dictionary — together
+     * those make the dictionary tamper-evident without making a version
+     * bump look like edited data.
      */
     @Serializable
     private data class V2Content(
@@ -165,8 +235,13 @@ object ResearchExportCodec {
         val ledgerEventCount: Int,
         val ledgerIntegrity: LedgerIntegrity,
         val studyPhases: List<StudyPhaseDto>,
+        val protocolRegistry: List<EvidenceProtocol>,
         val protocolCatalogSha256: String,
+        val transformations: List<Transformation>,
         val transformationSetVersion: String,
         val missingData: List<MissingDataRecord>,
+        val missingDataPolicyVersion: String,
+        val missingDataStatement: String,
+        val dataDictionarySha256: String,
     )
 }

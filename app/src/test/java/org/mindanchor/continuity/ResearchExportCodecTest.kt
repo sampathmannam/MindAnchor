@@ -1,5 +1,6 @@
 package org.mindanchor.continuity
 
+import java.lang.reflect.Modifier
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -263,28 +264,112 @@ class ResearchExportCodecTest {
         )
     }
 
+    /**
+     * Fields that describe the export rather than its content, and are
+     * therefore outside the content hash on purpose.
+     *
+     * `dataDictionary` is excluded so that bumping the dictionary does not
+     * read as a data change; it is made tamper-evident a different way, by
+     * `verify` recomputing `dataDictionarySha256` against it.
+     */
+    private val outsideTheContentHash = setOf(
+        "dataDictionaryVersion",
+        "exportedAt",
+        "appVersionCode",
+        "appVersionName",
+        "contentSha256",
+        "dataDictionary",
+    )
+
+    /** One mutation per content field, each of which must break verification. */
+    private fun contentMutations(original: ResearchExport): Map<String, ResearchExport> = mapOf(
+        "journalEntries" to original.copy(journalEntries = original.journalEntries + entry("entry-2")),
+        "contextFacts" to original.copy(contextFacts = original.contextFacts + contextRow("context-2")),
+        "contextInferences" to original.copy(
+            contextInferences = listOf(contextRow("context-3", recordType = "INFERENCE")),
+        ),
+        "morningMeasures" to original.copy(morningMeasures = original.morningMeasures + measure("measure-2")),
+        "ledgerEvents" to original.copy(ledgerEvents = original.ledgerEvents + ledgerEvent("event-2", 2L)),
+        "ledgerHeadHash" to original.copy(ledgerHeadHash = "somebody-elses-head"),
+        "ledgerEventCount" to original.copy(ledgerEventCount = 99),
+        "ledgerIntegrity" to original.copy(ledgerIntegrity = LedgerIntegrity.BROKEN),
+        "studyPhases" to original.copy(studyPhases = original.studyPhases + phase("phase-1", 1)),
+        "protocolRegistry" to original.copy(protocolRegistry = emptyList()),
+        "protocolCatalogSha256" to original.copy(protocolCatalogSha256 = "another-catalogue"),
+        "transformations" to original.copy(
+            transformations = original.transformations.map { it.copy(description = "the opposite") },
+        ),
+        "transformationSetVersion" to original.copy(transformationSetVersion = "another-set"),
+        "missingData" to original.copy(missingData = emptyList()),
+        "missingDataPolicyVersion" to original.copy(missingDataPolicyVersion = "missing-data-v9"),
+        "missingDataStatement" to original.copy(
+            missingDataStatement = "Absences are carried forward from the previous day.",
+        ),
+        "dataDictionarySha256" to original.copy(dataDictionarySha256 = "a different dictionary"),
+    )
+
     @Test
-    fun `every content list is inside the hash`() {
+    fun `every content field is inside the hash`() {
         val original = sample()
-        val mutations: List<Pair<String, ResearchExport>> = listOf(
-            "journalEntries" to original.copy(journalEntries = original.journalEntries + entry("entry-2")),
-            "contextFacts" to original.copy(contextFacts = original.contextFacts + contextRow("context-2")),
-            "contextInferences" to original.copy(
-                contextInferences = listOf(contextRow("context-3", recordType = "INFERENCE")),
-            ),
-            "morningMeasures" to original.copy(morningMeasures = original.morningMeasures + measure("measure-2")),
-            "ledgerEvents" to original.copy(ledgerEvents = original.ledgerEvents + ledgerEvent("event-2", 2L)),
-            "ledgerHeadHash" to original.copy(ledgerHeadHash = "somebody-elses-head"),
-            "ledgerEventCount" to original.copy(ledgerEventCount = 99),
-            "ledgerIntegrity" to original.copy(ledgerIntegrity = LedgerIntegrity.BROKEN),
-            "studyPhases" to original.copy(studyPhases = original.studyPhases + phase("phase-1", 1)),
-            "protocolCatalogSha256" to original.copy(protocolCatalogSha256 = "another-catalogue"),
-            "transformationSetVersion" to original.copy(transformationSetVersion = "another-set"),
-            "missingData" to original.copy(missingData = emptyList()),
-        )
-        mutations.forEach { (field, mutated) ->
+        contentMutations(original).forEach { (field, mutated) ->
             assertFalse("changing $field must break verification", ResearchExportCodec.verify(mutated))
         }
+    }
+
+    @Test
+    fun `no export field escapes both the content hash and the exclusion list`() {
+        // The previous version of this test listed exactly the fields the
+        // projection already covered, so it restated the implementation
+        // rather than checking it: it passed unchanged while the projection
+        // quietly omitted five fields, which is what happened. Reflecting
+        // over the declared fields is what makes a newly added export field
+        // fail the build until somebody decides whether it is content.
+        val declared = ResearchExport::class.java.declaredFields
+            .filter { !it.isSynthetic && !Modifier.isStatic(it.modifiers) }
+            .map { it.name }
+            .toSet()
+        assertEquals(
+            "a field was added to ResearchExport without deciding whether it is content: " +
+                "give it a mutation in `contentMutations`, or name it in `outsideTheContentHash`",
+            declared,
+            contentMutations(sample()).keys + outsideTheContentHash,
+        )
+    }
+
+    @Test
+    fun `a rewritten transformation description breaks verification`() {
+        // The transformation set version hashes id@version only, by design,
+        // so descriptions are not covered by it. One of those descriptions
+        // is the file's own statement that MindAnchor reads no meaning from
+        // journal text; outside the content hash, it could be inverted in
+        // an exported file that still verified.
+        val original = sample()
+        val inverted = original.copy(
+            transformations = original.transformations.map {
+                it.copy(description = "Derives sentiment and clinical interpretation from the body text.")
+            },
+        )
+        assertEquals(original.transformationSetVersion, inverted.transformationSetVersion)
+        assertFalse(ResearchExportCodec.verify(inverted))
+    }
+
+    @Test
+    fun `a rewritten carried dictionary breaks verification`() {
+        val original = sample()
+        val dictionary = requireNotNull(original.dataDictionary)
+        val rewritten = dictionary.copy(
+            variables = dictionary.variables.map { variable ->
+                if (variable.name == "mood") variable.copy(description = "A clinical severity score.") else variable
+            },
+        )
+        // The forger updates the stated hash too, which is the point:
+        // without recomputing it against the carried document, that would
+        // read as authentic.
+        val forged = original.copy(
+            dataDictionary = rewritten,
+            dataDictionarySha256 = ResearchDataDictionary.sha256Of(rewritten),
+        )
+        assertFalse("a rewritten dictionary must not verify", ResearchExportCodec.verify(forged))
     }
 
     @Test
@@ -297,14 +382,68 @@ class ResearchExportCodecTest {
 
     @Test
     fun `sealing puts every list in canonical order`() {
-        val shuffled = sample().let { sealed ->
-            sealed.copy(
-                journalEntries = sealed.journalEntries.reversed(),
-                ledgerEvents = sealed.ledgerEvents.reversed(),
-                studyPhases = sealed.studyPhases.reversed(),
+        // Multi-element and out of order, because the previous version of
+        // this test reversed single-element lists and so compared a hash to
+        // itself.
+        val ordered = ResearchExportCodec.seal(
+            sample().copy(
+                contentSha256 = "",
+                journalEntries = listOf(entry("entry-1"), entry("entry-2")),
+                contextFacts = listOf(contextRow("context-1"), contextRow("context-2")),
+                morningMeasures = listOf(measure("measure-1"), measure("measure-2")),
+                ledgerEvents = listOf(ledgerEvent("event-1", 1L), ledgerEvent("event-2", 2L)),
+                studyPhases = listOf(phase("phase-0", 0), phase("phase-1", 1)),
+                missingData = listOf(
+                    MissingDataRecord("2026-08-28", "morning_measure", MissingDataReason.NOT_RECORDED),
+                    MissingDataRecord("2026-08-29", "journal_context", MissingDataReason.CONTEXT_NOT_DERIVED),
+                ),
+            ),
+        )
+        val shuffled = ResearchExportCodec.seal(
+            ordered.copy(
+                contentSha256 = "",
+                journalEntries = ordered.journalEntries.reversed(),
+                contextFacts = ordered.contextFacts.reversed(),
+                morningMeasures = ordered.morningMeasures.reversed(),
+                ledgerEvents = ordered.ledgerEvents.reversed(),
+                studyPhases = ordered.studyPhases.reversed(),
+                missingData = ordered.missingData.reversed(),
+            ),
+        )
+
+        assertEquals(ordered.contentSha256, shuffled.contentSha256)
+        assertEquals(ordered.journalEntries, shuffled.journalEntries)
+        assertEquals(ordered.ledgerEvents, shuffled.ledgerEvents)
+        assertEquals(ordered.missingData, shuffled.missingData)
+        assertNotEquals(
+            "the fixture must actually exercise the sort keys",
+            ordered.journalEntries,
+            ordered.journalEntries.reversed(),
+        )
+    }
+
+    @Test
+    fun `the current content hash is frozen`() {
+        // The v1 pin protects Program 0's files. This one protects the
+        // files this build writes: reordering a field of the version-2
+        // projection, or retuning the encoder, would otherwise invalidate
+        // every export already taken, with the suite still green.
+        assertEquals("1d987835be87c985de1b0aa5d96ee47b2411985ef05d73b16dcfdf82b4d83cf6", sample().contentSha256)
+    }
+
+    @Test
+    fun `a version 1 document carrying Program 1 content is refused`() {
+        // A v1 document is hashed over four lists, so anything else it
+        // carries sits outside its own hash. Pasting a fabricated ledger
+        // into a genuine Program 0 export must not yield something that
+        // verifies.
+        val document = programZeroDocument
+            .replace("PROGRAM_ZERO_HASH", programZeroExport().contentSha256)
+            .replace(
+                "\"morningMeasures\": []",
+                "\"morningMeasures\": [],\n  \"ledgerHeadHash\": \"a fabricated head\"",
             )
-        }
-        assertEquals(sample().contentSha256, ResearchExportCodec.seal(shuffled.copy(contentSha256 = "")).contentSha256)
+        assertEquals(ResearchExportCodec.DecodeResult.Corrupt, ResearchExportCodec.decode(document))
     }
 
     @Test

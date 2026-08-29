@@ -59,8 +59,12 @@ class ResearchExportBuilderTest {
     @After
     fun close() = database.close()
 
-    private suspend fun build(now: Long = dayThree) = ResearchExportBuilder.build(
+    private suspend fun build(
+        now: Long = dayThree,
+        highWater: ContinuityPrefs.LedgerHighWater? = null,
+    ) = ResearchExportBuilder.build(
         database = database,
+        highWater = highWater,
         now = now,
         zone = ZoneOffset.UTC,
         appVersionCode = 95,
@@ -209,5 +213,118 @@ class ResearchExportBuilderTest {
         val roundTripped = (decoded as ResearchExportCodec.DecodeResult.Success).export
         assertEquals(original, roundTripped)
         assertTrue(ResearchExportCodec.verify(roundTripped))
+    }
+
+    @Test
+    fun aLedgerThatHasShrunkBelowItsHighWaterMarkIsReportedBroken() = runBlocking {
+        seedADayOfRecords()
+        val actual = database.research().ledgerEventCount()
+
+        // The chain itself still verifies -- what remains after a
+        // truncation is a shorter but perfectly self-consistent history --
+        // so only a count recorded elsewhere can notice the loss.
+        val intact = build(highWater = ContinuityPrefs.LedgerHighWater(actual, "irrelevant"))
+        assertEquals(LedgerIntegrity.VERIFIED, intact.ledgerIntegrity)
+
+        val shrunk = build(highWater = ContinuityPrefs.LedgerHighWater(actual + 1, "irrelevant"))
+        assertEquals(LedgerIntegrity.BROKEN, shrunk.ledgerIntegrity)
+    }
+
+    @Test
+    fun aHighWaterMarkBehindTheLedgerRaisesNoAlarm() = runBlocking {
+        seedADayOfRecords()
+
+        // The mark only ever rises, so being behind means a write that did
+        // not refresh it, or a ledger restored onto a phone that has not
+        // written since. Neither is evidence of loss.
+        val export = build(highWater = ContinuityPrefs.LedgerHighWater(1, "an older head"))
+
+        assertEquals(LedgerIntegrity.VERIFIED, export.ledgerIntegrity)
+    }
+
+    @Test
+    fun aClockBehindTheNewestRecordStillReportsEveryAbsence() = runBlocking {
+        seedADayOfRecords()
+        // A later record with no measure of its own, so there is a genuine
+        // absence to miss.
+        testLedgerRepository(context, database)
+            .record(LedgerEventKind.ILLNESS, occurredAt = dayThree, note = "", now = dayThree)
+
+        // "now" is days before the newest record, as it would be after
+        // timezone travel or a manual clock change. Reporting nothing here
+        // while the document still says every absence is listed would be a
+        // lie indistinguishable from a person who had missed nothing.
+        val export = build(now = dayOne - 2 * 86_400_000L)
+
+        assertEquals(
+            "the window must run to the newest record, not to a clock that is behind it",
+            listOf("2026-08-28", "2026-08-29"),
+            export.missingData
+                .filter { it.variable == MissingDataPolicy.VARIABLE_MORNING_MEASURE }
+                .map { it.localDate },
+        )
+        assertTrue(ResearchExportCodec.verify(export))
+    }
+
+    @Test
+    fun anAbsurdStoredDateDoesNotCrashTheExport() = runBlocking {
+        seedADayOfRecords()
+        // One row stamped a thousand years ago -- a corrupt restore, or a
+        // clock that was wrong when it was written. Without the window
+        // clamp this asks for four hundred thousand records and throws,
+        // and an export that throws leaves a zero-byte file behind.
+        database.journal().upsertEntries(
+            listOf(
+                org.mindanchor.data.db.JournalEntryEntity(
+                    id = "entry-from-the-year-1000",
+                    createdAt = dayOne,
+                    updatedAt = dayOne,
+                    localDate = "1000-01-01",
+                    title = "",
+                    body = "A row with an impossible date",
+                    kind = "DAILY",
+                    sourceDeviceId = "device-a",
+                    deletedAt = null,
+                ),
+            ),
+        )
+
+        val export = build()
+
+        assertTrue("the export must still be produced", ResearchExportCodec.verify(export))
+        assertEquals(2, export.journalEntries.size)
+        // The clamp is visible rather than silent: the earliest absence
+        // listed is far later than the earliest record.
+        assertTrue(export.missingData.isNotEmpty())
+        assertTrue(
+            "the window must be clamped, not run from the year 1000",
+            export.missingData.first().localDate > "1900-01-01",
+        )
+    }
+
+    @Test
+    fun anExportOutcomeIsReturnedRatherThanThrown() = runBlocking {
+        // A closed database is the simplest way to make the Room reads
+        // fail. The person is mid-export with a file already created by
+        // the picker; a typed outcome is what the caller can show them.
+        database.close()
+
+        val outcome = ResearchExportBuilder.export(
+            context = context,
+            database = database,
+            uri = android.net.Uri.parse("content://invalid/nothing"),
+            now = dayThree,
+            zone = ZoneOffset.UTC,
+        )
+
+        assertTrue(
+            "a failure must be a typed outcome, not an exception: $outcome",
+            outcome is ResearchExportBuilder.ExportOutcome.BuildFailed ||
+                outcome is ResearchExportBuilder.ExportOutcome.WriteFailed,
+        )
+        // Re-open so @After's close() is harmless.
+        database = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java)
+            .withResearchImmutability()
+            .build()
     }
 }
