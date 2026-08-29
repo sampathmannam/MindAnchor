@@ -214,8 +214,10 @@ class RestoreResumeTest {
         val dao = db.journal()
         return RestoreCoordinator(
             currentStageInfo = { restoreStateStore.currentInfo() },
-            persistDownloaded = { name, sha, hash -> restoreStateStore.markDownloaded(name, sha, hash) },
-            persistDecrypted = { hash -> restoreStateStore.markDecrypted(hash) },
+            persistDownloaded = { name, sha, hash, version ->
+                restoreStateStore.markDownloaded(name, sha, hash, version)
+            },
+            persistDecrypted = { hash, version -> restoreStateStore.markDecrypted(hash, version) },
             persistRoomMerged = { restoreStateStore.markRoomMerged() },
             persistDataStoresMerged = { restoreStateStore.markDataStoresMerged() },
             persistVerified = { restoreStateStore.markVerified() },
@@ -292,7 +294,7 @@ class RestoreResumeTest {
         val coordinator = realCoordinator(readGuard = readGuard)
 
         try {
-            coordinator.beginRestore("x.mab", bytes, snapshot.contentSha256)
+            coordinator.beginRestore("x.mab", bytes, snapshot.contentSha256, snapshot.formatVersion)
             fail("expected the injected failure to propagate")
         } catch (e: IllegalStateException) {
             // expected
@@ -314,8 +316,8 @@ class RestoreResumeTest {
         val bytes = envelopeBytes(snapshot)
         stagingFile.parentFile?.mkdirs()
         stagingFile.writeBytes(bytes)
-        restoreStateStore.markDownloaded("x.mab", "sha", snapshot.contentSha256)
-        restoreStateStore.markDecrypted(snapshot.contentSha256)
+        restoreStateStore.markDownloaded("x.mab", "sha", snapshot.contentSha256, snapshot.formatVersion)
+        restoreStateStore.markDecrypted(snapshot.contentSha256, snapshot.formatVersion)
         val mergeRoomGuard = ThrowOnce().apply { armed = true }
         val coordinator = realCoordinator(mergeRoomGuard = mergeRoomGuard)
 
@@ -340,8 +342,8 @@ class RestoreResumeTest {
         val bytes = envelopeBytes(snapshot)
         stagingFile.parentFile?.mkdirs()
         stagingFile.writeBytes(bytes)
-        restoreStateStore.markDownloaded("x.mab", "sha", snapshot.contentSha256)
-        restoreStateStore.markDecrypted(snapshot.contentSha256)
+        restoreStateStore.markDownloaded("x.mab", "sha", snapshot.contentSha256, snapshot.formatVersion)
+        restoreStateStore.markDecrypted(snapshot.contentSha256, snapshot.formatVersion)
         restoreStateStore.markRoomMerged()
         // The persisted stage claims the Room merge already durably completed.
         db.withTransaction {
@@ -375,8 +377,8 @@ class RestoreResumeTest {
         val bytes = envelopeBytes(snapshot)
         stagingFile.parentFile?.mkdirs()
         stagingFile.writeBytes(bytes)
-        restoreStateStore.markDownloaded("x.mab", "sha", snapshot.contentSha256)
-        restoreStateStore.markDecrypted(snapshot.contentSha256)
+        restoreStateStore.markDownloaded("x.mab", "sha", snapshot.contentSha256, snapshot.formatVersion)
+        restoreStateStore.markDecrypted(snapshot.contentSha256, snapshot.formatVersion)
         restoreStateStore.markRoomMerged()
         db.withTransaction {
             val dao = db.journal()
@@ -423,7 +425,7 @@ class RestoreResumeTest {
         val snapshot = sampleSnapshot(samplePayload())
         val bytes = envelopeBytes(snapshot)
         val coordinator = realCoordinator()
-        val first = coordinator.beginRestore("x.mab", bytes, snapshot.contentSha256)
+        val first = coordinator.beginRestore("x.mab", bytes, snapshot.contentSha256, snapshot.formatVersion)
         assertTrue(first is RestoreResult.Verified)
         assertNoDuplication()
 
@@ -450,7 +452,7 @@ class RestoreResumeTest {
         val bytes = envelopeBytes(snapshot)
         val coordinator = realCoordinator()
 
-        val result = coordinator.beginRestore("x.mab", bytes, snapshot.contentSha256)
+        val result = coordinator.beginRestore("x.mab", bytes, snapshot.contentSha256, snapshot.formatVersion)
 
         assertEquals(RestoreResult.PreflightBlocked, result)
         assertEquals(RestoreStage.NONE, restoreStateStore.currentInfo().stage)
@@ -502,7 +504,7 @@ class RestoreResumeTest {
             val snapshot = sampleSnapshot(samplePayload())
             val bytes = envelopeBytes(snapshot)
 
-            val result = RestoreCoordinator.build(context).beginRestore("x.mab", bytes, snapshot.contentSha256)
+            val result = RestoreCoordinator.build(context).beginRestore("x.mab", bytes, snapshot.contentSha256, snapshot.formatVersion)
 
             assertEquals(RestoreResult.PreflightBlocked, result)
             assertEquals(RestoreStage.NONE, restoreStateStore.currentInfo().stage)
@@ -551,7 +553,7 @@ class RestoreResumeTest {
         val coordinator = realCoordinator(mergeDataStoresGuard = mergeDataStoresGuard)
 
         try {
-            coordinator.beginRestore("x.mab", bytes, snapshot.contentSha256)
+            coordinator.beginRestore("x.mab", bytes, snapshot.contentSha256, snapshot.formatVersion)
             fail("expected the injected failure to propagate")
         } catch (e: IllegalStateException) {
             // expected — interrupted between ROOM_MERGED and DATASTORES_MERGED

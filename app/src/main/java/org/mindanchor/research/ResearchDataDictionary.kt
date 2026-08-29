@@ -5,6 +5,9 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.mindanchor.continuity.ContinuityContract
+import org.mindanchor.journal.ContextRecordType
+import org.mindanchor.journal.JournalKind
+import org.mindanchor.journal.StructuralContextExtractor
 
 /** The datasets a research export carries. A closed set, so a variable cannot name a table that does not exist. */
 @Serializable
@@ -193,7 +196,7 @@ object ResearchDataDictionary {
         )
         add(
             "kind", ENUM, "Which writing surface produced the entry.", VariableProvenance.USER_REPORTED,
-            allowedValues = listOf("DAILY", "BA", "DEAR_MAN", "GRATITUDE", "EXPRESSIVE_WRITING"),
+            allowedValues = JournalKind.entries.map { it.name },
         )
         add("sourceDeviceId", TEXT, "${RECORDING_PHONE}entry.", VariableProvenance.SYSTEM_RECORDED)
         add(
@@ -216,11 +219,12 @@ object ResearchDataDictionary {
             "recordType", ENUM,
             "FACT for a structural observation. INFERENCE exists in the schema but this build derives none.",
             VariableProvenance.DERIVED_STRUCTURAL,
-            allowedValues = listOf("FACT", "INFERENCE"), transformationId = STRUCTURAL_CONTEXT,
+            allowedValues = ContextRecordType.entries.map { it.name },
+            transformationId = STRUCTURAL_CONTEXT,
         )
         add(
             "key", ENUM, "Which structural fact this row holds.", VariableProvenance.DERIVED_STRUCTURAL,
-            allowedValues = listOf("entry_kind", "local_date", "word_count", "user_title"),
+            allowedValues = StructuralContextExtractor.FACT_KEYS,
             transformationId = STRUCTURAL_CONTEXT,
         )
         add(

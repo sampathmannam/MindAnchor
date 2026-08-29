@@ -196,4 +196,33 @@ class ContinuitySnapshotCodecTest {
         val contextIndex = encoded.indexOf("\"contextRows\"")
         assertNotEquals(entriesIndex, contextIndex)
     }
+
+    @Test
+    fun `a Program 0 snapshot document still decodes`() {
+        val current = ContinuitySnapshotCodec.encode(
+            ContinuitySnapshot(
+                formatVersion = ContinuitySnapshot.CURRENT_FORMAT_VERSION,
+                snapshotId = "snap-1",
+                createdAt = 1_000L,
+                appVersionCode = 1,
+                appVersionName = "test",
+                sourceDeviceId = "device-a",
+                payload = samplePayload(),
+                contentSha256 = "hash",
+            ),
+        )
+        // The one change that makes a Program 0 checkpoint readable at all
+        // on this build. Nothing else in the suite produces a version-1
+        // document, because nothing writes one any more.
+        val asProgramZero = current.replace(
+            "\"formatVersion\":${ContinuitySnapshot.CURRENT_FORMAT_VERSION}",
+            "\"formatVersion\":${ContinuityContract.PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION}",
+        )
+        val decoded = ContinuitySnapshotCodec.decode(asProgramZero)
+        assertTrue(decoded is ContinuitySnapshotCodec.DecodeResult.Success)
+        assertEquals(
+            ContinuityContract.PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION,
+            (decoded as ContinuitySnapshotCodec.DecodeResult.Success).snapshot.formatVersion,
+        )
+    }
 }

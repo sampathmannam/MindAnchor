@@ -5,6 +5,8 @@ import org.mindanchor.data.db.ContinuityChangeEntity
 import org.mindanchor.data.db.JournalContextEntity
 import org.mindanchor.data.db.JournalEntryEntity
 import org.mindanchor.data.db.MorningMeasureEntity
+import org.mindanchor.data.db.ResearchLedgerEventEntity
+import org.mindanchor.data.db.StudyPhaseEntity
 import org.mindanchor.letters.Letter
 import org.mindanchor.model.Note
 
@@ -55,6 +57,11 @@ data class ContinuityPayload(
     val alwaysOpenApps: List<String> = emptyList(),
     val continuityChanges: List<ContinuityChangeDto> = emptyList(),
     val legacyBackupJson: String = "",
+    // Program 1, appended never inserted: the version-1 projection in
+    // ContinuityContentHasher depends on Program 0's ten fields staying
+    // the first ten, and a test asserts exactly that.
+    val researchLedgerEvents: List<ResearchLedgerEventDto> = emptyList(),
+    val studyPhases: List<StudyPhaseDto> = emptyList(),
 )
 
 @Serializable
@@ -96,6 +103,49 @@ data class MorningMeasureDto(
     val energyFunction: Int,
     val sleepQuality: Int,
     val instrumentVersion: String,
+    val sourceDeviceId: String,
+)
+
+/**
+ * One immutable research ledger event, field-for-field from
+ * [org.mindanchor.data.db.ResearchLedgerEventEntity].
+ *
+ * [id] is the event's own hash, so a restore that re-inserts an event the
+ * database already holds is an `INSERT OR IGNORE` on the same primary key
+ * — duplicate-free by construction rather than by a de-duplication pass.
+ */
+@Serializable
+data class ResearchLedgerEventDto(
+    val id: String,
+    val sequence: Long,
+    val kind: String,
+    val occurredAt: Long,
+    val recordedAt: Long,
+    val localDate: String,
+    val studyPhaseId: String,
+    val sourceDeviceId: String,
+    val note: String,
+    val payloadJson: String,
+    val previousEventHash: String,
+    val eventHash: String,
+)
+
+/** One study phase, field-for-field from [org.mindanchor.data.db.StudyPhaseEntity]. */
+@Serializable
+data class StudyPhaseDto(
+    val id: String,
+    val ordinal: Int,
+    val startedAt: Long,
+    val reason: String,
+    val appVersionCode: Int,
+    val appVersionName: String,
+    val protocolCatalogSha256: String,
+    val ruleSetVersion: String,
+    val modelSetVersion: String,
+    val transformationSetVersion: String,
+    val missingDataPolicyVersion: String,
+    val instrumentVersion: String,
+    val dictionaryVersion: String,
     val sourceDeviceId: String,
 )
 
@@ -193,6 +243,38 @@ fun Letter.toDto(): LetterDto = LetterDto(
     promptTokens = promptTokens,
     completionTokens = completionTokens,
     durationMs = durationMs,
+)
+
+fun ResearchLedgerEventEntity.toDto(): ResearchLedgerEventDto = ResearchLedgerEventDto(
+    id = id,
+    sequence = sequence,
+    kind = kind,
+    occurredAt = occurredAt,
+    recordedAt = recordedAt,
+    localDate = localDate,
+    studyPhaseId = studyPhaseId,
+    sourceDeviceId = sourceDeviceId,
+    note = note,
+    payloadJson = payloadJson,
+    previousEventHash = previousEventHash,
+    eventHash = eventHash,
+)
+
+fun StudyPhaseEntity.toDto(): StudyPhaseDto = StudyPhaseDto(
+    id = id,
+    ordinal = ordinal,
+    startedAt = startedAt,
+    reason = reason,
+    appVersionCode = appVersionCode,
+    appVersionName = appVersionName,
+    protocolCatalogSha256 = protocolCatalogSha256,
+    ruleSetVersion = ruleSetVersion,
+    modelSetVersion = modelSetVersion,
+    transformationSetVersion = transformationSetVersion,
+    missingDataPolicyVersion = missingDataPolicyVersion,
+    instrumentVersion = instrumentVersion,
+    dictionaryVersion = dictionaryVersion,
+    sourceDeviceId = sourceDeviceId,
 )
 
 fun ContinuityChangeEntity.toDto(): ContinuityChangeDto = ContinuityChangeDto(

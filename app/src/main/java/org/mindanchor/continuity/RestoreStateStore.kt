@@ -2,6 +2,7 @@ package org.mindanchor.continuity
 
 import android.content.Context
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.first
@@ -40,6 +41,14 @@ data class RestoreStageInfo(
     val remoteName: String?,
     val envelopeSha256: String?,
     val expectedContentHash: String?,
+    /**
+     * The staged snapshot's own `formatVersion`. The final verify hashes
+     * the re-captured payload against *this*, not against the current
+     * version — a Program 0 checkpoint's content hash covers ten fields,
+     * and hashing twelve against it would fail every restore of every
+     * backup written before Program 1.
+     */
+    val expectedFormatVersion: Int?,
 )
 
 /**
@@ -63,6 +72,7 @@ class RestoreStateStore(private val context: Context) {
     private val remoteNameKey = stringPreferencesKey("restore_remote_name")
     private val envelopeSha256Key = stringPreferencesKey("restore_envelope_sha256")
     private val expectedContentHashKey = stringPreferencesKey("restore_expected_content_hash")
+    private val expectedFormatVersionKey = intPreferencesKey("restore_expected_format_version")
 
     /** A one-shot read of the currently persisted restore state. */
     suspend fun currentInfo(): RestoreStageInfo {
@@ -75,6 +85,7 @@ class RestoreStateStore(private val context: Context) {
             remoteName = prefs[remoteNameKey],
             envelopeSha256 = prefs[envelopeSha256Key],
             expectedContentHash = prefs[expectedContentHashKey],
+            expectedFormatVersion = prefs[expectedFormatVersionKey],
         )
     }
 
@@ -86,20 +97,27 @@ class RestoreStateStore(private val context: Context) {
      * [expectedContentHash] the eventual [RestoreStage.VERIFIED] check
      * will compare against.
      */
-    suspend fun markDownloaded(remoteName: String, envelopeSha256: String, expectedContentHash: String) {
+    suspend fun markDownloaded(
+        remoteName: String,
+        envelopeSha256: String,
+        expectedContentHash: String,
+        expectedFormatVersion: Int,
+    ) {
         context.restoreDataStore.edit { prefs ->
             prefs[stageKey] = RestoreStage.DOWNLOADED.name
             prefs[remoteNameKey] = remoteName
             prefs[envelopeSha256Key] = envelopeSha256
             prefs[expectedContentHashKey] = expectedContentHash
+            prefs[expectedFormatVersionKey] = expectedFormatVersion
         }
     }
 
     /** Advances to [RestoreStage.DECRYPTED]. [expectedContentHash] is re-written defensively (see [markDownloaded]). */
-    suspend fun markDecrypted(expectedContentHash: String) {
+    suspend fun markDecrypted(expectedContentHash: String, expectedFormatVersion: Int) {
         context.restoreDataStore.edit { prefs ->
             prefs[stageKey] = RestoreStage.DECRYPTED.name
             prefs[expectedContentHashKey] = expectedContentHash
+            prefs[expectedFormatVersionKey] = expectedFormatVersion
         }
     }
 

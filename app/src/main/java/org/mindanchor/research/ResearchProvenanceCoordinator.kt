@@ -92,9 +92,19 @@ class ResearchProvenanceCoordinator(
      * missing event afterwards. The chain would still verify, because a
      * missing event is not a broken link.
      */
-    suspend fun ensureCurrentPhase(now: Long): StudyPhase = store.inTransaction {
-        val current = store.latestPhase()
+    suspend fun ensureCurrentPhase(now: Long): StudyPhase {
+        // Read outside the transaction. Building the vector costs a binder
+        // call for the package info and a DataStore read for the device id
+        // — on a first run that read also writes and fsyncs — and holding
+        // the SQLite write lock across all that is the slowest possible
+        // path on the slowest possible day. It is read-only input, so
+        // reading it early costs the transaction nothing.
         val vector = currentVector()
+        return openPhaseIfChanged(now, vector)
+    }
+
+    private suspend fun openPhaseIfChanged(now: Long, vector: ProvenanceVector): StudyPhase = store.inTransaction {
+        val current = store.latestPhase()
         val opened = StudyPhaseDecision.next(current, vector, now)
             ?: return@inTransaction requireNotNull(current) {
                 "StudyPhaseDecision returned no phase with none current"

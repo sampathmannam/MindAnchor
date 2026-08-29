@@ -97,4 +97,92 @@ class ContinuityHashVersionTest {
             payload.journalEntries.reversed(),
         )
     }
+
+    private fun withResearchRows(payload: ContinuityPayload) = payload.copy(
+        researchLedgerEvents = listOf(
+            ResearchLedgerEventDto(
+                id = "event-1",
+                sequence = 1L,
+                kind = "EXERCISE",
+                occurredAt = 1_000L,
+                recordedAt = 1_050L,
+                localDate = "2026-08-29",
+                studyPhaseId = "phase-0",
+                sourceDeviceId = "device-a",
+                note = "morning run",
+                payloadJson = "{}",
+                previousEventHash = "",
+                eventHash = "event-1",
+            ),
+        ),
+        studyPhases = listOf(
+            StudyPhaseDto(
+                id = "phase-0",
+                ordinal = 0,
+                startedAt = 900L,
+                reason = "INITIAL",
+                appVersionCode = 95,
+                appVersionName = "0.71.0",
+                protocolCatalogSha256 = "catalogue",
+                ruleSetVersion = "rule-set-none-v1",
+                modelSetVersion = "model-set-none-v1",
+                transformationSetVersion = "transformations",
+                missingDataPolicyVersion = "missing-data-v1",
+                instrumentVersion = "morning-v1",
+                dictionaryVersion = "mindanchor-research-v1",
+                sourceDeviceId = "device-a",
+            ),
+        ),
+    )
+
+    @Test
+    fun `version one ignores the research rows entirely`() {
+        val bare = ProgramZeroPayloadFixture.payload()
+        assertEquals(
+            "adding research rows must not move a Program 0 hash",
+            ContinuityContentHasher.hash(bare, ContinuityContract.PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION),
+            ContinuityContentHasher.hash(
+                withResearchRows(bare),
+                ContinuityContract.PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION,
+            ),
+        )
+    }
+
+    @Test
+    fun `version two covers the research rows`() {
+        val bare = ProgramZeroPayloadFixture.payload()
+        assertNotEquals(
+            ContinuityContentHasher.hash(bare, ContinuityContract.SNAPSHOT_FORMAT_VERSION),
+            ContinuityContentHasher.hash(withResearchRows(bare), ContinuityContract.SNAPSHOT_FORMAT_VERSION),
+        )
+    }
+
+    @Test
+    fun `the two versions of the same payload disagree`() {
+        val payload = withResearchRows(ProgramZeroPayloadFixture.payload())
+        assertNotEquals(
+            "hashing a v2 payload as v1 must not silently succeed",
+            ContinuityContentHasher.hash(payload, ContinuityContract.PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION),
+            ContinuityContentHasher.hash(payload, ContinuityContract.SNAPSHOT_FORMAT_VERSION),
+        )
+    }
+
+    @Test
+    fun `research rows sort into chain order before hashing`() {
+        val payload = ProgramZeroPayloadFixture.payload().copy(
+            researchLedgerEvents = withResearchRows(ProgramZeroPayloadFixture.payload()).researchLedgerEvents,
+            studyPhases = withResearchRows(ProgramZeroPayloadFixture.payload()).studyPhases,
+        )
+        val doubled = payload.copy(
+            researchLedgerEvents = payload.researchLedgerEvents +
+                payload.researchLedgerEvents.map { it.copy(id = "event-2", sequence = 2L, eventHash = "event-2") },
+        )
+        assertEquals(
+            ContinuityContentHasher.hash(doubled, ContinuityContract.SNAPSHOT_FORMAT_VERSION),
+            ContinuityContentHasher.hash(
+                doubled.copy(researchLedgerEvents = doubled.researchLedgerEvents.reversed()),
+                ContinuityContract.SNAPSHOT_FORMAT_VERSION,
+            ),
+        )
+    }
 }

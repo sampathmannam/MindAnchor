@@ -27,10 +27,11 @@ class ResearchBuilderCallbackTest {
     /** The gradle test working directory is the `app` module. */
     private val sourceRoots = listOf(File("src/main/java"), File("src/test/java"), File("src/androidTest/java"))
 
-    private val builderPattern = Regex(
-        """Room\.(inMemory)?[dD]atabaseBuilder\s*\([^)]*AnchorDatabase::class\.java[^)]*\)""",
-        RegexOption.DOT_MATCHES_ALL,
-    )
+    // Matched on the class literal alone, not on the argument list: a
+    // nested call in the arguments (`getApplicationContext()`) would defeat
+    // a `\([^)]*...\)` shape, and a builder this test failed to *see* is
+    // exactly the outcome it exists to prevent.
+    private val builderPattern = Regex("""AnchorDatabase::class\.java""")
 
     private fun kotlinFiles(): List<File> = sourceRoots
         .flatMap { root -> root.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList() }

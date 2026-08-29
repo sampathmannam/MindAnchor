@@ -30,6 +30,7 @@ class ContinuitySnapshotRepository(
 
     suspend fun capture(now: Long): ContinuitySnapshot = withContext(Dispatchers.IO) {
         val dao = database.journal()
+        val researchDao = database.research()
 
         val rawPayload = ContinuityPayload(
             journalEntries = dao.entriesNow().map { it.toDto() },
@@ -42,6 +43,8 @@ class ContinuitySnapshotRepository(
             alwaysOpenApps = frictionPrefs.alwaysOpen.first().toList(),
             continuityChanges = dao.allChangesNow().map { it.toDto() },
             legacyBackupJson = backupRepository.export(now),
+            researchLedgerEvents = researchDao.ledgerEventsNow().map { it.toDto() },
+            studyPhases = researchDao.studyPhasesNow().map { it.toDto() },
         )
         val payload = ContinuityContentHasher.sorted(rawPayload)
         val contentSha256 = ContinuityContentHasher.hash(payload)

@@ -193,8 +193,10 @@ class RestoreScreenTest {
         val dao = db.journal()
         return RestoreCoordinator(
             currentStageInfo = { restoreStateStore.currentInfo() },
-            persistDownloaded = { name, sha, hash -> restoreStateStore.markDownloaded(name, sha, hash) },
-            persistDecrypted = { hash -> restoreStateStore.markDecrypted(hash) },
+            persistDownloaded = { name, sha, hash, version ->
+                restoreStateStore.markDownloaded(name, sha, hash, version)
+            },
+            persistDecrypted = { hash, version -> restoreStateStore.markDecrypted(hash, version) },
             persistRoomMerged = { restoreStateStore.markRoomMerged() },
             persistDataStoresMerged = { restoreStateStore.markDataStoresMerged() },
             persistVerified = { restoreStateStore.markVerified() },

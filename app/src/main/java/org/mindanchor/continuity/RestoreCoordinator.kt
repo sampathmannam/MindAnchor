@@ -23,6 +23,8 @@ import org.mindanchor.data.db.ContinuityChangeEntity
 import org.mindanchor.data.db.JournalContextEntity
 import org.mindanchor.data.db.JournalEntryEntity
 import org.mindanchor.data.db.MorningMeasureEntity
+import org.mindanchor.data.db.ResearchLedgerEventEntity
+import org.mindanchor.data.db.StudyPhaseEntity
 import org.mindanchor.data.mergeRestored
 import org.mindanchor.data.replaceAlwaysOpen
 import org.mindanchor.data.replaceFlagged
@@ -156,8 +158,13 @@ sealed class RestoreResult {
  */
 class RestoreCoordinator(
     private val currentStageInfo: suspend () -> RestoreStageInfo,
-    private val persistDownloaded: suspend (remoteName: String, envelopeSha256: String, expectedContentHash: String) -> Unit,
-    private val persistDecrypted: suspend (expectedContentHash: String) -> Unit,
+    private val persistDownloaded: suspend (
+        remoteName: String,
+        envelopeSha256: String,
+        expectedContentHash: String,
+        expectedFormatVersion: Int,
+    ) -> Unit,
+    private val persistDecrypted: suspend (expectedContentHash: String, expectedFormatVersion: Int) -> Unit,
     private val persistRoomMerged: suspend () -> Unit,
     private val persistDataStoresMerged: suspend () -> Unit,
     private val persistVerified: suspend () -> Unit,
@@ -200,6 +207,7 @@ class RestoreCoordinator(
         remoteName: String,
         envelopeBytes: ByteArray,
         expectedContentHash: String,
+        expectedFormatVersion: Int,
         onStageCompleted: (RestoreStage) -> Unit = {},
     ): RestoreResult {
         val info = currentStageInfo()
@@ -210,7 +218,7 @@ class RestoreCoordinator(
             return RestoreResult.PreflightBlocked
         }
         writeStagedBytesAtomically(envelopeBytes)
-        persistDownloaded(remoteName, sha256Hex(envelopeBytes), expectedContentHash)
+        persistDownloaded(remoteName, sha256Hex(envelopeBytes), expectedContentHash, expectedFormatVersion)
         onStageCompleted(RestoreStage.DOWNLOADED)
         return resume(onStageCompleted)
     }
@@ -224,6 +232,18 @@ class RestoreCoordinator(
      * [RestoreStage.NONE] (no-op) and [RestoreStage.VERIFIED] (fast
      * no-op) — see this class's KDoc for why each individual transition is
      * idempotent.
+     *
+     * ## Verified against the staged snapshot's own format version
+     *
+     * A Program 0 checkpoint's content hash covers ten payload fields;
+     * digesting today's twelve against it would fail every restore of
+     * every backup written before Program 1, *after* the data had already
+     * been merged. `expectedFormatVersion` therefore comes from the staged
+     * snapshot, not from the current constant. When the persisted value is
+     * absent the fallback is Program 0's version, which is sound rather
+     * than merely convenient: the constant stayed at 1 until the payload
+     * actually gained its fields, so a restore staged by any earlier build
+     * can only be a version-1 snapshot.
      *
      * [onStageCompleted] is a purely cosmetic progress callback — invoked
      * once, in order, immediately after each stage is durably persisted —
@@ -241,6 +261,8 @@ class RestoreCoordinator(
 
         var stage = info.stage
         var expectedContentHash = info.expectedContentHash
+        var expectedFormatVersion =
+            info.expectedFormatVersion ?: ContinuityContract.PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION
         var payload: ContinuityPayload? = null
 
         if (stage == RestoreStage.DOWNLOADED) {
@@ -250,7 +272,8 @@ class RestoreCoordinator(
                 is DecryptOutcome.Corrupt -> return RestoreResult.StagedFileCorrupt
                 is DecryptOutcome.Success -> {
                     expectedContentHash = decrypted.snapshot.contentSha256
-                    persistDecrypted(expectedContentHash)
+                    expectedFormatVersion = decrypted.snapshot.formatVersion
+                    persistDecrypted(expectedContentHash, expectedFormatVersion)
                     stage = RestoreStage.DECRYPTED
                     payload = decrypted.snapshot.payload
                     onStageCompleted(RestoreStage.DECRYPTED)
@@ -284,9 +307,21 @@ class RestoreCoordinator(
         }
 
         check(stage == RestoreStage.DATASTORES_MERGED) { "unreachable restore stage after merge phases: $stage" }
+        return verifyAndFinish(expectedContentHash, expectedFormatVersion, onStageCompleted)
+    }
 
+    /**
+     * The final check. Re-captures what this device now holds, hashes it
+     * against the staged snapshot's own format version, and only then
+     * persists [RestoreStage.VERIFIED] and drops the staged file.
+     */
+    private suspend fun verifyAndFinish(
+        expectedContentHash: String?,
+        expectedFormatVersion: Int,
+        onStageCompleted: (RestoreStage) -> Unit,
+    ): RestoreResult {
         val recaptured = recapture()
-        val recomputedHash = ContinuityContentHasher.hash(recaptured.payload)
+        val recomputedHash = ContinuityContentHasher.hash(recaptured.payload, expectedFormatVersion)
         if (expectedContentHash == null || recomputedHash != expectedContentHash) {
             recordVerifyFailed()
             return RestoreResult.VerifyMismatch(recomputedHash, expectedContentHash)
@@ -328,6 +363,9 @@ class RestoreCoordinator(
     }
 
     companion object {
+        /** What SQLite returns from an `INSERT OR IGNORE` that inserted nothing. */
+        private const val IGNORED_ROW_ID = -1L
+
         private fun sha256Hex(bytes: ByteArray): String =
             MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
@@ -421,7 +459,14 @@ class RestoreCoordinator(
                         database.pulses().history().first().isEmpty() &&
                         launcherPrefs.favorites.first().isEmpty() &&
                         launcherPrefs.hidden.first().isEmpty() &&
-                        launcherPrefs.renames.first().isEmpty()
+                        launcherPrefs.renames.first().isEmpty() &&
+                        // A replacement phone must have an empty ledger
+                        // before it restores: merging a backup's chain
+                        // into a chain this phone already started would
+                        // fork it, and append-only tables cannot be
+                        // un-forked.
+                        database.research().ledgerEventCount() == 0 &&
+                        database.research().studyPhaseCount() == 0
                 },
                 mergeRoom = { payload ->
                     database.withTransaction {
@@ -429,6 +474,28 @@ class RestoreCoordinator(
                         dao.upsertContext(payload.contextRows.map { it.toEntity() })
                         dao.upsertMorningMeasures(payload.morningMeasures.map { it.toEntity() })
                         payload.continuityChanges.forEach { dao.insertChange(it.toEntity()) }
+                        // INSERT OR IGNORE on content-addressed ids: a
+                        // second merge of the same events inserts nothing,
+                        // so resume is duplicate-free by construction
+                        // rather than by a de-duplication pass.
+                        // The row ids are checked here for the same
+                        // reason they are checked on the write path: an
+                        // ignored insert is silent, and a research row
+                        // dropped during a restore is history lost with no
+                        // way to notice. The preflight should make this
+                        // unreachable; a rolled-back restore the user can
+                        // retry beats a quietly incomplete one.
+                        val eventRows = database.research().insertLedgerEvents(
+                            payload.researchLedgerEvents.map { it.toEntity() },
+                        )
+                        check(eventRows.none { it == IGNORED_ROW_ID }) {
+                            "a restored ledger event was ignored; the ledger would be incomplete"
+                        }
+                        payload.studyPhases.forEach { phase ->
+                            check(database.research().insertStudyPhase(phase.toEntity()) != IGNORED_ROW_ID) {
+                                "a restored study phase was ignored; its events would point at nothing"
+                            }
+                        }
                     }
                 },
                 mergeDataStores = { payload ->
@@ -487,6 +554,38 @@ internal fun MorningMeasureDto.toEntity(): MorningMeasureEntity = MorningMeasure
     energyFunction = energyFunction,
     sleepQuality = sleepQuality,
     instrumentVersion = instrumentVersion,
+    sourceDeviceId = sourceDeviceId,
+)
+
+internal fun ResearchLedgerEventDto.toEntity(): ResearchLedgerEventEntity = ResearchLedgerEventEntity(
+    id = id,
+    sequence = sequence,
+    kind = kind,
+    occurredAt = occurredAt,
+    recordedAt = recordedAt,
+    localDate = localDate,
+    studyPhaseId = studyPhaseId,
+    sourceDeviceId = sourceDeviceId,
+    note = note,
+    payloadJson = payloadJson,
+    previousEventHash = previousEventHash,
+    eventHash = eventHash,
+)
+
+internal fun StudyPhaseDto.toEntity(): StudyPhaseEntity = StudyPhaseEntity(
+    id = id,
+    ordinal = ordinal,
+    startedAt = startedAt,
+    reason = reason,
+    appVersionCode = appVersionCode,
+    appVersionName = appVersionName,
+    protocolCatalogSha256 = protocolCatalogSha256,
+    ruleSetVersion = ruleSetVersion,
+    modelSetVersion = modelSetVersion,
+    transformationSetVersion = transformationSetVersion,
+    missingDataPolicyVersion = missingDataPolicyVersion,
+    instrumentVersion = instrumentVersion,
+    dictionaryVersion = dictionaryVersion,
     sourceDeviceId = sourceDeviceId,
 )
 

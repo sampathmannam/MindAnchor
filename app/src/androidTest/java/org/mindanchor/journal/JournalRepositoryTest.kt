@@ -14,6 +14,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mindanchor.continuity.ContinuityPrefs
 import org.mindanchor.data.db.AnchorDatabase
+import org.mindanchor.research.ProvenanceVersions
+import org.mindanchor.research.ResearchLedgerEvent
+import org.mindanchor.research.ResearchProvenanceCoordinator
+import org.mindanchor.research.ResearchProvenanceStore
+import org.mindanchor.research.StudyPhase
 import org.mindanchor.research.testLedgerRepository
 import org.mindanchor.data.db.withResearchImmutability
 
@@ -131,5 +136,52 @@ class JournalRepositoryTest {
             "re-enabling and retrying must produce the facts the disabled save skipped",
             db.journal().allContext().filter { it.entryId == entry.id }.isNotEmpty(),
         )
+    }
+
+    @Test
+    fun aProvenanceFailureNeverCostsThePersonTheirWords() = runBlocking {
+        // The one guarantee the fail-soft ensurePhase makes. A store that
+        // refuses every call stands in for a full disk, a corrupt row, or
+        // any other reason a phase cannot open.
+        val refusingStore = object : ResearchProvenanceStore {
+            override suspend fun inTransaction(block: suspend () -> StudyPhase): StudyPhase =
+                error("provenance is unavailable")
+
+            override suspend fun latestPhase(): StudyPhase = error("provenance is unavailable")
+
+            override suspend fun ledgerHead(): ResearchLedgerEvent = error("provenance is unavailable")
+
+            override suspend fun registeredProtocolPayloads(): List<String> =
+                error("provenance is unavailable")
+
+            override suspend fun insertPhase(phase: StudyPhase) = error("provenance is unavailable")
+
+            override suspend fun appendEvents(events: List<ResearchLedgerEvent>) =
+                error("provenance is unavailable")
+        }
+        val repository = JournalRepository(
+            context,
+            db,
+            deviceIdentity,
+            StructuralContextExtractor(),
+            ResearchProvenanceCoordinator(
+                store = refusingStore,
+                currentVector = { ProvenanceVersions.vector(95, "0.71.0", "device-a") },
+            ),
+        )
+
+        val entry = repository.create(
+            title = "A day that still gets written",
+            body = "The provenance layer is broken and this must not matter.",
+            now = 1_000L,
+            localDate = LocalDate.of(2026, 8, 29),
+        )
+
+        assertEquals(
+            "The provenance layer is broken and this must not matter.",
+            db.journal().entry(entry.id)?.body,
+        )
+        assertEquals(0, db.research().studyPhaseCount())
+        assertEquals(0, db.research().ledgerEventCount())
     }
 }

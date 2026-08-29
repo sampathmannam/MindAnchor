@@ -35,6 +35,10 @@ import org.mindanchor.letters.Letter
 import org.mindanchor.letters.LetterStore
 import org.mindanchor.letters.mergeRestored
 import org.mindanchor.model.Note
+import org.mindanchor.research.LedgerChain
+import org.mindanchor.research.LedgerEventKind
+import org.mindanchor.research.LedgerIntegrity
+import org.mindanchor.research.toDomain
 import org.mindanchor.research.MorningMeasureRepository
 import org.mindanchor.research.testLedgerRepository
 
@@ -141,12 +145,13 @@ class ContinuityRoundTripTest {
     fun aFullCaptureEncryptRestoreCycleReproducesEveryFieldAndIsIdempotent() = runBlocking {
         // --- Steps 1/2: one multiline Journal entry, verify it and its four
         // structural facts land as five separate rows ---
+        val ledgerRepository = testLedgerRepository(context, sourceDb)
         val journalRepository = JournalRepository(
             context,
             sourceDb,
             deviceIdentity,
             StructuralContextExtractor(),
-            testLedgerRepository(context, sourceDb).provenance,
+            ledgerRepository.provenance,
         )
         val multilineBody = "Line one of the day.\nLine two, a different thought entirely.\nLine three, still going."
         val entry = journalRepository.create(
@@ -169,7 +174,7 @@ class ContinuityRoundTripTest {
             context,
             sourceDb,
             deviceIdentity,
-            testLedgerRepository(context, sourceDb).provenance,
+            ledgerRepository.provenance,
         )
         val measure = measureRepository.save(
             localDate = LocalDate.of(2026, 8, 27),
@@ -180,6 +185,24 @@ class ContinuityRoundTripTest {
             energyFunction = 3,
             sleepQuality = 5,
         )
+
+        // --- Step 3b: one research-log event, so the snapshot carries a
+        // self-reported ledger row as well as the provenance rows the
+        // Journal write already opened ---
+        ledgerRepository.record(
+            kind = LedgerEventKind.EXERCISE,
+            occurredAt = 1_600L,
+            note = "a walk before the rain",
+            now = 1_600L,
+        )
+        val sourceLedger = sourceDb.research().ledgerEventsNow()
+        val sourcePhases = sourceDb.research().studyPhasesNow()
+        assertEquals(1, sourcePhases.size)
+        assertEquals(
+            LedgerIntegrity.VERIFIED,
+            LedgerChain.verify(sourceLedger.map { it.toDomain() }),
+        )
+        assertTrue(sourceLedger.any { it.kind == LedgerEventKind.EXERCISE.name })
 
         // --- Step 4: a Quick Note, a Letter (marked read), a frictioned app,
         // an always-open app ---
@@ -241,8 +264,10 @@ class ContinuityRoundTripTest {
             // in production, bound to the wiped destination database ---
             val coordinator = RestoreCoordinator(
                 currentStageInfo = { restoreStateStore.currentInfo() },
-                persistDownloaded = { name, sha, hash -> restoreStateStore.markDownloaded(name, sha, hash) },
-                persistDecrypted = { hash -> restoreStateStore.markDecrypted(hash) },
+                persistDownloaded = { name, sha, hash, version ->
+                    restoreStateStore.markDownloaded(name, sha, hash, version)
+                },
+                persistDecrypted = { hash, version -> restoreStateStore.markDecrypted(hash, version) },
                 persistRoomMerged = { restoreStateStore.markRoomMerged() },
                 persistDataStoresMerged = { restoreStateStore.markDataStoresMerged() },
                 persistVerified = { restoreStateStore.markVerified() },
@@ -264,7 +289,9 @@ class ContinuityRoundTripTest {
                         letterStore.letters.first().isEmpty() &&
                         launcherPrefs.favorites.first().isEmpty() &&
                         launcherPrefs.hidden.first().isEmpty() &&
-                        launcherPrefs.renames.first().isEmpty()
+                        launcherPrefs.renames.first().isEmpty() &&
+                        destDb.research().ledgerEventCount() == 0 &&
+                        destDb.research().studyPhaseCount() == 0
                 },
                 mergeRoom = { payload ->
                     destDb.withTransaction {
@@ -272,6 +299,10 @@ class ContinuityRoundTripTest {
                         destDao.upsertContext(payload.contextRows.map { it.toEntity() })
                         destDao.upsertMorningMeasures(payload.morningMeasures.map { it.toEntity() })
                         payload.continuityChanges.forEach { destDao.insertChange(it.toEntity()) }
+                        destDb.research().insertLedgerEvents(
+                            payload.researchLedgerEvents.map { it.toEntity() },
+                        )
+                        payload.studyPhases.forEach { destDb.research().insertStudyPhase(it.toEntity()) }
                     }
                 },
                 mergeDataStores = { payload ->
@@ -289,7 +320,12 @@ class ContinuityRoundTripTest {
                 recordVerifyFailed = { continuityPrefs.recordError(ContinuityErrorCode.RESTORE_VERIFY_FAILED) },
             )
 
-            val result = coordinator.beginRestore("round-trip.mab", envelopeBytes, originalSnapshot.contentSha256)
+            val result = coordinator.beginRestore(
+                "round-trip.mab",
+                envelopeBytes,
+                originalSnapshot.contentSha256,
+                originalSnapshot.formatVersion,
+            )
             assertTrue("expected a Verified result, got $result", result is RestoreResult.Verified)
             assertEquals(originalSnapshot.contentSha256, (result as RestoreResult.Verified).contentHash)
 
@@ -297,6 +333,21 @@ class ContinuityRoundTripTest {
             // hash must match the original exactly ---
             val recapturedSnapshot = destSnapshotRepository.capture(now = 9_000L)
             assertEquals(originalSnapshot.contentSha256, recapturedSnapshot.contentSha256)
+
+            // The research history crossed intact: same rows, same chain,
+            // same head. A hash match alone would not show the chain still
+            // links, and a chain that verified against itself would not
+            // show it is the same chain.
+            val restoredLedger = destDb.research().ledgerEventsNow()
+            assertEquals(sourceLedger.map { it.id }, restoredLedger.map { it.id })
+            assertEquals(sourcePhases.map { it.id }, destDb.research().studyPhasesNow().map { it.id })
+            assertEquals(
+                LedgerIntegrity.VERIFIED,
+                LedgerChain.verify(
+                    restoredLedger.map { it.toDomain() },
+                    LedgerChain.anchorOf(sourceLedger.map { it.toDomain() }),
+                ),
+            )
 
             // --- Field-level equality, not just the hash ---
             val restoredEntries = destDao.entriesNow()
@@ -331,7 +382,12 @@ class ContinuityRoundTripTest {
 
             // --- Step 10: run the same restore a second time — idempotency,
             // no duplicate rows anywhere ---
-            val second = coordinator.beginRestore("round-trip.mab", envelopeBytes, originalSnapshot.contentSha256)
+            val second = coordinator.beginRestore(
+                "round-trip.mab",
+                envelopeBytes,
+                originalSnapshot.contentSha256,
+                originalSnapshot.formatVersion,
+            )
             assertEquals(RestoreResult.AlreadyVerified, second)
             assertEquals(1, destDao.entriesNow().size)
             assertEquals(4, destDao.allContext().filter { it.entryId == entry.id }.size)

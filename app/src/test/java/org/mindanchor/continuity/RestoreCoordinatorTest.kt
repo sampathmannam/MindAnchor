@@ -3,6 +3,7 @@ package org.mindanchor.continuity
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -88,19 +89,23 @@ class RestoreCoordinatorTest {
         var remoteName: String? = null
         var envelopeSha256: String? = null
         var expectedContentHash: String? = null
+        var expectedFormatVersion: Int? = null
 
-        fun currentInfo(): RestoreStageInfo = RestoreStageInfo(stage, remoteName, envelopeSha256, expectedContentHash)
+        fun currentInfo(): RestoreStageInfo =
+            RestoreStageInfo(stage, remoteName, envelopeSha256, expectedContentHash, expectedFormatVersion)
 
-        fun markDownloaded(name: String, sha256: String, hash: String) {
+        fun markDownloaded(name: String, sha256: String, hash: String, formatVersion: Int) {
             stage = RestoreStage.DOWNLOADED
             remoteName = name
             envelopeSha256 = sha256
             expectedContentHash = hash
+            expectedFormatVersion = formatVersion
         }
 
-        fun markDecrypted(hash: String) {
+        fun markDecrypted(hash: String, formatVersion: Int) {
             stage = RestoreStage.DECRYPTED
             expectedContentHash = hash
+            expectedFormatVersion = formatVersion
         }
 
         fun markRoomMerged() { stage = RestoreStage.ROOM_MERGED }
@@ -207,8 +212,10 @@ class RestoreCoordinatorTest {
         recaptureOverride: (suspend () -> ContinuitySnapshot)? = null,
     ): RestoreCoordinator = RestoreCoordinator(
         currentStageInfo = { stateStore.currentInfo() },
-        persistDownloaded = { name, sha, hash -> stateStore.markDownloaded(name, sha, hash) },
-        persistDecrypted = { hash -> stateStore.markDecrypted(hash) },
+        persistDownloaded = { name, sha, hash, version ->
+            stateStore.markDownloaded(name, sha, hash, version)
+        },
+        persistDecrypted = { hash, version -> stateStore.markDecrypted(hash, version) },
         persistRoomMerged = { stateStore.markRoomMerged() },
         persistDataStoresMerged = { stateStore.markDataStoresMerged() },
         persistVerified = { stateStore.markVerified() },
@@ -252,7 +259,12 @@ class RestoreCoordinatorTest {
         val restoreVerifiedCalls = mutableListOf<Pair<Long, String>>()
 
         val result = coordinator(stateStore, stagedFile, localStore, key, restoreVerifiedCalls = restoreVerifiedCalls)
-            .beginRestore("MindAnchor-Continuity-Latest.mab", bytes, snapshot.contentSha256)
+            .beginRestore(
+                "MindAnchor-Continuity-Latest.mab",
+                bytes,
+                snapshot.contentSha256,
+                ContinuitySnapshot.CURRENT_FORMAT_VERSION,
+            )
 
         assertTrue(result is RestoreResult.Verified)
         assertEquals(snapshot.contentSha256, (result as RestoreResult.Verified).contentHash)
@@ -279,7 +291,12 @@ class RestoreCoordinatorTest {
         val coord = coordinator(stateStore, stagedFile, localStore, key, readGuard = readGuard)
 
         try {
-            coord.beginRestore("MindAnchor-Continuity-Latest.mab", bytes, snapshot.contentSha256)
+            coord.beginRestore(
+                "MindAnchor-Continuity-Latest.mab",
+                bytes,
+                snapshot.contentSha256,
+                ContinuitySnapshot.CURRENT_FORMAT_VERSION,
+            )
             fail("expected the injected failure to propagate")
         } catch (e: IllegalStateException) {
             // expected — the crash happened between DOWNLOADED and DECRYPTED
@@ -308,6 +325,7 @@ class RestoreCoordinatorTest {
         val stateStore = FakeStateStore().apply {
             stage = RestoreStage.DECRYPTED
             expectedContentHash = snapshot.contentSha256
+            expectedFormatVersion = snapshot.formatVersion
         }
         val stagedFile = FakeStagedFile().apply { write(bytes) }
         val localStore = FakeLocalStore()
@@ -341,6 +359,7 @@ class RestoreCoordinatorTest {
         val stateStore = FakeStateStore().apply {
             stage = RestoreStage.ROOM_MERGED
             expectedContentHash = snapshot.contentSha256
+            expectedFormatVersion = snapshot.formatVersion
         }
         val stagedFile = FakeStagedFile().apply { write(bytes) }
         // The persisted stage ROOM_MERGED means the Room merge already
@@ -376,6 +395,7 @@ class RestoreCoordinatorTest {
         val stateStore = FakeStateStore().apply {
             stage = RestoreStage.DATASTORES_MERGED
             expectedContentHash = snapshot.contentSha256
+            expectedFormatVersion = snapshot.formatVersion
         }
         val stagedFile = FakeStagedFile().apply { write(bytes) }
         val localStore = FakeLocalStore().apply {
@@ -410,7 +430,12 @@ class RestoreCoordinatorTest {
         val stagedFile = FakeStagedFile()
         val localStore = FakeLocalStore()
         coordinator(stateStore, stagedFile, localStore, key)
-            .beginRestore("clean-run.mab", envelopeBytes(snapshot, key), snapshot.contentSha256)
+            .beginRestore(
+                "clean-run.mab",
+                envelopeBytes(snapshot, key),
+                snapshot.contentSha256,
+                snapshot.formatVersion,
+            )
         ContinuityContentHasher.sorted(localStore.snapshotPayload())
     }
 
@@ -460,7 +485,12 @@ class RestoreCoordinatorTest {
         val localStore = FakeLocalStore()
 
         val result = coordinator(stateStore, stagedFile, localStore, wrongKey)
-            .beginRestore("MindAnchor-Continuity-Latest.mab", bytes, snapshot.contentSha256)
+            .beginRestore(
+                "MindAnchor-Continuity-Latest.mab",
+                bytes,
+                snapshot.contentSha256,
+                ContinuitySnapshot.CURRENT_FORMAT_VERSION,
+            )
 
         assertEquals(RestoreResult.WrongRecoveryKey, result)
         assertEquals("a wrong key must not advance the stage past DOWNLOADED", RestoreStage.DOWNLOADED, stateStore.stage)
@@ -473,7 +503,12 @@ class RestoreCoordinatorTest {
         val key = sampleKey()
         val stateStore = FakeStateStore()
         val stagedFile = FakeStagedFile().apply { write("not a valid envelope at all".encodeToByteArray()) }
-        stateStore.markDownloaded("MindAnchor-Continuity-Latest.mab", "irrelevant-sha", "irrelevant-hash")
+        stateStore.markDownloaded(
+            "MindAnchor-Continuity-Latest.mab",
+            "irrelevant-sha",
+            "irrelevant-hash",
+            ContinuitySnapshot.CURRENT_FORMAT_VERSION,
+        )
         val localStore = FakeLocalStore()
 
         val result = coordinator(stateStore, stagedFile, localStore, key).resume()
@@ -488,7 +523,7 @@ class RestoreCoordinatorTest {
         val snapshot = sampleSnapshot()
         val stateStore = FakeStateStore()
         val stagedFile = FakeStagedFile().apply { write(envelopeBytes(snapshot, sampleKey())) }
-        stateStore.markDownloaded("x.mab", "sha", "hash")
+        stateStore.markDownloaded("x.mab", "sha", "hash", ContinuitySnapshot.CURRENT_FORMAT_VERSION)
         val localStore = FakeLocalStore()
 
         val result = coordinator(stateStore, stagedFile, localStore, key = null).resume()
@@ -509,7 +544,7 @@ class RestoreCoordinatorTest {
         val localStore = FakeLocalStore()
 
         val result = coordinator(stateStore, stagedFile, localStore, key, preflightEmpty = false)
-            .beginRestore("x.mab", bytes, snapshot.contentSha256)
+            .beginRestore("x.mab", bytes, snapshot.contentSha256, ContinuitySnapshot.CURRENT_FORMAT_VERSION)
 
         assertEquals(RestoreResult.PreflightBlocked, result)
         assertEquals("the stage must stay NONE — nothing was staged", RestoreStage.NONE, stateStore.stage)
@@ -524,6 +559,7 @@ class RestoreCoordinatorTest {
         val stateStore = FakeStateStore().apply {
             stage = RestoreStage.ROOM_MERGED
             expectedContentHash = snapshot.contentSha256
+            expectedFormatVersion = snapshot.formatVersion
         }
         val stagedFile = FakeStagedFile().apply { write(bytes) }
         val localStore = FakeLocalStore().apply { mergeRoom(snapshot.payload) }
@@ -533,7 +569,12 @@ class RestoreCoordinatorTest {
         // is already in progress, beginRestore must delegate to resume() and
         // never even check the preflight.
         val result = coordinator(stateStore, stagedFile, localStore, key, preflightEmpty = false, preflightCalls = preflightCalls)
-            .beginRestore("a-different-candidate.mab", "different-bytes".encodeToByteArray(), "a-different-hash")
+            .beginRestore(
+                "a-different-candidate.mab",
+                "different-bytes".encodeToByteArray(),
+                "a-different-hash",
+                ContinuitySnapshot.CURRENT_FORMAT_VERSION,
+            )
 
         assertTrue(result is RestoreResult.Verified)
         assertTrue("the preflight must never run for an in-progress restore", preflightCalls.isEmpty())
@@ -562,7 +603,7 @@ class RestoreCoordinatorTest {
         val result = coordinator(
             stateStore, stagedFile, localStore, key,
             verifyFailedCalls = verifyFailedCalls, recaptureOverride = recaptureOverride,
-        ).beginRestore("x.mab", bytes, snapshot.contentSha256)
+        ).beginRestore("x.mab", bytes, snapshot.contentSha256, ContinuitySnapshot.CURRENT_FORMAT_VERSION)
 
         assertTrue(result is RestoreResult.VerifyMismatch)
         assertEquals(RestoreStage.DATASTORES_MERGED, stateStore.stage)
@@ -602,5 +643,109 @@ class RestoreCoordinatorTest {
         assertEquals(RestoreResult.LocalStateReset, result)
         assertEquals(RestoreStage.NONE, stateStore.stage)
         assertFalse(localStore.entries.isNotEmpty())
+    }
+
+    // --- Restoring a Program 0 checkpoint onto a Program 1 build ----------
+
+    /** A snapshot stamped and hashed exactly as a Program 0 build would have written it. */
+    private fun programZeroSnapshot(payload: ContinuityPayload = samplePayload()): ContinuitySnapshot {
+        val sorted = ContinuityContentHasher.sorted(payload)
+        return ContinuitySnapshot(
+            formatVersion = ContinuityContract.PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION,
+            snapshotId = "snap-program-zero",
+            createdAt = 5_000L,
+            appVersionCode = 1,
+            appVersionName = "test",
+            sourceDeviceId = "device-a",
+            payload = sorted,
+            contentSha256 = ContinuityContentHasher.hash(
+                sorted,
+                ContinuityContract.PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION,
+            ),
+        )
+    }
+
+    @Test
+    fun `a Program 0 checkpoint still verifies on a build whose payload has grown`() = runBlocking {
+        val key = sampleKey()
+        val snapshot = programZeroSnapshot()
+        val stateStore = FakeStateStore()
+        val stagedFile = FakeStagedFile()
+        val localStore = FakeLocalStore()
+
+        val result = coordinator(stateStore, stagedFile, localStore, key).beginRestore(
+            "MindAnchor-Continuity-Latest.mab",
+            envelopeBytes(snapshot, key),
+            snapshot.contentSha256,
+            snapshot.formatVersion,
+        )
+
+        // The recaptured payload is version-2 shaped -- it carries the two
+        // research lists, empty -- so verifying it against the snapshot's
+        // own version-1 hash is the only thing that can succeed here.
+        assertTrue("a Program 0 backup must still restore: $result", result is RestoreResult.Verified)
+        assertEquals(RestoreStage.VERIFIED, stateStore.stage)
+        assertEquals(
+            "verifying with the current version would have failed",
+            ContinuityContentHasher.hash(
+                localStore.snapshotPayload(),
+                ContinuityContract.PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION,
+            ),
+            (result as RestoreResult.Verified).contentHash,
+        )
+        assertNotEquals(
+            ContinuityContentHasher.hash(localStore.snapshotPayload()),
+            result.contentHash,
+        )
+    }
+
+    @Test
+    fun `a resume past the merges uses the persisted format version`() = runBlocking {
+        val key = sampleKey()
+        val snapshot = programZeroSnapshot()
+        val stagedFile = FakeStagedFile().apply { write(envelopeBytes(snapshot, key)) }
+        val localStore = FakeLocalStore().apply {
+            mergeRoom(snapshot.payload)
+            mergeDataStores(snapshot.payload)
+        }
+
+        val correct = FakeStateStore().apply {
+            stage = RestoreStage.DATASTORES_MERGED
+            expectedContentHash = snapshot.contentSha256
+            expectedFormatVersion = ContinuityContract.PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION
+        }
+        assertTrue(coordinator(correct, stagedFile, localStore, key).resume() is RestoreResult.Verified)
+
+        // The same staged restore, resumed as if it were a current-version
+        // snapshot, must not quietly claim success.
+        val mislabelled = FakeStateStore().apply {
+            stage = RestoreStage.DATASTORES_MERGED
+            expectedContentHash = snapshot.contentSha256
+            expectedFormatVersion = ContinuityContract.SNAPSHOT_FORMAT_VERSION
+        }
+        assertTrue(
+            coordinator(mislabelled, FakeStagedFile().apply { write(envelopeBytes(snapshot, key)) }, localStore, key)
+                .resume() is RestoreResult.VerifyMismatch,
+        )
+    }
+
+    @Test
+    fun `a restore staged before the version was recorded is treated as Program 0`() = runBlocking {
+        val key = sampleKey()
+        val snapshot = programZeroSnapshot()
+        val stagedFile = FakeStagedFile().apply { write(envelopeBytes(snapshot, key)) }
+        val localStore = FakeLocalStore().apply {
+            mergeRoom(snapshot.payload)
+            mergeDataStores(snapshot.payload)
+        }
+        // expectedFormatVersion deliberately left null: a restore staged by
+        // a build that predates the field can only be a Program 0 snapshot,
+        // because the constant was 1 until the payload actually grew.
+        val stateStore = FakeStateStore().apply {
+            stage = RestoreStage.DATASTORES_MERGED
+            expectedContentHash = snapshot.contentSha256
+        }
+
+        assertTrue(coordinator(stateStore, stagedFile, localStore, key).resume() is RestoreResult.Verified)
     }
 }

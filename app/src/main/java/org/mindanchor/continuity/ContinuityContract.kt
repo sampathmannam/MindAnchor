@@ -18,10 +18,12 @@ object ContinuityContract {
     /**
      * The snapshot payload shape this build writes.
      *
-     * Program 1 raises this to 2 in the same commit that appends the
-     * research ledger and study phase lists to [ContinuityPayload].
+     * Raised to 2 in the same commit that appended the research ledger and
+     * study phase lists to [ContinuityPayload], never before it: a build
+     * that stamps a version its payload does not have destroys the one
+     * discriminator a later reader needs.
      */
-    const val SNAPSHOT_FORMAT_VERSION = 1
+    const val SNAPSHOT_FORMAT_VERSION = 2
 
     /**
      * Program 0's snapshot payload shape — the ten-field payload whose
@@ -33,7 +35,8 @@ object ContinuityContract {
     const val PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION = 1
 
     /** Every snapshot payload shape this build can decode and content-hash. */
-    val SUPPORTED_SNAPSHOT_FORMAT_VERSIONS = setOf(PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION)
+    val SUPPORTED_SNAPSHOT_FORMAT_VERSIONS =
+        setOf(PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION, SNAPSHOT_FORMAT_VERSION)
 
     /** The encrypted envelope shape. Program 1 does not change it. */
     const val ENVELOPE_FORMAT_VERSION = 1

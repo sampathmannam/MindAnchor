@@ -178,6 +178,7 @@ class RestoreViewModel(
                 remoteName = candidate.remoteName,
                 envelopeBytes = candidate.envelopeBytes,
                 expectedContentHash = candidate.snapshot.contentSha256,
+                expectedFormatVersion = candidate.snapshot.formatVersion,
                 onStageCompleted = { stage ->
                     val current = _uiState.value
                     val completed = (current as? RestoreUiState.Restoring)?.completedStages ?: emptySet()

@@ -354,9 +354,19 @@ would be a mutation of history, which §10.4 forbids.
 
 `ResearchProvenanceCoordinator.ensureCurrentPhase(now)` is called
 immediately before a research record is written — from
-`ResearchLedgerRepository.record`, from `MorningMeasureRepository.save`,
-and (fail-soft, after the entry has already committed) from
-`JournalRepository.create`.
+`ResearchLedgerRepository.record` and `MorningMeasureRepository.save`
+inside the same transaction as the write, and from
+`JournalRepository.create` **before** the entry, fail-soft.
+
+Before rather than after, because `phaseAt` is inclusive of `startedAt`:
+running it first with the entry's own `now` guarantees the entry falls
+inside a phase, where running it after would leave an entry timestamped
+before the phase that claims to cover it. Fail-soft, because a person must
+never lose their words to a provenance failure — the exception is logged
+and swallowed, and an entry with no phase is honest (it simply predates
+any recorded phase) in a way a mis-attributed one would not be. An
+instrumented test proves the entry still saves when every provenance call
+refuses.
 
 It is deliberately **not** called from app startup. Two reasons:
 
@@ -558,7 +568,7 @@ Integration is entirely additive:
 
 | Failure | Required behaviour |
 | --- | --- |
-| Provenance write fails during a Journal save | Fail soft. The entry is already committed; the person never loses words. Same contract as structural-context extraction. |
+| Provenance write fails during a Journal save | Fail soft and logged. The phase attempt runs first and its own transaction rolls itself back, so the entry is written regardless and the person never loses words. Same contract as structural-context extraction. |
 | Ledger chain verification fails | The export carries `LedgerIntegrity.BROKEN`. Nothing is repaired, deleted, or rewritten. |
 | A protocol fails validation | It is not registered, and the failure names the missing field. There is no partial registration. |
 | Restoring a Program 0 (v1) checkpoint | Verified against the version-1 projection. Restores normally. |

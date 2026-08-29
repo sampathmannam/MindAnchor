@@ -1,9 +1,11 @@
 package org.mindanchor.journal
 
 import android.content.Context
+import android.util.Log
 import androidx.room.withTransaction
 import java.time.LocalDate
 import java.util.UUID
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
@@ -102,7 +104,15 @@ class JournalRepository(
      * timestamped before the phase that supposedly covers it would not be.
      */
     private suspend fun ensurePhase(now: Long) {
-        runCatching { provenance.ensureCurrentPhase(now) }
+        runCatching { provenance.ensureCurrentPhase(now) }.onFailure { thrown ->
+            // Never swallow a cancellation: the coroutine is being torn
+            // down, and turning that into "carry on" would break the
+            // caller's structured concurrency.
+            if (thrown is CancellationException) throw thrown
+            // A device stuck failing to open a phase would otherwise write
+            // Journal entries attributed to nothing, silently, forever.
+            Log.w("JournalRepository", "could not open a study phase for this entry", thrown)
+        }
     }
 
     /**

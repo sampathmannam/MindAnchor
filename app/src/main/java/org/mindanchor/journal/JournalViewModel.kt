@@ -151,15 +151,24 @@ class JournalViewModel(
         }
     }
 
+    /** Set when a research-log record could not be written; cleared on the next attempt. */
+    var researchLogError: Boolean by mutableStateOf(false)
+        private set
+
     /**
-     * Records one self-reported research-log event. Fire-and-forget in the
-     * same shape as [saveMorningMeasure]: the card is a list of chips, not
-     * a form that can half-fail.
+     * Records one self-reported research-log event.
+     *
+     * A failure is surfaced rather than swallowed. The whole point of this
+     * substrate is that the record exists; quietly losing one and showing
+     * nothing would be the wrong default here in a way it would not be for
+     * a cosmetic action.
      */
     fun recordResearchEvent(kind: LedgerEventKind, note: String) {
         scope.launch {
+            researchLogError = false
             val at = clock()
             runCatching { ledgerRepository.record(kind, occurredAt = at, note = note, now = at) }
+                .onFailure { researchLogError = true }
         }
     }
 

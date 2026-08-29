@@ -19,11 +19,13 @@ import kotlinx.coroutines.flow.Flow
  * this file's source text for exactly that mistake, because Room's
  * annotations have binary retention and cannot be inspected at runtime.
  *
- * Kept to ten functions on purpose: detekt's default TooManyFunctions
- * threshold for an interface is eleven, and a DAO that keeps growing is a
- * sign the caller wants a query it should be composing itself.
+ * The `TooManyFunctions` suppression is deliberate and local: eleven
+ * narrow read queries over two tables is the shape a DAO should have, and
+ * raising detekt's interface threshold repository-wide to accommodate one
+ * file would weaken the rule everywhere it is doing its job.
  */
 @Dao
+@Suppress("TooManyFunctions")
 interface ResearchDao {
 
     /**
@@ -56,6 +58,10 @@ interface ResearchDao {
 
     @Query("SELECT COUNT(*) FROM research_ledger_events")
     suspend fun ledgerEventCount(): Int
+
+    /** Every event recorded on [localDate], in chain order. Uses the localDate index. */
+    @Query("SELECT * FROM research_ledger_events WHERE localDate = :localDate ORDER BY sequence")
+    fun ledgerEventsOn(localDate: String): Flow<List<ResearchLedgerEventEntity>>
 
     /** The payloads already recorded for [kind], so a registration is not repeated. */
     @Query("SELECT payloadJson FROM research_ledger_events WHERE kind = :kind")

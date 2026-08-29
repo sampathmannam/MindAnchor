@@ -28,8 +28,12 @@ import org.mindanchor.journal.DeviceIdentityStore
  * chose, the time they said it happened, and their own words, and that is
  * the whole of it — no scoring, no inference, and for
  * [LedgerEventKind.MEDICATION_CHANGE] no advice of any kind.
+ *
+ * `open` for one reason: a test overrides [appendEvents] to fail after the
+ * phase insert has succeeded, which is the only way to prove the shared
+ * transaction actually rolls both back.
  */
-class ResearchLedgerRepository(
+open class ResearchLedgerRepository(
     private val context: Context,
     private val database: AnchorDatabase,
     private val currentVector: suspend () -> ProvenanceVector,
@@ -103,9 +107,15 @@ class ResearchLedgerRepository(
     fun events(): Flow<List<ResearchLedgerEvent>> =
         dao.ledgerEvents().map { rows -> rows.map { it.toDomain() } }
 
-    /** Just the events the person recorded on [localDate]. */
+    /**
+     * Just the events the person recorded on [localDate]. Indexed by date
+     * rather than filtered from the whole ledger, so opening Journal does
+     * not re-read and re-map every row ever written.
+     */
     fun selfReportedOn(localDate: String): Flow<List<ResearchLedgerEvent>> =
-        events().map { all -> all.filter { it.localDate == localDate && it.kind.isSelfReported } }
+        dao.ledgerEventsOn(localDate).map { rows ->
+            rows.map { it.toDomain() }.filter { it.kind.isSelfReported }
+        }
 
     // --- ResearchProvenanceStore ------------------------------------
 

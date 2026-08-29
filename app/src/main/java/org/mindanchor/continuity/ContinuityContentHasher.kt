@@ -48,7 +48,9 @@ object ContinuityContentHasher {
      * Journal/context/measure/change rows sort lexicographically by their
      * string id; notes sort numerically by id; letters and read dates sort
      * lexicographically by their ISO date string (which sorts correctly
-     * for `yyyy-MM-dd`); package lists sort lexicographically. Exposed so
+     * for `yyyy-MM-dd`); package lists sort lexicographically; ledger
+     * events sort by sequence then id and study phases by ordinal then id,
+     * which is both their natural order and a total one. Exposed so
      * [ContinuitySnapshotRepository] can build an already-canonical payload
      * before computing [hash], rather than duplicating the sort keys.
      */
@@ -62,6 +64,8 @@ object ContinuityContentHasher {
         frictionedApps = payload.frictionedApps.sorted(),
         alwaysOpenApps = payload.alwaysOpenApps.sorted(),
         continuityChanges = payload.continuityChanges.sortedBy { it.id },
+        researchLedgerEvents = payload.researchLedgerEvents.sortedWith(compareBy({ it.sequence }, { it.id })),
+        studyPhases = payload.studyPhases.sortedWith(compareBy({ it.ordinal }, { it.id })),
     )
 
     /**
@@ -84,6 +88,7 @@ object ContinuityContentHasher {
         val text = when (formatVersion) {
             ContinuityContract.PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION ->
                 json.encodeToString(projectV1(canonical))
+            ContinuityContract.SNAPSHOT_FORMAT_VERSION -> json.encodeToString(canonical)
             else -> error("no canonical projection for snapshot format version $formatVersion")
         }
         val digest = MessageDigest.getInstance("SHA-256").digest(text.encodeToByteArray())

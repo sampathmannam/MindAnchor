@@ -178,4 +178,39 @@ class ResearchLedgerRepositoryTest {
         assertEquals(StudyPhaseReason.DEVICE_CHANGE.name, phases.last().reason)
         assertEquals(LedgerIntegrity.VERIFIED, LedgerChain.verify(repository.events().first()))
     }
+
+    /**
+     * A repository whose append fails after the phase insert has already
+     * succeeded — the torn write the shared transaction exists to prevent.
+     */
+    private class FailingAppendRepository(
+        context: Context,
+        database: AnchorDatabase,
+    ) : ResearchLedgerRepository(
+        context = context,
+        database = database,
+        currentVector = { ProvenanceVersions.vector(95, "0.71.0", "device-a") },
+    ) {
+        override suspend fun appendEvents(events: List<ResearchLedgerEvent>) {
+            error("the disk filled up between the phase insert and the append")
+        }
+    }
+
+    @Test
+    fun aFailureBetweenThePhaseInsertAndTheAppendLeavesNothingBehind() = runBlocking {
+        val failing = FailingAppendRepository(context, database)
+
+        assertThrows(IllegalStateException::class.java) {
+            runBlocking { failing.record(LedgerEventKind.EXERCISE, occurredAt = 1_000L, note = "", now = 1_000L) }
+        }
+
+        // Room's withTransaction is re-entrant from the same coroutine, so
+        // the coordinator's inner transaction and record's outer one are
+        // one unit of work. Without that, a phase would have committed here
+        // with no STUDY_PHASE_STARTED event to explain it, in tables that
+        // can never be repaired.
+        assertEquals(0, database.research().studyPhaseCount())
+        assertEquals(0, database.research().ledgerEventCount())
+        assertTrue(database.journal().allChangesNow().isEmpty())
+    }
 }

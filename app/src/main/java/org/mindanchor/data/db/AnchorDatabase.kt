@@ -444,8 +444,14 @@ abstract class AnchorDatabase : RoomDatabase() {
          * silently overwrite an immutable, hash-chained row with no error
          * at all, which is exactly the outcome the triggers exist to
          * prevent.
+         *
+         * That pragma is connection-scoped and Android's connection pool
+         * does not replay custom pragmas when it recreates a connection,
+         * so treat it as defence in depth. The primary guarantee is
+         * `ResearchDao` declaring no `REPLACE` at all, checked by
+         * `ResearchDaoAppendOnlyTest` against this repository's source.
          */
-        val researchImmutabilityCallback = object : RoomDatabase.Callback() {
+        internal val researchImmutabilityCallback = object : RoomDatabase.Callback() {
             override fun onCreate(db: SupportSQLiteDatabase) {
                 installResearchImmutability(db)
             }
@@ -483,5 +489,5 @@ abstract class AnchorDatabase : RoomDatabase() {
  * `ResearchBuilderCallbackTest` reads this repository's own source and
  * fails if a builder forgets.
  */
-fun <T : AnchorDatabase> RoomDatabase.Builder<T>.withResearchImmutability(): RoomDatabase.Builder<T> =
+internal fun <T : AnchorDatabase> RoomDatabase.Builder<T>.withResearchImmutability(): RoomDatabase.Builder<T> =
     addCallback(AnchorDatabase.researchImmutabilityCallback)
