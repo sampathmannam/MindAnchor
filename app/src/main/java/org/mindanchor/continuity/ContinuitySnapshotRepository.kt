@@ -47,7 +47,11 @@ class ContinuitySnapshotRepository(
             studyPhases = researchDao.studyPhasesNow().map { it.toDto() },
         )
         val payload = ContinuityContentHasher.sorted(rawPayload)
-        val contentSha256 = ContinuityContentHasher.hash(payload)
+        // Explicit rather than defaulted: the version stamped on the
+        // snapshot below and the version the hash is computed under must be
+        // the same one, and a default argument makes that coupling
+        // invisible.
+        val contentSha256 = ContinuityContentHasher.hash(payload, ContinuitySnapshot.CURRENT_FORMAT_VERSION)
 
         val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
 

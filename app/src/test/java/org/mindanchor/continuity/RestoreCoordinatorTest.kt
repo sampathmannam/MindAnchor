@@ -113,6 +113,7 @@ class RestoreCoordinatorTest {
         fun markVerified() { stage = RestoreStage.VERIFIED }
         fun reset() {
             stage = RestoreStage.NONE
+            expectedFormatVersion = null
             remoteName = null
             envelopeSha256 = null
             expectedContentHash = null

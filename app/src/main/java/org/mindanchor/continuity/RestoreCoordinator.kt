@@ -1,6 +1,7 @@
 package org.mindanchor.continuity
 
 import android.content.Context
+import android.util.Log
 import androidx.room.withTransaction
 import java.io.File
 import java.security.MessageDigest
@@ -285,7 +286,13 @@ class RestoreCoordinator(
             val resolvedPayload = payload ?: when (val decrypted = decryptStaged(key) ?: return handleMissingStagedFile()) {
                 is DecryptOutcome.WrongKey -> return RestoreResult.WrongRecoveryKey
                 is DecryptOutcome.Corrupt -> return RestoreResult.StagedFileCorrupt
-                is DecryptOutcome.Success -> decrypted.snapshot.payload
+                // Read from the file rather than from the persisted pref
+                // whenever it is open anyway: the snapshot is the authority
+                // on its own format version.
+                is DecryptOutcome.Success -> {
+                    expectedFormatVersion = decrypted.snapshot.formatVersion
+                    decrypted.snapshot.payload
+                }
             }
             mergeRoom(resolvedPayload)
             persistRoomMerged()
@@ -298,7 +305,10 @@ class RestoreCoordinator(
             val resolvedPayload = payload ?: when (val decrypted = decryptStaged(key) ?: return handleMissingStagedFile()) {
                 is DecryptOutcome.WrongKey -> return RestoreResult.WrongRecoveryKey
                 is DecryptOutcome.Corrupt -> return RestoreResult.StagedFileCorrupt
-                is DecryptOutcome.Success -> decrypted.snapshot.payload
+                is DecryptOutcome.Success -> {
+                    expectedFormatVersion = decrypted.snapshot.formatVersion
+                    decrypted.snapshot.payload
+                }
             }
             mergeDataStores(resolvedPayload)
             persistDataStoresMerged()
@@ -363,9 +373,6 @@ class RestoreCoordinator(
     }
 
     companion object {
-        /** What SQLite returns from an `INSERT OR IGNORE` that inserted nothing. */
-        private const val IGNORED_ROW_ID = -1L
-
         private fun sha256Hex(bytes: ByteArray): String =
             MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
@@ -383,7 +390,18 @@ class RestoreCoordinator(
             CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
                 val stateStore = RestoreStateStore(context)
                 if (stateStore.currentInfo().stage == RestoreStage.NONE) return@launch
-                build(context).resume()
+                // Nothing here may throw. This is a root coroutine on the
+                // app's own start-up path: an uncaught exception is a crash
+                // on every cold start, and the state that caused it is on
+                // disk, so it would happen again every time. Corrupt
+                // persisted state, an unreadable staged file, a format
+                // version this build does not know — all of them end as a
+                // recorded error the backup-health card can show, never as
+                // a launcher that will not open.
+                runCatching { build(context).resume() }.onFailure { thrown ->
+                    Log.w("RestoreCoordinator", "a pending restore could not be resumed", thrown)
+                    ContinuityPrefs(context).recordError(ContinuityErrorCode.RESTORE_VERIFY_FAILED)
+                }
             }
         }
 
@@ -478,24 +496,7 @@ class RestoreCoordinator(
                         // second merge of the same events inserts nothing,
                         // so resume is duplicate-free by construction
                         // rather than by a de-duplication pass.
-                        // The row ids are checked here for the same
-                        // reason they are checked on the write path: an
-                        // ignored insert is silent, and a research row
-                        // dropped during a restore is history lost with no
-                        // way to notice. The preflight should make this
-                        // unreachable; a rolled-back restore the user can
-                        // retry beats a quietly incomplete one.
-                        val eventRows = database.research().insertLedgerEvents(
-                            payload.researchLedgerEvents.map { it.toEntity() },
-                        )
-                        check(eventRows.none { it == IGNORED_ROW_ID }) {
-                            "a restored ledger event was ignored; the ledger would be incomplete"
-                        }
-                        payload.studyPhases.forEach { phase ->
-                            check(database.research().insertStudyPhase(phase.toEntity()) != IGNORED_ROW_ID) {
-                                "a restored study phase was ignored; its events would point at nothing"
-                            }
-                        }
+                        mergeResearchRows(database, payload)
                     }
                 },
                 mergeDataStores = { payload ->
@@ -513,6 +514,46 @@ class RestoreCoordinator(
                 recordVerifyFailed = { continuityPrefs.recordError(ContinuityErrorCode.RESTORE_VERIFY_FAILED) },
             )
         }
+    }
+}
+
+/**
+ * Merges the research ledger and study phases into [database].
+ *
+ * Extracted from [RestoreCoordinator.build]'s `mergeRoom` so a test can run
+ * the production code twice; a hand-rolled copy in a test proves nothing
+ * about the lambda a real restore takes.
+ *
+ * **Idempotent, and that is load-bearing.** `mergeRoom` commits, and only
+ * then is `ROOM_MERGED` persisted; anything that interrupts between those
+ * two durability events leaves the rows written and the stage still at
+ * `DECRYPTED`, so the next resume re-runs this. Checking each
+ * `INSERT OR IGNORE`'s row id would therefore throw on every resumed
+ * restore — the rows are already there — and, because `resumeIfPending`
+ * runs on app start, would crash the launcher on every cold start with no
+ * way out but clearing app data.
+ *
+ * So the post-condition is what is checked instead: every row the payload
+ * carries must be *present* afterwards, however it got there. That is true
+ * on a first merge, true on a re-merge, and false exactly when a row was
+ * genuinely dropped — which is the case worth failing for, because a
+ * research row lost to a restore is history nobody would notice going.
+ */
+internal suspend fun mergeResearchRows(database: AnchorDatabase, payload: ContinuityPayload) {
+    val research = database.research()
+    research.insertLedgerEvents(payload.researchLedgerEvents.map { it.toEntity() })
+    payload.studyPhases.forEach { research.insertStudyPhase(it.toEntity()) }
+
+    val storedEventIds = research.ledgerEventsNow().map { it.id }.toSet()
+    val missingEvents = payload.researchLedgerEvents.map { it.id }.filterNot { it in storedEventIds }
+    check(missingEvents.isEmpty()) {
+        "${missingEvents.size} restored ledger events are not in the table; the ledger would be incomplete"
+    }
+
+    val storedPhaseIds = research.studyPhasesNow().map { it.id }.toSet()
+    val missingPhases = payload.studyPhases.map { it.id }.filterNot { it in storedPhaseIds }
+    check(missingPhases.isEmpty()) {
+        "${missingPhases.size} restored study phases are not in the table; their events would point at nothing"
     }
 }
 

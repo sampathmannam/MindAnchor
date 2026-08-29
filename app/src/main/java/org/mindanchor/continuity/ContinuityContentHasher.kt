@@ -19,7 +19,7 @@ import org.mindanchor.backup.BackupCodec
  *
  * ## Why the hash takes a format version
  *
- * Program 1 will append two lists to [ContinuityPayload]. Serialising with
+ * Program 1 appended two lists to [ContinuityPayload]. Serialising with
  * `encodeDefaults = true` writes those fields even when both lists are
  * empty, so a single unversioned hash function would change the digest of
  * every payload in existence — and with it, the verification step of every
@@ -33,11 +33,12 @@ import org.mindanchor.backup.BackupCodec
  * in `ContinuityHashVersionTest` pins both its field order and the digest
  * of a fully populated fixture.
  *
- * A caller verifying a staged snapshot must pass **that snapshot's own**
- * `formatVersion`, not the current one. Today every payload in existence
- * is version 1 and [RestoreCoordinator] relies on the default, which is
- * correct; the plan's Task 10 threads the staged snapshot's version
- * through in the same commit that makes the two versions differ.
+ * A caller verifying a staged snapshot passes **that snapshot's own**
+ * `formatVersion`, not the current one — [RestoreCoordinator] reads it
+ * from the decrypted file, falling back to the version persisted when the
+ * restore was staged. Verifying a Program 0 checkpoint against today's
+ * twelve-field digest would fail every backup written before Program 1,
+ * after the data had already been merged.
  */
 object ContinuityContentHasher {
 

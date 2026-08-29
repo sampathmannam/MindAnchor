@@ -299,10 +299,8 @@ class ContinuityRoundTripTest {
                         destDao.upsertContext(payload.contextRows.map { it.toEntity() })
                         destDao.upsertMorningMeasures(payload.morningMeasures.map { it.toEntity() })
                         payload.continuityChanges.forEach { destDao.insertChange(it.toEntity()) }
-                        destDb.research().insertLedgerEvents(
-                            payload.researchLedgerEvents.map { it.toEntity() },
-                        )
-                        payload.studyPhases.forEach { destDb.research().insertStudyPhase(it.toEntity()) }
+                        // The production function, not a copy of it.
+                        mergeResearchRows(destDb, payload)
                     }
                 },
                 mergeDataStores = { payload ->
@@ -338,6 +336,19 @@ class ContinuityRoundTripTest {
             // same head. A hash match alone would not show the chain still
             // links, and a chain that verified against itself would not
             // show it is the same chain.
+            // The merge has to survive being re-run: mergeRoom commits
+            // before ROOM_MERGED is persisted, so an interruption in that
+            // window makes the next resume do exactly this. Before the
+            // post-condition replaced per-insert row-id checks, this threw
+            // — and resumeIfPending runs on app start, so it would have
+            // crashed the launcher on every cold start.
+            destDb.withTransaction { mergeResearchRows(destDb, originalSnapshot.payload) }
+            assertEquals(
+                originalSnapshot.payload.researchLedgerEvents.size,
+                destDb.research().ledgerEventCount(),
+            )
+            assertEquals(originalSnapshot.payload.studyPhases.size, destDb.research().studyPhaseCount())
+
             val restoredLedger = destDb.research().ledgerEventsNow()
             assertEquals(sourceLedger.map { it.id }, restoredLedger.map { it.id })
             assertEquals(sourcePhases.map { it.id }, destDb.research().studyPhasesNow().map { it.id })

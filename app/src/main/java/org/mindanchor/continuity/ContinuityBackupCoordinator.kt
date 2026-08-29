@@ -188,7 +188,18 @@ class ContinuityBackupCoordinator(
         }
         val decoded = ContinuitySnapshotCodec.decode(decryptedJson)
         val decodedSnapshot = (decoded as? ContinuitySnapshotCodec.DecodeResult.Success)?.snapshot
-        if (decodedSnapshot == null || decodedSnapshot.contentSha256 != snapshot.contentSha256) {
+        // Re-derived, not just compared: the stamped formatVersion has to be
+        // the version the content hash was actually computed under, and this
+        // is the only place the phone that wrote the file can notice if it
+        // is not. The alternative is a replacement phone discovering it as a
+        // VerifyMismatch, after the merge.
+        val reDerived = decodedSnapshot?.let {
+            runCatching { ContinuityContentHasher.hash(it.payload, it.formatVersion) }.getOrNull()
+        }
+        if (decodedSnapshot == null ||
+            decodedSnapshot.contentSha256 != snapshot.contentSha256 ||
+            reDerived != snapshot.contentSha256
+        ) {
             recordError(ContinuityErrorCode.VERIFY_FAILED)
             return CheckpointResult.VerificationFailed(ContinuityErrorCode.VERIFY_FAILED)
         }

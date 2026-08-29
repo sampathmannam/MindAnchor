@@ -174,17 +174,22 @@ class RestoreViewModel(
         _uiState.value = RestoreUiState.Restoring(emptySet())
         scope.launch {
             val coordinator = coordinatorBuilder(context.applicationContext)
-            val result = coordinator.beginRestore(
-                remoteName = candidate.remoteName,
-                envelopeBytes = candidate.envelopeBytes,
-                expectedContentHash = candidate.snapshot.contentSha256,
-                expectedFormatVersion = candidate.snapshot.formatVersion,
-                onStageCompleted = { stage ->
-                    val current = _uiState.value
-                    val completed = (current as? RestoreUiState.Restoring)?.completedStages ?: emptySet()
-                    _uiState.value = RestoreUiState.Restoring(completed + stage)
-                },
-            )
+            // A throw here would leave the screen stuck on "Restoring" behind
+            // a crash dialog. The person is mid-restore on a new phone; they
+            // need a screen that says it failed and lets them try again.
+            val result = runCatching {
+                coordinator.beginRestore(
+                    remoteName = candidate.remoteName,
+                    envelopeBytes = candidate.envelopeBytes,
+                    expectedContentHash = candidate.snapshot.contentSha256,
+                    expectedFormatVersion = candidate.snapshot.formatVersion,
+                    onStageCompleted = { stage ->
+                        val current = _uiState.value
+                        val completed = (current as? RestoreUiState.Restoring)?.completedStages ?: emptySet()
+                        _uiState.value = RestoreUiState.Restoring(completed + stage)
+                    },
+                )
+            }.getOrElse { RestoreResult.LocalStateReset }
             _uiState.value = when (result) {
                 is RestoreResult.Verified -> RestoreUiState.RestoreComplete(result.contentHash)
                 else -> RestoreUiState.RestoreFailed(result)

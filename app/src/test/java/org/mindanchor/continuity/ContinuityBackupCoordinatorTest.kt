@@ -27,7 +27,18 @@ class ContinuityBackupCoordinatorTest {
     private fun sampleKey(seed: Int = 1): RecoveryKey =
         RecoveryKeyCodec.generate { ByteArray(32) { i -> ((seed + i) and 0xFF).toByte() } }
 
-    private fun sampleSnapshot(id: String = "snap-1", contentHash: String = "hash-$id"): ContinuitySnapshot =
+    /**
+     * [contentHash] defaults to the payload's real digest, because the
+     * coordinator now re-derives it: a snapshot whose stamped hash does not
+     * match its own payload is exactly the mis-stamped file the verify step
+     * exists to catch, and a fixture carrying a made-up string would be one.
+     * Tests that want a *different* snapshot vary the payload, not the hash.
+     */
+    private fun sampleSnapshot(
+        id: String = "snap-1",
+        payload: ContinuityPayload = ContinuityPayload(),
+        contentHash: String = ContinuityContentHasher.hash(payload, ContinuitySnapshot.CURRENT_FORMAT_VERSION),
+    ): ContinuitySnapshot =
         ContinuitySnapshot(
             formatVersion = ContinuitySnapshot.CURRENT_FORMAT_VERSION,
             snapshotId = id,
@@ -35,7 +46,7 @@ class ContinuityBackupCoordinatorTest {
             appVersionCode = 1,
             appVersionName = "test",
             sourceDeviceId = "device-a",
-            payload = ContinuityPayload(),
+            payload = payload,
             contentSha256 = contentHash,
         )
 
@@ -219,18 +230,18 @@ class ContinuityBackupCoordinatorTest {
     fun `full success uploads, verifies, acknowledges, and records verified state exactly once`() = runBlocking {
         val store = FakeRemoteBackupStore()
         val recorder = Recorder()
-        val snapshot = sampleSnapshot(id = "snap-42", contentHash = "hash-42")
+        val snapshot = sampleSnapshot(id = "snap-42")
 
         val result = coordinator(recorder, store, snapshot = snapshot).runCheckpoint()
 
         assertTrue(result is CheckpointResult.Verified)
         val verified = result as CheckpointResult.Verified
         assertEquals("snap-42", verified.snapshotId)
-        assertEquals("hash-42", verified.contentSha256)
+        assertEquals(snapshot.contentSha256, verified.contentSha256)
         assertEquals(1, store.putCalls)
         assertEquals(1, store.getCalls)
         assertEquals(listOf("snap-42"), recorder.acknowledged)
-        assertEquals(Triple(5_000L, "snap-42", "hash-42"), recorder.verifiedCall)
+        assertEquals(Triple(5_000L, "snap-42", snapshot.contentSha256), recorder.verifiedCall)
         assertTrue("no error should be recorded on the happy path", recorder.errorsRecorded.isEmpty())
     }
 
@@ -241,7 +252,7 @@ class ContinuityBackupCoordinatorTest {
         // byte-compare-decrypt-hash sequence verifies the nightly file too.
         val store = FakeRemoteBackupStore()
         val recorder = Recorder()
-        val snapshot = sampleSnapshot(id = "snap-nightly", contentHash = "hash-nightly")
+        val snapshot = sampleSnapshot(id = "snap-nightly")
 
         val result = coordinator(recorder, store, snapshot = snapshot)
             .runCheckpoint(targetFileName = { "custom-versioned-name.mab" })
@@ -334,14 +345,14 @@ class ContinuityBackupCoordinatorTest {
             getOverrideForName = mapOf(ContinuityFiles.LATEST to RemoteResult.Ok("corrupted-latest-refresh".encodeToByteArray())),
         )
         val recorder = Recorder()
-        val snapshot = sampleSnapshot(id = "snap-nightly", contentHash = "hash-nightly")
+        val snapshot = sampleSnapshot(id = "snap-nightly")
         val coordinator = coordinator(recorder, store, snapshot = snapshot)
 
         val versionedResult = coordinator.runCheckpoint(targetFileName = { "custom-versioned-name.mab" })
         assertTrue("the versioned upload itself must verify cleanly", versionedResult is CheckpointResult.Verified)
         val verified = versionedResult as CheckpointResult.Verified
         val versionedVerifiedCall = recorder.verifiedCall
-        assertEquals(Triple(5_000L, "snap-nightly", "hash-nightly"), versionedVerifiedCall)
+        assertEquals(Triple(5_000L, "snap-nightly", snapshot.contentSha256), versionedVerifiedCall)
 
         val latestRefreshResult = coordinator.putAndVerifyBytes(ContinuityFiles.LATEST, verified.envelopeBytes)
 
