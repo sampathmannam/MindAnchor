@@ -13,6 +13,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -21,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 
 /**
  * The v0.27+ (Phase 2 G-5) Sleep Lock Composable.
@@ -74,6 +76,18 @@ fun SleepLockCard(
     var matchStartedAt by remember { mutableStateOf<Long?>(null) }
     val unlockPhrase = "I am awake and I want to use my phone."
     val dwellSeconds = 30
+    // The onValueChange dwell check below only re-evaluates on a keystroke,
+    // so a match that is never edited again (the whole point of "wait it
+    // out") could never reach the 30s threshold. This effect completes the
+    // dwell passively once the phrase matches, and is cancelled/restarted
+    // whenever matchStartedAt changes (i.e. the match is broken or renewed).
+    LaunchedEffect(matchStartedAt) {
+        val startedAt = matchStartedAt ?: return@LaunchedEffect
+        val remaining = dwellSeconds * 1000L - (System.currentTimeMillis() - startedAt)
+        if (remaining > 0) delay(remaining)
+        onUnlock(typedSoFar)
+        matchStartedAt = null
+    }
     Card(
         modifier = modifier
             .fillMaxWidth()
