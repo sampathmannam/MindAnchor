@@ -18,6 +18,15 @@ nothing here should be read as a claim that a physical restore has been
 performed. Whoever runs the runbook fills this in with real values as
 they go.
 
+**Task 15 status (final release gate):** confirmed still a template as
+of the whole-branch review and release-gate pass. Per the plan's own
+Step 3, Program 0 requires **three** successful, hash-matching Device
+A → Device B restore runs recorded below before `v0.71.0` may be
+tagged. Zero are recorded. This is the one outstanding gate blocking
+release — see `docs/RELEASING.md` §6.1 and `RELEASE_NOTES_v0.71.0.md`.
+Copy the "Run record" table below three times (or otherwise record
+three distinct runs) once physical hardware is available.
+
 ---
 
 ## Run record

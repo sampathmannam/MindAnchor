@@ -174,6 +174,25 @@ The clinical-review item is not a formality. This app holds a suicide
 safety plan, and no amount of test coverage substitutes for someone
 qualified having read what it tells a person in crisis.
 
+### 6.1 Program 0 (v0.71.0) readiness
+
+Program 0's own plan (`docs/superpowers/plans/2026-08-28-program-0-continuity-proof.md`)
+adds one more gate on top of the checklist above, specific to this
+release: **"Program 0 exits only after repeated physical
+replacement-phone restores produce matching content hashes."** All
+automatable work — the full continuity round trip, offline-startup
+pinning, the release-safety/reproducibility tooling, and the whole
+JVM/instrumentation test suite — is implemented and passing (see
+`docs/qa/program-0-continuity-runbook.md` for the exact automated
+coverage already in place). `docs/qa/program-0-continuity-log.md` is
+still a template: **zero physical Device A → Device B restores have
+been run**, because this was implemented in an environment with no
+physical hardware, no second device, and no real Google account. v0.71.0
+must not be tagged until the runbook has actually been executed and
+`program-0-continuity-log.md` records three successful, hash-matching
+runs — this is a hard gate, not a formality, exactly like the
+clinical-review item above.
+
 ---
 
 ## 7. Play-Store declaration forms (for the day the F-Droid-first strategy ships to Play)
