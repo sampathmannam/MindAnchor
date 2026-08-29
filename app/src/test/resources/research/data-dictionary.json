@@ -1,0 +1,740 @@
+{
+  "version": "mindanchor-research-v1",
+  "statement": "Every variable a MindAnchor research export can contain. Frozen: a change to this document requires a new version, and the old version stays readable forever.",
+  "missingDataPolicyVersion": "missing-data-v1",
+  "missingDataStatement": "Nothing is imputed, interpolated, carried forward, or filled in. Every absence is listed with a reason.",
+  "variables": [
+    {
+      "name": "id",
+      "dataset": "JOURNAL_ENTRIES",
+      "type": "string",
+      "unit": "",
+      "allowedValues": [],
+      "description": "Stable identifier for this entry.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "createdAt",
+      "dataset": "JOURNAL_ENTRIES",
+      "type": "timestamp_epoch_millis",
+      "unit": "milliseconds since the Unix epoch",
+      "allowedValues": [],
+      "description": "When the entry was first saved.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "updatedAt",
+      "dataset": "JOURNAL_ENTRIES",
+      "type": "timestamp_epoch_millis",
+      "unit": "milliseconds since the Unix epoch",
+      "allowedValues": [],
+      "description": "When the entry was last written.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "localDate",
+      "dataset": "JOURNAL_ENTRIES",
+      "type": "iso_local_date",
+      "unit": "",
+      "allowedValues": [],
+      "description": "The local calendar date the entry belongs to. The join key for daily analysis.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "title",
+      "dataset": "JOURNAL_ENTRIES",
+      "type": "string",
+      "unit": "",
+      "allowedValues": [],
+      "description": "The title the person typed. Empty if they typed none.",
+      "provenance": "USER_AUTHORED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "body",
+      "dataset": "JOURNAL_ENTRIES",
+      "type": "string",
+      "unit": "",
+      "allowedValues": [],
+      "description": "The entry in the person's own words, stored exactly as written. Nothing reads meaning from it.",
+      "provenance": "USER_AUTHORED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "kind",
+      "dataset": "JOURNAL_ENTRIES",
+      "type": "enum",
+      "unit": "",
+      "allowedValues": [
+        "DAILY",
+        "BA",
+        "DEAR_MAN",
+        "GRATITUDE",
+        "EXPRESSIVE_WRITING"
+      ],
+      "description": "Which writing surface produced the entry.",
+      "provenance": "USER_REPORTED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "sourceDeviceId",
+      "dataset": "JOURNAL_ENTRIES",
+      "type": "string",
+      "unit": "",
+      "allowedValues": [],
+      "description": "The phone that recorded the entry.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "deletedAt",
+      "dataset": "JOURNAL_ENTRIES",
+      "type": "timestamp_epoch_millis",
+      "unit": "milliseconds since the Unix epoch",
+      "allowedValues": [],
+      "description": "When the person removed the entry, or null. The row is kept; content is never destroyed.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "id",
+      "dataset": "JOURNAL_CONTEXT",
+      "type": "string",
+      "unit": "",
+      "allowedValues": [],
+      "description": "Stable identifier for this context row.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": "structural-context"
+    },
+    {
+      "name": "entryId",
+      "dataset": "JOURNAL_CONTEXT",
+      "type": "string",
+      "unit": "",
+      "allowedValues": [],
+      "description": "The Journal entry this was derived from.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": "structural-context"
+    },
+    {
+      "name": "recordType",
+      "dataset": "JOURNAL_CONTEXT",
+      "type": "enum",
+      "unit": "",
+      "allowedValues": [
+        "FACT",
+        "INFERENCE"
+      ],
+      "description": "FACT for a structural observation. INFERENCE exists in the schema but this build derives none.",
+      "provenance": "DERIVED_STRUCTURAL",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": "structural-context"
+    },
+    {
+      "name": "key",
+      "dataset": "JOURNAL_CONTEXT",
+      "type": "enum",
+      "unit": "",
+      "allowedValues": [
+        "entry_kind",
+        "local_date",
+        "word_count",
+        "user_title"
+      ],
+      "description": "Which structural fact this row holds.",
+      "provenance": "DERIVED_STRUCTURAL",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": "structural-context"
+    },
+    {
+      "name": "value",
+      "dataset": "JOURNAL_CONTEXT",
+      "type": "string",
+      "unit": "",
+      "allowedValues": [],
+      "description": "The fact's value, as text.",
+      "provenance": "DERIVED_STRUCTURAL",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": "structural-context"
+    },
+    {
+      "name": "sourceStart",
+      "dataset": "JOURNAL_CONTEXT",
+      "type": "integer",
+      "unit": "characters",
+      "allowedValues": [],
+      "description": "Start offset in the entry body, or null.",
+      "provenance": "DERIVED_STRUCTURAL",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": "structural-context"
+    },
+    {
+      "name": "sourceEnd",
+      "dataset": "JOURNAL_CONTEXT",
+      "type": "integer",
+      "unit": "characters",
+      "allowedValues": [],
+      "description": "End offset in the entry body, or null.",
+      "provenance": "DERIVED_STRUCTURAL",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": "structural-context"
+    },
+    {
+      "name": "confidence",
+      "dataset": "JOURNAL_CONTEXT",
+      "type": "number",
+      "unit": "",
+      "allowedValues": [],
+      "description": "Always 1.0 in this build: a structural count is not a guess.",
+      "provenance": "DERIVED_STRUCTURAL",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": "structural-context"
+    },
+    {
+      "name": "extractorVersion",
+      "dataset": "JOURNAL_CONTEXT",
+      "type": "string",
+      "unit": "",
+      "allowedValues": [],
+      "description": "The transformation version that produced the row.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": "structural-context"
+    },
+    {
+      "name": "createdAt",
+      "dataset": "JOURNAL_CONTEXT",
+      "type": "timestamp_epoch_millis",
+      "unit": "milliseconds since the Unix epoch",
+      "allowedValues": [],
+      "description": "When the row was derived.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": "structural-context"
+    },
+    {
+      "name": "id",
+      "dataset": "MORNING_MEASURES",
+      "type": "string",
+      "unit": "",
+      "allowedValues": [],
+      "description": "Stable identifier for this measure.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "localDate",
+      "dataset": "MORNING_MEASURES",
+      "type": "iso_local_date",
+      "unit": "",
+      "allowedValues": [],
+      "description": "The local calendar date the measure covers. One measure per date.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "createdAt",
+      "dataset": "MORNING_MEASURES",
+      "type": "timestamp_epoch_millis",
+      "unit": "milliseconds since the Unix epoch",
+      "allowedValues": [],
+      "description": "When the measure was first saved.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "updatedAt",
+      "dataset": "MORNING_MEASURES",
+      "type": "timestamp_epoch_millis",
+      "unit": "milliseconds since the Unix epoch",
+      "allowedValues": [],
+      "description": "When the measure was last edited.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "mood",
+      "dataset": "MORNING_MEASURES",
+      "type": "integer",
+      "unit": "",
+      "allowedValues": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5"
+      ],
+      "description": "Self-rated 1 to 5, where 1 is \"Low\" and 5 is \"High\". A personal research measure. No total, threshold, or cut-off is computed from it anywhere.",
+      "provenance": "USER_REPORTED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "anxiety",
+      "dataset": "MORNING_MEASURES",
+      "type": "integer",
+      "unit": "",
+      "allowedValues": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5"
+      ],
+      "description": "Self-rated 1 to 5, where 1 is \"Calm\" and 5 is \"Tense\". A personal research measure. No total, threshold, or cut-off is computed from it anywhere.",
+      "provenance": "USER_REPORTED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "angerUrge",
+      "dataset": "MORNING_MEASURES",
+      "type": "integer",
+      "unit": "",
+      "allowedValues": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5"
+      ],
+      "description": "Self-rated 1 to 5, where 1 is \"Steady\" and 5 is \"Reactive\". A personal research measure. No total, threshold, or cut-off is computed from it anywhere.",
+      "provenance": "USER_REPORTED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "energyFunction",
+      "dataset": "MORNING_MEASURES",
+      "type": "integer",
+      "unit": "",
+      "allowedValues": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5"
+      ],
+      "description": "Self-rated 1 to 5, where 1 is \"Depleted\" and 5 is \"Energized\". A personal research measure. No total, threshold, or cut-off is computed from it anywhere.",
+      "provenance": "USER_REPORTED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "sleepQuality",
+      "dataset": "MORNING_MEASURES",
+      "type": "integer",
+      "unit": "",
+      "allowedValues": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5"
+      ],
+      "description": "Self-rated 1 to 5, where 1 is \"Poor\" and 5 is \"Great\". A personal research measure. No total, threshold, or cut-off is computed from it anywhere.",
+      "provenance": "USER_REPORTED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "instrumentVersion",
+      "dataset": "MORNING_MEASURES",
+      "type": "string",
+      "unit": "",
+      "allowedValues": [],
+      "description": "The version of the five-item measure that was answered.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "sourceDeviceId",
+      "dataset": "MORNING_MEASURES",
+      "type": "string",
+      "unit": "",
+      "allowedValues": [],
+      "description": "The phone that recorded the measure.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "id",
+      "dataset": "RESEARCH_LEDGER_EVENTS",
+      "type": "sha256_hex",
+      "unit": "",
+      "allowedValues": [],
+      "description": "The event's own hash. The row is content-addressed.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "sequence",
+      "dataset": "RESEARCH_LEDGER_EVENTS",
+      "type": "integer",
+      "unit": "",
+      "allowedValues": [],
+      "description": "Position in the chain, 1-based and contiguous.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "kind",
+      "dataset": "RESEARCH_LEDGER_EVENTS",
+      "type": "enum",
+      "unit": "",
+      "allowedValues": [
+        "SHIFT_SCHEDULE",
+        "EXERCISE",
+        "ILLNESS",
+        "CAFFEINE",
+        "MEDICATION_CHANGE",
+        "LIFE_EVENT",
+        "ADVERSE_OR_UNINTENDED_EFFECT",
+        "STUDY_PHASE_STARTED",
+        "PROTOCOL_VERSION_REGISTERED",
+        "APP_VERSION_CHANGE",
+        "RULE_VERSION_CHANGE",
+        "MODEL_VERSION_CHANGE",
+        "TRANSFORMATION_VERSION_CHANGE",
+        "MISSING_DATA_POLICY_CHANGE",
+        "INSTRUMENT_VERSION_CHANGE",
+        "DICTIONARY_VERSION_CHANGE",
+        "DEVICE_CHANGE",
+        "SENSOR_GAP"
+      ],
+      "description": "What the event records.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "occurredAt",
+      "dataset": "RESEARCH_LEDGER_EVENTS",
+      "type": "timestamp_epoch_millis",
+      "unit": "milliseconds since the Unix epoch",
+      "allowedValues": [],
+      "description": "When the recorded thing happened.",
+      "provenance": "USER_REPORTED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "recordedAt",
+      "dataset": "RESEARCH_LEDGER_EVENTS",
+      "type": "timestamp_epoch_millis",
+      "unit": "milliseconds since the Unix epoch",
+      "allowedValues": [],
+      "description": "When the row was written. Never rewritten.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "localDate",
+      "dataset": "RESEARCH_LEDGER_EVENTS",
+      "type": "iso_local_date",
+      "unit": "",
+      "allowedValues": [],
+      "description": "The local calendar date of occurredAt. The join key for daily analysis.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "studyPhaseId",
+      "dataset": "RESEARCH_LEDGER_EVENTS",
+      "type": "sha256_hex",
+      "unit": "",
+      "allowedValues": [],
+      "description": "The study phase in effect when the row was written.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "sourceDeviceId",
+      "dataset": "RESEARCH_LEDGER_EVENTS",
+      "type": "string",
+      "unit": "",
+      "allowedValues": [],
+      "description": "The phone that wrote the row.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "note",
+      "dataset": "RESEARCH_LEDGER_EVENTS",
+      "type": "string",
+      "unit": "",
+      "allowedValues": [],
+      "description": "The person's own words about the event, stored exactly as written and never interpreted. Empty for events MindAnchor wrote about itself.",
+      "provenance": "USER_AUTHORED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "payloadJson",
+      "dataset": "RESEARCH_LEDGER_EVENTS",
+      "type": "json",
+      "unit": "",
+      "allowedValues": [],
+      "description": "Structured detail for an event MindAnchor wrote about itself. \"{}\" for a self-reported one.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "previousEventHash",
+      "dataset": "RESEARCH_LEDGER_EVENTS",
+      "type": "sha256_hex",
+      "unit": "",
+      "allowedValues": [],
+      "description": "The preceding event's hash. Empty at sequence 1.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "eventHash",
+      "dataset": "RESEARCH_LEDGER_EVENTS",
+      "type": "sha256_hex",
+      "unit": "",
+      "allowedValues": [],
+      "description": "This event's hash, over its own contents plus the previous hash.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "id",
+      "dataset": "STUDY_PHASES",
+      "type": "sha256_hex",
+      "unit": "",
+      "allowedValues": [],
+      "description": "The phase's own hash over its ordinal, start and version vector.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "ordinal",
+      "dataset": "STUDY_PHASES",
+      "type": "integer",
+      "unit": "",
+      "allowedValues": [],
+      "description": "Position in the sequence of phases, 0-based.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "startedAt",
+      "dataset": "STUDY_PHASES",
+      "type": "timestamp_epoch_millis",
+      "unit": "milliseconds since the Unix epoch",
+      "allowedValues": [],
+      "description": "When the phase opened. A phase has no end: it runs until the next one starts.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "reason",
+      "dataset": "STUDY_PHASES",
+      "type": "enum",
+      "unit": "",
+      "allowedValues": [
+        "INITIAL",
+        "APP_VERSION_CHANGE",
+        "PROTOCOL_CATALOG_CHANGE",
+        "RULE_VERSION_CHANGE",
+        "MODEL_VERSION_CHANGE",
+        "TRANSFORMATION_VERSION_CHANGE",
+        "MISSING_DATA_POLICY_CHANGE",
+        "INSTRUMENT_VERSION_CHANGE",
+        "DICTIONARY_VERSION_CHANGE",
+        "DEVICE_CHANGE"
+      ],
+      "description": "Which part of the version vector changed to open this phase.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "appVersionCode",
+      "dataset": "STUDY_PHASES",
+      "type": "integer",
+      "unit": "",
+      "allowedValues": [],
+      "description": "The app build in effect during the phase.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "appVersionName",
+      "dataset": "STUDY_PHASES",
+      "type": "string",
+      "unit": "",
+      "allowedValues": [],
+      "description": "The app version name in effect during the phase.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "protocolCatalogSha256",
+      "dataset": "STUDY_PHASES",
+      "type": "string",
+      "unit": "",
+      "allowedValues": [],
+      "description": "Content hash of the evidence protocol catalogue in effect.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "ruleSetVersion",
+      "dataset": "STUDY_PHASES",
+      "type": "string",
+      "unit": "",
+      "allowedValues": [],
+      "description": "The decision-rule set in effect. This build ships none.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "modelSetVersion",
+      "dataset": "STUDY_PHASES",
+      "type": "string",
+      "unit": "",
+      "allowedValues": [],
+      "description": "The model set in effect. This build ships none.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "transformationSetVersion",
+      "dataset": "STUDY_PHASES",
+      "type": "string",
+      "unit": "",
+      "allowedValues": [],
+      "description": "Content hash of the transformation registry in effect.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "missingDataPolicyVersion",
+      "dataset": "STUDY_PHASES",
+      "type": "string",
+      "unit": "",
+      "allowedValues": [],
+      "description": "The missing-data policy in effect.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "instrumentVersion",
+      "dataset": "STUDY_PHASES",
+      "type": "string",
+      "unit": "",
+      "allowedValues": [],
+      "description": "The morning-measure instrument in effect.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "dictionaryVersion",
+      "dataset": "STUDY_PHASES",
+      "type": "string",
+      "unit": "",
+      "allowedValues": [],
+      "description": "The data dictionary in effect.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "sourceDeviceId",
+      "dataset": "STUDY_PHASES",
+      "type": "string",
+      "unit": "",
+      "allowedValues": [],
+      "description": "The phone the phase opened on.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "localDate",
+      "dataset": "MISSING_DATA",
+      "type": "iso_local_date",
+      "unit": "",
+      "allowedValues": [],
+      "description": "The local calendar date the value is absent for.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "variable",
+      "dataset": "MISSING_DATA",
+      "type": "enum",
+      "unit": "",
+      "allowedValues": [
+        "morning_measure",
+        "journal_context"
+      ],
+      "description": "Which variable is absent.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    },
+    {
+      "name": "reason",
+      "dataset": "MISSING_DATA",
+      "type": "enum",
+      "unit": "",
+      "allowedValues": [
+        "NOT_RECORDED",
+        "BEFORE_FIRST_RECORD",
+        "CONTEXT_NOT_DERIVED",
+        "SENSOR_GAP",
+        "DEVICE_CHANGE_GAP"
+      ],
+      "description": "Why it is absent. Nothing is filled in to replace it.",
+      "provenance": "SYSTEM_RECORDED",
+      "missingPolicy": "missing-data-v1",
+      "transformationId": null
+    }
+  ]
+}
