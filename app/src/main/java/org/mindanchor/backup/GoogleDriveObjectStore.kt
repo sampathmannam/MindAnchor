@@ -268,7 +268,13 @@ class GoogleDriveObjectStore(
             append("--").append(boundary).append(crlf)
             append("Content-Type: application/octet-stream").append(crlf).append(crlf)
         }.toByteArray(Charsets.UTF_8)
-        val closing = "--$boundary--\r\n".toByteArray(Charsets.UTF_8)
+        // RFC 2046 5.1.1: every delimiter, including the closing one, is
+        // preceded by CRLF. `content` is arbitrary binary (an AES-GCM
+        // envelope) that does not itself end in CRLF, so without this the
+        // closing boundary runs directly into the ciphertext bytes and
+        // Drive's multipart parser cannot find it — confirmed via a real
+        // request: HTTP 400 "Missing end boundary in multipart body."
+        val closing = "\r\n--$boundary--\r\n".toByteArray(Charsets.UTF_8)
         val combined = header + content + closing
         val mediaType = "multipart/related; boundary=$boundary".toMediaType()
         return combined.toRequestBody(mediaType)
