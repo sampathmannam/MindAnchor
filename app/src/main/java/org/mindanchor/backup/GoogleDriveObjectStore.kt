@@ -239,7 +239,12 @@ class GoogleDriveObjectStore(
                 }
                 resp.code in HTTP_OK_RANGE -> RemoteResult.Ok(onSuccess(resp))
                 else -> {
-                    Log.w(LOG_TAG, "$opName: HTTP ${resp.code}")
+                    // Temporary diagnostic (Program 0 real-device debugging
+                    // session, 2026-08-29) — the status code alone doesn't
+                    // say why Drive rejected the request; the response body
+                    // for a non-2xx Drive API error is a JSON object with a
+                    // human-readable `error.message`. Remove once root-caused.
+                    Log.w(LOG_TAG, "$opName: HTTP ${resp.code} body=${resp.body?.string().orEmpty().take(500)}")
                     RemoteResult.Permanent("http_${resp.code}")
                 }
             }
