@@ -57,8 +57,16 @@ android {
         // v0.71.0: Task 13 release-hardening bump (Program 0's
         //   complete, reviewed feature slice — Tasks 1-12).
         //   versionCode 94→95.
-        versionCode = 95
-        versionName = "0.71.0"
+        // v0.72.0: Program 1 scientific foundation — evidence protocol
+        //   registry, append-only hash-chained research ledger, study
+        //   phases carrying the provenance version vector, frozen data
+        //   dictionary, and a self-describing research export. Room v6→v7
+        //   (additive; two new append-only tables). Snapshot format 1→2
+        //   and research export v1→v2, both with the older version kept
+        //   readable and verifiable. Zero new permissions, no network.
+        //   versionCode 95→96.
+        versionCode = 96
+        versionName = "0.72.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every
