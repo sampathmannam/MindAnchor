@@ -48,10 +48,15 @@ class MissingDataPolicyTest {
         // which was false of any record older than the reach backwards.
         assertTrue(
             "the statement must say records outside the window are excluded",
-            MissingDataPolicy.STATEMENT.contains("excluded from\n" +
-                "            the window") ||
-                MissingDataPolicy.STATEMENT.contains("excluded from the window"),
+            MissingDataPolicy.STATEMENT.contains("excluded from it"),
         )
+        // An empty report and a person who missed nothing are different
+        // claims, and the file has to distinguish them.
+        assertTrue(
+            "the statement must say an absent window is not an absence of absences",
+            MissingDataPolicy.STATEMENT.contains("not the same as having missed nothing"),
+        )
+        assertTrue("the statement must be a single line", !MissingDataPolicy.STATEMENT.contains("\n"))
     }
 
     @Test

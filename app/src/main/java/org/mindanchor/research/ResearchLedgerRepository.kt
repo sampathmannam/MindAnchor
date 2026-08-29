@@ -128,15 +128,18 @@ open class ResearchLedgerRepository(
     private suspend fun raiseLedgerHighWater() {
         try {
             val prefs = ContinuityPrefs(context)
-            // Head first, then count: the other order could pair a count of
-            // N with the hash of event N+1 if an append landed between the
-            // two reads.
-            val head = dao.ledgerHead() ?: return
-            val count = dao.ledgerEventCount()
+            // Both reads in one transaction, so the pair is a snapshot. In
+            // either order, two bare reads let an append land between them
+            // and pair a count with the wrong head. Read-only, and the
+            // DataStore write stays outside it.
+            val snapshot = database.withTransaction {
+                dao.ledgerHead()?.let { it.eventHash to dao.ledgerEventCount() }
+            } ?: return
+            val (head, count) = snapshot
             // Read before writing so an ordinary Journal save, which grows
             // nothing, costs a DataStore read rather than an fsync.
             if ((prefs.ledgerHighWater.first()?.eventCount ?: 0) >= count) return
-            prefs.raiseLedgerHighWater(count, head.eventHash)
+            prefs.raiseLedgerHighWater(count, head)
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {

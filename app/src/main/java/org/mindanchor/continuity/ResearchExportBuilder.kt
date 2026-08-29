@@ -133,6 +133,12 @@ object ResearchExportBuilder {
         val ledger = research.ledgerEventsNow()
         val phases = research.studyPhasesNow().map { it.toDto() }
 
+        val exportDate = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
+        val window = MissingDataPolicy.windowFor(
+            recordDates = (entries.map { it.localDate } + measures.map { it.localDate } + ledger.map { it.localDate })
+                .mapNotNull { parseDate(it) },
+            exportDate = exportDate,
+        )
         val ledgerDomain = ledger.map { it.toDomain() }
         val catalog = EvidenceProtocolCatalog.registry
         val facts = contextRows.filter { it.recordType == ContextRecordType.FACT.name }
@@ -158,13 +164,14 @@ object ResearchExportBuilder {
                 transformations = TransformationRegistry.transformations,
                 transformationSetVersion = TransformationRegistry.setVersion,
                 missingData = missingDataReport(
+                    window = window,
                     entries = entries,
                     measures = measures,
-                    ledgerDates = ledger.map { it.localDate },
                     entryIdsWithFacts = facts.map { it.entryId }.toSet(),
-                    now = now,
-                    zone = zone,
+                    exportDate = exportDate,
                 ),
+                missingDataWindowStart = window?.start?.toString(),
+                missingDataWindowThrough = window?.through?.toString(),
                 missingDataPolicyVersion = MissingDataPolicy.VERSION,
                 missingDataStatement = MissingDataPolicy.STATEMENT,
                 dataDictionary = ResearchDataDictionary.dictionary,
@@ -195,37 +202,29 @@ object ResearchExportBuilder {
     }
 
     /**
-     * Every absence across the window [MissingDataPolicy.windowFor] picks
-     * from the dates actually recorded.
+     * Every absence across [window], which [build] chose from the dates
+     * actually recorded.
      *
      * The window choice lives in the policy rather than here because it is
      * policy: which records are allowed to define the span a report claims
-     * to cover. This function's only job is to gather the dates and hand
-     * them over.
+     * to cover. This function's only job is to gather the dates.
      */
-    @Suppress("LongParameterList")
     private fun missingDataReport(
+        window: MissingDataPolicy.ReportWindow?,
         entries: List<JournalEntryDto>,
         measures: List<MorningMeasureDto>,
-        ledgerDates: List<String>,
         entryIdsWithFacts: Set<String>,
-        now: Long,
-        zone: ZoneId,
+        exportDate: LocalDate,
     ): List<MissingDataRecord> {
-        val recordDates = (entries.map { it.localDate } + measures.map { it.localDate } + ledgerDates)
-            .mapNotNull { parseDate(it) }
-        val exportDate = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
-        val window = MissingDataPolicy.windowFor(recordDates, exportDate) ?: return emptyList()
-
+        if (window == null) return emptyList()
         return MissingDataPolicy.report(
             firstRecordDate = window.start,
             throughDate = window.through,
-            // Filtered by plausibility, not by the window: `report` needs
-            // every real measure date, including ones before the window,
-            // or the window boundary would look like the first measure
-            // ever taken. But an implausible one must not get a vote --
-            // one row from the year 1000 made every skipped day read as
-            // "had not started yet", inverted.
+            // Filtered by plausibility, and only by that: an implausible
+            // date must not get a vote -- one row from the year 1000 made
+            // every skipped day read as "had not started yet", inverted --
+            // while a *windowed* set would make the window boundary look
+            // like the first measure ever taken.
             allMeasureDates = measures
                 .mapNotNull { parseDate(it.localDate) }
                 .filter { MissingDataPolicy.isPlausible(it, exportDate) }

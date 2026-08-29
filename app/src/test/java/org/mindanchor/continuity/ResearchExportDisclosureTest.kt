@@ -69,6 +69,8 @@ class ResearchExportDisclosureTest {
         "ledgerEvents" to "notes you wrote about illness, medication changes",
         "studyPhases" to "study phases, version identifiers and device identifiers",
         "missingData" to "day-by-day list of what you did and did not record",
+        "missingDataWindowStart" to "day-by-day list of what you did and did not record",
+        "missingDataWindowThrough" to "day-by-day list of what you did and did not record",
     )
 
     /**
@@ -79,9 +81,20 @@ class ResearchExportDisclosureTest {
      * a new field cannot be waved through by pointing it at words the
      * dialog already contains.
      */
+    /**
+     * Groups of fields that legitimately share one phrase, because one
+     * sentence describes them all accurately: the two structural-context
+     * lists, and the missing-data report together with the window it
+     * covers. Everything else must contribute words no other field does.
+     */
+    private val shareAPhrase = listOf(
+        setOf("contextFacts", "contextInferences"),
+        setOf("missingData", "missingDataWindowStart", "missingDataWindowThrough"),
+    )
+
     @Test
     fun `each disclosed field but the two context lists names something of its own`() {
-        val shared = setOf("contextFacts", "contextInferences")
+        val shared = shareAPhrase.flatten().toSet()
         disclosedAs.forEach { (field, phrase) ->
             if (field in shared) return@forEach
             val others = disclosedAs.filterKeys { it != field }.values.toSet()

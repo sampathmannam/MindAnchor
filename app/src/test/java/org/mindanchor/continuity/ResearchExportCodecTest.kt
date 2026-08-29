@@ -121,6 +121,8 @@ class ResearchExportCodecTest {
             missingData = listOf(
                 MissingDataRecord("2026-08-28", "morning_measure", MissingDataReason.NOT_RECORDED),
             ),
+            missingDataWindowStart = "2026-08-27",
+            missingDataWindowThrough = "2026-08-29",
             missingDataPolicyVersion = MissingDataPolicy.VERSION,
             missingDataStatement = MissingDataPolicy.STATEMENT,
             dataDictionary = ResearchDataDictionary.dictionary,
@@ -302,6 +304,10 @@ class ResearchExportCodecTest {
         ),
         "transformationSetVersion" to original.copy(transformationSetVersion = "another-set"),
         "missingData" to original.copy(missingData = emptyList()),
+        "missingDataWindowStart" to original.copy(missingDataWindowStart = "1999-01-01"),
+        // Null, not another date: an export claiming it reported on no
+        // window at all, while carrying a full report, must not verify.
+        "missingDataWindowThrough" to original.copy(missingDataWindowThrough = null),
         "missingDataPolicyVersion" to original.copy(missingDataPolicyVersion = "missing-data-v9"),
         "missingDataStatement" to original.copy(
             missingDataStatement = "Absences are carried forward from the previous day.",
@@ -464,7 +470,7 @@ class ResearchExportCodecTest {
         // the hash is expected to move and re-pinning is correct. This pin
         // cannot tell those apart on its own, so the reasoning belongs in
         // the commit message that changes it.
-        assertEquals("3074756602754a92b1e3bfba5c8d177fe8dc47c705fdc3c5e51a80b95c6e508e", sample().contentSha256)
+        assertEquals("604c299c4b67dbfc027f5474e985dc5cdd74c0cffdf0d798f06d4c49dd8c3ebd", sample().contentSha256)
     }
 
     /**
@@ -522,6 +528,8 @@ class ResearchExportCodecTest {
                 MissingDataRecord("2026-08-28", "morning_measure", MissingDataReason.NOT_RECORDED),
             ),
         ),
+        "missingDataWindowStart" to base.copy(missingDataWindowStart = "2026-08-01"),
+        "missingDataWindowThrough" to base.copy(missingDataWindowThrough = "2026-08-29"),
         "missingDataPolicyVersion" to base.copy(missingDataPolicyVersion = "missing-data-v2"),
         "missingDataStatement" to base.copy(missingDataStatement = "Absences are carried forward."),
         "dataDictionary" to base.copy(dataDictionary = ResearchDataDictionary.dictionary),

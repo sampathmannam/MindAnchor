@@ -108,6 +108,25 @@ data class ResearchExport(
 
     /** Every absence, with its reason. Nothing is imputed to fill one. */
     val missingData: List<MissingDataRecord> = emptyList(),
+
+    /**
+     * The span [missingData] describes, as ISO-8601 local dates, or null
+     * when no record fell inside a reportable window.
+     *
+     * Carried because an empty [missingData] is otherwise indistinguishable
+     * from a person who missed nothing. That is not hypothetical: a
+     * replacement phone with no network time boots to its build date, and
+     * a restore-then-export before the clock syncs leaves every record
+     * dated after the export date and so outside any window this policy
+     * will vouch for. Without these two fields the file would show a year
+     * of data with zero missing values — perfect adherence — which is an
+     * assertion about something that did not happen.
+     *
+     * Null here says "no window", which is a different statement from "no
+     * absences", and the difference is the whole point.
+     */
+    val missingDataWindowStart: String? = null,
+    val missingDataWindowThrough: String? = null,
     val missingDataPolicyVersion: String = "",
     val missingDataStatement: String = "",
 

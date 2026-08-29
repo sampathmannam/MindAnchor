@@ -539,11 +539,15 @@ data dictionary with its hash.
 - The export never throws. The document picker has already created the
   file by the time the builder runs, so an escaping exception would leave
   a zero-byte export and no error; a typed `BuildFailed` is what the
-  caller can show. The missing-data window runs from the first record to
-  the later of "now" and the newest record — a clock behind its own data
-  must not produce an empty report under a statement promising a complete
-  one — and is clamped to the policy's maximum span so a single corrupt
-  date cannot ask for four hundred thousand rows.
+  caller can show. The missing-data window runs from the earliest
+  record that could be an observation to the export date, never past it,
+  and the builder carries that window in the document as
+  `missingDataWindowStart`/`missingDataWindowThrough`. Both halves matter.
+  A window that ran on to the newest record produced absences on days that
+  had not happened; and an empty report with no window stated is
+  indistinguishable from a person who missed nothing, which is why the
+  window is carried rather than implied — `null` says "no window", not "no
+  absences".
 - `ResearchExportCodec.verify(export)` recomputes the hash using the
   projection for that file's own version. A Program 0 export written
   months ago stays verifiable by a Program 1 build. Both projections are
@@ -699,21 +703,36 @@ Conservative in-scope calls made without interrupting the owner:
     recoverable, so consent obtained for a smaller dataset must not be
     reused for a larger one.
 
-11. **The missing-data window is chosen by excluding implausible records,
-    not by clamping around them.** The first implementation took the
-    window from the outermost recorded dates and clamped the result. That
-    is not equivalent: one row stamped a thousand years in the future
-    dragged the window with it, and the report listed thirty-six thousand
-    absences in the thirtieth century while dropping every date the person
-    had actually lived — in a document whose own policy statement promises
-    that every absence is listed. Excluding a record that is implausibly
-    far from the export date, in either direction, keeps the report about
-    the person. The excluded row is still exported verbatim in the data
-    itself; only the derived report ignores it. This changed the policy's
-    meaning, so it is `missing-data-v2` rather than an edit to v1, and the
-    provenance vector carries it — a device that recorded under the old
-    rule opens a new study phase rather than having its history
-    reinterpreted.
+11. **The missing-data window: four attempts, and what each got wrong.**
+    Worth recording in full, because every attempt fixed the reported
+    symptom and left the failure mode standing.
+
+    1. *Clamp the window to a maximum span.* One row stamped a thousand
+       years in the future dragged the window with it, and the report
+       listed thirty-six thousand absences in the thirtieth century while
+       dropping every date the person had actually lived.
+    2. *Exclude implausible records from choosing the window, rather than
+       clamping around them.* Right idea, symmetric bound: a row dated
+       2126 instead of 2026 — one digit — was still "plausible" within a
+       century and did the same thing.
+    3. *Asymmetric bounds, thirty days forward.* A record five days ahead
+       of a slow clock still moved the window past the export date, and
+       the report asserted absences on five days that had not happened.
+    4. *The window ends on the export date, always.* The honest forward
+       tolerance is zero: a day that has not occurred cannot be missing.
+
+    That last one creates its own quiet failure — if no record is
+    plausible, nothing is reported, and an empty list reads as perfect
+    adherence. A replacement phone with no network time boots to its build
+    date, so restore-then-export before the clock syncs lands there. So
+    the window is **carried in the document**, and `null` says "no window"
+    rather than "no absences".
+
+    Throughout: an excluded row is still exported verbatim; only the
+    derived report ignores it. The policy's meaning changed, so it is
+    `missing-data-v2` rather than an edit to v1, and the provenance vector
+    carries it — a device that recorded under the old rule opens a new
+    study phase rather than having its history reinterpreted.
 
 ## 15. Sources used
 

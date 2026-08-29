@@ -275,7 +275,30 @@ class ResearchExportBuilderTest {
             "the file must say the window ends on the export date",
             export.missingDataStatement.contains("ends on the export date"),
         )
+        // The document has to say it reported on nothing, rather than
+        // leaving an empty list to read as perfect adherence. A phone with
+        // no network time boots to its build date, so restore-then-export
+        // before the clock syncs is the realistic way to land here.
+        assertEquals(null, export.missingDataWindowStart)
+        assertEquals(null, export.missingDataWindowThrough)
         assertTrue(ResearchExportCodec.verify(export))
+    }
+
+    @Test
+    fun anOrdinaryExportStatesTheWindowItReportedOn() = runBlocking {
+        seedADayOfRecords()
+
+        val export = build()
+
+        assertEquals("2026-08-27", export.missingDataWindowStart)
+        assertEquals("2026-08-29", export.missingDataWindowThrough)
+        assertTrue(
+            "no absence may fall outside the stated window",
+            export.missingData.all {
+                it.localDate >= export.missingDataWindowStart!! &&
+                    it.localDate <= export.missingDataWindowThrough!!
+            },
+        )
     }
 
     /** Generous for any fixture here, and orders of magnitude below a clamp artefact. */

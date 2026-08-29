@@ -76,11 +76,13 @@ object MissingDataPolicy {
     const val STATEMENT =
         "Nothing is imputed, interpolated, carried forward, or filled in. " +
             "Every absence in the reported window is listed with a reason. " +
-            "The window ends on the export date — never after it, because a " +
-            "day that has not happened cannot be missing — and reaches back " +
-            "at most ten years. Records dated outside it are excluded from " +
-            "the window and from the reasons given inside it, and still " +
-            "appear in the data itself."
+            "The window is stated in this file: it ends on the export date — " +
+            "never after it, because a day that has not happened cannot be " +
+            "missing — and reaches back about ten years. When no record " +
+            "falls inside it the window is absent and no absence is " +
+            "reported, which is not the same as having missed nothing. " +
+            "Records dated outside the window are excluded from it and from " +
+            "the reasons given inside it, and still appear in the data."
 
     /** The morning research measure, one per local date. */
     const val VARIABLE_MORNING_MEASURE = "morning_measure"
@@ -163,11 +165,13 @@ object MissingDataPolicy {
      *   recorded, or null when nothing ever was — in which case the report
      *   is empty, because inventing absences for a person who has not
      *   started is not information.
-     * @param allMeasureDates **every** local date that has a morning
-     *   measure, not a recent window of them. The name is the contract: a
-     *   windowed set would make the earliest window boundary look like the
-     *   first measure ever taken, and turn months of genuinely skipped
-     *   days into "hadn't started yet".
+     * @param allMeasureDates every local date that has a morning measure
+     *   and could be an observation, per [isPlausible]. Implausible dates
+     *   are excluded because one row from the year 1000 would otherwise
+     *   become the first measure ever taken and turn months of genuinely
+     *   skipped days into "hadn't started yet". Nothing else is filtered:
+     *   a *windowed* set would make the window boundary itself look like
+     *   the first measure, which is the same failure from the other side.
      * @param entryDatesWithoutContext local dates carrying a Journal entry
      *   with no structural context rows. Keyed by date, so several entries
      *   on one date report as one absence.
