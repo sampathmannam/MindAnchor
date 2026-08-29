@@ -3,6 +3,7 @@ package org.mindanchor.settings
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -180,6 +181,15 @@ private fun ModelPickerRow(
     suggestedModels: List<String>,
     onSelect: (String) -> Unit,
 ) {
+    // v0.72+ (2026-08-29) — a provider's suggestedModels can go
+    // stale (a model gets deprecated on the provider's side; see
+    // LlmProvider.kt's GOOGLE_AI_STUDIO/OPENROUTER entries, both
+    // confirmed 404ing as of this date). Previously this field
+    // was a closed TextButton + DropdownMenu with no way to enter
+    // a model not on the hardcoded list, which left a user with
+    // no in-app recovery until a new release shipped updated
+    // names. The field is now free-text; the dropdown is a
+    // quick-fill for the suggestions, not the only way in.
     var expanded by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
@@ -187,23 +197,27 @@ private fun ModelPickerRow(
             .heightIn(min = 48.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = "Model",
-            style = MaterialTheme.typography.bodyLarge,
+        OutlinedTextField(
+            value = current,
+            onValueChange = onSelect,
+            label = { Text("Model") },
+            singleLine = true,
             modifier = Modifier.weight(1f),
         )
-        TextButton(onClick = { expanded = true }) {
-            Text(current)
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            for (m in suggestedModels) {
-                DropdownMenuItem(
-                    text = { Text(m) },
-                    onClick = {
-                        onSelect(m)
-                        expanded = false
-                    },
-                )
+        Box {
+            TextButton(onClick = { expanded = true }) {
+                Text("Suggestions")
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                for (m in suggestedModels) {
+                    DropdownMenuItem(
+                        text = { Text(m) },
+                        onClick = {
+                            onSelect(m)
+                            expanded = false
+                        },
+                    )
+                }
             }
         }
     }
