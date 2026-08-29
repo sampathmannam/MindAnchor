@@ -1,5 +1,6 @@
 package org.mindanchor.continuity
 
+import android.util.Log
 import org.mindanchor.backup.RemoteBackupStore
 import org.mindanchor.backup.RemoteResult
 import org.mindanchor.continuity.crypto.BackupEnvelopeCodec
@@ -118,9 +119,19 @@ class ContinuityBackupCoordinator(
     suspend fun runCheckpoint(
         targetFileName: (snapshot: ContinuitySnapshot) -> String = { ContinuityFiles.LATEST },
     ): CheckpointResult {
-        if (!isBackupEnabled()) return CheckpointResult.BackupDisabled
+        // Temporary diagnostic (Program 0 real-device debugging session,
+        // 2026-08-29) — the UI showed "Needs sign-in" after a real,
+        // observed sign-in success, and neither GoogleDriveObjectStore
+        // nor GoogleDriveAuth logged anything on the run that produced
+        // it, meaning runCheckpoint returned before ever calling
+        // remoteBackupStore.put(). This traces which branch actually
+        // fires. Remove once root-caused.
+        val backupEnabled = isBackupEnabled()
+        Log.w(LOG_TAG, "runCheckpoint: isBackupEnabled=$backupEnabled")
+        if (!backupEnabled) return CheckpointResult.BackupDisabled
 
         val key = currentVerifiedKey()
+        Log.w(LOG_TAG, "runCheckpoint: currentVerifiedKey=${if (key == null) "null" else "present"}")
         if (key == null) {
             recordError(ContinuityErrorCode.KEY_MISSING)
             return CheckpointResult.KeyMissing
@@ -134,6 +145,7 @@ class ContinuityBackupCoordinator(
         val fileName = targetFileName(snapshot)
 
         // Step 5: upload.
+        Log.w(LOG_TAG, "runCheckpoint: about to call remoteBackupStore.put(name=$fileName)")
         when (val putResult = remoteBackupStore.put(fileName, envelopeBytes)) {
             is RemoteResult.AuthExpired -> {
                 recordError(ContinuityErrorCode.AUTH)
@@ -259,5 +271,9 @@ class ContinuityBackupCoordinator(
         }
 
         return PutAndVerifyResult.Verified
+    }
+
+    companion object {
+        private const val LOG_TAG = "MindAnchor/BackupCoordinator"
     }
 }
