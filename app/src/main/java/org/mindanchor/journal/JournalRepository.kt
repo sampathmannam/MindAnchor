@@ -5,8 +5,10 @@ import androidx.room.withTransaction
 import java.time.LocalDate
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import org.mindanchor.continuity.ContinuityPrefs
 import org.mindanchor.continuity.ContinuityWorkScheduler
 import org.mindanchor.data.db.AnchorDatabase
 import org.mindanchor.data.db.ContinuityChangeEntity
@@ -84,8 +86,16 @@ class JournalRepository(
         ContinuityWorkScheduler.requestCheckpoint(context)
     }
 
+    /**
+     * Fail-soft: a thrown exception here (including a DataStore read
+     * failure on the kill switch below) must never roll back or block
+     * the entry `create()`/`retryContext` already committed — this is
+     * why the flag check lives inside the same `runCatching` as
+     * extraction itself, not as an earlier, separately-failing guard.
+     */
     private suspend fun deriveContext(entry: JournalEntry, now: Long) {
         runCatching {
+            if (!ContinuityPrefs(context).contextExtractionEnabled.first()) return@runCatching
             val context = extractor.extract(entry, now)
             if (context.isNotEmpty()) {
                 database.withTransaction {

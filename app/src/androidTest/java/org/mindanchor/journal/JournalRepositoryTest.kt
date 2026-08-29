@@ -12,6 +12,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mindanchor.continuity.ContinuityPrefs
 import org.mindanchor.data.db.AnchorDatabase
 
 /**
@@ -33,8 +34,13 @@ class JournalRepositoryTest {
     }
 
     @After
-    fun tearDown() {
+    fun tearDown() = runBlocking {
         db.close()
+        // ContinuityPrefs is a real, on-device DataStore singleton
+        // (not injectable per-test), so a test that flips
+        // contextExtractionEnabled must reset it — same pattern
+        // established in Tasks 4/6/11 for other singleton DataStores.
+        ContinuityPrefs(context).reset()
     }
 
     @Test
@@ -79,5 +85,29 @@ class JournalRepositoryTest {
 
         val context = db.journal().allContext().filter { it.entryId == entry.id }
         assertTrue(context.isEmpty())
+    }
+
+    @Test
+    fun disablingContextExtractionSkipsItWithoutAffectingEntryCreation() = runBlocking {
+        ContinuityPrefs(context).setContextExtractionEnabled(false)
+        val repository = JournalRepository(context, db, deviceIdentity, StructuralContextExtractor())
+
+        val entry = repository.create(
+            title = "A day",
+            body = "Something happened.",
+            now = 1_000L,
+            localDate = LocalDate.of(2026, 8, 28),
+        )
+
+        val storedEntry = db.journal().entry(entry.id)
+        assertEquals("Something happened.", storedEntry?.body)
+        assertTrue(db.journal().allContext().filter { it.entryId == entry.id }.isEmpty())
+
+        ContinuityPrefs(context).setContextExtractionEnabled(true)
+        repository.retryContext(entry.id)
+        assertTrue(
+            "re-enabling and retrying must produce the facts the disabled save skipped",
+            db.journal().allContext().filter { it.entryId == entry.id }.isNotEmpty(),
+        )
     }
 }
