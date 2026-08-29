@@ -2,8 +2,6 @@ package org.mindanchor.research
 
 import java.security.MessageDigest
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 import org.mindanchor.journal.StructuralContextExtractor
 
 /** One raw-to-derived transformation this build performs, and its version. */
@@ -28,17 +26,6 @@ data class Transformation(
  * a new study phase by construction rather than by anyone remembering to.
  */
 object TransformationRegistry {
-
-    /**
-     * Pinned: this configuration is part of [setVersion], which is part of
-     * the version vector. Changing it would open a study phase for no
-     * reason a reader could explain.
-     */
-    private val json = Json {
-        encodeDefaults = true
-        prettyPrint = false
-        explicitNulls = true
-    }
 
     val transformations: List<Transformation> = listOf(
         Transformation(
@@ -68,14 +55,27 @@ object TransformationRegistry {
     val setVersion: String by lazy { setVersionOf(transformations) }
 
     /**
-     * The content hash of an arbitrary transformation list, sorted by id so
-     * declaration order is not a version. Exposed so a test can prove that
-     * adding or changing a transformation moves the version.
+     * SHA-256 over every `id@version` line, sorted, mirroring
+     * [EvidenceProtocolRegistry.catalogSha256]'s line format.
+     *
+     * Deliberately **not** over the whole [Transformation]: `input`,
+     * `output` and `description` are documentation, and hashing them would
+     * mean a typo fix in a description opened a new study phase and split
+     * the series for a change with no semantic content. Each
+     * transformation's own [Transformation.version] is its semantic
+     * identity.
+     *
+     * If the frozen set-version test goes red, the answer is a version
+     * bump on the transformation that actually changed — not a re-pinned
+     * constant.
      */
-    fun setVersionOf(transformations: List<Transformation>): String {
-        val canonical = transformations.sortedBy { it.id }
+    fun setVersionOf(entries: List<Transformation>): String {
+        val lines = entries
+            .map { "${it.id}@${it.version}" }
+            .sorted()
+            .joinToString(separator = "\n")
         return MessageDigest.getInstance("SHA-256")
-            .digest(json.encodeToString(canonical).encodeToByteArray())
+            .digest(lines.encodeToByteArray())
             .joinToString(separator = "") { "%02x".format(it) }
     }
 }

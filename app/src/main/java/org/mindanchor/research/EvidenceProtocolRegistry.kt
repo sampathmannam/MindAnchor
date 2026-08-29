@@ -200,8 +200,11 @@ class EvidenceProtocolRegistry private constructor(val protocols: List<EvidenceP
         private fun evidenceFailure(sources: List<EvidenceSource>): ProtocolValidation.Invalid? = when {
             sources.isEmpty() ->
                 ProtocolValidation.Invalid("evidenceSources", "must cite at least one source")
-            sources.any { it.citation.isBlank() || it.reference.isBlank() } ->
-                ProtocolValidation.Invalid("evidenceSources", "every source needs a citation and a reference")
+            sources.any { it.title.isBlank() || it.citation.isBlank() || it.reference.isBlank() } ->
+                ProtocolValidation.Invalid(
+                    "evidenceSources",
+                    "every source needs a title, a citation and a reference",
+                )
             sources.any { !REFERENCE_PATTERN.containsMatchIn(it.reference) } ->
                 ProtocolValidation.Invalid(
                     "evidenceSources",

@@ -1,16 +1,26 @@
 package org.mindanchor.research
 
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import kotlinx.serialization.Serializable
 
 /**
  * Why a value is absent.
  *
+ * There is deliberately **no** case distinguishing "structural context
+ * extraction was switched off" from "it ran and produced nothing". The
+ * kill switch is a live user-toggleable flag and nothing records when it
+ * was toggled, so labelling a six-week-old absence with today's flag state
+ * would assert a cause nobody knows — a fabrication of exactly the kind
+ * this policy exists to prevent, and a carry-forward of a reason rather
+ * than a value. [CONTEXT_NOT_DERIVED] says only what is actually known.
+ *
  * [SENSOR_GAP] and [DEVICE_CHANGE_GAP] are capability without a detector,
  * the same discipline `LedgerEventKind.SENSOR_GAP` follows: Program 1 owns
  * no sensors, so no code path here produces them. They exist so Program 2
  * can report a real gap without changing the export shape or the frozen
- * data dictionary, and a test asserts Program 1 never emits one.
+ * data dictionary, and a test exhausts this function's reachable inputs to
+ * prove Program 1 never emits one.
  */
 @Serializable
 enum class MissingDataReason {
@@ -20,11 +30,8 @@ enum class MissingDataReason {
     /** The date precedes the first record of that variable — not a skipped day. */
     BEFORE_FIRST_RECORD,
 
-    /** Structural context derivation was switched off by the local kill switch. */
-    EXTRACTION_DISABLED,
-
-    /** Structural context derivation ran and did not produce rows. */
-    EXTRACTION_FAILED,
+    /** A Journal entry on this date has no structural context rows. Why is not recorded. */
+    CONTEXT_NOT_DERIVED,
 
     /** Program 2: a signal source was unavailable. */
     SENSOR_GAP,
@@ -70,54 +77,66 @@ object MissingDataPolicy {
     const val VARIABLE_JOURNAL_CONTEXT = "journal_context"
 
     /**
+     * Roughly a century. A report longer than a personal record could
+     * plausibly be is a wrong clock or a corrupt row, not a long study,
+     * and materialising one would hang the export.
+     */
+    const val MAX_REPORT_DAYS = 36_600L
+
+    /**
      * Enumerates every absence between [firstRecordDate] and [throughDate]
-     * inclusive.
+     * inclusive. Dates outside that window are never reported, in either
+     * direction.
      *
      * @param firstRecordDate the earliest local date on which anything was
      *   recorded, or null when nothing ever was — in which case the report
      *   is empty, because inventing absences for a person who has not
      *   started is not information.
-     * @param measureDates the ISO local dates that do have a morning measure.
-     * @param entryDatesWithoutContext ISO local dates carrying a Journal
-     *   entry with no structural context rows.
-     * @param contextExtractionEnabled the local kill switch's current state,
-     *   which is what separates "switched off" from "ran and produced
-     *   nothing".
+     * @param allMeasureDates **every** local date that has a morning
+     *   measure, not a recent window of them. The name is the contract: a
+     *   windowed set would make the earliest window boundary look like the
+     *   first measure ever taken, and turn months of genuinely skipped
+     *   days into "hadn't started yet".
+     * @param entryDatesWithoutContext local dates carrying a Journal entry
+     *   with no structural context rows. Keyed by date, so several entries
+     *   on one date report as one absence.
+     * @throws IllegalArgumentException if the window is longer than
+     *   [MAX_REPORT_DAYS].
      */
     fun report(
         firstRecordDate: LocalDate?,
         throughDate: LocalDate,
-        measureDates: Set<String>,
-        entryDatesWithoutContext: Set<String>,
-        contextExtractionEnabled: Boolean,
+        allMeasureDates: Set<LocalDate>,
+        entryDatesWithoutContext: Set<LocalDate>,
     ): List<MissingDataRecord> {
         if (firstRecordDate == null || throughDate.isBefore(firstRecordDate)) return emptyList()
+        val span = ChronoUnit.DAYS.between(firstRecordDate, throughDate)
+        require(span <= MAX_REPORT_DAYS) {
+            "missing-data window of $span days exceeds $MAX_REPORT_DAYS; check the clock, not the policy"
+        }
 
-        val firstMeasureDate = measureDates.minOrNull()
+        val firstMeasureDate = allMeasureDates.minOrNull()
         val measureGaps = generateSequence(firstRecordDate) { it.plusDays(1) }
             .takeWhile { !it.isAfter(throughDate) }
-            .map { it.toString() }
-            .filterNot { it in measureDates }
+            .filterNot { it in allMeasureDates }
             .map { day ->
-                val reason = if (firstMeasureDate == null || day < firstMeasureDate) {
+                val reason = if (firstMeasureDate == null || day.isBefore(firstMeasureDate)) {
                     MissingDataReason.BEFORE_FIRST_RECORD
                 } else {
                     MissingDataReason.NOT_RECORDED
                 }
-                MissingDataRecord(day, VARIABLE_MORNING_MEASURE, reason)
+                MissingDataRecord(day.toString(), VARIABLE_MORNING_MEASURE, reason)
             }
 
-        val contextReason = if (contextExtractionEnabled) {
-            MissingDataReason.EXTRACTION_FAILED
-        } else {
-            MissingDataReason.EXTRACTION_DISABLED
-        }
-        val contextGaps = entryDatesWithoutContext.map {
-            MissingDataRecord(it, VARIABLE_JOURNAL_CONTEXT, contextReason)
-        }
+        val contextGaps = entryDatesWithoutContext
+            .filter { !it.isBefore(firstRecordDate) && !it.isAfter(throughDate) }
+            .map {
+                MissingDataRecord(it.toString(), VARIABLE_JOURNAL_CONTEXT, MissingDataReason.CONTEXT_NOT_DERIVED)
+            }
 
-        return (measureGaps.toList() + contextGaps)
-            .distinct()
-            .sortedWith(compareBy({ it.localDate }, { it.variable }))
+        // No de-duplication pass: measure gaps are unique by construction,
+        // entryDatesWithoutContext is a set, and the two groups always
+        // differ in `variable`.
+        return (measureGaps.toList() + contextGaps).sortedWith(compareBy({ it.localDate }, { it.variable }))
     }
 }

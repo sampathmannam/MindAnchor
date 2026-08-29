@@ -124,7 +124,12 @@ refuses to register a protocol that is missing any of them:
 | `clinicalReviewStatus` | `ClinicalReviewStatus` |
 | `userFacingExplanation` | plain language, no efficacy promise |
 
-`EvidenceSource` is `(citation, doiOrUrl, strength, sourceType)`.
+`EvidenceSource` is `(title, citation, reference, strength, sourceType)`.
+`title` is held apart from the prose `citation` so a test can check it
+against `docs/research/22-research-index.md`, this repository's record of
+what has actually been verified. That check exists because a fabricated
+paper title once passed a whole suite that only asserted DOIs and enum
+values.
 
 ### 4.2 Evidence hierarchy and exclusions
 
@@ -175,10 +180,19 @@ is the source of truth for what is verified.
     19(12):2221-2229, DOI [10.1097/00004872-200112000-00016](https://doi.org/10.1097/00004872-200112000-00016)
     — slow breathing, chemoreflex and baroreflex sensitivity. Strength
     `MECHANISTIC_STUDY`. Also already cited and audited.
-  - Steps, durations and the 9-second cycle come from the existing
-    `friction/BreathingProtocol.kt` constants (2 s nasal inhale, 1 s sip
-    inhale, 6 s mouth exhale). `maxDurationSeconds = 300` is the trialled
-    dose, not an invented number.
+  - **Two kinds of number, never conflated.** `maxDurationSeconds = 300`
+    is the trialled dose (`22-research-index.md`: "5 min/day x 28 days").
+    The step durations are `friction/BreathingProtocol.kt`'s own constants
+    (2 s nasal inhale, 1 s sip inhale, 6 s mouth exhale) and are **not**
+    the trialled durations: `12-breathing-protocols-comparison.md` records
+    the trialled cycle as roughly 3–4 s + 1–2 s + 6–10 s, about 10–20 s in
+    total, so MindAnchor's cycle sits at or below the low end of every one
+    of those ranges. `cooldownSeconds`, `outcomeWindowSeconds`,
+    `stopRules`, `exclusions` and `contraindicationRules` are
+    **conservative operational defaults, not findings** — no trial reports
+    a cooldown or a stop rule, and §4.4 requires them anyway. The KDoc
+    says which is which, because presenting the second kind as the first
+    would be the same dishonesty as a fabricated citation.
   - `clinicalReviewStatus = NOT_REVIEWED`, because
     [`docs/CLINICAL_REVIEW.md`](../../CLINICAL_REVIEW.md) still reads
     "not yet reviewed by a clinician". The registry records the truth; it
@@ -190,7 +204,7 @@ is the source of truth for what is verified.
 | --- | --- |
 | Symmetric slow-paced breathing (6 breaths/min) as an *outcome* protocol | The audit records the outcome literature as mixed and the cited review as unverified. Bernardi 2001 supports the *mechanism* only. Seeding it would be an efficacy claim the repository cannot support. |
 | Self-compassion micro-moment (Neff 2003, Linardon 2020, Liu 2023) | The app's implementation is a rotation of the *user's own* phrases. It has no fixed steps and no fixed modality, so it cannot satisfy §4.4's contract without inventing a protocol the evidence does not describe. |
-| Behavioural activation (Dimidjian 2006) | A real RCT, but its steps, maximum duration, stop rules and cooldown are not defined anywhere in this repository. §13.7 makes it its own protocol-evidence project (Program 6). |
+| Behavioural activation (Dimidjian 2006) | A real RCT, but its steps and dose are defined nowhere in this repository, so the substantive half of a §4.4 contract could only be filled in by inventing the protocol itself. Its cooldown and stop rules would be conservative defaults exactly as cyclic sighing's are; that was never the disqualifier. §13.7 makes it its own protocol-evidence project (Program 6). |
 | The friction gate's single breathing cycle | The gate plays one 9-second cycle. `BreathingProtocol`'s own KDoc already states this is "a *trigger*, not a dose" and is not the Balban dose. It is deliberately not registered as an evidence protocol. |
 
 One complete, honestly-evidenced protocol plus the rejection tests proves
@@ -373,8 +387,12 @@ output:
 | `structural-context` | `structural-v1` | Journal entry → structural `FACT` rows (kind, local date, word count, user title) |
 | `research-export-canonicalisation` | `export-canon-v1` | Research rows → canonically sorted, content-hashed export document |
 
-The registry's content hash is `transformationSetVersion`. Program 2's
-feature windows join this list; that change opens a new study phase.
+`transformationSetVersion` is a SHA-256 over the sorted `id@version`
+lines — not over the whole record. `input`, `output` and `description` are
+documentation, and hashing them would mean a typo fix in a description
+opened a new study phase and split the series for a change with no
+semantic content. Program 2's feature windows join this list; *that*
+change opens a new phase, correctly.
 
 ### 7.2 Missing-data policy
 
@@ -386,8 +404,27 @@ explicitly with a reason.**
 `MissingDataRecord(localDate, variable, reason)` for every local date from
 the first record to the export date. Reasons:
 
-`NOT_RECORDED`, `EXTRACTION_DISABLED`, `EXTRACTION_FAILED`, `SENSOR_GAP`,
-`DEVICE_CHANGE_GAP`, `BEFORE_FIRST_RECORD`.
+`NOT_RECORDED`, `BEFORE_FIRST_RECORD`, `CONTEXT_NOT_DERIVED`,
+`SENSOR_GAP`, `DEVICE_CHANGE_GAP`.
+
+`BEFORE_FIRST_RECORD` versus `NOT_RECORDED` is the distinction that
+matters most: somebody who journalled for two weeks before ever completing
+a morning measure did not skip fourteen measures.
+
+There is deliberately **no** reason separating "context extraction was
+switched off" from "it ran and produced nothing". The kill switch is a
+live user-toggleable flag and nothing records when it was toggled, so
+stamping today's flag state onto a six-week-old absence would assert a
+cause nobody knows — a fabrication, and a carry-forward of a reason rather
+than a value. `CONTEXT_NOT_DERIVED` says only what is known.
+
+`SENSOR_GAP` and `DEVICE_CHANGE_GAP` are capability without a detector,
+the same discipline the ledger's `SENSOR_GAP` follows. A test exhausts the
+function's reachable inputs to prove Program 1 emits neither.
+
+The report window is bounded (`MAX_REPORT_DAYS`): a span longer than a
+personal record could plausibly be is a wrong clock, and it fails loudly
+rather than materialising a hundred thousand rows.
 
 An export therefore says how many days have no morning measure and why,
 rather than presenting a series that quietly looks complete.

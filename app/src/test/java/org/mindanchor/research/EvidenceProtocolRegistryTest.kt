@@ -23,6 +23,7 @@ class EvidenceProtocolRegistryTest {
         exclusions = listOf("Not established for anyone under 18."),
         evidenceSources = listOf(
             EvidenceSource(
+                title = "A Trial",
                 citation = "Someone A et al. (2020). A Trial. Journal 1(1):1-2.",
                 reference = "https://doi.org/10.0000/example",
                 strength = EvidenceStrength.RANDOMIZED_OR_CONTROLLED_TRIAL,
@@ -133,6 +134,10 @@ class EvidenceProtocolRegistryTest {
         assertInvalid(
             "evidenceSources",
             base.copy(evidenceSources = base.evidenceSources.map { it.copy(reference = "") }),
+        )
+        assertInvalid(
+            "evidenceSources",
+            base.copy(evidenceSources = base.evidenceSources.map { it.copy(title = " ") }),
         )
     }
 

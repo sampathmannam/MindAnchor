@@ -65,12 +65,23 @@ enum class Modality { VISUAL, AUDIO, HAPTIC, TEXT }
 enum class StopRule { USER_STOPPED, MAX_DURATION_REACHED, DISCOMFORT_REPORTED, INTERRUPTED_BY_PROTECTED_APP }
 
 /**
- * One piece of evidence behind a protocol. [reference] is a resolvable
- * identifier — a DOI URL for everything currently catalogued — so a reader
- * can go and check rather than take the [citation] string on trust.
+ * One piece of evidence behind a protocol.
+ *
+ * [reference] is a resolvable identifier — a DOI URL for everything
+ * currently catalogued — so a reader can go and check rather than take the
+ * [citation] string on trust.
+ *
+ * [title] is the paper's exact title, held separately from the
+ * human-readable [citation] so a test can check it against
+ * `docs/research/22-research-index.md`, this repository's record of what
+ * has actually been verified. A citation is prose an author writes; a
+ * title checked against the index is a claim the repository can refuse.
+ * That check exists because a fabricated title once got past a whole test
+ * suite that only ever asserted DOIs and enum values.
  */
 @Serializable
 data class EvidenceSource(
+    val title: String,
     val citation: String,
     val reference: String,
     val strength: EvidenceStrength,

@@ -49,8 +49,19 @@ class TransformationRegistryTest {
     @Test
     fun `the set version is frozen`() {
         assertEquals(
-            "ab7df1881e18d932fb99797baae9666272be7c328a4ac5cb00cb473663a8636e",
+            "ceba249f53c56220cd633ef6bcbd16c2e10f279f69af0603226aaef3a7c7dfe2",
             TransformationRegistry.setVersion,
+        )
+    }
+
+    @Test
+    fun `documentation prose is not part of the version`() {
+        val base = TransformationRegistry.transformations
+        val reworded = base.map { it.copy(description = "${it.description} A clearer sentence.") }
+        assertEquals(
+            "a typo fix must not split the study series",
+            TransformationRegistry.setVersionOf(base),
+            TransformationRegistry.setVersionOf(reworded),
         )
     }
 

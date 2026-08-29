@@ -1,6 +1,8 @@
 package org.mindanchor.research
 
+import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -9,13 +11,23 @@ import org.mindanchor.friction.BreathingProtocol
 
 /**
  * Program 1 Task 3 — the catalogue is seeded only from citations this
- * repository has already verified (`docs/research/23-citation-audit.md`).
- * These tests are the enforcement of that rule, and of the freeze that
- * makes an unversioned edit to a protocol definition fail the build.
+ * repository has already verified. These tests are the enforcement of that
+ * rule, and of the freeze that makes an unversioned edit to a protocol
+ * definition fail the build.
+ *
+ * The important one is `every catalogued title appears in the research
+ * index`. An earlier version of this suite checked DOIs and enum values
+ * only, and a fabricated paper title passed twelve green tests. Checking
+ * the title against `docs/research/22-research-index.md` makes the
+ * repository's own verification record the oracle, rather than the memory
+ * of whoever wrote the citation.
  */
 class EvidenceProtocolCatalogTest {
 
     private val registry = EvidenceProtocolCatalog.registry
+
+    /** The gradle test working directory is the `app` module, so the repo root is one level up. */
+    private val researchIndex = File("../docs/research/22-research-index.md")
 
     private fun cyclicSighing(): EvidenceProtocol {
         val protocol = registry.latest("cyclic-sighing")
@@ -23,16 +35,27 @@ class EvidenceProtocolCatalogTest {
         return requireNotNull(protocol)
     }
 
-    @Test
-    fun `an unregistered protocol is simply absent`() {
-        assertNull(registry.latest("symmetric-slow-paced-breathing"))
-        assertNull(registry.find("cyclic-sighing", 2))
-    }
+    private fun prose(protocol: EvidenceProtocol): List<String> =
+        listOf(
+            protocol.targetState,
+            protocol.intendedPopulation,
+            protocol.mechanism,
+            protocol.expectedOutcome,
+            protocol.successInterpretation,
+            protocol.userFacingExplanation,
+        ) + protocol.exclusions + protocol.eligibilityRules + protocol.contraindicationRules +
+            protocol.steps.map { it.instruction }
 
     @Test
     fun `the catalogue holds exactly the seeded protocols`() {
         assertEquals(listOf("cyclic-sighing"), registry.protocols.map { it.id })
         assertEquals(listOf(1), registry.protocols.map { it.version })
+    }
+
+    @Test
+    fun `an unregistered protocol is simply absent`() {
+        assertNull(registry.latest("symmetric-slow-paced-breathing"))
+        assertNull(registry.find("cyclic-sighing", 2))
     }
 
     @Test
@@ -53,6 +76,24 @@ class EvidenceProtocolCatalogTest {
             assertTrue(
                 "${source.reference} must be a resolvable DOI",
                 source.reference.startsWith("https://doi.org/"),
+            )
+        }
+    }
+
+    @Test
+    fun `every catalogued title and DOI appears in the research index`() {
+        assertTrue("the research index must be readable from the test working directory", researchIndex.isFile)
+        val index = researchIndex.readText(Charsets.UTF_8)
+        registry.protocols.flatMap { it.evidenceSources }.forEach { source ->
+            val doi = source.reference.removePrefix("https://doi.org/")
+            assertTrue(
+                "DOI $doi is not recorded as verified in 22-research-index.md",
+                index.contains(doi),
+            )
+            assertTrue(
+                "the title '${source.title}' is not recorded in 22-research-index.md for $doi — " +
+                    "either it is wrong, or the paper was never verified",
+                index.contains(source.title),
             )
         }
     }
@@ -92,11 +133,15 @@ class EvidenceProtocolCatalogTest {
     }
 
     @Test
-    fun `cyclic sighing carries the trialled dose, not an invented one`() {
+    fun `cyclic sighing carries the trialled dose and says how the cycle repeats`() {
         val protocol = cyclicSighing()
         assertEquals(300, protocol.maxDurationSeconds)
-        assertEquals(72_000, protocol.cooldownSeconds)
+        assertEquals(86_400, protocol.cooldownSeconds)
         assertEquals(86_400, protocol.outcomeWindowSeconds)
+        // The steps are one 9-second cycle and the maximum is five
+        // minutes: without saying so, the definition would be ambiguous
+        // about whether the dose is one cycle or thirty-three.
+        assertTrue(protocol.steps.last().instruction.contains("begin the cycle again"))
     }
 
     @Test
@@ -107,35 +152,61 @@ class EvidenceProtocolCatalogTest {
     }
 
     @Test
-    fun `no user-facing explanation promises an outcome`() {
+    fun `no prose field promises an outcome`() {
+        // Word forms rather than whole phrases: "reduces stress",
+        // "shown to reduce" and "will reduce" are one word apart, and an
+        // earlier whole-phrase list let every one of them through. Stems
+        // alone are too blunt in the other direction -- "heal" matches
+        // "healthy adults", which is a population, not a promise.
         val promises = listOf(
-            "will reduce", "will improve", "will help", "cures", "treats",
-            "guarantees", "proven to", "clinically proven", "diagnos",
+            "reduce", "reduces", "reducing", "reduction",
+            "improve", "improves", "improving", "improvement",
+            "lowers", "lowering", "relieve", "relieves", "relief",
+            "effective", "efficacy", "proven", "proves", "proof",
+            "cure", "cures", "guarantee", "guarantees", "heals", "healing",
+            "diagnos", "therapy", "therapeutic", "clinically",
         )
         registry.protocols.forEach { protocol ->
-            val text = protocol.userFacingExplanation.lowercase()
-            promises.forEach { promise ->
-                assertTrue(
-                    "'${protocol.id}' must not promise: $promise",
-                    !text.contains(promise),
-                )
+            prose(protocol).forEach { text ->
+                val lowered = text.lowercase()
+                promises.forEach { promise ->
+                    assertFalse(
+                        "'${protocol.id}' must not promise '$promise': $text",
+                        lowered.contains(promise),
+                    )
+                }
             }
         }
     }
 
     @Test
-    fun `the catalogue hash is frozen`() {
+    fun `no prose field is empty enough to pass the promise scan by accident`() {
+        registry.protocols.forEach { protocol ->
+            prose(protocol).forEach { text ->
+                assertTrue("a prose field of ${protocol.id} is suspiciously short: '$text'", text.length > 20)
+            }
+        }
+    }
+
+    @Test
+    fun `every catalogued definition is frozen row by row`() {
+        // Rows rather than one catalogue-wide digest: adding version 2 of
+        // a protocol is then an added line, while editing version 1 in
+        // place reddens the line that names it — the two cases a single
+        // digest cannot tell apart.
         assertEquals(
-            "bdd624811716bba3907ebbe34103d60e9cdd8e43225165167207358f8ea2d4ac",
-            registry.catalogSha256,
+            listOf(
+                "cyclic-sighing@1:1298bdfeab7d10263ca41c47a7982231181e3eb95c38eaf0465463baba1cdae0",
+            ),
+            registry.protocols.map { "${it.id}@${it.version}:${EvidenceProtocolRegistry.definitionSha256(it)}" },
         )
     }
 
     @Test
-    fun `the cyclic sighing definition hash is frozen`() {
+    fun `the catalogue hash is frozen`() {
         assertEquals(
-            "6fa65523f63cf97310c6d36774ccebc32d8de5c65df98df23bda912ccfef7114",
-            EvidenceProtocolRegistry.definitionSha256(cyclicSighing()),
+            "9f71a3690bf4b0b07ade1ef6963ca8d36c4e6227342cb1911f27dbb4f2cf44ee",
+            registry.catalogSha256,
         )
     }
 
