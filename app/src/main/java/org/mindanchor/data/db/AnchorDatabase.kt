@@ -179,6 +179,8 @@ interface SafetyDao {
         JournalContextEntity::class,
         MorningMeasureEntity::class,
         ContinuityChangeEntity::class,
+        ResearchLedgerEventEntity::class,
+        StudyPhaseEntity::class,
     ],
     // v0.70.x (Tier 2 audit finding): the on-device DB
     // created by v0.69.x sits at version 4 with a 'tier'
@@ -196,7 +198,7 @@ interface SafetyDao {
     // column migration in-place. The tier data is in the
     // DataStore key (NotificationPrefs.tier), so the column
     // drop is safe — it was just denormalised data.
-    version = 6,
+    version = 7,
     exportSchema = true,
 )
 abstract class AnchorDatabase : RoomDatabase() {
@@ -208,6 +210,8 @@ abstract class AnchorDatabase : RoomDatabase() {
     abstract fun safety(): SafetyDao
 
     abstract fun journal(): JournalDao
+
+    abstract fun research(): ResearchDao
 
     companion object {
         private val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -340,9 +344,106 @@ abstract class AnchorDatabase : RoomDatabase() {
             }
         }
 
+        // Program 1 (Task 7): the immutable research ledger and the
+        // append-only study phases. Purely additive - two CREATE TABLE
+        // statements, their indices, and four triggers. No Program 0
+        // column is dropped, renamed, or retyped, and no existing row is
+        // read or written, so an upgrade cannot lose anything.
+        //
+        // The triggers are what make "immutable" a property of the
+        // database rather than a claim about the code above it. Room does
+        // not validate triggers, so they do not affect the schema identity
+        // hash; they also are not part of Room's generated
+        // createAllTables, which is why installResearchImmutability is
+        // called both here and from the onCreate callback that a fresh
+        // install takes.
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS research_ledger_events (" +
+                        "id TEXT NOT NULL, sequence INTEGER NOT NULL, kind TEXT NOT NULL, " +
+                        "occurredAt INTEGER NOT NULL, recordedAt INTEGER NOT NULL, localDate TEXT NOT NULL, " +
+                        "studyPhaseId TEXT NOT NULL, sourceDeviceId TEXT NOT NULL, note TEXT NOT NULL, " +
+                        "payloadJson TEXT NOT NULL, previousEventHash TEXT NOT NULL, " +
+                        "eventHash TEXT NOT NULL, PRIMARY KEY(id))",
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_research_ledger_events_sequence " +
+                        "ON research_ledger_events(sequence)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_research_ledger_events_recordedAt " +
+                        "ON research_ledger_events(recordedAt)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_research_ledger_events_kind " +
+                        "ON research_ledger_events(kind)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_research_ledger_events_studyPhaseId " +
+                        "ON research_ledger_events(studyPhaseId)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_research_ledger_events_localDate " +
+                        "ON research_ledger_events(localDate)",
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS study_phases (" +
+                        "id TEXT NOT NULL, ordinal INTEGER NOT NULL, startedAt INTEGER NOT NULL, " +
+                        "reason TEXT NOT NULL, appVersionCode INTEGER NOT NULL, " +
+                        "appVersionName TEXT NOT NULL, protocolCatalogSha256 TEXT NOT NULL, " +
+                        "ruleSetVersion TEXT NOT NULL, modelSetVersion TEXT NOT NULL, " +
+                        "transformationSetVersion TEXT NOT NULL, missingDataPolicyVersion TEXT NOT NULL, " +
+                        "instrumentVersion TEXT NOT NULL, dictionaryVersion TEXT NOT NULL, " +
+                        "sourceDeviceId TEXT NOT NULL, PRIMARY KEY(id))",
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_study_phases_ordinal ON study_phases(ordinal)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_study_phases_startedAt ON study_phases(startedAt)",
+                )
+                installResearchImmutability(db)
+            }
+        }
+
+        /**
+         * Installs the BEFORE UPDATE / BEFORE DELETE triggers that make the
+         * two research tables append-only at the database level.
+         *
+         * Idempotent (IF NOT EXISTS), and called from both paths a
+         * database can reach version 7 by: MIGRATION_6_7 for an upgrade,
+         * and the onCreate callback for a fresh install, whose schema Room
+         * generates from the entities and which therefore contains no
+         * triggers of its own.
+         */
+        internal fun installResearchImmutability(db: SupportSQLiteDatabase) {
+            listOf("research_ledger_events", "study_phases").forEach { table ->
+                listOf("UPDATE", "DELETE").forEach { operation ->
+                    db.execSQL(
+                        "CREATE TRIGGER IF NOT EXISTS ${table}_no_${operation.lowercase()} " +
+                            "BEFORE $operation ON $table " +
+                            "BEGIN SELECT RAISE(ABORT, '$table is append-only'); END",
+                    )
+                }
+            }
+        }
+
         /** Exposed so instrumented tests can walk an old database forward. */
         fun migrations(): Array<Migration> =
-            arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+            arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+
+        /**
+         * A fresh install never runs MIGRATION_6_7, and Room's generated
+         * createAllTables carries no triggers, so without this a
+         * brand-new database would have the research tables and none of
+         * their immutability.
+         */
+        private val researchImmutabilityCallback = object : RoomDatabase.Callback() {
+            override fun onCreate(db: SupportSQLiteDatabase) {
+                installResearchImmutability(db)
+            }
+        }
 
         @Volatile
         private var instance: AnchorDatabase? = null
@@ -353,7 +454,10 @@ abstract class AnchorDatabase : RoomDatabase() {
                     context.applicationContext,
                     AnchorDatabase::class.java,
                     "mindanchor.db",
-                ).addMigrations(*migrations()).build().also { instance = it }
+                ).addMigrations(*migrations())
+                    .addCallback(researchImmutabilityCallback)
+                    .build()
+                    .also { instance = it }
             }
     }
 }

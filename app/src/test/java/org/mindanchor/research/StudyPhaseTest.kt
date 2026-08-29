@@ -1,6 +1,9 @@
 package org.mindanchor.research
 
 import java.lang.reflect.Modifier
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.descriptors.elementNames
+import kotlinx.serialization.serializer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
@@ -13,6 +16,7 @@ import org.junit.Test
  * historical row. The phase in effect at any instant is derived from the
  * starts alone.
  */
+@OptIn(ExperimentalSerializationApi::class)
 class StudyPhaseTest {
 
     private val vector = ProvenanceVersions.vector(
@@ -109,6 +113,56 @@ class StudyPhaseTest {
         assertNotEquals(a.id, StudyPhaseDecision.next(null, vector, now = 1_001L)!!.id)
         assertNotEquals(a.id, StudyPhaseDecision.next(null, vector.copy(sourceDeviceId = "z"), now = 1_000L)!!.id)
         assertNotEquals(a.id, phase(ordinal = 1, startedAt = 1_000L).id)
+    }
+
+    @Test
+    fun `the phase id is frozen`() {
+        assertEquals(
+            "2fa16462defb235fc51ab61a0aaecd642a150961d18db1ce7986cd5f3970a6f0",
+            StudyPhaseDecision.next(
+                current = null,
+                vector = ProvenanceVector(
+                    appVersionCode = 95,
+                    appVersionName = "0.71.0",
+                    protocolCatalogSha256 = "catalogue",
+                    ruleSetVersion = "rule-set-none-v1",
+                    modelSetVersion = "model-set-none-v1",
+                    transformationSetVersion = "transformations",
+                    missingDataPolicyVersion = "missing-data-v1",
+                    instrumentVersion = "morning-v1",
+                    dictionaryVersion = "mindanchor-research-v1",
+                    sourceDeviceId = "device-a",
+                ),
+                now = 1_000L,
+            )!!.id,
+        )
+    }
+
+    @Test
+    fun `the canonical phase serialises exactly the frozen field order`() {
+        assertEquals(
+            listOf("ordinal", "startedAt", "vector"),
+            serializer<StudyPhaseCanonical>().descriptor.elementNames.toList(),
+        )
+        // The vector is nested inside the id, so its field order is wire
+        // format too, and a component added without a firstDifference
+        // branch fails here rather than throwing inside a research write.
+        assertEquals(
+            listOf(
+                "appVersionCode", "appVersionName", "protocolCatalogSha256", "ruleSetVersion",
+                "modelSetVersion", "transformationSetVersion", "missingDataPolicyVersion",
+                "instrumentVersion", "dictionaryVersion", "sourceDeviceId",
+            ),
+            serializer<ProvenanceVector>().descriptor.elementNames.toList(),
+        )
+    }
+
+    @Test
+    fun `a backwards clock cannot start a phase before the one it succeeds`() {
+        val first = phase(ordinal = 0, startedAt = 1_700_000_000_000L)
+        val second = StudyPhaseDecision.next(first, vector.copy(appVersionCode = 96), now = 1_000L)!!
+        assertEquals(first.startedAt + 1, second.startedAt)
+        assertEquals(second, StudyPhaseDecision.phaseAt(listOf(first, second), 1_700_000_000_500L))
     }
 
     @Test

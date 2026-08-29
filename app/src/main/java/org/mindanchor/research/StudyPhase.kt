@@ -39,7 +39,11 @@ enum class StudyPhaseReason(val ledgerKind: LedgerEventKind?) {
  *
  * [id] is content-addressed over `(ordinal, startedAt, vector)`, which is
  * what makes a replacement-phone restore duplicate-free for phases the
- * same way the event hash does for ledger events.
+ * same way the event hash does for ledger events. [reason] is excluded
+ * because it is derived from the *previous* vector rather than from this
+ * phase's own contents; including it would make the same phase hash
+ * differently depending on what preceded it. A restored phase carries its
+ * stored [reason] verbatim and is never recomputed, so nothing is lost.
  */
 data class StudyPhase(
     val id: String,
@@ -56,7 +60,13 @@ data class StudyPhase(
  */
 object StudyPhaseDecision {
 
-    /** Pinned: part of the phase id, which is a primary key and a restore de-duplication key. */
+    /**
+     * Pinned: part of the phase id, which is a primary key and a restore
+     * de-duplication key. `StudyPhaseTest` freezes both a golden id and
+     * [StudyPhaseCanonical]'s serialised element names, so retuning this
+     * or reordering [ProvenanceVector] goes red instead of silently
+     * changing every id ever computed.
+     */
     private val json = Json {
         encodeDefaults = true
         prettyPrint = false
@@ -71,13 +81,23 @@ object StudyPhaseDecision {
      * **first** in [ProvenanceVector]'s declaration order. Deterministic on
      * purpose: an arbitrary choice would make the same upgrade report a
      * different reason on different devices.
+     *
+     * `startedAt` is forced past the current phase's start even when [now]
+     * is earlier. A phone whose clock jumps backwards — a lost RTC across
+     * a reboot, say — would otherwise open a phase that begins *before*
+     * the one it succeeds, and [phaseAt] would then answer with the older
+     * phase forever, disagreeing permanently with the phase this function
+     * returns. The two authorities on "which phase" have to agree, and
+     * append-only rows cannot be corrected afterwards.
      */
     fun next(current: StudyPhase?, vector: ProvenanceVector, now: Long): StudyPhase? {
         if (current == null) return phaseOf(ordinal = 0, startedAt = now, StudyPhaseReason.INITIAL, vector)
         if (current.vector == vector) return null
+        check(current.ordinal < Int.MAX_VALUE) { "study phase ordinals exhausted" }
+        check(current.startedAt < Long.MAX_VALUE) { "study phase clock exhausted" }
         return phaseOf(
             ordinal = current.ordinal + 1,
-            startedAt = now,
+            startedAt = maxOf(now, current.startedAt + 1),
             reason = firstDifference(current.vector, vector),
             vector = vector,
         )
@@ -85,9 +105,11 @@ object StudyPhaseDecision {
 
     /**
      * The phase in effect at [instant] — the last one started at or before
-     * it — or null if [instant] precedes every phase. Ties on `startedAt`
-     * break by ordinal, so two changes inside one millisecond still order
-     * correctly.
+     * it — or null if [instant] precedes every phase.
+     *
+     * Relies on [next]'s invariant that ordinal order and `startedAt` order
+     * agree. The comparator's ordinal tie-break is what keeps two phases
+     * opened inside one millisecond ordered correctly.
      */
     fun phaseAt(phases: List<StudyPhase>, instant: Long): StudyPhase? = phases
         .filter { it.startedAt <= instant }
@@ -97,7 +119,9 @@ object StudyPhaseDecision {
      * The component that differs, in [ProvenanceVector]'s declaration
      * order. Only called when the two vectors are known to differ, so the
      * final branch is unreachable in practice and states why rather than
-     * silently defaulting.
+     * silently defaulting. `StudyPhaseTest` pins the vector's field list so
+     * a component added without a branch here fails at build time rather
+     * than throwing inside a research write.
      */
     private fun firstDifference(from: ProvenanceVector, to: ProvenanceVector): StudyPhaseReason = when {
         from.appVersionCode != to.appVersionCode -> StudyPhaseReason.APP_VERSION_CHANGE
@@ -128,19 +152,26 @@ object StudyPhaseDecision {
         vector = vector,
     )
 
-    /**
-     * Deliberately excludes [StudyPhase.reason]: the reason is derived from
-     * the two vectors, so including it would let the same phase carry two
-     * different ids depending on what preceded it — and a restored phase
-     * must land on the row it already occupies.
-     */
     private fun idOf(ordinal: Int, startedAt: Long, vector: ProvenanceVector): String {
-        val canonical = CanonicalPhase(ordinal = ordinal, startedAt = startedAt, vector = vector)
+        val canonical = StudyPhaseCanonical(ordinal = ordinal, startedAt = startedAt, vector = vector)
         return MessageDigest.getInstance("SHA-256")
             .digest(json.encodeToString(canonical).encodeToByteArray())
             .joinToString(separator = "") { "%02x".format(it) }
     }
-
-    @Serializable
-    private data class CanonicalPhase(val ordinal: Int, val startedAt: Long, val vector: ProvenanceVector)
 }
+
+/**
+ * The exact bytes a study phase id hashes over.
+ *
+ * Field order is wire format — kotlinx.serialization writes keys in
+ * declaration order — and so is [ProvenanceVector]'s field order, since it
+ * is nested here. `internal` rather than private so `StudyPhaseTest` can
+ * read the shape directly instead of inferring it from a digest the same
+ * code produced.
+ */
+@Serializable
+internal data class StudyPhaseCanonical(
+    val ordinal: Int,
+    val startedAt: Long,
+    val vector: ProvenanceVector,
+)

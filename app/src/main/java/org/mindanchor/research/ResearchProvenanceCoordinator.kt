@@ -7,13 +7,41 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 /**
+ * Everything [ResearchProvenanceCoordinator] needs from storage.
+ *
+ * An interface rather than a bag of lambdas for one reason: [inTransaction]
+ * has to be able to span every other call, and a set of independent
+ * suspend seams cannot express that. `ResearchLedgerRepository` implements
+ * it over Room; tests implement it in memory.
+ */
+interface ResearchProvenanceStore {
+
+    /**
+     * Runs [block] inside a single durable transaction. Every read and
+     * write [ResearchProvenanceCoordinator.ensureCurrentPhase] performs
+     * happens inside it — see that function for why partial completion is
+     * unrepairable.
+     */
+    suspend fun inTransaction(block: suspend () -> StudyPhase): StudyPhase
+
+    suspend fun latestPhase(): StudyPhase?
+
+    suspend fun ledgerHead(): ResearchLedgerEvent?
+
+    /** The raw payloads of every `PROTOCOL_VERSION_REGISTERED` event so far. */
+    suspend fun registeredProtocolPayloads(): List<String>
+
+    suspend fun insertPhase(phase: StudyPhase)
+
+    suspend fun appendEvents(events: List<ResearchLedgerEvent>)
+}
+
+/**
  * Opens study phases and writes the provenance events that explain them.
  *
- * Every collaborator is a narrow suspend function — the same seam
- * [org.mindanchor.continuity.RestoreCoordinator] uses — so the whole
- * decision path is testable as plain in-memory lambdas with no Room, no
- * Context and no Robolectric. `ResearchLedgerRepository.build` wires the
- * real Room DAO.
+ * Storage is one narrow interface, so the whole decision path is testable
+ * in memory with no Room, no Context and no Robolectric.
+ * `ResearchLedgerRepository.build` wires the real Room DAO.
  *
  * ## Called before a write, never at startup
  *
@@ -29,32 +57,20 @@ import kotlinx.serialization.json.Json
  *     makes the correct order — install, restore, *then* the first local
  *     write appends a `DEVICE_CHANGE` phase onto the restored chain —
  *     happen by construction rather than by careful sequencing.
- *
- * ## Appending is a read-modify-write
- *
- * [ensureCurrentPhase] reads the ledger head, links, and appends. The
- * caller must serialise that against every other append; the production
- * wiring runs it inside one Room transaction. See [LedgerChain]'s KDoc.
  */
 class ResearchProvenanceCoordinator(
-    private val latestPhase: suspend () -> StudyPhase?,
-    private val insertPhase: suspend (StudyPhase) -> Unit,
-    private val ledgerHead: suspend () -> ResearchLedgerEvent?,
-    private val registeredProtocolKeys: suspend () -> Set<String>,
-    private val appendEvents: suspend (List<ResearchLedgerEvent>) -> Unit,
+    private val store: ResearchProvenanceStore,
     private val currentVector: suspend () -> ProvenanceVector,
+    /**
+     * Injected so a test can register a second protocol version against a
+     * ledger that already holds the first. Defaults to the build's own
+     * catalogue, which is what production always uses.
+     */
+    private val protocols: () -> List<EvidenceProtocol> = { EvidenceProtocolCatalog.registry.protocols },
     private val localDateOf: (Long) -> String = { millis ->
         Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().toString()
     },
 ) {
-
-    /**
-     * The catalogue is read directly rather than injected: it is a
-     * compile-time constant of the build, not a collaborator a caller
-     * could sensibly vary, and every study phase must register the
-     * catalogue this build actually ships.
-     */
-    private val catalog: EvidenceProtocolRegistry = EvidenceProtocolCatalog.registry
 
     /**
      * Returns the study phase in effect, opening a new one first if the
@@ -66,17 +82,28 @@ class ResearchProvenanceCoordinator(
      * first phase and for a catalogue change — see [StudyPhaseReason]),
      * and one [LedgerEventKind.PROTOCOL_VERSION_REGISTERED] per catalogued
      * protocol version the ledger has not already recorded.
+     *
+     * The whole sequence runs inside one transaction, and that is not
+     * tidiness. Read-then-write against append-only tables has no repair
+     * path: if the phase row committed and the events did not, the next
+     * call would see the phase, find the vector unchanged, and return
+     * early — leaving a phase the ledger never announced, with every
+     * record in its window attributed to it and no way to append the
+     * missing event afterwards. The chain would still verify, because a
+     * missing event is not a broken link.
      */
-    suspend fun ensureCurrentPhase(now: Long): StudyPhase {
-        val current = latestPhase()
+    suspend fun ensureCurrentPhase(now: Long): StudyPhase = store.inTransaction {
+        val current = store.latestPhase()
         val vector = currentVector()
-        val opened = StudyPhaseDecision.next(current, vector, now) ?: return requireNotNull(current) {
-            "StudyPhaseDecision returned no phase with none current"
-        }
+        val opened = StudyPhaseDecision.next(current, vector, now)
+            ?: return@inTransaction requireNotNull(current) {
+                "StudyPhaseDecision returned no phase with none current"
+            }
 
-        insertPhase(opened)
+        store.insertPhase(opened)
 
-        val head = ledgerHead()
+        val head = store.ledgerHead()
+        check((head?.sequence ?: 0L) < Long.MAX_VALUE) { "ledger sequence exhausted" }
         var previousHash = head?.eventHash ?: LedgerChain.GENESIS_PREVIOUS_HASH
         var sequence = (head?.sequence ?: 0L) + 1L
         val localDate = localDateOf(now)
@@ -104,45 +131,67 @@ class ResearchProvenanceCoordinator(
 
         append(
             LedgerEventKind.STUDY_PHASE_STARTED,
-            encode(PhaseStartedPayload(opened.ordinal, opened.reason.name, vector)),
+            json.encodeToString(PhaseStartedPayload(opened.ordinal, opened.reason.name, now, vector)),
         )
         opened.reason.ledgerKind?.let { kind ->
-            val from = describe(current?.vector, opened.reason)
+            val from = current?.let { describe(it.vector, opened.reason) }.orEmpty()
             val to = describe(vector, opened.reason)
-            append(kind, encode(VersionChangePayload(from, to)))
+            append(kind, json.encodeToString(VersionChangePayload(from, to)))
         }
 
-        val alreadyRegistered = registeredProtocolKeys()
-        catalog.protocols.forEach { protocol ->
-            val payload = encode(
-                ProtocolRegisteredPayload(
-                    protocolId = protocol.id,
-                    version = protocol.version,
-                    definitionSha256 = EvidenceProtocolRegistry.definitionSha256(protocol),
-                ),
+        registerNewProtocolVersions(::append)
+
+        store.appendEvents(appended)
+        opened
+    }
+
+    /**
+     * Appends one registration per catalogued protocol version the ledger
+     * does not already hold.
+     *
+     * De-duplicates on the semantic key `id@version:definitionSha256`,
+     * decoded from each stored payload, rather than on raw payload text.
+     * A payload that gained a field, or an encoder that was retuned, would
+     * make every stored payload miss a text comparison and re-register the
+     * whole catalogue — permanently, in an append-only table, and a reader
+     * would reasonably read the duplicate as evidence something changed.
+     */
+    private suspend fun registerNewProtocolVersions(append: (LedgerEventKind, String) -> Unit) {
+        val alreadyRegistered = store.registeredProtocolPayloads()
+            .mapNotNull { raw -> runCatching { json.decodeFromString<ProtocolRegisteredPayload>(raw) }.getOrNull() }
+            .map { it.key() }
+            .toSet()
+        protocols().forEach { protocol ->
+            val payload = ProtocolRegisteredPayload(
+                protocolId = protocol.id,
+                version = protocol.version,
+                definitionSha256 = EvidenceProtocolRegistry.definitionSha256(protocol),
             )
-            if (payload !in alreadyRegistered) append(LedgerEventKind.PROTOCOL_VERSION_REGISTERED, payload)
+            if (payload.key() !in alreadyRegistered) {
+                append(LedgerEventKind.PROTOCOL_VERSION_REGISTERED, json.encodeToString(payload))
+            }
         }
-
-        appendEvents(appended)
-        return opened
     }
 
-    /** The value of the component [reason] names, so a change event says what actually moved. */
-    private fun describe(vector: ProvenanceVector?, reason: StudyPhaseReason): String = when {
-        vector == null -> ""
-        reason == StudyPhaseReason.APP_VERSION_CHANGE -> "${vector.appVersionName} (${vector.appVersionCode})"
-        reason == StudyPhaseReason.RULE_VERSION_CHANGE -> vector.ruleSetVersion
-        reason == StudyPhaseReason.MODEL_VERSION_CHANGE -> vector.modelSetVersion
-        reason == StudyPhaseReason.TRANSFORMATION_VERSION_CHANGE -> vector.transformationSetVersion
-        reason == StudyPhaseReason.MISSING_DATA_POLICY_CHANGE -> vector.missingDataPolicyVersion
-        reason == StudyPhaseReason.INSTRUMENT_VERSION_CHANGE -> vector.instrumentVersion
-        reason == StudyPhaseReason.DICTIONARY_VERSION_CHANGE -> vector.dictionaryVersion
-        reason == StudyPhaseReason.DEVICE_CHANGE -> vector.sourceDeviceId
-        else -> ""
+    /**
+     * The value of the component [reason] names, so a change event says
+     * what actually moved. A `when` over the enum rather than a chain of
+     * conditions: a reason added without a branch here fails to compile
+     * instead of writing an empty `from`/`to` into a permanent row.
+     */
+    private fun describe(vector: ProvenanceVector, reason: StudyPhaseReason): String = when (reason) {
+        StudyPhaseReason.APP_VERSION_CHANGE -> "${vector.appVersionName} (${vector.appVersionCode})"
+        StudyPhaseReason.RULE_VERSION_CHANGE -> vector.ruleSetVersion
+        StudyPhaseReason.MODEL_VERSION_CHANGE -> vector.modelSetVersion
+        StudyPhaseReason.TRANSFORMATION_VERSION_CHANGE -> vector.transformationSetVersion
+        StudyPhaseReason.MISSING_DATA_POLICY_CHANGE -> vector.missingDataPolicyVersion
+        StudyPhaseReason.INSTRUMENT_VERSION_CHANGE -> vector.instrumentVersion
+        StudyPhaseReason.DICTIONARY_VERSION_CHANGE -> vector.dictionaryVersion
+        StudyPhaseReason.DEVICE_CHANGE -> vector.sourceDeviceId
+        // Neither reaches here: both carry a null ledgerKind, so no change
+        // event is written for them at all.
+        StudyPhaseReason.INITIAL, StudyPhaseReason.PROTOCOL_CATALOG_CHANGE -> ""
     }
-
-    private inline fun <reified T> encode(payload: T): String = json.encodeToString(payload)
 
     private companion object {
         /** Pinned: payload JSON is inside the event hash, and ledger rows can never be rewritten. */
@@ -150,11 +199,22 @@ class ResearchProvenanceCoordinator(
             encodeDefaults = true
             prettyPrint = false
             explicitNulls = true
+            ignoreUnknownKeys = true
         }
     }
 
+    /**
+     * [clockMillis] is the raw `now` the caller supplied, kept alongside
+     * the phase's possibly-clamped `startedAt` so a backwards clock jump
+     * stays visible in the ledger instead of being quietly erased.
+     */
     @Serializable
-    private data class PhaseStartedPayload(val ordinal: Int, val reason: String, val vector: ProvenanceVector)
+    private data class PhaseStartedPayload(
+        val ordinal: Int,
+        val reason: String,
+        val clockMillis: Long,
+        val vector: ProvenanceVector,
+    )
 
     @Serializable
     private data class VersionChangePayload(val from: String, val to: String)
@@ -164,5 +224,8 @@ class ResearchProvenanceCoordinator(
         val protocolId: String,
         val version: Int,
         val definitionSha256: String,
-    )
+    ) {
+        /** The same `id@version:hash` shape `EvidenceProtocolRegistry.catalogSha256` uses. */
+        fun key(): String = "$protocolId@$version:$definitionSha256"
+    }
 }

@@ -11,6 +11,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -242,6 +243,46 @@ class MigrationTest {
         }
     }
 
+    /**
+     * Creates the schema exactly as version 6 shipped it - the complete
+     * Program 0 table set - and seeds one row in each Program 0 research
+     * table, so the v6 to v7 walk proves the upgrade adds tables without
+     * touching anything a person already wrote.
+     */
+    private fun createVersion6WithProgramZeroData() {
+        val config = SupportSQLiteOpenHelper.Configuration.builder(context)
+            .name(dbName)
+            .callback(object : SupportSQLiteOpenHelper.Callback(6) {
+                override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                    PROGRAM_ZERO_SCHEMA.forEach(db::execSQL)
+                }
+
+                override fun onUpgrade(
+                    db: androidx.sqlite.db.SupportSQLiteDatabase,
+                    oldVersion: Int,
+                    newVersion: Int,
+                ) = Unit
+            })
+            .build()
+        val helper = FrameworkSQLiteOpenHelperFactory().create(config)
+        helper.writableDatabase.use { db -> PROGRAM_ZERO_ROWS.forEach(db::execSQL) }
+    }
+
+    private fun ledgerEvent() = ResearchLedgerEventEntity(
+        id = "event-1",
+        sequence = 1L,
+        kind = "EXERCISE",
+        occurredAt = 1_000L,
+        recordedAt = 1_000L,
+        localDate = "2026-08-29",
+        studyPhaseId = "phase-0",
+        sourceDeviceId = "device-a",
+        note = "morning run",
+        payloadJson = "{}",
+        previousEventHash = "",
+        eventHash = "event-1",
+    )
+
     private fun openCurrent(): AnchorDatabase =
         Room.databaseBuilder(context, AnchorDatabase::class.java, dbName)
             .addMigrations(*AnchorDatabase.migrations())
@@ -363,5 +404,116 @@ class MigrationTest {
         } finally {
             db.close()
         }
+    }
+
+    @Test
+    fun aVersion6DatabaseKeepsProgramZeroDataAndGainsTheResearchTables() = runBlocking {
+        createVersion6WithProgramZeroData()
+        val db = openCurrent()
+        try {
+            // Nothing a person wrote may be lost by an upgrade.
+            assertEquals("Original words", db.journal().entry("entry-1")?.body)
+            assertEquals(1, db.journal().allContext().size)
+            assertEquals(1, db.journal().morningMeasuresNow().size)
+            assertEquals(1, db.journal().allChangesNow().size)
+
+            // And the new tables exist and work.
+            assertEquals(0, db.research().ledgerEventCount())
+            assertEquals(0, db.research().studyPhaseCount())
+            db.research().insertLedgerEvents(listOf(ledgerEvent()))
+            assertEquals(1, db.research().ledgerEventCount())
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun anUpgradedDatabaseAlsoRefusesToRewriteTheLedger() = runBlocking {
+        createVersion6WithProgramZeroData()
+        val db = openCurrent()
+        try {
+            db.research().insertLedgerEvents(listOf(ledgerEvent()))
+            // The triggers must arrive through MIGRATION_6_7 too, not only
+            // through the fresh-install callback.
+            assertThrows(android.database.sqlite.SQLiteConstraintException::class.java) {
+                db.openHelper.writableDatabase.execSQL("DELETE FROM research_ledger_events")
+            }
+            assertEquals(1, db.research().ledgerEventCount())
+        } finally {
+            db.close()
+        }
+    }
+
+    private companion object {
+        private const val KEY_COLUMN = "`key`"
+
+        /** The exact DDL version 6 shipped. */
+        private val PROGRAM_ZERO_SCHEMA = listOf(
+            "CREATE TABLE IF NOT EXISTS held_notifications (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, packageName TEXT NOT NULL, " +
+                "appLabel TEXT NOT NULL, title TEXT NOT NULL, text TEXT NOT NULL, " +
+                "postedAt INTEGER NOT NULL, releasedAt INTEGER)",
+            "CREATE TABLE IF NOT EXISTS pulse_results (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, takenAt INTEGER NOT NULL, " +
+                "score INTEGER NOT NULL)",
+            "CREATE TABLE IF NOT EXISTS safety_plan (" +
+                "id INTEGER NOT NULL, warningSigns TEXT NOT NULL, copingSteps TEXT NOT NULL, " +
+                "distractions TEXT NOT NULL, reasonsForLiving TEXT NOT NULL, " +
+                "environmentSafety TEXT NOT NULL, updatedAt INTEGER NOT NULL, PRIMARY KEY(id))",
+            "CREATE TABLE IF NOT EXISTS crisis_contacts (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, " +
+                "phone TEXT NOT NULL, isProfessional INTEGER NOT NULL)",
+            "CREATE TABLE IF NOT EXISTS journal_entries (" +
+                "id TEXT NOT NULL, createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL, " +
+                "localDate TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL, " +
+                "kind TEXT NOT NULL, sourceDeviceId TEXT NOT NULL, deletedAt INTEGER, PRIMARY KEY(id))",
+            "CREATE INDEX IF NOT EXISTS index_journal_entries_localDate ON journal_entries(localDate)",
+            "CREATE INDEX IF NOT EXISTS index_journal_entries_createdAt ON journal_entries(createdAt)",
+            "CREATE TABLE IF NOT EXISTS journal_context (" +
+                "id TEXT NOT NULL, entryId TEXT NOT NULL, recordType TEXT NOT NULL, " +
+                KEY_COLUMN + " TEXT NOT NULL, value TEXT NOT NULL, sourceStart INTEGER, " +
+                "sourceEnd INTEGER, confidence REAL NOT NULL, extractorVersion TEXT NOT NULL, " +
+                "createdAt INTEGER NOT NULL, PRIMARY KEY(id), " +
+                "FOREIGN KEY(entryId) REFERENCES journal_entries(id) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE)",
+            "CREATE INDEX IF NOT EXISTS index_journal_context_entryId ON journal_context(entryId)",
+            "CREATE INDEX IF NOT EXISTS index_journal_context_recordType ON journal_context(recordType)",
+            "CREATE TABLE IF NOT EXISTS morning_measures (" +
+                "id TEXT NOT NULL, localDate TEXT NOT NULL, createdAt INTEGER NOT NULL, " +
+                "updatedAt INTEGER NOT NULL, mood INTEGER NOT NULL, anxiety INTEGER NOT NULL, " +
+                "angerUrge INTEGER NOT NULL, energyFunction INTEGER NOT NULL, " +
+                "sleepQuality INTEGER NOT NULL, instrumentVersion TEXT NOT NULL, " +
+                "sourceDeviceId TEXT NOT NULL, PRIMARY KEY(id))",
+            "CREATE UNIQUE INDEX IF NOT EXISTS index_morning_measures_localDate " +
+                "ON morning_measures(localDate)",
+            "CREATE TABLE IF NOT EXISTS continuity_changes (" +
+                "id TEXT NOT NULL, entityType TEXT NOT NULL, entityId TEXT NOT NULL, " +
+                "operation TEXT NOT NULL, occurredAt INTEGER NOT NULL, " +
+                "acknowledgedSnapshotId TEXT, PRIMARY KEY(id))",
+            "CREATE INDEX IF NOT EXISTS index_continuity_changes_occurredAt " +
+                "ON continuity_changes(occurredAt)",
+            "CREATE INDEX IF NOT EXISTS index_continuity_changes_acknowledgedSnapshotId " +
+                "ON continuity_changes(acknowledgedSnapshotId)",
+        )
+
+        /** One row in each Program 0 research table, so the upgrade has something to lose. */
+        private val PROGRAM_ZERO_ROWS = listOf(
+            "INSERT INTO journal_entries " +
+                "(id, createdAt, updatedAt, localDate, title, body, kind, sourceDeviceId, deletedAt) " +
+                "VALUES ('entry-1', 1000, 1000, '2026-08-28', 'A day', 'Original words', " +
+                "'DAILY', 'device-a', NULL)",
+            "INSERT INTO journal_context " +
+                "(id, entryId, recordType, " + KEY_COLUMN + ", value, sourceStart, sourceEnd, " +
+                "confidence, extractorVersion, createdAt) " +
+                "VALUES ('context-1', 'entry-1', 'FACT', 'word_count', '2', NULL, NULL, 1.0, " +
+                "'structural-v1', 1000)",
+            "INSERT INTO morning_measures " +
+                "(id, localDate, createdAt, updatedAt, mood, anxiety, angerUrge, energyFunction, " +
+                "sleepQuality, instrumentVersion, sourceDeviceId) " +
+                "VALUES ('measure-1', '2026-08-28', 900, 900, 3, 2, 1, 4, 3, 'morning-v1', 'device-a')",
+            "INSERT INTO continuity_changes " +
+                "(id, entityType, entityId, operation, occurredAt, acknowledgedSnapshotId) " +
+                "VALUES ('change-1', 'JOURNAL_ENTRY', 'entry-1', 'CREATE', 1000, NULL)",
+        )
     }
 }
