@@ -111,7 +111,7 @@ class ResearchExportCodecTest {
             ledgerEvents = listOf(ledgerEvent("event-1", 1L)),
             ledgerHeadHash = "event-1",
             ledgerEventCount = 1,
-        ledgerHighWaterCount = 1,
+            ledgerHighWaterCount = 1,
             ledgerIntegrity = LedgerIntegrity.VERIFIED,
             studyPhases = listOf(phase("phase-0", 0)),
             protocolRegistry = EvidenceProtocolCatalog.registry.protocols,
@@ -464,7 +464,7 @@ class ResearchExportCodecTest {
         // the hash is expected to move and re-pinning is correct. This pin
         // cannot tell those apart on its own, so the reasoning belongs in
         // the commit message that changes it.
-        assertEquals("a2a6a7615df8d54239f07067be1463692e04f4bd0d859844c9c8923ad818bc70", sample().contentSha256)
+        assertEquals("3074756602754a92b1e3bfba5c8d177fe8dc47c705fdc3c5e51a80b95c6e508e", sample().contentSha256)
     }
 
     /**
@@ -502,18 +502,58 @@ class ResearchExportCodecTest {
         )
     }
 
+    /**
+     * One mutation per Program 1 field, applied to a genuine Program 0
+     * document. Each must, on its own, make that document refuse to verify.
+     */
+    private fun programOneSmuggles(base: ResearchExport): Map<String, ResearchExport> = mapOf(
+        "ledgerEvents" to base.copy(ledgerEvents = listOf(ledgerEvent("smuggled", 1L))),
+        "ledgerHeadHash" to base.copy(ledgerHeadHash = "a fabricated head"),
+        "ledgerEventCount" to base.copy(ledgerEventCount = 7),
+        "ledgerHighWaterCount" to base.copy(ledgerHighWaterCount = 7),
+        "ledgerIntegrity" to base.copy(ledgerIntegrity = LedgerIntegrity.VERIFIED),
+        "studyPhases" to base.copy(studyPhases = listOf(phase("phase-0", 0))),
+        "protocolRegistry" to base.copy(protocolRegistry = EvidenceProtocolCatalog.registry.protocols),
+        "protocolCatalogSha256" to base.copy(protocolCatalogSha256 = "a catalogue"),
+        "transformations" to base.copy(transformations = TransformationRegistry.transformations),
+        "transformationSetVersion" to base.copy(transformationSetVersion = "a set"),
+        "missingData" to base.copy(
+            missingData = listOf(
+                MissingDataRecord("2026-08-28", "morning_measure", MissingDataReason.NOT_RECORDED),
+            ),
+        ),
+        "missingDataPolicyVersion" to base.copy(missingDataPolicyVersion = "missing-data-v2"),
+        "missingDataStatement" to base.copy(missingDataStatement = "Absences are carried forward."),
+        "dataDictionary" to base.copy(dataDictionary = ResearchDataDictionary.dictionary),
+        "dataDictionarySha256" to base.copy(dataDictionarySha256 = "a dictionary"),
+    )
+
     @Test
     fun `every Program 1 field alone is enough to condemn a version 1 document`() {
-        // Not just the set membership: each predicate must actually fire.
-        // A mapping that named a field but tested the wrong one would pass
-        // the reflection guard above while smuggling that field through.
-        val fields = programOneContentByField(sample())
-        fields.forEach { (name, isPresent) ->
-            assertTrue("`$name` is absent from the fully-populated sample", isPresent)
+        // Not merely that the field is named: that the predicate bound to
+        // that name actually reads that field. A mapping keyed "foo" that
+        // read `bar` would satisfy a set-membership check while smuggling
+        // `foo` straight through.
+        val base = programZeroExport()
+        assertTrue("the base fixture must itself be a valid v1 document", ResearchExportCodec.verify(base))
+        programOneSmuggles(base).forEach { (field, smuggled) ->
+            assertTrue(
+                "`$field` alone must trip the smuggle check",
+                programOneContentByField(smuggled)[field] == true,
+            )
+            assertFalse(
+                "a version 1 document carrying `$field` must not verify",
+                ResearchExportCodec.verify(smuggled),
+            )
         }
+        assertEquals(
+            "every field the smuggle check knows about must have a mutation here",
+            programOneContentByField(sample()).keys,
+            programOneSmuggles(base).keys,
+        )
         assertTrue(
             "an empty Program 0 document must trip nothing",
-            programOneContentByField(programZeroExport()).values.none { it },
+            programOneContentByField(base).values.none { it },
         )
     }
 

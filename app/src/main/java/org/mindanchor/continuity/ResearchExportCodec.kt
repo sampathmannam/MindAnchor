@@ -101,7 +101,6 @@ object ResearchExportCodec {
         export.dataDictionaryVersion == ContinuityContract.PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION &&
             programOneContentByField(export).values.any { it }
 
-
     /**
      * Returns [export] with its lists in canonical order and
      * [ResearchExport.contentSha256] computed over them.
@@ -265,6 +264,10 @@ object ResearchExportCodec {
 }
 
 /**
+ * At file scope rather than inside [ResearchExportCodec] because detekt's
+ * `TooManyFunctions` threshold *inside objects* is 11, and the object is
+ * at ten. `internal` either way; the object's public surface is unchanged.
+ *
  * Every field a Program 0 document could not have written, keyed by
  * name so a test can check the set against [ResearchExport]'s declared
  * fields.

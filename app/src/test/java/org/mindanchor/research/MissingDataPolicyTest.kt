@@ -48,7 +48,9 @@ class MissingDataPolicyTest {
         // which was false of any record older than the reach backwards.
         assertTrue(
             "the statement must say records outside the window are excluded",
-            MissingDataPolicy.STATEMENT.contains("excluded from the window"),
+            MissingDataPolicy.STATEMENT.contains("excluded from\n" +
+                "            the window") ||
+                MissingDataPolicy.STATEMENT.contains("excluded from the window"),
         )
     }
 
@@ -285,11 +287,14 @@ class MissingDataPolicyTest {
     }
 
     @Test
-    fun `a clock behind the newest record still reports through that record`() {
-        // The narrower reading of "implausible" would have dropped this row
-        // and silently ended the report nine days early. A record a few
-        // days ahead of a slow clock is ordinary; one a thousand years
-        // ahead is not.
+    fun `a clock behind the newest record ends the window at the clock`() {
+        // The deliberate trade-off, stated as a test so it cannot be
+        // changed by accident. An earlier version ran the window on to the
+        // newest record here, to cover a device whose clock had fallen
+        // behind. That produced absences on dates after the export date --
+        // days that had not happened. Under-reporting the tail is the
+        // smaller wrong, and the policy statement says the window ends on
+        // the export date, so the document does not overclaim.
         val window = requireNotNull(
             MissingDataPolicy.windowFor(
                 recordDates = listOf("2026-08-01", "2026-08-29").map(LocalDate::parse),
@@ -297,7 +302,7 @@ class MissingDataPolicyTest {
             ),
         )
         assertEquals(LocalDate.parse("2026-08-01"), window.start)
-        assertEquals(LocalDate.parse("2026-08-29"), window.through)
+        assertEquals(LocalDate.parse("2026-08-20"), window.through)
     }
 
     @Test
@@ -352,31 +357,63 @@ class MissingDataPolicyTest {
     }
 
     @Test
-    fun `a record only just ahead of a slow clock still ends the window`() {
-        // The tolerance exists for exactly this: a device whose clock is
-        // behind its own newest row. Days, not years.
+    fun `the window never runs past the export date`() {
+        // This replaces a test that pinned the opposite. Ending the window
+        // at the newest record covered a device whose clock had fallen
+        // behind -- and produced absences on five days that had not
+        // happened when the file was written. A day that has not occurred
+        // cannot be missing.
+        val exportDate = LocalDate.parse("2026-08-29")
         val window = requireNotNull(
             MissingDataPolicy.windowFor(
-                recordDates = listOf("2026-08-01", "2026-08-29").map(LocalDate::parse),
-                exportDate = LocalDate.parse("2026-08-20"),
+                recordDates = listOf("2026-08-26", "2026-08-28", "2026-09-03").map(LocalDate::parse),
+                exportDate = exportDate,
             ),
         )
-        assertEquals(LocalDate.parse("2026-08-29"), window.through)
+        assertEquals(exportDate, window.through)
+        assertEquals(LocalDate.parse("2026-08-26"), window.start)
     }
 
     @Test
-    fun `the future tolerance is far shorter than the reach backwards`() {
-        // The asymmetry is the fix, so state it as a property rather than
-        // leaving it to two examples: nothing legitimately records years
-        // into the future, while a real record can be years long.
-        assertTrue(
-            "a symmetric bound is what let one corrupt row define the window",
-            MissingDataPolicy.MAX_FUTURE_DAYS < MissingDataPolicy.MAX_REPORT_DAYS / 10,
-        )
+    fun `no absence is ever reported for a day that has not happened`() {
+        // The property, not the example: whatever the records say, the
+        // report must not name a date after the export date.
         val exportDate = LocalDate.parse("2026-08-29")
-        assertTrue(MissingDataPolicy.isPlausible(exportDate.plusDays(1), exportDate))
-        assertTrue(!MissingDataPolicy.isPlausible(exportDate.plusDays(400), exportDate))
+        listOf(1L, 5L, 30L, 400L).forEach { ahead ->
+            val window = requireNotNull(
+                MissingDataPolicy.windowFor(
+                    listOf(exportDate.minusDays(3), exportDate.plusDays(ahead)),
+                    exportDate,
+                ),
+            )
+            val report = MissingDataPolicy.report(
+                firstRecordDate = window.start,
+                throughDate = window.through,
+                allMeasureDates = emptySet(),
+                entryDatesWithoutContext = emptySet(),
+            )
+            assertTrue(
+                "a record $ahead days ahead produced absences after the export date",
+                report.none { it.localDate > exportDate.toString() },
+            )
+        }
+    }
+
+    @Test
+    fun `plausibility is bounded on both sides, and asymmetrically`() {
+        // Nothing legitimately records the future, so the forward bound is
+        // zero days. Backwards, a real record can be years long. A single
+        // symmetric bound was a defect twice over.
+        val exportDate = LocalDate.parse("2026-08-29")
+        assertTrue(MissingDataPolicy.isPlausible(exportDate, exportDate))
+        assertTrue(!MissingDataPolicy.isPlausible(exportDate.plusDays(1), exportDate))
         assertTrue(MissingDataPolicy.isPlausible(exportDate.minusDays(400), exportDate))
+        assertTrue(
+            !MissingDataPolicy.isPlausible(
+                exportDate.minusDays(MissingDataPolicy.MAX_REPORT_DAYS + 1),
+                exportDate,
+            ),
+        )
     }
 
     @Test
@@ -387,9 +424,7 @@ class MissingDataPolicyTest {
         val exportDate = LocalDate.parse("2026-08-29")
         val offsets = listOf(
             -MissingDataPolicy.MAX_REPORT_DAYS - 1, -MissingDataPolicy.MAX_REPORT_DAYS,
-            -MissingDataPolicy.MAX_REPORT_DAYS + 1, -1, 0, 1,
-            MissingDataPolicy.MAX_FUTURE_DAYS - 1, MissingDataPolicy.MAX_FUTURE_DAYS,
-            MissingDataPolicy.MAX_FUTURE_DAYS + 1,
+            -MissingDataPolicy.MAX_REPORT_DAYS + 1, -365, -1, 0, 1, 30, 400_000,
         )
         offsets.forEach { a ->
             offsets.forEach { b ->

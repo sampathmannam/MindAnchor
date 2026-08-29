@@ -103,7 +103,9 @@ open class ResearchLedgerRepository(
             linked
         }
         ContinuityWorkScheduler.requestCheckpoint(context)
-        raiseLedgerHighWater()
+        // The same call the other two write paths make, for the same
+        // reason, so the contract reads the same way from all three.
+        provenance.refreshAfterCommit()
         return event
     }
 
@@ -126,14 +128,15 @@ open class ResearchLedgerRepository(
     private suspend fun raiseLedgerHighWater() {
         try {
             val prefs = ContinuityPrefs(context)
+            // Head first, then count: the other order could pair a count of
+            // N with the hash of event N+1 if an append landed between the
+            // two reads.
+            val head = dao.ledgerHead() ?: return
             val count = dao.ledgerEventCount()
             // Read before writing so an ordinary Journal save, which grows
             // nothing, costs a DataStore read rather than an fsync.
             if ((prefs.ledgerHighWater.first()?.eventCount ?: 0) >= count) return
-            val head = dao.ledgerHead()
-            if (head != null) {
-                prefs.raiseLedgerHighWater(count, head.eventHash)
-            }
+            prefs.raiseLedgerHighWater(count, head.eventHash)
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
