@@ -70,13 +70,30 @@ keytool -exportcert -alias mindanchor -keystore mindanchor.jks | \
   openssl x509 -inform der -noout -fingerprint -sha256
 ```
 
+If `openssl` isn't on your `PATH` (plain Windows PowerShell often doesn't have
+it), `keytool` alone prints the same fingerprint — no extra tool needed:
+
+```sh
+keytool -list -v -keystore mindanchor.jks -alias mindanchor
+```
+
+Look for the `SHA256:` line under "Certificate fingerprints:".
+
 | Variable | Value |
 |---|---|
-| `MINDANCHOR_RELEASE_CERT_SHA256` | the `SHA256` fingerprint from the command above, hex digits only (case-insensitive — the workflow uppercases both sides before comparing) |
+| `MINDANCHOR_RELEASE_CERT_SHA256` | the `SHA256` fingerprint from the command above, hex digits only, colons removed (case-insensitive — the workflow uppercases both sides before comparing; `apksigner`'s own output has no colons, which is what it's actually compared against) |
 
-<!-- TODO: owner fills in the real certificate fingerprint here once the
-     release keystore exists. Do not put a placeholder hex string in
-     this file — an absent value is honest; a fake one is not. -->
+The release keystore now exists (generated 2026-08-29). Its certificate's
+SHA-256 fingerprint:
+
+```
+DFD147DCCF0E99AE156F79811D3885076129A3B0F57108E724D4FBE6450E87FD
+```
+
+This value must also be added as the `MINDANCHOR_RELEASE_CERT_SHA256`
+repository **variable** on GitHub (Settings → Secrets and variables →
+Actions → Variables) — recording it here alone does not configure the
+workflow.
 
 ---
 
@@ -151,7 +168,7 @@ The signing key setup is an owner-only manual step — no automated task
 in this repository can perform it, since it requires holding a private
 key and a GitHub Secrets admin login that only the owner has:
 
-- [ ] Create one release keystore, once (§1 above)
+- [x] Create one release keystore, once (§1 above) — done 2026-08-29
 - [ ] Store two offline copies outside the phone and outside the repository
 - [ ] Configure `MINDANCHOR_KEYSTORE_BASE64`, `MINDANCHOR_KEYSTORE_PASSWORD`,
       `MINDANCHOR_KEY_ALIAS`, and `MINDANCHOR_KEY_PASSWORD` in GitHub Secrets
