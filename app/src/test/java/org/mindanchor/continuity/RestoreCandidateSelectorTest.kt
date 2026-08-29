@@ -64,11 +64,22 @@ class RestoreCandidateSelectorTest {
         return BackupEnvelopeCodec.encode(envelope).encodeToByteArray()
     }
 
-    /** A fake, in-memory-only remote store — no network call is ever made. Mirrors RestoreScreenTest's own fake. */
+    /**
+     * A fake, in-memory-only remote store — no network call is ever made.
+     * Mirrors RestoreScreenTest's own fake, plus a [calledNames] log so a
+     * test can assert not just the final result but which objects were
+     * actually fetched — this is what makes "never even tries the
+     * versioned snapshot" a real, checkable claim rather than an
+     * inference from a result value that would look the same either way.
+     */
     private class FakeRemoteBackupStore(private val objects: Map<String, ByteArray>) : RemoteBackupStore {
+        val calledNames = mutableListOf<String>()
         override suspend fun put(name: String, bytes: ByteArray): RemoteResult<RemoteObject> =
             RemoteResult.Ok(RemoteObject(id = name, name = name, size = bytes.size.toLong(), modifiedTime = Instant.EPOCH))
-        override suspend fun get(name: String): RemoteResult<ByteArray?> = RemoteResult.Ok(objects[name])
+        override suspend fun get(name: String): RemoteResult<ByteArray?> {
+            calledNames += name
+            return RemoteResult.Ok(objects[name])
+        }
         override suspend fun list(prefix: String): RemoteResult<List<RemoteObject>> =
             RemoteResult.Ok(
                 objects.keys.filter { it.contains(prefix) }
@@ -176,8 +187,9 @@ class RestoreCandidateSelectorTest {
         // Both Latest and a versioned snapshot are genuinely decryptable — but only with `key`
         // (envelopeBytes always encrypts with this test class's own `key`).
         // If the selector wrongly fell back to the versioned snapshot on a wrong-key failure, it
-        // would fail identically there too, but this test proves it never even tries: the result
-        // must be WrongRecoveryKey, not NoneAvailable.
+        // would fail identically there too (WrongRecoveryKey either way), so the result value
+        // alone can't distinguish "stopped after Latest" from "tried everything and failed the
+        // same way each time". calledNames below is what actually proves it never tries.
         val store = FakeRemoteBackupStore(
             mapOf(
                 ContinuityFiles.LATEST to envelopeBytes(latestSnapshot),
@@ -191,6 +203,12 @@ class RestoreCandidateSelectorTest {
             "a wrong key must stop selection immediately, distinct from NoneAvailable/corruption",
             CandidateSelectionResult.WrongRecoveryKey,
             result,
+        )
+        assertEquals(
+            "a wrong key must stop after the first candidate — the versioned snapshot must " +
+                "never be fetched at all",
+            listOf(ContinuityFiles.LATEST),
+            store.calledNames,
         )
     }
 }
