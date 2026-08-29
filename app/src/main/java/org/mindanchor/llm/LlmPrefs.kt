@@ -9,7 +9,9 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.map
 
 private val Context.letterLlmDataStore by preferencesDataStore(name = "letter_llm")
@@ -73,16 +75,18 @@ class LlmPrefs(private val context: Context) {
     }
 
     /**
-     * The API key is read from the encrypted
-     * blob. The flow shape is preserved so the
-     * call sites do not change; the body is just
-     * synchronous underneath (the encrypted file
-     * is small — a few hundred bytes — and reading
-     * it is microseconds).
+     * The API key, reactive to every write — see
+     * [LlmKeyStore.apiKeyFlow]. A plain
+     * `flow { emit(keyStore.read()) }` here would
+     * complete after its first emission, so a
+     * `stateIn(WhileSubscribed(...))` collector (the
+     * Settings screen's `OutlinedTextField`) would
+     * never see a key typed or pasted after the
+     * screen's first collection, and `testConnection`
+     * would keep reading the stale (often blank)
+     * value.
      */
-    val apiKey: Flow<String> = kotlinx.coroutines.flow.flow {
-        emit(keyStore.read())
-    }
+    val apiKey: Flow<String> = keyStore.apiKeyFlow
 
     val model: Flow<String> = context.letterLlmDataStore.data.map { prefs ->
         prefs[modelKey] ?: LlmProvider.GOOGLE_AI_STUDIO.defaultModel
@@ -164,6 +168,35 @@ class LlmPrefs(private val context: Context) {
  * [LlmPrefs.reset], the test's `@Before reset`).
  */
 internal class LlmKeyStore(private val prefs: SharedPreferences) {
+
+    /**
+     * Reactive to every [write] — including a write
+     * made through a *different* [LlmKeyStore]
+     * instance wrapping the same [PREF_FILE] (Settings'
+     * `LlmSettingsViewModel` and Letters'
+     * `LetterViewModel` each own a private [LlmPrefs],
+     * so this cross-instance case is real, not
+     * theoretical). `OnSharedPreferenceChangeListener`
+     * fires for any editor commit on the same
+     * underlying file within the process — Android
+     * caches one `SharedPreferencesImpl` per file name
+     * per process, so every wrapping instance shares
+     * it — which is what makes this correct without a
+     * custom singleton. The listener ignores the
+     * changed key name because
+     * `EncryptedSharedPreferences` reports the
+     * *encrypted* key, not [KEY_API_KEY], so comparing
+     * against it would never match; this file only
+     * ever holds one entry, so any change means re-read.
+     */
+    val apiKeyFlow: Flow<String> = callbackFlow {
+        trySend(read())
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+            trySend(read())
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
 
     fun read(): String =
         prefs.getString(KEY_API_KEY, null)?.takeIf { it.isNotBlank() } ?: ""
