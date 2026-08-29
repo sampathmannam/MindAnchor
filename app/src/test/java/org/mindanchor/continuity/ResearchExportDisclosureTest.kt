@@ -74,18 +74,10 @@ class ResearchExportDisclosureTest {
     )
 
     /**
-     * Two fields legitimately share one phrase: [ResearchExport.contextFacts]
-     * and `contextInferences` are both structural context derived from an
-     * entry, and one sentence describes both accurately. Every other
-     * disclosed field must contribute a phrase no other field supplies, so
-     * a new field cannot be waved through by pointing it at words the
-     * dialog already contains.
-     */
-    /**
-     * Groups of fields that legitimately share one phrase, because one
+     * Groups whose members legitimately share one phrase, because one
      * sentence describes them all accurately: the two structural-context
-     * lists, and the missing-data report together with the window it
-     * covers. Everything else must contribute words no other field does.
+     * lists, and the missing-data report with the window it covers. Every
+     * other disclosed field must contribute words no other field supplies.
      */
     private val shareAPhrase = listOf(
         setOf("contextFacts", "contextInferences"),
@@ -93,14 +85,22 @@ class ResearchExportDisclosureTest {
     )
 
     @Test
-    fun `each disclosed field but the two context lists names something of its own`() {
-        val shared = shareAPhrase.flatten().toSet()
-        disclosedAs.forEach { (field, phrase) ->
-            if (field in shared) return@forEach
-            val others = disclosedAs.filterKeys { it != field }.values.toSet()
-            // Substring, not equality: "version identifiers" is contained
-            // in another field's phrase, so an exact-match guard would
-            // have waved it through while telling the person nothing new.
+    fun `each disclosed phrase names something no other phrase supplies`() {
+        // Substring, not equality -- "version identifiers" is contained in
+        // another field's phrase, so an exact-match guard once waved a
+        // field through while telling the person nothing new. Groups are
+        // collapsed to one representative phrase first, so a group cannot
+        // hide behind its own members, and each group's phrase is then
+        // checked against every phrase outside the group.
+        shareAPhrase.forEach { group ->
+            val phrases = group.map { requireNotNull(disclosedAs[it]) { "`$it` is not disclosed" } }
+            assertEquals("the fields in $group must share one phrase", 1, phrases.toSet().size)
+        }
+        val representatives = shareAPhrase.associate { it.first() to requireNotNull(disclosedAs[it.first()]) }
+        val grouped = shareAPhrase.flatten().toSet()
+        val checked = disclosedAs.filterKeys { it !in grouped } + representatives
+        checked.forEach { (field, phrase) ->
+            val others = checked.filterKeys { it != field }.values
             assertTrue(
                 "`$field` is disclosed only by \"$phrase\", which another field already supplies",
                 others.none { it.contains(phrase) },

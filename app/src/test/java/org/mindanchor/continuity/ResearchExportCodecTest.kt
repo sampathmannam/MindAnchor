@@ -470,7 +470,7 @@ class ResearchExportCodecTest {
         // the hash is expected to move and re-pinning is correct. This pin
         // cannot tell those apart on its own, so the reasoning belongs in
         // the commit message that changes it.
-        assertEquals("604c299c4b67dbfc027f5474e985dc5cdd74c0cffdf0d798f06d4c49dd8c3ebd", sample().contentSha256)
+        assertEquals("3327eea7f78c6e63dfb49d7ac51de68370236b637bf0bc82e639a62fe40bbd4b", sample().contentSha256)
     }
 
     /**

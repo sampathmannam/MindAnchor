@@ -220,11 +220,14 @@ object ResearchExportBuilder {
         return MissingDataPolicy.report(
             firstRecordDate = window.start,
             throughDate = window.through,
-            // Filtered by plausibility, and only by that: an implausible
-            // date must not get a vote -- one row from the year 1000 made
-            // every skipped day read as "had not started yet", inverted --
-            // while a *windowed* set would make the window boundary look
-            // like the first measure ever taken.
+            // Plausibility-filtered, which for measures is the same set
+            // as window-filtered -- the window's start is the earliest
+            // plausible record and its end is the export date, so the two
+            // coincide. The filter is stated as plausibility because that
+            // is the *reason*: an implausible date must not get a vote
+            // (one row from the year 1000 made every skipped day read as
+            // "had not started yet"), and the equivalence is a property of
+            // today's window rule, not a contract.
             allMeasureDates = measures
                 .mapNotNull { parseDate(it.localDate) }
                 .filter { MissingDataPolicy.isPlausible(it, exportDate) }

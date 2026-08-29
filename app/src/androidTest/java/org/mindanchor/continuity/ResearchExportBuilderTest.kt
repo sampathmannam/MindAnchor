@@ -104,6 +104,10 @@ class ResearchExportBuilderTest {
         // meaningful once there is a first record to count from.
         assertEquals(emptyList<org.mindanchor.research.MissingDataRecord>(), export.missingData)
         assertEquals(LedgerIntegrity.VERIFIED, export.ledgerIntegrity)
+        // Empty is not the same as perfect: with nothing recorded there is
+        // no window, and the file says so.
+        assertEquals(null, export.missingDataWindowStart)
+        assertEquals(null, export.missingDataWindowThrough)
     }
 
     @Test
@@ -273,7 +277,7 @@ class ResearchExportBuilderTest {
         )
         assertTrue(
             "the file must say the window ends on the export date",
-            export.missingDataStatement.contains("ends on the export date"),
+            export.missingDataStatement.contains("export date"),
         )
         // The document has to say it reported on nothing, rather than
         // leaving an empty list to read as perfect adherence. A phone with
@@ -301,16 +305,16 @@ class ResearchExportBuilderTest {
         )
     }
 
-    /** Generous for any fixture here, and orders of magnitude below a clamp artefact. */
+    /** Generous for any fixture here, and orders of magnitude below the runaway reports the window rule exists to prevent. */
     private val MAX_PLAUSIBLE_REPORT_ROWS = 400
 
     @Test
     fun anAbsurdStoredDateDoesNotCrashTheExport() = runBlocking {
         seedADayOfRecords()
         // One row stamped a thousand years ago -- a corrupt restore, or a
-        // clock that was wrong when it was written. Without the window
-        // clamp this asks for four hundred thousand records and throws,
-        // and an export that throws leaves a zero-byte file behind.
+        // clock that was wrong when it was written. Before the window rule
+        // this asked for four hundred thousand records and threw, and an
+        // export that throws leaves a zero-byte file behind.
         database.journal().upsertEntries(
             listOf(
                 org.mindanchor.data.db.JournalEntryEntity(

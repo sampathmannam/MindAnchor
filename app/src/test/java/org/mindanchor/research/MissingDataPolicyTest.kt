@@ -314,9 +314,10 @@ class MissingDataPolicyTest {
     fun `the window never runs backwards and never exceeds the policy maximum`() {
         val window = requireNotNull(
             MissingDataPolicy.windowFor(
-                // Far apart, but each within a lifetime of the export date,
-                // so both survive the plausibility filter and the span has
-                // to be bounded by the clamp rather than by the filter.
+                // The old record is beyond the reach and filtered out; the
+                // window that remains is a single day. The span bound holds
+                // by construction now -- start is a plausible record, and
+                // plausible means within the reach of the export date.
                 recordDates = listOf("1930-01-01", "2026-08-29").map(LocalDate::parse),
                 exportDate = LocalDate.parse("2026-08-29"),
             ),

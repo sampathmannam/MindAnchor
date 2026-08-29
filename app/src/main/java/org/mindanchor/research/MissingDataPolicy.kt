@@ -76,13 +76,14 @@ object MissingDataPolicy {
     const val STATEMENT =
         "Nothing is imputed, interpolated, carried forward, or filled in. " +
             "Every absence in the reported window is listed with a reason. " +
-            "The window is stated in this file: it ends on the export date — " +
-            "never after it, because a day that has not happened cannot be " +
-            "missing — and reaches back about ten years. When no record " +
-            "falls inside it the window is absent and no absence is " +
-            "reported, which is not the same as having missed nothing. " +
-            "Records dated outside the window are excluded from it and from " +
-            "the reasons given inside it, and still appear in the data."
+            "The window is stated in this file, in the exporting device\u2019s " +
+            "local dates: it ends on the device\u2019s export date — never after " +
+            "it, because a day that has not happened cannot be missing — and " +
+            "reaches back about ten years. When no record could be an " +
+            "observation, the window is absent and no absence is reported, " +
+            "which is not the same as having missed nothing. Records dated " +
+            "outside the window are excluded from it and from the reasons " +
+            "given inside it, and still appear in the data."
 
     /** The morning research measure, one per local date. */
     const val VARIABLE_MORNING_MEASURE = "morning_measure"
