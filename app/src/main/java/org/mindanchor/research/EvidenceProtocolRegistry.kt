@@ -56,9 +56,31 @@ class EvidenceProtocolRegistry private constructor(val protocols: List<EvidenceP
 
     companion object {
 
-        private val json = Json { encodeDefaults = true }
+        /**
+         * Pinned: this configuration is part of the definition hash. Adding
+         * `prettyPrint`, changing `encodeDefaults`, or renaming a field of
+         * [CanonicalProtocol] changes every `definitionSha256` and
+         * `catalogSha256` without any protocol having changed. Treat such a
+         * change the way a wire-format change is treated — the catalogue
+         * freeze test in `EvidenceProtocolCatalogTest` goes red, and the
+         * answer is a protocol version bump, not a re-pinned constant.
+         */
+        private val json = Json {
+            encodeDefaults = true
+            prettyPrint = false
+            explicitNulls = true
+        }
 
         private val ID_PATTERN = Regex("^[a-z][a-z0-9]*(-[a-z0-9]+)*$")
+
+        /**
+         * A reference has to be something a reader can actually follow.
+         * Without this, `reference = "trust me"` passes, and the field
+         * whose whole purpose is verifiability becomes the one taken on
+         * trust — which is also the practical way round the excluded
+         * source types.
+         */
+        private val REFERENCE_PATTERN = Regex("""^(https?://\S+|10\.\d{4,9}/\S+)$""")
 
         /**
          * Checks [protocol] against §4.4's contract and returns the first
@@ -89,6 +111,14 @@ class EvidenceProtocolRegistry private constructor(val protocols: List<EvidenceP
             if (protocol.maxDurationSeconds <= 0) {
                 return ProtocolValidation.Invalid("maxDurationSeconds", "must be positive")
             }
+            // Cross-field: a protocol whose steps cannot fit inside its own
+            // maximum describes a run that can never complete.
+            if (protocol.steps.sumOf { it.durationSeconds.toLong() } > protocol.maxDurationSeconds.toLong()) {
+                return ProtocolValidation.Invalid(
+                    "maxDurationSeconds",
+                    "must be at least the sum of the step durations",
+                )
+            }
             if (protocol.stopRules.isEmpty()) {
                 return ProtocolValidation.Invalid("stopRules", "must name at least one stop rule")
             }
@@ -113,21 +143,49 @@ class EvidenceProtocolRegistry private constructor(val protocols: List<EvidenceP
             sha256Hex(json.encodeToString(canonical(protocol)))
 
         /**
-         * @throws IllegalArgumentException on the first invalid protocol or
-         *   duplicate `(id, version)`. There is no partial registration.
+         * Copies [protocols] defensively. A `List` in Kotlin is read-only,
+         * not immutable — holding the caller's reference would let a
+         * caller append an unvalidated protocol after registration and,
+         * because [catalogSha256] is lazy, have the catalogue report a
+         * hash computed before the mutation. That is exactly the
+         * "changed without a version bump, undetected" failure the hash
+         * exists to prevent.
+         *
+         * @throws IllegalArgumentException if [protocols] is empty, on the
+         *   first invalid protocol, or on a duplicate `(id, version)`.
+         *   There is no partial registration.
          */
         fun of(protocols: List<EvidenceProtocol>): EvidenceProtocolRegistry {
-            protocols.forEach { protocol ->
+            require(protocols.isNotEmpty()) {
+                "an empty registry would still produce a plausible-looking catalogue hash"
+            }
+            // The message is built where the smart cast is available, not
+            // inside `require`'s lambda: downcasting there would throw a
+            // ClassCastException instead of the diagnostic if
+            // ProtocolValidation ever gained a third case.
+            val firstFailure = protocols.firstNotNullOfOrNull { protocol ->
                 val result = validate(protocol)
-                require(result is ProtocolValidation.Valid) {
-                    val invalid = result as ProtocolValidation.Invalid
-                    "protocol '${protocol.id}' is not registrable: ${invalid.field} ${invalid.reason}"
+                if (result is ProtocolValidation.Invalid) {
+                    "protocol '${protocol.id}' is not registrable: ${result.field} ${result.reason}"
+                } else {
+                    null
                 }
             }
-            val keys = protocols.map { "${it.id}@${it.version}" }
-            val duplicate = keys.groupingBy { it }.eachCount().entries.firstOrNull { it.value > 1 }
-            require(duplicate == null) { "duplicate protocol registration: ${duplicate?.key}" }
-            return EvidenceProtocolRegistry(protocols)
+            require(firstFailure == null) { firstFailure.orEmpty() }
+
+            // The `id@version` line format below is also the catalogue
+            // hash's line format; ID_PATTERN excludes ':' and newlines,
+            // which is what keeps those lines unambiguous.
+            val duplicateKey = protocols
+                .map { "${it.id}@${it.version}" }
+                .groupingBy { it }
+                .eachCount()
+                .entries
+                .firstOrNull { it.value > 1 }
+                ?.key
+            require(duplicateKey == null) { "duplicate protocol registration: $duplicateKey" }
+
+            return EvidenceProtocolRegistry(protocols.toList())
         }
 
         private fun blankFailure(field: String, value: String): ProtocolValidation.Invalid? =
@@ -144,6 +202,11 @@ class EvidenceProtocolRegistry private constructor(val protocols: List<EvidenceP
                 ProtocolValidation.Invalid("evidenceSources", "must cite at least one source")
             sources.any { it.citation.isBlank() || it.reference.isBlank() } ->
                 ProtocolValidation.Invalid("evidenceSources", "every source needs a citation and a reference")
+            sources.any { !REFERENCE_PATTERN.containsMatchIn(it.reference) } ->
+                ProtocolValidation.Invalid(
+                    "evidenceSources",
+                    "every reference must be a resolvable URL or DOI a reader can check",
+                )
             sources.any { !it.sourceType.isPermitted } ->
                 ProtocolValidation.Invalid(
                     "evidenceSources",

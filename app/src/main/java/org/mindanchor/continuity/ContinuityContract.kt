@@ -3,40 +3,49 @@ package org.mindanchor.continuity
 /**
  * The wire constants backup, restore, and the research export all agree on.
  *
- * Versions here are **additive, never rewritten**. Program 1 bumped the
- * snapshot payload and the research export shape, so both carry a new
- * current version and keep Program 0's version in the supported set
- * forever: a checkpoint or export file written months ago must still
- * decode, restore, and verify on today's build.
+ * Versions here are **additive, never rewritten**: a checkpoint or export
+ * file written months ago must still decode, restore, and verify on
+ * today's build, so an old version is retired from
+ * [SUPPORTED_SNAPSHOT_FORMAT_VERSIONS] never — only added to.
+ *
+ * A version constant moves in the **same commit** as the shape it
+ * describes, never ahead of it. A build that stamps a format version its
+ * payload does not actually have has destroyed the one discriminator a
+ * later reader would need to interpret the file correctly.
  */
 object ContinuityContract {
 
-    /** The snapshot payload shape this build writes. */
-    const val SNAPSHOT_FORMAT_VERSION = 2
+    /**
+     * The snapshot payload shape this build writes.
+     *
+     * Program 1 raises this to 2 in the same commit that appends the
+     * research ledger and study phase lists to [ContinuityPayload].
+     */
+    const val SNAPSHOT_FORMAT_VERSION = 1
 
-    /** Program 0's snapshot payload shape. Still readable, still verifiable. */
+    /**
+     * Program 0's snapshot payload shape — the ten-field payload whose
+     * content hash [ContinuityContentHasher] freezes. Named separately
+     * from [SNAPSHOT_FORMAT_VERSION] because the two diverge as soon as
+     * Program 1 appends its fields, and every existing encrypted
+     * checkpoint on the user's Drive is this one.
+     */
     const val PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION = 1
 
     /** Every snapshot payload shape this build can decode and content-hash. */
-    val SUPPORTED_SNAPSHOT_FORMAT_VERSIONS =
-        setOf(PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION, SNAPSHOT_FORMAT_VERSION)
+    val SUPPORTED_SNAPSHOT_FORMAT_VERSIONS = setOf(PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION)
 
-    /** The encrypted envelope shape. Program 1 did not change it. */
+    /** The encrypted envelope shape. Program 1 does not change it. */
     const val ENVELOPE_FORMAT_VERSION = 1
 
     const val LATEST_FILE_NAME = "MindAnchor-Continuity-Latest.mab"
 
     /**
-     * The research export's single version identifier. It versions the data
-     * dictionary and the export document shape together, because the design
-     * freezes them together — a dictionary change is an export change.
+     * The research export's version identifier. It versions the data
+     * dictionary and the export document shape together, because the
+     * design freezes them together — a dictionary change is an export
+     * change. Program 1 raises this in the same commit that changes the
+     * export document.
      */
-    const val RESEARCH_DICTIONARY_VERSION = "mindanchor-research-v2"
-
-    /** Program 0's research export version. */
-    const val PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION = "mindanchor-research-v1"
-
-    /** Every research export version this build can decode and content-hash. */
-    val SUPPORTED_RESEARCH_DICTIONARY_VERSIONS =
-        setOf(PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION, RESEARCH_DICTIONARY_VERSION)
+    const val RESEARCH_DICTIONARY_VERSION = "mindanchor-research-v1"
 }

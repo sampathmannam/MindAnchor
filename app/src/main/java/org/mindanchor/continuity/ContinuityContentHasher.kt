@@ -17,21 +17,27 @@ import org.mindanchor.backup.BackupCodec
  * same hash, so list order and the legacy backup's own embedded save
  * timestamp are also normalised away before hashing.
  *
- * ## Why the hash is versioned
+ * ## Why the hash takes a format version
  *
- * Program 1 appended two lists to [ContinuityPayload]. Serialising with
+ * Program 1 will append two lists to [ContinuityPayload]. Serialising with
  * `encodeDefaults = true` writes those fields even when both lists are
- * empty, so a single unversioned hash function would have changed the
- * digest of every payload in existence — and with it, the verification
- * step of every encrypted checkpoint a Program 0 build ever wrote. A
- * replacement phone restoring such a checkpoint would have merged the data
- * correctly and then reported `VerifyMismatch`.
+ * empty, so a single unversioned hash function would change the digest of
+ * every payload in existence — and with it, the verification step of every
+ * encrypted checkpoint a Program 0 build ever wrote. A replacement phone
+ * restoring such a checkpoint would merge the data correctly and then
+ * report `VerifyMismatch`.
  *
  * So [hash] projects the payload onto the field set of the requested
- * format version before digesting it: version 1 serialises exactly the ten
- * fields Program 0 had, version 2 serialises all twelve. Callers verifying
- * a staged snapshot pass **that snapshot's own** `formatVersion`, not the
- * current one.
+ * format version before digesting it. [ContinuityPayloadV1] is that
+ * projection for Program 0's ten fields, and it is frozen: the golden test
+ * in `ContinuityHashVersionTest` pins both its field order and the digest
+ * of a fully populated fixture.
+ *
+ * A caller verifying a staged snapshot must pass **that snapshot's own**
+ * `formatVersion`, not the current one. Today every payload in existence
+ * is version 1 and [RestoreCoordinator] relies on the default, which is
+ * correct; the plan's Task 10 threads the staged snapshot's version
+ * through in the same commit that makes the two versions differ.
  */
 object ContinuityContentHasher {
 
@@ -42,9 +48,7 @@ object ContinuityContentHasher {
      * Journal/context/measure/change rows sort lexicographically by their
      * string id; notes sort numerically by id; letters and read dates sort
      * lexicographically by their ISO date string (which sorts correctly
-     * for `yyyy-MM-dd`); package lists sort lexicographically; ledger
-     * events sort by sequence then id and study phases by ordinal then id,
-     * which is both their natural order and a total one. Exposed so
+     * for `yyyy-MM-dd`); package lists sort lexicographically. Exposed so
      * [ContinuitySnapshotRepository] can build an already-canonical payload
      * before computing [hash], rather than duplicating the sort keys.
      */
@@ -65,8 +69,9 @@ object ContinuityContentHasher {
      * [formatVersion]'s field set.
      *
      * @throws IllegalArgumentException if [formatVersion] is not one this
-     *   build knows how to project onto — better a loud failure than a
-     *   hash silently computed over the wrong shape.
+     *   build supports, and [IllegalStateException] if it is supported but
+     *   has no projection. Both are loud on purpose: a hash silently
+     *   computed over the wrong shape is undetectable later.
      */
     fun hash(
         payload: ContinuityPayload,
@@ -77,8 +82,9 @@ object ContinuityContentHasher {
         }
         val canonical = canonicalize(payload)
         val text = when (formatVersion) {
-            ContinuityContract.PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION -> json.encodeToString(projectV1(canonical))
-            else -> json.encodeToString(canonical)
+            ContinuityContract.PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION ->
+                json.encodeToString(projectV1(canonical))
+            else -> error("no canonical projection for snapshot format version $formatVersion")
         }
         val digest = MessageDigest.getInstance("SHA-256").digest(text.encodeToByteArray())
         return digest.joinToString(separator = "") { "%02x".format(it) }
@@ -108,6 +114,16 @@ object ContinuityContentHasher {
      * raw text unchanged if it does not parse as a legacy backup — the
      * hash should still be deterministic for the same raw string, just
      * without the timestamp normalisation.
+     *
+     * CRITICAL: this re-encodes through today's [BackupCodec.Backup], so
+     * **appending a field to that class changes the content hash of every
+     * continuity snapshot ever written**, whatever
+     * [ContinuityContract.SNAPSHOT_FORMAT_VERSION] says. `Backup` has
+     * grown fields before (`checkIns`, `readings`, `corpusAdditions`,
+     * `inferred`). If it must grow again, treat that as a continuity
+     * format change: `ContinuityHashVersionTest`'s golden will go red, and
+     * the fix is a new snapshot format version with its own projection,
+     * not a re-pinned constant.
      */
     private fun normalizeLegacyBackup(raw: String): String {
         if (raw.isBlank()) return raw
@@ -115,7 +131,7 @@ object ContinuityContentHasher {
         return BackupCodec.encode(backup.copy(savedAt = 0L))
     }
 
-    private fun projectV1(payload: ContinuityPayload): V1Payload = V1Payload(
+    private fun projectV1(payload: ContinuityPayload): ContinuityPayloadV1 = ContinuityPayloadV1(
         journalEntries = payload.journalEntries,
         contextRows = payload.contextRows,
         morningMeasures = payload.morningMeasures,
@@ -127,27 +143,31 @@ object ContinuityContentHasher {
         continuityChanges = payload.continuityChanges,
         legacyBackupJson = payload.legacyBackupJson,
     )
-
-    /**
-     * Program 0's payload field set, in Program 0's declaration order.
-     *
-     * Both properties matter: kotlinx.serialization writes JSON object
-     * keys in declaration order, so reordering these lines would change
-     * every Program 0 hash as surely as adding a field would. Nothing may
-     * be added to, removed from, or reordered within this class — it
-     * describes a shape that already shipped.
-     */
-    @Serializable
-    private data class V1Payload(
-        val journalEntries: List<JournalEntryDto>,
-        val contextRows: List<JournalContextDto>,
-        val morningMeasures: List<MorningMeasureDto>,
-        val notes: List<NoteDto>,
-        val letters: List<LetterDto>,
-        val readLetterDates: List<String>,
-        val frictionedApps: List<String>,
-        val alwaysOpenApps: List<String>,
-        val continuityChanges: List<ContinuityChangeDto>,
-        val legacyBackupJson: String,
-    )
 }
+
+/**
+ * Program 0's payload field set, in Program 0's declaration order.
+ *
+ * Both properties matter: kotlinx.serialization writes JSON object keys in
+ * declaration order, so reordering these lines would change every Program 0
+ * hash as surely as adding a field would. Nothing may be added to, removed
+ * from, or reordered within this class — it describes a shape that already
+ * shipped, and `ContinuityHashVersionTest` asserts its element names
+ * against a literal list for exactly that reason.
+ *
+ * `internal` rather than private so that test can read the shape directly
+ * instead of inferring it from a digest it also generated.
+ */
+@Serializable
+internal data class ContinuityPayloadV1(
+    val journalEntries: List<JournalEntryDto>,
+    val contextRows: List<JournalContextDto>,
+    val morningMeasures: List<MorningMeasureDto>,
+    val notes: List<NoteDto>,
+    val letters: List<LetterDto>,
+    val readLetterDates: List<String>,
+    val frictionedApps: List<String>,
+    val alwaysOpenApps: List<String>,
+    val continuityChanges: List<ContinuityChangeDto>,
+    val legacyBackupJson: String,
+)

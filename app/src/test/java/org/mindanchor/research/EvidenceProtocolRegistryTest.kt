@@ -253,6 +253,116 @@ class EvidenceProtocolRegistryTest {
     }
 
     @Test
+    fun `an unresolvable reference is rejected`() {
+        val base = validProtocol()
+        listOf("trust me", "see the book", "doi", "www.example.com", "10.1234").forEach { bad ->
+            assertInvalid(
+                "evidenceSources",
+                base.copy(evidenceSources = base.evidenceSources.map { it.copy(reference = bad) }),
+            )
+        }
+        listOf("https://doi.org/10.0000/example", "http://example.org/a", "10.1016/j.xcrm.2022.100895")
+            .forEach { good ->
+                assertEquals(
+                    "$good must be accepted",
+                    ProtocolValidation.Valid,
+                    EvidenceProtocolRegistry.validate(
+                        base.copy(evidenceSources = base.evidenceSources.map { it.copy(reference = good) }),
+                    ),
+                )
+            }
+    }
+
+    @Test
+    fun `steps that cannot fit inside the maximum are rejected`() {
+        val base = validProtocol()
+        assertInvalid(
+            "maxDurationSeconds",
+            base.copy(
+                maxDurationSeconds = 5,
+                steps = listOf(ProtocolStep(1, "In.", 3), ProtocolStep(2, "Out.", 4)),
+            ),
+        )
+        assertEquals(
+            ProtocolValidation.Valid,
+            EvidenceProtocolRegistry.validate(
+                base.copy(
+                    maxDurationSeconds = 7,
+                    steps = listOf(ProtocolStep(1, "In.", 3), ProtocolStep(2, "Out.", 4)),
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun `a step duration that would overflow an Int sum is still rejected`() {
+        val base = validProtocol()
+        assertInvalid(
+            "maxDurationSeconds",
+            base.copy(
+                maxDurationSeconds = 300,
+                steps = listOf(
+                    ProtocolStep(1, "In.", Int.MAX_VALUE),
+                    ProtocolStep(2, "Out.", Int.MAX_VALUE),
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun `every declared field is covered by a validation rule`() {
+        val base = validProtocol()
+        // clinicalReviewStatus is deliberately recorded rather than
+        // validated: no code may decide on an author's behalf that a
+        // clinician has reviewed something. EvidenceProtocolCatalogTest
+        // asserts the seeded catalogue is NOT_REVIEWED instead.
+        val exempt = setOf("clinicalReviewStatus")
+        val covered = listOf(
+            base.copy(id = "Bad Id"),
+            base.copy(version = 0),
+            base.copy(targetState = ""),
+            base.copy(intendedPopulation = ""),
+            base.copy(exclusions = emptyList()),
+            base.copy(evidenceSources = emptyList()),
+            base.copy(mechanism = ""),
+            base.copy(expectedOutcome = ""),
+            base.copy(eligibilityRules = emptyList()),
+            base.copy(contraindicationRules = emptyList()),
+            base.copy(steps = emptyList()),
+            base.copy(permittedModalities = emptySet()),
+            base.copy(maxDurationSeconds = 0),
+            base.copy(stopRules = emptySet()),
+            base.copy(cooldownSeconds = -1),
+            base.copy(outcomeWindowSeconds = 0),
+            base.copy(successInterpretation = ""),
+            base.copy(userFacingExplanation = ""),
+        ).map { (EvidenceProtocolRegistry.validate(it) as ProtocolValidation.Invalid).field }.toSet()
+
+        val declared = EvidenceProtocol::class.java.declaredFields
+            .filter { !it.isSynthetic && !Modifier.isStatic(it.modifiers) }
+            .map { it.name }
+            .toSet()
+        assertEquals(
+            "a field added to EvidenceProtocol needs a validation rule (or an explicit exemption)",
+            declared - exempt,
+            covered,
+        )
+    }
+
+    @Test
+    fun `an empty registry is refused`() {
+        assertThrows(IllegalArgumentException::class.java) { EvidenceProtocolRegistry.of(emptyList()) }
+    }
+
+    @Test
+    fun `a registry does not share the caller's list`() {
+        val supplied = mutableListOf(validProtocol())
+        val registry = EvidenceProtocolRegistry.of(supplied)
+        supplied.add(validProtocol().copy(id = "smuggled-protocol", evidenceSources = emptyList()))
+        assertEquals(listOf("example-protocol"), registry.protocols.map { it.id })
+    }
+
+    @Test
     fun `a catalog hash is stable and order-independent`() {
         val a = validProtocol()
         val b = validProtocol().copy(id = "other-protocol")

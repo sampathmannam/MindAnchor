@@ -1,45 +1,56 @@
 package org.mindanchor.research
 
 import java.lang.reflect.Modifier
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.descriptors.elementNames
+import kotlinx.serialization.serializer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 /**
  * Program 1 Task 4 — the research ledger's immutability is a property a
  * reader can check, not a claim they have to accept. Every test here
  * either proves the chain links deterministically or proves a specific
- * kind of tampering is detected.
+ * kind of tampering is detected — including the one kind that is *not*
+ * detectable without an anchor, which is asserted explicitly so the limit
+ * stays documented rather than discovered.
  */
+@OptIn(ExperimentalSerializationApi::class)
 class LedgerChainTest {
 
-    private fun unlinked(
-        sequence: Long = 1L,
-        kind: LedgerEventKind = LedgerEventKind.EXERCISE,
-        occurredAt: Long = 1_000L,
-        recordedAt: Long = 1_050L,
-        localDate: String = "2026-08-29",
-        studyPhaseId: String = "phase-0",
-        sourceDeviceId: String = "device-a",
-        note: String = "morning run",
-        payloadJson: String = "{}",
-    ) = UnlinkedLedgerEvent(
-        sequence = sequence,
-        kind = kind,
-        occurredAt = occurredAt,
-        recordedAt = recordedAt,
-        localDate = localDate,
-        studyPhaseId = studyPhaseId,
-        sourceDeviceId = sourceDeviceId,
-        note = note,
-        payloadJson = payloadJson,
+    private val base = UnlinkedLedgerEvent(
+        sequence = 1L,
+        kind = LedgerEventKind.EXERCISE,
+        occurredAt = 1_000L,
+        recordedAt = 1_050L,
+        localDate = "2026-08-29",
+        studyPhaseId = "phase-0",
+        sourceDeviceId = "device-a",
+        note = "morning run",
+        payloadJson = "{}",
+    )
+
+    /** Program 1's canonical ledger field order. This list is wire format; it does not change. */
+    private val canonicalFields = listOf(
+        "sequence",
+        "kind",
+        "occurredAt",
+        "recordedAt",
+        "localDate",
+        "studyPhaseId",
+        "sourceDeviceId",
+        "note",
+        "payloadJson",
+        "previousEventHash",
     )
 
     private fun chainOf(count: Int): List<ResearchLedgerEvent> {
         val events = mutableListOf<ResearchLedgerEvent>()
         repeat(count) { index ->
             events += LedgerChain.link(
-                unlinked(sequence = index + 1L, occurredAt = 1_000L + index, note = "note $index"),
+                base.copy(sequence = index + 1L, occurredAt = 1_000L + index, note = "note $index"),
                 LedgerChain.headHash(events),
             )
         }
@@ -47,23 +58,31 @@ class LedgerChainTest {
     }
 
     @Test
-    fun `linking is deterministic`() {
-        val event = unlinked()
+    fun `the ledger event hash is frozen`() {
         assertEquals(
-            LedgerChain.link(event, "abc").eventHash,
-            LedgerChain.link(event, "abc").eventHash,
+            "8776708ede27c3b98cda032f4b7f4426e378bc62b3a93b3b98dea9bad8e1dc49",
+            LedgerChain.link(base, LedgerChain.GENESIS_PREVIOUS_HASH).eventHash,
         )
     }
 
     @Test
+    fun `the canonical form serialises exactly the frozen field order`() {
+        assertEquals(canonicalFields, serializer<LedgerCanonicalEvent>().descriptor.elementNames.toList())
+    }
+
+    @Test
+    fun `linking is deterministic`() {
+        assertEquals(LedgerChain.link(base, "abc").eventHash, LedgerChain.link(base, "abc").eventHash)
+    }
+
+    @Test
     fun `the event id is the event hash`() {
-        val linked = LedgerChain.link(unlinked(), LedgerChain.GENESIS_PREVIOUS_HASH)
+        val linked = LedgerChain.link(base, LedgerChain.GENESIS_PREVIOUS_HASH)
         assertEquals(linked.eventHash, linked.id)
     }
 
     @Test
     fun `every field of the event changes the hash`() {
-        val base = unlinked()
         val mutations: List<Pair<String, UnlinkedLedgerEvent>> = listOf(
             "sequence" to base.copy(sequence = 2L),
             "kind" to base.copy(kind = LedgerEventKind.ILLNESS),
@@ -92,8 +111,15 @@ class LedgerChainTest {
     }
 
     @Test
+    fun `the note and the payload cannot be confused for each other`() {
+        assertNotEquals(
+            LedgerChain.link(base.copy(note = "a", payloadJson = "bc"), "abc").eventHash,
+            LedgerChain.link(base.copy(note = "ab", payloadJson = "c"), "abc").eventHash,
+        )
+    }
+
+    @Test
     fun `the previous hash changes the event hash`() {
-        val base = unlinked()
         assertNotEquals(
             LedgerChain.link(base, LedgerChain.GENESIS_PREVIOUS_HASH).eventHash,
             LedgerChain.link(base, "abc").eventHash,
@@ -101,18 +127,48 @@ class LedgerChainTest {
     }
 
     @Test
+    fun `an out of range sequence is refused`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            LedgerChain.link(base.copy(sequence = 0L), LedgerChain.GENESIS_PREVIOUS_HASH)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            LedgerChain.link(base.copy(sequence = -1L), LedgerChain.GENESIS_PREVIOUS_HASH)
+        }
+    }
+
+    @Test
+    fun `an over long note is refused`() {
+        assertEquals(
+            MAX_LEDGER_NOTE_LENGTH,
+            LedgerChain.link(
+                base.copy(note = "x".repeat(MAX_LEDGER_NOTE_LENGTH)),
+                LedgerChain.GENESIS_PREVIOUS_HASH,
+            ).note.length,
+        )
+        assertThrows(IllegalArgumentException::class.java) {
+            LedgerChain.link(
+                base.copy(note = "x".repeat(MAX_LEDGER_NOTE_LENGTH + 1)),
+                LedgerChain.GENESIS_PREVIOUS_HASH,
+            )
+        }
+    }
+
+    @Test
     fun `an empty chain is vacuously intact`() {
         assertEquals(LedgerIntegrity.VERIFIED, LedgerChain.verify(emptyList()))
         assertEquals("", LedgerChain.headHash(emptyList()))
         assertEquals(1L, LedgerChain.nextSequence(emptyList()))
+        assertEquals(LedgerAnchor("", 0), LedgerChain.anchorOf(emptyList()))
     }
 
     @Test
     fun `a well formed chain verifies`() {
         val chain = chainOf(3)
         assertEquals(LedgerIntegrity.VERIFIED, LedgerChain.verify(chain))
+        assertEquals(LedgerIntegrity.VERIFIED, LedgerChain.verify(chain, LedgerChain.anchorOf(chain)))
         assertEquals(chain.last().eventHash, LedgerChain.headHash(chain))
         assertEquals(4L, LedgerChain.nextSequence(chain))
+        assertEquals(3, LedgerChain.anchorOf(chain).eventCount)
     }
 
     @Test
@@ -137,9 +193,36 @@ class LedgerChainTest {
     }
 
     @Test
-    fun `deleting an event is detected`() {
+    fun `deleting an interior event is detected`() {
         val chain = chainOf(3)
         assertEquals(LedgerIntegrity.BROKEN, LedgerChain.verify(listOf(chain[0], chain[2])))
+    }
+
+    @Test
+    fun `truncating the newest events needs an anchor to detect`() {
+        val chain = chainOf(3)
+        val truncated = chain.dropLast(1)
+        // The documented limit: what is left is a shorter but perfectly
+        // self-consistent chain, so the chain alone cannot see the loss.
+        assertEquals(LedgerIntegrity.VERIFIED, LedgerChain.verify(truncated))
+        // With the anchor recorded before the truncation, it is obvious.
+        assertEquals(
+            LedgerIntegrity.BROKEN,
+            LedgerChain.verify(truncated, LedgerChain.anchorOf(chain)),
+        )
+        assertEquals(
+            LedgerIntegrity.BROKEN,
+            LedgerChain.verify(emptyList(), LedgerChain.anchorOf(chain)),
+        )
+    }
+
+    @Test
+    fun `an anchor with the right count but the wrong head is detected`() {
+        val chain = chainOf(2)
+        assertEquals(
+            LedgerIntegrity.BROKEN,
+            LedgerChain.verify(chain, LedgerAnchor(headHash = "someone-elses-head", eventCount = 2)),
+        )
     }
 
     @Test
@@ -149,14 +232,19 @@ class LedgerChainTest {
     }
 
     @Test
-    fun `a duplicated sequence number is detected`() {
+    fun `two different events at the same sequence are detected`() {
         val chain = chainOf(2)
-        assertEquals(LedgerIntegrity.BROKEN, LedgerChain.verify(listOf(chain[0], chain[0])))
+        val fork = LedgerChain.link(
+            base.copy(sequence = 2L, occurredAt = 9_999L, note = "a forked event"),
+            chain[0].eventHash,
+        )
+        assertNotEquals(chain[1].id, fork.id)
+        assertEquals(LedgerIntegrity.BROKEN, LedgerChain.verify(listOf(chain[0], chain[1], fork)))
     }
 
     @Test
     fun `a non empty genesis previous hash is detected`() {
-        val forged = LedgerChain.link(unlinked(), "not-genesis")
+        val forged = LedgerChain.link(base, "not-genesis")
         assertEquals(LedgerIntegrity.BROKEN, LedgerChain.verify(listOf(forged)))
     }
 
@@ -164,9 +252,13 @@ class LedgerChainTest {
     fun `a broken link between two intact events is detected`() {
         val chain = chainOf(2).toMutableList()
         val relinked = LedgerChain.link(
-            unlinked(sequence = 2L, occurredAt = 1_001L, note = "note 1"),
+            base.copy(sequence = 2L, occurredAt = 1_001L, note = "note 1"),
             "a-different-previous-hash",
         )
+        // The premise: same event contents, different predecessor. If
+        // chainOf ever changes shape this assertion fails rather than the
+        // test silently degrading into a weaker one.
+        assertEquals(chain[1].unlinked(), relinked.unlinked())
         chain[1] = relinked
         assertEquals(LedgerIntegrity.BROKEN, LedgerChain.verify(chain))
     }
@@ -196,10 +288,5 @@ class LedgerChainTest {
             ),
             LedgerEventKind.entries.filter { it.isSelfReported }.toSet(),
         )
-    }
-
-    @Test
-    fun `the note cap is stated once`() {
-        assertEquals(500, MAX_LEDGER_NOTE_LENGTH)
     }
 }

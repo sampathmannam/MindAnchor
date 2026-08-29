@@ -93,6 +93,14 @@ data class ProtocolStep(val ordinal: Int, val instruction: String, val durationS
  *
  * Program 1 only *records* protocols. Nothing here is selected, sequenced,
  * scheduled, delivered, or played; that begins in Programs 3–5.
+ *
+ * `@Serializable` here exists so a protocol can be written into the
+ * research export document. It is deliberately **not** what
+ * [EvidenceProtocolRegistry.definitionSha256] hashes: this class holds
+ * `Set` fields, whose iteration order is not a content property, so
+ * hashing its serialization directly would produce a
+ * declaration-order-dependent digest. Hash through
+ * `definitionSha256` and nothing else.
  */
 @Serializable
 data class EvidenceProtocol(
