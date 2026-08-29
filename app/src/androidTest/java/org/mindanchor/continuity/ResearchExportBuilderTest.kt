@@ -243,25 +243,37 @@ class ResearchExportBuilderTest {
     }
 
     @Test
-    fun aClockBehindTheNewestRecordStillReportsEveryAbsence() = runBlocking {
+    fun aClockBeforeEveryRecordReportsNoAbsenceRatherThanInventingOne() = runBlocking {
         seedADayOfRecords()
-        // A later record with no measure of its own, so there is a genuine
-        // absence to miss.
         testLedgerRepository(context, database)
             .record(LedgerEventKind.ILLNESS, occurredAt = dayThree, note = "", now = dayThree)
 
-        // "now" is days before the newest record, as it would be after
-        // timezone travel or a manual clock change. Reporting nothing here
-        // while the document still says every absence is listed would be a
-        // lie indistinguishable from a person who had missed nothing.
+        // "now" is days before every record, as it would be after timezone
+        // travel or a manual clock change.
+        //
+        // This test previously asserted the opposite: that the window ran
+        // on to the newest record, so nothing was missed. That produced
+        // absences dated *after* the export date -- days that had not
+        // happened when the file was written -- which is the one thing
+        // this policy exists to never do. Under-reporting is the smaller
+        // wrong, and the statement carried in the file says the window
+        // ends on the export date, so the document does not overclaim.
         val export = build(now = dayOne - 2 * 86_400_000L)
 
-        assertEquals(
-            "the window must run to the newest record, not to a clock that is behind it",
-            listOf("2026-08-28", "2026-08-29"),
-            export.missingData
-                .filter { it.variable == MissingDataPolicy.VARIABLE_MORNING_MEASURE }
-                .map { it.localDate },
+        assertTrue(
+            "no absence may be dated after the export date",
+            export.missingData.none { it.localDate > "2026-08-25" },
+        )
+        // The records themselves are untouched: only the derived report
+        // declines to describe a window it cannot vouch for.
+        assertTrue("the journal entry must still be exported", export.journalEntries.isNotEmpty())
+        assertTrue(
+            "the illness the person logged must still be exported",
+            export.ledgerEvents.any { it.kind == LedgerEventKind.ILLNESS.name },
+        )
+        assertTrue(
+            "the file must say the window ends on the export date",
+            export.missingDataStatement.contains("ends on the export date"),
         )
         assertTrue(ResearchExportCodec.verify(export))
     }
