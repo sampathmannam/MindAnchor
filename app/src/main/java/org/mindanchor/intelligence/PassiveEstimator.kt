@@ -1,7 +1,7 @@
 package org.mindanchor.intelligence
 
 object PassiveEstimator {
-    const val RULE_VERSION = "passive-observation-rules-v5"
+    const val RULE_VERSION = "passive-observation-rules-v6"
 
     @Suppress("ReturnCount")
     fun observe(
@@ -81,23 +81,14 @@ object PassiveEstimator {
             day.baselineSegment,
         ).filter { it.dataStatus.canEstimate }
         val previousEligible = eligiblePrior.takeLast(2)
-        val comparablePrior = when (baselineShift?.comparisonPopulation) {
-            BaselineComparisonPopulation.POOLED -> eligiblePrior
-            BaselineComparisonPopulation.WEEKDAY -> eligiblePrior.filter {
-                it.day.dayOfWeek.value < PassiveBaselineBuilder.WEEKEND_START_DAY
-            }
-            BaselineComparisonPopulation.WEEKEND -> eligiblePrior.filter {
-                it.day.dayOfWeek.value >= PassiveBaselineBuilder.WEEKEND_START_DAY
-            }
-            null -> emptyList()
-        }
+        val comparisonPopulation = baselineShift?.comparisonPopulation
+        val comparablePrior = comparisonPopulation?.let { population ->
+            eligiblePrior.filter { it.baselineShift?.comparisonPopulation == population }
+        }.orEmpty()
         val priorCandidateDays = comparablePrior.takeLast(BaselineShiftDetector.PERSISTENCE_DAYS - 1)
         val persistentBaselineShift = baselineShift?.disagrees == true &&
             priorCandidateDays.size == BaselineShiftDetector.PERSISTENCE_DAYS - 1 &&
-            priorCandidateDays.all {
-                it.baselineShift?.comparisonPopulation == baselineShift.comparisonPopulation &&
-                    it.baselineShift.disagrees
-            }
+            priorCandidateDays.all { it.baselineShift?.disagrees == true }
         return when {
             persistentBaselineShift -> PassiveObservationState.BASELINE_SHIFT_CANDIDATE
             crossed && previousEligible.any { it.crossed } -> PassiveObservationState.SUSTAINED_DEVIATION

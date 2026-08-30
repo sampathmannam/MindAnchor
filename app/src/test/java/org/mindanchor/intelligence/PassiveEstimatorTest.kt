@@ -259,6 +259,61 @@ class PassiveEstimatorTest {
         assertFalse(observation.state == PassiveObservationState.BASELINE_SHIFT_CANDIDATE)
     }
 
+    @Test fun `pooled weekend persistence ignores weekdays and a pooled gap breaks the run`() {
+        val history = primedMixedPopulationHistory()
+        val prior = mutableListOf<PassiveObservation>()
+        val chronological = observeMixedPopulationDays(history, prior, pooledWeekendCount = 7)
+        val pooledWeekends = chronological.filter {
+            it.baselineShift?.comparisonPopulation == BaselineComparisonPopulation.POOLED
+        }
+        val weekdays = chronological.filter {
+            it.baselineShift?.comparisonPopulation == BaselineComparisonPopulation.WEEKDAY
+        }
+        val candidate = pooledWeekends.last()
+        val separatedPooledWeekends = pooledWeekends.zipWithNext().filter { (earlier, later) ->
+            later.day.isAfter(earlier.day.plusDays(1))
+        }
+
+        assertEquals(7, pooledWeekends.size)
+        assertTrue(weekdays.isNotEmpty())
+        assertTrue(separatedPooledWeekends.isNotEmpty())
+        assertTrue(
+            separatedPooledWeekends.all { (earlier, later) ->
+                weekdays.any { it.day.isAfter(earlier.day) && it.day.isBefore(later.day) }
+            },
+        )
+        assertTrue(pooledWeekends.all { it.baselineShift?.disagrees == true })
+        assertEquals(PassiveObservationState.BASELINE_SHIFT_CANDIDATE, candidate.state)
+
+        appendMixedPopulationHistory(history, count = 55, shifted = false)
+        val gapDay = history.last().day.plusDays(1)
+        val gap = PassiveEstimator.observe(
+            day(gapDay, features = mixedPopulationFeatures(gapDay, shifted = false)),
+            gapDay.toEpochDay(),
+            history,
+            prior,
+            42L,
+        )
+        prior += gap
+        history += day(gapDay, features = mixedPopulationFeatures(gapDay, shifted = false))
+        appendMixedPopulationHistory(history, count = 55, shifted = true)
+        val targetDay = history.last().day.plusDays(1)
+
+        val afterGap = PassiveEstimator.observe(
+            day(targetDay, features = mixedPopulationFeatures(targetDay, shifted = true)),
+            targetDay.toEpochDay(),
+            history,
+            prior,
+            42L,
+        )
+
+        assertEquals(BaselineComparisonPopulation.POOLED, gap.baselineShift?.comparisonPopulation)
+        assertFalse(requireNotNull(gap.baselineShift).disagrees)
+        assertEquals(BaselineComparisonPopulation.POOLED, afterGap.baselineShift?.comparisonPopulation)
+        assertTrue(requireNotNull(afterGap.baselineShift).disagrees)
+        assertFalse(afterGap.state == PassiveObservationState.BASELINE_SHIFT_CANDIDATE)
+    }
+
     @Test fun `fixed explanations are observation only and exclude banned terms`() {
         val reference = history()
         val targetDay = start.plusDays(60)
@@ -416,6 +471,60 @@ class PassiveEstimatorTest {
                 if (crossing) 30.0 else 20.0,
             PassiveFeature.SLEEP_MINUTES to features.getValue(PassiveFeature.SLEEP_MINUTES) -
                 if (crossing) 180.0 else 120.0,
+        )
+    }
+
+    private fun primedMixedPopulationHistory(): MutableList<PassiveDay> =
+        List(60) { index ->
+            val date = start.plusDays(index.toLong())
+            val features = if (date.dayOfWeek.value >= 6) emptyMap() else {
+                mixedPopulationFeatures(date, shifted = false)
+            }
+            day(date, features = features)
+        }.toMutableList().also { history ->
+            appendMixedPopulationHistory(history, count = 56, shifted = true)
+        }
+
+    private fun appendMixedPopulationHistory(
+        history: MutableList<PassiveDay>,
+        count: Int,
+        shifted: Boolean,
+    ) {
+        repeat(count) {
+            val date = history.last().day.plusDays(1)
+            history += day(date, features = mixedPopulationFeatures(date, shifted))
+        }
+    }
+
+    private fun observeMixedPopulationDays(
+        history: MutableList<PassiveDay>,
+        prior: MutableList<PassiveObservation>,
+        pooledWeekendCount: Int,
+    ): List<PassiveObservation> {
+        val observations = mutableListOf<PassiveObservation>()
+        while (
+            observations.count {
+                it.baselineShift?.comparisonPopulation == BaselineComparisonPopulation.POOLED
+            } < pooledWeekendCount
+        ) {
+            val date = history.last().day.plusDays(1)
+            val current = day(date, features = mixedPopulationFeatures(date, shifted = true))
+            val observation = PassiveEstimator.observe(current, date.toEpochDay(), history, prior, 42L)
+            observations += observation
+            prior += observation
+            history += current
+        }
+        return observations
+    }
+
+    private fun mixedPopulationFeatures(
+        date: LocalDate,
+        shifted: Boolean,
+    ): Map<PassiveFeature, Double> {
+        val alternate = (date.toEpochDay() and 1L).toDouble()
+        return mapOf(
+            PassiveFeature.RESTING_HEART_RATE to 60.0 + 2.0 * alternate + if (shifted) 20.0 else 0.0,
+            PassiveFeature.SLEEP_MINUTES to 420.0 + 20.0 * alternate - if (shifted) 120.0 else 0.0,
         )
     }
 

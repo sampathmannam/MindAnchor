@@ -33,7 +33,8 @@
 - Compare the reference with the latest 56 eligible-day candidate using the corresponding feature's same pooling
   decision and at least 14 like-for-like values. Record `POOLED` only when every frozen feature is pooled; otherwise
   record the current `WEEKDAY`/`WEEKEND` stratum. Require `1.0` frozen-scale disagreement in two domains for seven
-  same-population comparisons before `BASELINE_SHIFT_CANDIDATE`; other strata neither count nor break a run.
+  same-population comparisons before `BASELINE_SHIFT_CANDIDATE`. Filter canonical eligible priors by their
+  persisted comparison population before selecting six; other populations cannot occupy a slot, count, or break.
 - User-facing text names observable data only and must not contain diagnoses or mental-state predictions.
 - Preserve the unrelated modified `app/src/main/java/org/mindanchor/llm/LlmPrefs.kt` and untracked root `AGENTS.md`.
 
@@ -503,7 +504,7 @@ Expected: compilation fails because `PassiveEstimator` does not exist.
 
 ```kotlin
 object PassiveEstimator {
-    const val RULE_VERSION = "passive-observation-rules-v5"
+    const val RULE_VERSION = "passive-observation-rules-v6"
 
     fun observe(
         day: PassiveDay,
@@ -751,14 +752,28 @@ breaks the run. Keep current crossing evidence and state priority explicit.
 
 Add `POOLED`, `WEEKDAY`, and `WEEKEND` to `BaselineShiftAssessment`. If every frozen reference feature is pooled,
 use `POOLED`; if any feature is stratum-specific, including mixed evidence, use the current calendar stratum.
-Filter canonical eligible priors by that stratum before taking six predecessors. For pooled comparisons, inspect
-every eligible prior. In all cases each counted predecessor must carry the same population and disagree; a
+Filter canonical eligible priors by their persisted comparison population before taking six predecessors. In all
+cases each selected predecessor must disagree; another population cannot occupy a slot, count, or break, while a
 same-population gap breaks the run.
 
 - [ ] **Step 3: Provenance and verification**
 
 Advance only the passive observation rule version, document why registry/export hashes do or do not move, and run
 focused, Program 2A, provenance/export, detekt, lint, full JVM, and diff checks.
+
+### Task 10: Persisted-population slot filtering
+
+- [ ] **Step 1: RED/GREEN a real mixed-population sequence**
+
+Generate each prior through `PassiveEstimator.observe` with feature availability that yields `POOLED` weekend and
+`WEEKDAY` weekday assessments. Prove seven pooled weekend disagreements persist across intervening weekday
+observations, and prove a pooled non-disagreement breaks the pooled run.
+
+- [ ] **Step 2: Filter before selecting the persistence window**
+
+After canonical prior filtering, retain only observations whose persisted `comparisonPopulation` equals the
+current assessment, then take exactly six predecessors and require all six to disagree. Advance only the changed
+rule provenance and rerun Program 2A, provenance/export, static, lint, and full-suite checks.
 
 ## Self-review
 

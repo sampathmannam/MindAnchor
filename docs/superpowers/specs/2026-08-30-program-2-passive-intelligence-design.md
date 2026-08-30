@@ -113,10 +113,11 @@ scale. At least two domains must each reach `1.0`
 frozen-scale unit. Every assessment records a reconstructible comparison population. If all frozen reference
 features are pooled, it is `POOLED`; if any reference feature is stratum-specific (including a mix of pooled and
 stratum-specific features), it is the comparison day's `WEEKDAY` or `WEEKEND` population. Persistence requires the
-current disagreement plus six preceding disagreements from that same population. Other calendar strata neither
-count nor break a weekday/weekend run; an eligible non-disagreement within the same population breaks it. For
-`POOLED`, every eligible day is examined and must itself carry a pooled disagreement. Ineligible days do not count.
-Only after seven same-population disagreements is `BASELINE_SHIFT_CANDIDATE` emitted. The candidate never silently
+current disagreement plus six preceding disagreements from that same persisted population. Canonical eligible
+priors are filtered by `comparisonPopulation` before the six-prior window is selected; another population cannot
+occupy a slot, count, or break, including `WEEKDAY`/`WEEKEND` observations inside a `POOLED` run. An eligible
+non-disagreement within the same population breaks the run. Ineligible days do not count. Only after seven
+same-population disagreements is `BASELINE_SHIFT_CANDIDATE` emitted. The candidate never silently
 replaces the frozen reference, and the state records disagreement only—not improvement or deterioration.
 
 ## 7. Staged models
