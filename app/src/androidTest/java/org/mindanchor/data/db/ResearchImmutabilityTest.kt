@@ -158,7 +158,7 @@ class ResearchImmutabilityTest {
     }
 
     @Test
-    fun theFourTriggersExistByName() {
+    fun allTwentyTriggersExistByName() {
         val cursor = database.openHelper.writableDatabase.query(
             "SELECT name FROM sqlite_master WHERE type = 'trigger' ORDER BY name",
         )
@@ -170,6 +170,22 @@ class ResearchImmutabilityTest {
         // mutable research history.
         assertEquals(
             listOf(
+                "passive_baseline_segments_no_delete",
+                "passive_baseline_segments_no_update",
+                "passive_daily_revisions_no_delete",
+                "passive_daily_revisions_no_update",
+                "passive_observation_decisions_no_delete",
+                "passive_observation_decisions_no_update",
+                "passive_pipeline_runs_no_delete",
+                "passive_pipeline_runs_no_update",
+                "passive_raw_provenance_no_delete",
+                "passive_raw_provenance_no_update",
+                "passive_source_lags_no_delete",
+                "passive_source_lags_no_update",
+                "passive_source_reads_no_delete",
+                "passive_source_reads_no_update",
+                "passive_window_revisions_no_delete",
+                "passive_window_revisions_no_update",
                 "research_ledger_events_no_delete",
                 "research_ledger_events_no_update",
                 "study_phases_no_delete",
@@ -177,6 +193,35 @@ class ResearchImmutabilityTest {
             ),
             names,
         )
+    }
+
+    @Test
+    fun operationalRevisionsRejectDirectUpdatesAndDeletes() {
+        val sql = database.openHelper.writableDatabase
+        sql.execSQL(
+            "INSERT INTO passive_window_revisions VALUES " +
+                "('window-1',0,900000,1000,'UTC',0,NULL,'segment','[]',1.0,1,0,'[]','[]','[]','window-v1',1000,1000,0,'INITIAL','hash')",
+        )
+        sql.execSQL(
+            "INSERT INTO passive_daily_revisions VALUES " +
+                "('daily-1','2026-08-30',1000,'OBSERVED','{}','{}','segment',1000,1000,'{}','{}','{}','{}','{}','window-v1','daily-v1',1000,'INITIAL','hash')",
+        )
+        sql.execSQL(
+            "INSERT INTO passive_observation_decisions VALUES " +
+                "('decision-1','2026-08-30',1000,'OBSERVED','NO_SIGNAL','segment',NULL,NULL,NULL,'{}','INITIAL','hash')",
+        )
+        listOf(
+            "passive_window_revisions" to "contentHash",
+            "passive_daily_revisions" to "contentHash",
+            "passive_observation_decisions" to "contentHash",
+        ).forEach { (table, column) ->
+            assertThrows(android.database.sqlite.SQLiteConstraintException::class.java) {
+                sql.execSQL("UPDATE $table SET $column = 'rewritten'")
+            }
+            assertThrows(android.database.sqlite.SQLiteConstraintException::class.java) {
+                sql.execSQL("DELETE FROM $table")
+            }
+        }
     }
 
     @Test

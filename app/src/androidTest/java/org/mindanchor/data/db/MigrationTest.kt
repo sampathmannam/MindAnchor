@@ -268,6 +268,32 @@ class MigrationTest {
         helper.writableDatabase.use { db -> PROGRAM_ZERO_ROWS.forEach(db::execSQL) }
     }
 
+    private fun createVersion7WithLedgerRow() {
+        val config = SupportSQLiteOpenHelper.Configuration.builder(context)
+            .name(dbName)
+            .callback(object : SupportSQLiteOpenHelper.Callback(7) {
+                override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                    PROGRAM_ZERO_SCHEMA.forEach(db::execSQL)
+                    RESEARCH_SCHEMA.forEach(db::execSQL)
+                    db.execSQL(
+                        "INSERT INTO research_ledger_events " +
+                            "(id, sequence, kind, occurredAt, recordedAt, localDate, studyPhaseId, " +
+                            "sourceDeviceId, note, payloadJson, previousEventHash, eventHash) VALUES " +
+                            "('event-before-v8', 1, 'EXERCISE', 1000, 1000, '2026-08-29', " +
+                            "'phase-0', 'device-a', 'preserve me', '{}', '', 'event-before-v8')",
+                    )
+                }
+
+                override fun onUpgrade(
+                    db: androidx.sqlite.db.SupportSQLiteDatabase,
+                    oldVersion: Int,
+                    newVersion: Int,
+                ) = Unit
+            })
+            .build()
+        FrameworkSQLiteOpenHelperFactory().create(config).writableDatabase.use { }
+    }
+
     private fun ledgerEvent() = ResearchLedgerEventEntity(
         id = "event-1",
         sequence = 1L,
@@ -429,6 +455,31 @@ class MigrationTest {
     }
 
     @Test
+    fun aVersion7DatabaseKeepsLedgerDataAndGainsEveryPassiveTable() = runBlocking {
+        createVersion7WithLedgerRow()
+        val db = openCurrent()
+        try {
+            assertEquals("preserve me", db.research().ledgerEventsNow().single().note)
+            val dao = db.passive()
+            val provenance = PassiveRawProvenanceEntity(
+                "raw-1", "PHYSIOLOGY", "HEART_RATE", 1_000L, 1_000L, "bpm", "watch",
+                null, null, null, 1_100L, 1_200L, "UTC", 0, "record-1", 1L,
+            )
+            assertTrue(dao.insertRawProvenance(listOf(provenance)).single() > 0L)
+            assertTrue(dao.insertRawSamples(listOf(PassiveRawSampleEntity("raw-1", 72.0, 1_200L))).single() > 0L)
+            assertTrue(dao.insertSourceReads(listOf(PassiveSourceReadEntity("read-1", "run-1", "PHYSIOLOGY", "SUCCESS", 0L, 2_000L, "UTC", 2_000L, 1, null))).single() > 0L)
+            assertTrue(dao.insertSourceLags(listOf(PassiveSourceLagEntity("lag-1", "PHYSIOLOGY", 1_000L, 1_100L, 1_200L, 100L, false, 1_200L))).single() > 0L)
+            assertTrue(dao.insertBaselineSegment(PassiveBaselineSegmentEntity("segment-1", 1_000L, "{}", "window-v1", "daily-v1")) > 0L)
+            assertTrue(dao.insertPipelineRun(PassivePipelineRunEntity("run-1", 1_000L, 2_000L, 0L, 2_000L, "UTC", true, true, "SUCCESS_PERMISSIONED", "{}")) > 0L)
+            assertTrue(dao.insertWindowRevisions(listOf(PassiveWindowRevisionEntity("window-1", 0L, 900_000L, 2_000L, "UTC", 0, null, "segment-1", "[]", 1.0, true, 0L, "[]", "[]", "[]", "window-v1", 1_100L, 1_200L, false, "INITIAL", "window-hash"))).single() > 0L)
+            assertTrue(dao.insertDailyRevisions(listOf(PassiveDailyRevisionEntity("daily-1", "2026-08-30", 2_000L, "OBSERVED", "{}", "{}", "segment-1", 1_100L, 1_200L, "{}", "{}", "{}", "{}", "{}", "window-v1", "daily-v1", 1_100L, "INITIAL", "daily-hash"))).single() > 0L)
+            assertTrue(dao.insertObservationDecisions(listOf(PassiveObservationDecisionEntity("decision-1", "2026-08-30", 2_000L, "OBSERVED", "NO_SIGNAL", "segment-1", null, null, null, "{}", "INITIAL", "decision-hash"))).single() > 0L)
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
     fun anUpgradedDatabaseAlsoRefusesToRewriteTheLedger() = runBlocking {
         createVersion6WithProgramZeroData()
         val db = openCurrent()
@@ -515,6 +566,18 @@ class MigrationTest {
             "INSERT INTO continuity_changes " +
                 "(id, entityType, entityId, operation, occurredAt, acknowledgedSnapshotId) " +
                 "VALUES ('change-1', 'JOURNAL_ENTRY', 'entry-1', 'CREATE', 1000, NULL)",
+        )
+
+        private val RESEARCH_SCHEMA = listOf(
+            "CREATE TABLE IF NOT EXISTS research_ledger_events (id TEXT NOT NULL, sequence INTEGER NOT NULL, kind TEXT NOT NULL, occurredAt INTEGER NOT NULL, recordedAt INTEGER NOT NULL, localDate TEXT NOT NULL, studyPhaseId TEXT NOT NULL, sourceDeviceId TEXT NOT NULL, note TEXT NOT NULL, payloadJson TEXT NOT NULL, previousEventHash TEXT NOT NULL, eventHash TEXT NOT NULL, PRIMARY KEY(id))",
+            "CREATE UNIQUE INDEX IF NOT EXISTS index_research_ledger_events_sequence ON research_ledger_events(sequence)",
+            "CREATE INDEX IF NOT EXISTS index_research_ledger_events_recordedAt ON research_ledger_events(recordedAt)",
+            "CREATE INDEX IF NOT EXISTS index_research_ledger_events_kind ON research_ledger_events(kind)",
+            "CREATE INDEX IF NOT EXISTS index_research_ledger_events_studyPhaseId ON research_ledger_events(studyPhaseId)",
+            "CREATE INDEX IF NOT EXISTS index_research_ledger_events_localDate ON research_ledger_events(localDate)",
+            "CREATE TABLE IF NOT EXISTS study_phases (id TEXT NOT NULL, ordinal INTEGER NOT NULL, startedAt INTEGER NOT NULL, reason TEXT NOT NULL, appVersionCode INTEGER NOT NULL, appVersionName TEXT NOT NULL, protocolCatalogSha256 TEXT NOT NULL, ruleSetVersion TEXT NOT NULL, modelSetVersion TEXT NOT NULL, transformationSetVersion TEXT NOT NULL, missingDataPolicyVersion TEXT NOT NULL, instrumentVersion TEXT NOT NULL, dictionaryVersion TEXT NOT NULL, sourceDeviceId TEXT NOT NULL, PRIMARY KEY(id))",
+            "CREATE UNIQUE INDEX IF NOT EXISTS index_study_phases_ordinal ON study_phases(ordinal)",
+            "CREATE INDEX IF NOT EXISTS index_study_phases_startedAt ON study_phases(startedAt)",
         )
     }
 }

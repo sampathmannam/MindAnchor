@@ -181,11 +181,20 @@ interface SafetyDao {
         ContinuityChangeEntity::class,
         ResearchLedgerEventEntity::class,
         StudyPhaseEntity::class,
+        PassiveRawProvenanceEntity::class,
+        PassiveRawSampleEntity::class,
+        PassiveSourceReadEntity::class,
+        PassiveSourceLagEntity::class,
+        PassiveBaselineSegmentEntity::class,
+        PassivePipelineRunEntity::class,
+        PassiveWindowRevisionEntity::class,
+        PassiveDailyRevisionEntity::class,
+        PassiveObservationDecisionEntity::class,
     ],
     // v7 (Program 1): the append-only research ledger and
     // study phases. See MIGRATION_6_7 for what the upgrade
     // does and MIGRATION_4_5 for the v4/v5 tier history.
-    version = 7,
+    version = 8,
     exportSchema = true,
 )
 abstract class AnchorDatabase : RoomDatabase() {
@@ -199,6 +208,8 @@ abstract class AnchorDatabase : RoomDatabase() {
     abstract fun journal(): JournalDao
 
     abstract fun research(): ResearchDao
+
+    abstract fun passive(): PassiveDao
 
     companion object {
         private val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -394,6 +405,46 @@ abstract class AnchorDatabase : RoomDatabase() {
             }
         }
 
+        @Suppress("MaxLineLength", "MagicNumber")
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                listOf(
+                    "CREATE TABLE IF NOT EXISTS passive_raw_provenance (id TEXT NOT NULL, sourceFamily TEXT NOT NULL, recordKind TEXT NOT NULL, eventStart INTEGER NOT NULL, eventEnd INTEGER NOT NULL, unit TEXT NOT NULL, dataOriginPackage TEXT NOT NULL, deviceManufacturer TEXT, deviceModel TEXT, deviceType TEXT, sourceUpdatedTime INTEGER, ingestedAt INTEGER NOT NULL, zoneId TEXT NOT NULL, zoneOffsetSeconds INTEGER NOT NULL, recordId TEXT NOT NULL, recordVersion INTEGER NOT NULL, PRIMARY KEY(id))",
+                    "CREATE TABLE IF NOT EXISTS passive_raw_samples (provenanceId TEXT NOT NULL, value REAL, ingestedAt INTEGER NOT NULL, PRIMARY KEY(provenanceId), FOREIGN KEY(provenanceId) REFERENCES passive_raw_provenance(id) ON UPDATE NO ACTION ON DELETE CASCADE)",
+                    "CREATE TABLE IF NOT EXISTS passive_source_reads (id TEXT NOT NULL, runId TEXT NOT NULL, sourceFamily TEXT NOT NULL, state TEXT NOT NULL, rangeStart INTEGER NOT NULL, rangeEnd INTEGER NOT NULL, zoneId TEXT NOT NULL, attemptedAt INTEGER NOT NULL, recordCount INTEGER NOT NULL, errorCode TEXT, PRIMARY KEY(id))",
+                    "CREATE TABLE IF NOT EXISTS passive_source_lags (id TEXT NOT NULL, sourceFamily TEXT NOT NULL, eventEnd INTEGER NOT NULL, observedUpdatedAt INTEGER NOT NULL, ingestedAt INTEGER NOT NULL, lagMillis INTEGER NOT NULL, usedIngestedAtFallback INTEGER NOT NULL, observedAt INTEGER NOT NULL, PRIMARY KEY(id))",
+                    "CREATE TABLE IF NOT EXISTS passive_baseline_segments (id TEXT NOT NULL, openedAt INTEGER NOT NULL, fingerprintsJson TEXT NOT NULL, windowTransformationVersion TEXT NOT NULL, dailyTransformationVersion TEXT NOT NULL, PRIMARY KEY(id))",
+                    "CREATE TABLE IF NOT EXISTS passive_pipeline_runs (id TEXT NOT NULL, startedAt INTEGER NOT NULL, completedAt INTEGER NOT NULL, scanStart INTEGER NOT NULL, scanEnd INTEGER NOT NULL, zoneId TEXT NOT NULL, historyPermissionGranted INTEGER NOT NULL, firstSuccessfulPermissionedRun INTEGER NOT NULL, result TEXT NOT NULL, sourceStatesJson TEXT NOT NULL, PRIMARY KEY(id))",
+                    "CREATE TABLE IF NOT EXISTS passive_window_revisions (id TEXT NOT NULL, windowStart INTEGER NOT NULL, windowEnd INTEGER NOT NULL, asOfTime INTEGER NOT NULL, zoneId TEXT NOT NULL, zoneOffsetSeconds INTEGER NOT NULL, wakeRelativeMinute INTEGER, baselineSegment TEXT NOT NULL, featureRowsJson TEXT NOT NULL, heartRateCoverage REAL NOT NULL, physiologyEligible INTEGER NOT NULL, exerciseOverlapMillis INTEGER NOT NULL, provenanceRecordIdsJson TEXT NOT NULL, missingnessJson TEXT NOT NULL, exclusionsJson TEXT NOT NULL, transformationVersion TEXT NOT NULL, sourceUpdatedTime INTEGER NOT NULL, ingestedAt INTEGER NOT NULL, final INTEGER NOT NULL, revisionReason TEXT NOT NULL, contentHash TEXT NOT NULL, PRIMARY KEY(id))",
+                    "CREATE TABLE IF NOT EXISTS passive_daily_revisions (id TEXT NOT NULL, localDate TEXT NOT NULL, asOfTime INTEGER NOT NULL, dataStatus TEXT NOT NULL, featuresJson TEXT NOT NULL, excludedFeaturesJson TEXT NOT NULL, baselineSegment TEXT NOT NULL, sourceUpdatedTime INTEGER NOT NULL, ingestedAt INTEGER NOT NULL, sourceReadStatesJson TEXT NOT NULL, coverageJson TEXT NOT NULL, missingnessJson TEXT NOT NULL, exclusionsJson TEXT NOT NULL, provenanceJson TEXT NOT NULL, windowTransformationVersion TEXT NOT NULL, dailyTransformationVersion TEXT NOT NULL, watermark INTEGER NOT NULL, revisionReason TEXT NOT NULL, contentHash TEXT NOT NULL, PRIMARY KEY(id))",
+                    "CREATE TABLE IF NOT EXISTS passive_observation_decisions (id TEXT NOT NULL, localDate TEXT NOT NULL, asOfTime INTEGER NOT NULL, dataStatus TEXT NOT NULL, observationState TEXT NOT NULL, baselineSegment TEXT NOT NULL, calibrationSeed INTEGER, frozenBaselineAsOfTime INTEGER, frozenBaselineThroughDay TEXT, decisionJson TEXT NOT NULL, revisionReason TEXT NOT NULL, contentHash TEXT NOT NULL, PRIMARY KEY(id))",
+                ).forEach(db::execSQL)
+                listOf(
+                    "CREATE INDEX IF NOT EXISTS index_passive_raw_provenance_eventStart ON passive_raw_provenance(eventStart)",
+                    "CREATE INDEX IF NOT EXISTS index_passive_raw_provenance_eventEnd ON passive_raw_provenance(eventEnd)",
+                    "CREATE INDEX IF NOT EXISTS index_passive_raw_provenance_sourceFamily ON passive_raw_provenance(sourceFamily)",
+                    "CREATE INDEX IF NOT EXISTS index_passive_raw_samples_ingestedAt ON passive_raw_samples(ingestedAt)",
+                    "CREATE INDEX IF NOT EXISTS index_passive_source_reads_attemptedAt ON passive_source_reads(attemptedAt)",
+                    "CREATE INDEX IF NOT EXISTS index_passive_source_reads_sourceFamily ON passive_source_reads(sourceFamily)",
+                    "CREATE INDEX IF NOT EXISTS index_passive_source_lags_sourceFamily ON passive_source_lags(sourceFamily)",
+                    "CREATE INDEX IF NOT EXISTS index_passive_source_lags_observedAt ON passive_source_lags(observedAt)",
+                    "CREATE INDEX IF NOT EXISTS index_passive_baseline_segments_openedAt ON passive_baseline_segments(openedAt)",
+                    "CREATE INDEX IF NOT EXISTS index_passive_pipeline_runs_startedAt ON passive_pipeline_runs(startedAt)",
+                    "CREATE INDEX IF NOT EXISTS index_passive_pipeline_runs_completedAt ON passive_pipeline_runs(completedAt)",
+                    "CREATE INDEX IF NOT EXISTS index_passive_window_revisions_windowStart ON passive_window_revisions(windowStart)",
+                    "CREATE INDEX IF NOT EXISTS index_passive_window_revisions_baselineSegment ON passive_window_revisions(baselineSegment)",
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_passive_window_revisions_windowStart_contentHash ON passive_window_revisions(windowStart, contentHash)",
+                    "CREATE INDEX IF NOT EXISTS index_passive_daily_revisions_localDate ON passive_daily_revisions(localDate)",
+                    "CREATE INDEX IF NOT EXISTS index_passive_daily_revisions_baselineSegment ON passive_daily_revisions(baselineSegment)",
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_passive_daily_revisions_localDate_contentHash ON passive_daily_revisions(localDate, contentHash)",
+                    "CREATE INDEX IF NOT EXISTS index_passive_observation_decisions_localDate ON passive_observation_decisions(localDate)",
+                    "CREATE INDEX IF NOT EXISTS index_passive_observation_decisions_baselineSegment ON passive_observation_decisions(baselineSegment)",
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_passive_observation_decisions_localDate_contentHash ON passive_observation_decisions(localDate, contentHash)",
+                ).forEach(db::execSQL)
+                installResearchImmutability(db)
+            }
+        }
+
         /**
          * Installs the BEFORE UPDATE / BEFORE DELETE triggers that make the
          * two research tables append-only at the database level.
@@ -405,7 +456,24 @@ abstract class AnchorDatabase : RoomDatabase() {
          * triggers of its own.
          */
         internal fun installResearchImmutability(db: SupportSQLiteDatabase) {
-            listOf("research_ledger_events", "study_phases").forEach { table ->
+            val immutable = listOf(
+                "research_ledger_events",
+                "study_phases",
+                "passive_raw_provenance",
+                "passive_source_reads",
+                "passive_source_lags",
+                "passive_baseline_segments",
+                "passive_pipeline_runs",
+                "passive_window_revisions",
+                "passive_daily_revisions",
+                "passive_observation_decisions",
+            )
+            val existingTables = db.query("SELECT name FROM sqlite_master WHERE type = 'table'").use { cursor ->
+                buildSet {
+                    while (cursor.moveToNext()) add(cursor.getString(0))
+                }
+            }
+            immutable.filter(existingTables::contains).forEach { table ->
                 listOf("UPDATE", "DELETE").forEach { operation ->
                     db.execSQL(
                         "CREATE TRIGGER IF NOT EXISTS ${table}_no_${operation.lowercase()} " +
@@ -418,7 +486,15 @@ abstract class AnchorDatabase : RoomDatabase() {
 
         /** Exposed so instrumented tests can walk an old database forward. */
         fun migrations(): Array<Migration> =
-            arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+            arrayOf(
+                MIGRATION_1_2,
+                MIGRATION_2_3,
+                MIGRATION_3_4,
+                MIGRATION_4_5,
+                MIGRATION_5_6,
+                MIGRATION_6_7,
+                MIGRATION_7_8,
+            )
 
         /**
          * The callback **every** [AnchorDatabase] builder must add — use

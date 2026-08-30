@@ -2,6 +2,7 @@ package org.mindanchor.data.db
 
 import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -79,6 +80,16 @@ class ResearchBuilderCallbackTest {
             "recursive triggers must be on, or INSERT OR REPLACE deletes a row without firing the trigger",
             callback.contains("PRAGMA recursive_triggers = ON"),
         )
+    }
+
+    @Test
+    fun `version eight migration and callback cover passive immutable history`() {
+        val source = File("src/main/java/org/mindanchor/data/db/AnchorDatabase.kt").readText(Charsets.UTF_8)
+        assertTrue(source.contains("version = 8"))
+        assertTrue(source.contains("Migration(7, 8)"))
+        assertTrue(source.contains("abstract fun passive(): PassiveDao"))
+        assertTrue(source.substringAfter("MIGRATION_7_8").contains("installResearchImmutability(db)"))
+        assertFalse(source.contains("fallbackToDestructiveMigration"))
     }
 
     private companion object {
