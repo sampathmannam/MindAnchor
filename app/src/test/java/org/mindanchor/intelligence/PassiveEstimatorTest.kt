@@ -61,10 +61,43 @@ class PassiveEstimatorTest {
         assertNotNull(observation.threshold)
         assertEquals(42L, requireNotNull(observation.calibration).seed)
         assertEquals(BlockThresholdCalibrator.CONFIGURATION, observation.calibration?.configuration)
+        assertEquals(start.plusDays(59).toEpochDay(), observation.frozenBaselineAsOfTime)
+        assertEquals(start.plusDays(59), observation.frozenBaselineThroughDay)
         val explanation = observation.explanation.lowercase()
         listOf("recorded", "physiology", "sleep", "personal range", "recorded data only").forEach { token ->
             assertTrue("missing `$token` in $explanation", explanation.contains(token))
         }
+    }
+
+    @Test fun `calibration scores each historical day against its own calendar stratum`() {
+        val referenceHistory = calendarRhythmHistory(60)
+        val targetDay = referenceHistory.last().day.plusDays(1)
+        val asOfTime = targetDay.toEpochDay()
+        val observation = PassiveEstimator.observe(
+            day(targetDay, features = calendarRhythmFeatures(targetDay)),
+            asOfTime,
+            referenceHistory,
+            emptyList(),
+            42L,
+        )
+        val frozen = PassiveBaselineBuilder.freeze(
+            referenceHistory,
+            targetDay,
+            asOfTime,
+            "device-a",
+        )!!
+        val expectedScores = referenceHistory.map { historicalDay ->
+            PassiveScorer.score(
+                historicalDay,
+                PassiveBaselineBuilder.build(frozen, historicalDay.day),
+                asOfTime,
+            )!!.score
+        }
+
+        assertEquals(
+            BlockThresholdCalibrator.calibrate(expectedScores, 42L),
+            observation.calibration,
+        )
     }
 
     @Test fun `second crossing among three eligible observations is sustained`() {
@@ -158,18 +191,24 @@ class PassiveEstimatorTest {
         assertEquals(PassiveObservationState.WITHIN_PERSON_RANGE, secondAcrossGap.state)
     }
 
-    @Test fun `seven eligible days of two-domain trailing disagreement emit a baseline-shift candidate`() {
-        val shiftedHistory = history() + List(14) { index ->
+    @Test fun `seven eligible days of same-stratum two-domain disagreement emit a baseline-shift candidate`() {
+        val shiftedHistory = calendarRhythmHistory(60) + List(56) { index ->
             val date = start.plusDays(60L + index)
+            val stableRhythm = calendarRhythmFeatures(date)
+            val weekday = date.dayOfWeek.value <= 5
             day(
                 date,
                 features = mapOf(
-                    PassiveFeature.RESTING_HEART_RATE to if (index % 2 == 0) 80.0 else 82.0,
-                    PassiveFeature.SLEEP_MINUTES to if (index % 2 == 0) 300.0 else 320.0,
+                    PassiveFeature.RESTING_HEART_RATE to stableRhythm.getValue(
+                        PassiveFeature.RESTING_HEART_RATE,
+                    ) + if (weekday) 20.0 else 0.0,
+                    PassiveFeature.SLEEP_MINUTES to stableRhythm.getValue(
+                        PassiveFeature.SLEEP_MINUTES,
+                    ) - if (weekday) 120.0 else 0.0,
                 ),
             )
         }
-        val targetDay = start.plusDays(74)
+        val targetDay = start.plusDays(116)
         val prior = List(BaselineShiftDetector.PERSISTENCE_DAYS - 1) { index ->
             priorObservation(
                 date = targetDay.minusDays((BaselineShiftDetector.PERSISTENCE_DAYS - 1 - index).toLong()),
@@ -182,8 +221,8 @@ class PassiveEstimatorTest {
             day(
                 targetDay,
                 features = mapOf(
-                    PassiveFeature.RESTING_HEART_RATE to 81.0,
-                    PassiveFeature.SLEEP_MINUTES to 310.0,
+                    PassiveFeature.RESTING_HEART_RATE to 91.0,
+                    PassiveFeature.SLEEP_MINUTES to 250.0,
                 ),
             ),
             targetDay.toEpochDay(),
@@ -193,6 +232,7 @@ class PassiveEstimatorTest {
         )
 
         assertEquals(PassiveObservationState.BASELINE_SHIFT_CANDIDATE, observation.state)
+        assertTrue(observation.crossed)
         assertTrue(requireNotNull(observation.baselineShift).disagrees)
         assertEquals(2, requireNotNull(observation.baselineShift).domains.size)
         val explanation = observation.explanation.lowercase()
@@ -293,6 +333,20 @@ class PassiveEstimatorTest {
         )
     }
 
+    private fun calendarRhythmHistory(count: Int): List<PassiveDay> = List(count) { index ->
+        val date = start.plusDays(index.toLong())
+        day(date, features = calendarRhythmFeatures(date))
+    }
+
+    private fun calendarRhythmFeatures(date: LocalDate): Map<PassiveFeature, Double> {
+        val alternate = (date.toEpochDay() and 1L).toDouble()
+        val weekend = date.dayOfWeek.value >= 6
+        return mapOf(
+            PassiveFeature.RESTING_HEART_RATE to if (weekend) 100.0 + 2.0 * alternate else 60.0 + 2.0 * alternate,
+            PassiveFeature.SLEEP_MINUTES to if (weekend) 220.0 + 20.0 * alternate else 420.0 + 20.0 * alternate,
+        )
+    }
+
     private fun day(
         date: LocalDate,
         status: PassiveDataStatus = PassiveDataStatus.AVAILABLE_FINAL,
@@ -329,6 +383,8 @@ class PassiveEstimatorTest {
         threshold = 1.0,
         crossed = crossed,
         baselineDays = 60,
+        frozenBaselineAsOfTime = null,
+        frozenBaselineThroughDay = null,
         baselineSegment = baselineSegment,
         domains = emptyList(),
         calibration = null,

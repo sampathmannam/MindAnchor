@@ -1,7 +1,7 @@
 package org.mindanchor.intelligence
 
 object PassiveEstimator {
-    const val RULE_VERSION = "passive-observation-rules-v3"
+    const val RULE_VERSION = "passive-observation-rules-v4"
 
     @Suppress("ReturnCount")
     fun observe(
@@ -13,19 +13,23 @@ object PassiveEstimator {
     ): PassiveObservation {
         if (!day.dataStatus.canEstimate) return noObservation(day, asOfTime, 0)
         val effectiveHistory = PassiveHistory.effectiveFinalDays(history, day.day, asOfTime, day.baselineSegment)
-        val baseline = PassiveBaselineBuilder.build(history, day.day, asOfTime, day.baselineSegment)
+        val frozenReference = PassiveBaselineBuilder.freeze(history, day.day, asOfTime, day.baselineSegment)
             ?: return noObservation(
                 day.copy(dataStatus = PassiveDataStatus.BASELINE_BUILDING),
                 asOfTime,
                 PassiveBaselineBuilder.evaluate(history, day.day, asOfTime, day.baselineSegment).eligibleDays,
             )
+        val baseline = PassiveBaselineBuilder.build(frozenReference, day.day)
         val current = PassiveScorer.score(day, baseline, asOfTime)
             ?: return noObservation(
                 day.copy(dataStatus = PassiveDataStatus.INSUFFICIENT_DATA),
                 asOfTime,
                 baseline.referenceDays,
             )
-        val historicalScores = effectiveHistory.mapNotNull { PassiveScorer.score(it, baseline, asOfTime)?.score }
+        val historicalScores = effectiveHistory.mapNotNull { historicalDay ->
+            val historicalBaseline = PassiveBaselineBuilder.build(frozenReference, historicalDay.day)
+            PassiveScorer.score(historicalDay, historicalBaseline, asOfTime)?.score
+        }
         val calibration = BlockThresholdCalibrator.calibrate(historicalScores, seed)
             ?: return noObservation(
                 day.copy(dataStatus = PassiveDataStatus.BASELINE_BUILDING),
@@ -40,6 +44,7 @@ object PassiveEstimator {
             day.day,
             asOfTime,
             day.baselineSegment,
+            baseline,
         )
         val baselineShift = candidate?.let { BaselineShiftDetector.assess(baseline, it) }
         val state = stateFor(day, asOfTime, prior, crossed, baselineShift)
@@ -51,6 +56,8 @@ object PassiveEstimator {
             calibration.threshold,
             crossed,
             baseline.referenceDays,
+            baseline.frozenAsOfTime,
+            baseline.frozenThroughDay,
             day.baselineSegment,
             current.domains,
             calibration,
@@ -100,6 +107,8 @@ object PassiveEstimator {
         null,
         false,
         baselineDays,
+        null,
+        null,
         day.baselineSegment,
         emptyList(),
         null,

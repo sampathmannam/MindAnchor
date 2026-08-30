@@ -47,20 +47,23 @@ object TransformationRegistry {
         ),
         Transformation(
             id = "passive-personal-baseline",
-            version = "personal-baseline-v2",
+            version = "personal-baseline-v3",
             input = "Point-in-time eligible daily passive-feature revisions within one baseline segment.",
             output = "Frozen-reference and trailing-candidate feature centres, scales, and sample counts.",
             description = "Builds a personal baseline from median/MAD statistics, with a declared IQR fallback " +
                 "for zero MAD and eligibility floors for total, weekday, weekend, and stratum data. Canonical " +
-                "point-in-time history feeds a frozen reference and a separately reconstructible trailing candidate.",
+                "point-in-time " +
+                "revisions freeze at the first eligible ingestion cutoff. The frozen reference and trailing " +
+                "candidate use the same pooling decision for a like-for-like population comparison.",
         ),
         Transformation(
             id = "passive-block-calibration",
-            version = "block-calibration-v2",
+            version = "block-calibration-v3",
             input = "Historical daily passive observation scores.",
             output = "A block-resampled threshold, expected episode rate, seed, and configuration.",
-            description = "Calibrates thresholds with block resampling against an engineering false-observation " +
-                "budget rather than clinical accuracy.",
+            description = "Scores each historical day against its own weekday/weekend stratum, then calibrates " +
+                "thresholds with block resampling against an engineering false-observation budget rather than " +
+                "clinical accuracy.",
         ),
         Transformation(
             id = "passive-observation-explanation",

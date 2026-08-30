@@ -35,16 +35,19 @@ class TransformationRegistryTest {
         assertEquals(null, transformations["passive-daily-features"])
 
         val baseline = requireNotNull(transformations["passive-personal-baseline"])
-        assertEquals("personal-baseline-v2", baseline.version)
+        assertEquals("personal-baseline-v3", baseline.version)
         assertTrue(baseline.description.contains("median/MAD"))
         assertTrue(baseline.description.contains("fallback"))
         assertTrue(baseline.description.contains("eligibility floors"))
         assertTrue(baseline.description.contains("point-in-time"))
         assertTrue(baseline.description.contains("frozen reference"))
+        assertTrue(baseline.description.contains("first eligible ingestion cutoff"))
         assertTrue(baseline.description.contains("trailing candidate"))
+        assertTrue(baseline.description.contains("same pooling decision"))
 
         val calibration = requireNotNull(transformations["passive-block-calibration"])
-        assertEquals("block-calibration-v2", calibration.version)
+        assertEquals("block-calibration-v3", calibration.version)
+        assertTrue(calibration.description.contains("own weekday/weekend stratum"))
         assertTrue(calibration.description.contains("engineering false-observation budget"))
         assertTrue(calibration.description.contains("clinical accuracy"))
         assertTrue(calibration.output.contains("seed"))
@@ -83,7 +86,7 @@ class TransformationRegistryTest {
     @Test
     fun `the set version is frozen`() {
         assertEquals(
-            "160a63549fcb1c515daf8083532bbd98aa57c96e2913b66b7b557e5580337aa6",
+            "e36fe716c37f318166ccb8d764af56c546a6aa8b57df6dab34be48b4447d9fea",
             TransformationRegistry.setVersion,
         )
     }

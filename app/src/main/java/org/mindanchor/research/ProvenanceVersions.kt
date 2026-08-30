@@ -43,7 +43,7 @@ object ProvenanceVersions {
     const val RULE_SET_VERSION = PassiveEstimator.RULE_VERSION
 
     /** The personal robust baseline model used by passive intelligence. */
-    const val MODEL_SET_VERSION = "personal-robust-baseline-v2"
+    const val MODEL_SET_VERSION = "personal-robust-baseline-v3"
 
     fun vector(appVersionCode: Int, appVersionName: String, sourceDeviceId: String): ProvenanceVector =
         ProvenanceVector(

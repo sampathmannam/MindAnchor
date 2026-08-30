@@ -27,9 +27,12 @@
   `asOfTime` per date.
 - After a deviation, the first eligible in-range day is `RANGE_RETURN_PENDING`; the second returns to
   `WITHIN_PERSON_RANGE`. Ineligible days neither count nor break this eligible-day sequence.
-- Freeze the first ready reference prefix. Compare it with the latest 14 eligible-day candidate; require at least
-  `1.0` frozen-scale disagreement in two domains for seven consecutive eligible observations before
-  `BASELINE_SHIFT_CANDIDATE`.
+- Freeze at the earliest ingestion cutoff whose canonical history has a ready 60/8/8 prefix; later reference builds
+  reuse only revisions visible at that cutoff and persist its cutoff/through-day identity.
+- Score each calibration day against its own weekday/weekend stratum from that same frozen snapshot.
+- Compare the reference with the latest 56 eligible-day candidate using the corresponding feature's same pooling
+  decision and at least 14 like-for-like values; require `1.0` frozen-scale disagreement in two domains for seven
+  consecutive eligible observations before `BASELINE_SHIFT_CANDIDATE`.
 - User-facing text names observable data only and must not contain diagnoses or mental-state predictions.
 - Preserve the unrelated modified `app/src/main/java/org/mindanchor/llm/LlmPrefs.kt` and untracked root `AGENTS.md`.
 
@@ -160,6 +163,8 @@ data class PassiveObservation(
     val threshold: Double?,
     val crossed: Boolean,
     val baselineDays: Int,
+    val frozenBaselineAsOfTime: Long?,
+    val frozenBaselineThroughDay: LocalDate?,
     val baselineSegment: String,
     val domains: List<DomainEvidence>,
     val calibration: CalibrationResult?,
@@ -340,9 +345,11 @@ object PassiveBaselineBuilder {
 
 `PassiveHistory.effectiveFinalDays` discards `ingestedAt > asOfTime`, keeps only final matching-segment revisions
 strictly before `targetDay`, selects the maximum `(sourceUpdatedTime, ingestedAt)` revision per date, and sorts by
-date. `firstReadyPrefix` freezes the earliest chronological prefix meeting the 60/8/8 floors.
-`buildTrailingCandidate` applies the same point-in-time selector and builds from exactly the latest 14 eligible
-distinct days; it does not replace the frozen reference.
+date. Reference construction checks ingestion cutoffs chronologically and freezes the first cutoff at which a
+chronological prefix meets the 60/8/8 floors. Later revisions inside that prefix are ignored; earlier-ingested
+corrections are included. `buildTrailingCandidate` uses exactly the latest 56 eligible distinct days and mirrors
+each frozen feature's pooled or same-calendar-stratum population, with a 14-value minimum; it never replaces the
+frozen reference.
 
 - [ ] **Step 4: Run baseline tests**
 
@@ -495,7 +502,7 @@ Expected: compilation fails because `PassiveEstimator` does not exist.
 
 ```kotlin
 object PassiveEstimator {
-    const val RULE_VERSION = "passive-observation-rules-v3"
+    const val RULE_VERSION = "passive-observation-rules-v4"
 
     fun observe(
         day: PassiveDay,
@@ -576,7 +583,7 @@ git commit -m "feat: add non-diagnostic passive estimator"
 
 - [ ] **Step 1: Update tests to require Program 2 semantic versions and transformation IDs**
 
-Add assertions that `ProvenanceVersions.RULE_SET_VERSION == PassiveEstimator.RULE_VERSION`, `MODEL_SET_VERSION == "personal-robust-baseline-v2"`, and that the transformation registry contains `passive-personal-baseline@personal-baseline-v2`, `passive-block-calibration@block-calibration-v2`, and `passive-observation-explanation@observation-explanation-v1`. Assert that `passive-daily-features` is absent until Program 2B implements raw-to-daily aggregation. Update the frozen registry and export-content hashes only from this registry-content change; do not change the export projection or encoder.
+Add assertions that `ProvenanceVersions.RULE_SET_VERSION == PassiveEstimator.RULE_VERSION`, `MODEL_SET_VERSION == "personal-robust-baseline-v3"`, and that the transformation registry contains `passive-personal-baseline@personal-baseline-v3`, `passive-block-calibration@block-calibration-v3`, and `passive-observation-explanation@observation-explanation-v1`. Assert that `passive-daily-features` is absent until Program 2B implements raw-to-daily aggregation. Update the frozen registry and export-content hashes only for registered semantic-version content; do not change the export projection or encoder.
 
 - [ ] **Step 2: Run focused provenance tests and verify failure**
 
@@ -590,7 +597,7 @@ Set:
 
 ```kotlin
 const val RULE_SET_VERSION = PassiveEstimator.RULE_VERSION
-const val MODEL_SET_VERSION = "personal-robust-baseline-v2"
+const val MODEL_SET_VERSION = "personal-robust-baseline-v3"
 ```
 
 Register the three exact transformations named in Step 1. The baseline description names point-in-time canonicalization, the frozen reference, trailing candidate, median/MAD, fallback, and eligibility floors. Calibration persists its seed/configuration and targets an engineering false-observation budget rather than clinical accuracy. Explanation uses deterministic fixed templates. Do not register 15-minute or daily-feature aggregation until Program 2B performs it.
@@ -675,7 +682,7 @@ git commit -m "test: validate passive observation mechanics"
 
 **Interfaces:**
 - Produces: required `PassiveDay.sourceUpdatedTime`/`ingestedAt`, canonical point-in-time selectors,
-  `RANGE_RETURN_PENDING`, reconstructible `CalibrationResult`, `BaselineShiftAssessment`, and rule/model v3/v2
+  `RANGE_RETURN_PENDING`, reconstructible `CalibrationResult`, `BaselineShiftAssessment`, and rule/model v4/v3
   provenance.
 
 - [ ] **Step 1: RED/GREEN the 13/14 sparse-feature boundary and canonical daily revisions**
@@ -692,7 +699,8 @@ an intervening ineligible day neither counts nor breaks the eligible sequence.
 
 - [ ] **Step 3: RED/GREEN frozen/trailing candidate reachability**
 
-Freeze the first ready reference prefix. Build a candidate from the latest 14 eligible distinct days. Standardize
+Freeze at the first eligible ingestion cutoff and retain its ready prefix. Build a candidate from the latest 56
+eligible distinct days with the same pooling or calendar-stratum decision as each reference feature. Standardize
 candidate/reference centre disagreement by frozen scale, require `>= 1.0` in at least two domains, persist the
 assessment, and emit `BASELINE_SHIFT_CANDIDATE` on the seventh consecutive eligible disagreement day. Explanation
 tokens describe baseline disagreement only.
@@ -708,6 +716,27 @@ table-driven four-status scorer gate, status-specific explanation-token assertio
 
 Run focused intelligence/provenance/export tests, all Program 2A tests, detekt, lint, the full JVM suite, and
 `git diff --check`. Preserve and do not stage `LlmPrefs.kt` or root `AGENTS.md`.
+
+### Task 8: Second whole-feature review hardening
+
+- [ ] **Step 1: RED/GREEN immutable frozen-reference identity**
+
+Derive the earliest eligible ingestion cutoff, persist `frozenBaselineAsOfTime` and
+`frozenBaselineThroughDay`, prove a pre-eligibility correction is included, and prove a later correction inside the
+frozen prefix leaves the baseline value-identical.
+
+- [ ] **Step 2: RED/GREEN like-for-like calendar populations**
+
+Build each historical calibration baseline for that day's own weekday/weekend stratum from the same frozen snapshot.
+Use 56 candidate days so a complete eight-week window supplies at least 14 weekend values; mirror each reference
+feature's pooled or stratum-specific decision. Pin stable-rhythm non-inflation and a genuine same-stratum two-domain
+shift with seven-day persistence and current crossing priority.
+
+- [ ] **Step 3: Provenance, deterministic evidence, and verification**
+
+Advance the changed rule/model/baseline/calibration semantic versions, re-pin only provenance-derived registry/export
+content hashes, update deterministic simulation evidence, then run focused, Program 2A, provenance/export, detekt,
+lint, full JVM, and diff checks without staging `LlmPrefs.kt` or root `AGENTS.md`.
 
 ## Self-review
 

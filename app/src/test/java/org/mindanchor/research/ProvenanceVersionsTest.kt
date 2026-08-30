@@ -24,9 +24,9 @@ class ProvenanceVersionsTest {
 
     @Test
     fun `the passive intelligence rule and model versions are registered`() {
-        assertEquals("passive-observation-rules-v3", PassiveEstimator.RULE_VERSION)
+        assertEquals("passive-observation-rules-v4", PassiveEstimator.RULE_VERSION)
         assertEquals(PassiveEstimator.RULE_VERSION, ProvenanceVersions.RULE_SET_VERSION)
-        assertEquals("personal-robust-baseline-v2", ProvenanceVersions.MODEL_SET_VERSION)
+        assertEquals("personal-robust-baseline-v3", ProvenanceVersions.MODEL_SET_VERSION)
     }
 
     @Test

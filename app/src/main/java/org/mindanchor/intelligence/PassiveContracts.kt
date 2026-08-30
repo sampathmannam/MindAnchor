@@ -104,6 +104,8 @@ data class PassiveObservation(
     val threshold: Double?,
     val crossed: Boolean,
     val baselineDays: Int,
+    val frozenBaselineAsOfTime: Long?,
+    val frozenBaselineThroughDay: LocalDate?,
     val baselineSegment: String,
     val domains: List<DomainEvidence>,
     val calibration: CalibrationResult?,

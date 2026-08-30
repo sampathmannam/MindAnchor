@@ -3,6 +3,7 @@ package org.mindanchor.intelligence
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -177,8 +178,8 @@ class PassiveBaselineTest {
         val history = listOf(
             revision(second, 30.0, sourceUpdatedTime = 30L, ingestedAt = 30L),
             revision(first, 99.0, sourceUpdatedTime = 40L, ingestedAt = 400L),
-            revision(first, 10.0, sourceUpdatedTime = 10L, ingestedAt = 10L),
-            revision(first, 20.0, sourceUpdatedTime = 20L, ingestedAt = 20L),
+            revision(first, 10.0, sourceUpdatedTime = 10L, ingestedAt = 20L),
+            revision(first, 20.0, sourceUpdatedTime = 20L, ingestedAt = 10L),
             revision(
                 first,
                 80.0,
@@ -244,27 +245,118 @@ class PassiveBaselineTest {
         )
     }
 
-    @Test fun `trailing candidate uses the latest fourteen eligible distinct days`() {
+    @Test fun `reference baseline ignores revisions ingested after its first eligible cutoff`() {
+        var weekdayIndex = 0
+        val initial = days(60).map { day ->
+            val value = if (day.day.dayOfWeek.value >= 6) {
+                (day.day.toEpochDay() % 2).toDouble()
+            } else {
+                when (weekdayIndex++) {
+                    0 -> 0.0
+                    in 1..21 -> 10.0
+                    else -> 20.0
+                }
+            }
+            day.copy(features = mapOf(PassiveFeature.STEPS to value))
+        }
+        val original = initial.first()
+        val correctionBeforeEligibility = original.copy(
+            features = mapOf(PassiveFeature.STEPS to 30.0),
+            sourceUpdatedTime = original.sourceUpdatedTime + 1_000L,
+            ingestedAt = initial.last().ingestedAt - 1L,
+        )
+        val correctionAfterFreeze = original.copy(
+            features = mapOf(PassiveFeature.STEPS to -30.0),
+            sourceUpdatedTime = original.sourceUpdatedTime + 2_000L,
+            ingestedAt = initial.last().ingestedAt + 100L,
+        )
+        val targetDay = initial.last().day.plusDays(1)
+        val withoutCorrection = PassiveBaselineBuilder.build(
+            initial,
+            targetDay,
+            initial.last().ingestedAt,
+            "a",
+        )!!
+        val firstEligible = PassiveBaselineBuilder.build(
+            initial + correctionBeforeEligibility,
+            targetDay,
+            initial.last().ingestedAt,
+            "a",
+        )!!
+        val rebuiltLater = PassiveBaselineBuilder.build(
+            initial + correctionBeforeEligibility + correctionAfterFreeze,
+            targetDay.plusDays(100),
+            correctionAfterFreeze.ingestedAt,
+            "a",
+        )!!
+
+        assertNotEquals(
+            withoutCorrection.features.getValue(PassiveFeature.STEPS).centre,
+            firstEligible.features.getValue(PassiveFeature.STEPS).centre,
+            0.0,
+        )
+        assertEquals(initial.last().ingestedAt, firstEligible.frozenAsOfTime)
+        assertEquals(initial.last().day, firstEligible.frozenThroughDay)
+        assertEquals(firstEligible, rebuiltLater)
+    }
+
+    @Test fun `trailing candidate uses the latest fifty six eligible distinct days`() {
         val initial = days(60)
-        val later = days(14, initial.last().day.plusDays(1)).mapIndexed { index, day ->
+        val later = days(56, initial.last().day.plusDays(1)).mapIndexed { index, day ->
             day.copy(features = mapOf(PassiveFeature.STEPS to 100.0 + (index % 2) * 2.0))
         }
         val targetDay = later.last().day.plusDays(1)
+        val reference = PassiveBaselineBuilder.build(
+            initial + later,
+            targetDay,
+            targetDay.toEpochDay(),
+            "a",
+        )!!
 
         val candidate = PassiveBaselineBuilder.buildTrailingCandidate(
             history = initial + later,
             targetDay = targetDay,
             asOfTime = targetDay.toEpochDay(),
             segment = "a",
+            reference = reference,
         )!!
 
-        assertEquals(14, candidate.referenceDays)
+        assertEquals(56, candidate.referenceDays)
         assertEquals(101.0, candidate.features.getValue(PassiveFeature.STEPS).centre, 0.0)
+    }
+
+    @Test fun `trailing candidate matches the frozen feature stratum for stable calendar rhythm`() {
+        val initial = calendarRhythmDays(60)
+        val later = calendarRhythmDays(56, initial.last().day.plusDays(1))
+        val targetDay = later.last().day.plusDays(1)
+        val history = initial + later
+        val reference = PassiveBaselineBuilder.build(history, targetDay, targetDay.toEpochDay(), "a")!!
+        val candidate = PassiveBaselineBuilder.buildTrailingCandidate(
+            history,
+            targetDay,
+            targetDay.toEpochDay(),
+            "a",
+            reference,
+        )!!
+
+        assertFalse(reference.features.getValue(PassiveFeature.RESTING_HEART_RATE).pooledStratum)
+        assertEquals(
+            reference.features.getValue(PassiveFeature.RESTING_HEART_RATE).pooledStratum,
+            candidate.features.getValue(PassiveFeature.RESTING_HEART_RATE).pooledStratum,
+        )
+        assertEquals(
+            reference.features.getValue(PassiveFeature.RESTING_HEART_RATE).centre,
+            candidate.features.getValue(PassiveFeature.RESTING_HEART_RATE).centre,
+            0.0,
+        )
+        assertFalse(BaselineShiftDetector.assess(reference, candidate).disagrees)
     }
 
     @Test fun `trailing candidate disagreement requires two domains at one frozen scale`() {
         val reference = PassiveBaseline(
             segment = "a",
+            frozenAsOfTime = 1L,
+            frozenThroughDay = LocalDate.parse("2026-03-01"),
             referenceDays = 60,
             features = mapOf(
                 PassiveFeature.RESTING_HEART_RATE to FeatureBaseline(
@@ -280,7 +372,9 @@ class PassiveBaselineTest {
         )
         val candidate = PassiveBaseline(
             segment = "a",
-            referenceDays = 14,
+            frozenAsOfTime = 1L,
+            frozenThroughDay = LocalDate.parse("2026-03-01"),
+            referenceDays = 56,
             features = mapOf(
                 PassiveFeature.RESTING_HEART_RATE to FeatureBaseline(
                     PassiveFeature.RESTING_HEART_RATE, 65.0, 4.0, 14, true,
@@ -297,7 +391,7 @@ class PassiveBaselineTest {
         val assessment = BaselineShiftDetector.assess(reference, candidate)
 
         assertTrue(assessment.disagrees)
-        assertEquals(14, assessment.candidateDays)
+        assertEquals(56, assessment.candidateDays)
         assertEquals(
             listOf(PassiveDomain.PHYSIOLOGY, PassiveDomain.SLEEP),
             assessment.domains.map { it.domain },
@@ -320,4 +414,26 @@ class PassiveBaselineTest {
         sourceUpdatedTime = sourceUpdatedTime,
         ingestedAt = ingestedAt,
     )
+
+    private fun calendarRhythmDays(count: Int, start: LocalDate = LocalDate.parse("2026-01-01")) =
+        List(count) { index ->
+            val date = start.plusDays(index.toLong())
+            val alternate = (date.toEpochDay() and 1L).toDouble()
+            val weekend = date.dayOfWeek.value >= 6
+            PassiveDay(
+                day = date,
+                dataStatus = PassiveDataStatus.AVAILABLE_FINAL,
+                features = mapOf(
+                    PassiveFeature.RESTING_HEART_RATE to if (weekend) {
+                        100.0 + 2.0 * alternate
+                    } else {
+                        60.0 + 2.0 * alternate
+                    },
+                    PassiveFeature.SLEEP_MINUTES to if (weekend) 220.0 + 20.0 * alternate else 420.0 + 20.0 * alternate,
+                ),
+                baselineSegment = "a",
+                sourceUpdatedTime = date.toEpochDay(),
+                ingestedAt = date.toEpochDay(),
+            )
+        }
 }

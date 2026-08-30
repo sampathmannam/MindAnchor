@@ -88,7 +88,7 @@ Device or source-version changes start a new baseline segment. Historical segmen
 
 ## 5. Personal baseline
 
-The first observation baseline requires at least 60 distinct valid, final, non-exercise days, including at least eight weekdays and eight weekend days. The first chronological prefix meeting those floors becomes the frozen reference. A daily feature is compared with the appropriate weekday/weekend stratum when that stratum has at least 14 observations; otherwise weekday and weekend values are pooled and that pooling is recorded. After pooling, a feature still requires at least 14 eligible values: 0–13 values leave that feature absent, so it cannot score or corroborate.
+The first observation baseline requires at least 60 distinct valid, final, non-exercise days, including at least eight weekdays and eight weekend days. The engine inspects eligible revision `ingestedAt` cutoffs chronologically, canonicalizes one revision per date at each cutoff, and freezes at the first cutoff whose first chronological prefix meets those floors. All later reference builds use only revisions visible at that immutable `frozenAsOfTime`; a correction ingested before first eligibility is included, while a later backfill inside the prefix cannot silently change the reference. The frozen cutoff and through-day are decision provenance. A daily feature is compared with the appropriate weekday/weekend stratum when that stratum has at least 14 observations; otherwise weekday and weekend values are pooled and that pooling is recorded. After pooling, a feature still requires at least 14 eligible values: 0–13 values leave that feature absent, so it cannot score or corroborate.
 
 Daily aggregates do not claim a wake-relative baseline. Wake-relative semantics apply only to the 15-minute
 quality and source-alignment windows implemented by Program 2B; Program 2A daily personal baselines use only the
@@ -100,13 +100,16 @@ Features are grouped into physiology, sleep, activity, and routine domains. A do
 
 ## 6. Threshold calibration and episodes
 
-There is no universal “anxiety threshold.” The initial detector calibrates its observation boundary from contiguous blocks of the person's own historical corroborated day scores. Seven-day circular block resampling preserves weekly rhythm and short-term autocorrelation. Candidate thresholds are traversed downward from the maximum, which is guaranteed safe under strict crossings, and calibration selects the last budget-compliant candidate before the first violation. Refractory grouping makes episode count non-monotonic, so disconnected lower-threshold safe islands created by dense crossings are rejected rather than mistaken for low burden. The declared engineering budget is no more than one observation episode per 30 valid days in the calibration sample; it is not a clinical constant.
+There is no universal “anxiety threshold.” The initial detector calibrates its observation boundary from contiguous blocks of the person's own historical corroborated day scores. Every historical day is scored against the weekday/weekend baseline for that historical day's own stratum, built from the same frozen cutoff and prefix; the current target day's stratum is never projected across the history. Seven-day circular block resampling preserves weekly rhythm and short-term autocorrelation. Candidate thresholds are traversed downward from the maximum, which is guaranteed safe under strict crossings, and calibration selects the last budget-compliant candidate before the first violation. Refractory grouping makes episode count non-monotonic, so disconnected lower-threshold safe islands created by dense crossings are rejected rather than mistaken for low burden. The declared engineering budget is no more than one observation episode per 30 valid days in the calibration sample; it is not a clinical constant.
 
 A first crossing is `TRANSIENT_DEVIATION`. Two crossings among three eligible days are `SUSTAINED_DEVIATION`. Adjacent crossings within 48 hours belong to the same episode. After a deviation, the first eligible in-range day is `RANGE_RETURN_PENDING`; the second consecutive eligible in-range day returns to `WITHIN_PERSON_RANGE`. Ineligible days are `NO_OBSERVATION`: they neither count toward nor break this eligible-day sequence.
 
 A frozen reference baseline and a trailing candidate baseline are maintained separately. The candidate uses the
-latest 14 point-in-time eligible distinct days. For every feature shared by both baselines, candidate/reference
-centre disagreement is standardized by the frozen reference scale. At least two domains must each reach `1.0`
+latest 56 point-in-time eligible distinct days (eight complete weeks). For each frozen feature, it must use the same
+population decision: a pooled reference gets a pooled candidate; a stratum-specific reference gets the same target
+weekday/weekend stratum in the candidate. Either population still needs at least 14 eligible values. For every
+feature shared by both baselines, candidate/reference centre disagreement is standardized by the frozen reference
+scale. At least two domains must each reach `1.0`
 frozen-scale unit, and that corroborated disagreement must persist for seven consecutive eligible observations,
 before `BASELINE_SHIFT_CANDIDATE` is emitted. Ineligible days do not count. The candidate never silently replaces
 the frozen reference, and the state records disagreement only—not improvement or deterioration.
@@ -127,6 +130,7 @@ Derived feature records may be revised by explicit append-only supersession. Obs
 - decision and data status;
 - `asOfTime` and whether it was provisional or final;
 - baseline segment and sample counts;
+- frozen baseline `asOfTime` and through-day identity;
 - domain and feature evidence;
 - calibrated threshold and algorithm versions;
 - calibration seed and complete block/calibration/simulation/budget/refractory configuration;

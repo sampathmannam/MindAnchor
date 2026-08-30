@@ -18,8 +18,17 @@ data class FeatureBaseline(
 
 data class PassiveBaseline(
     val segment: String,
+    val frozenAsOfTime: Long,
+    val frozenThroughDay: LocalDate,
     val referenceDays: Int,
     val features: Map<PassiveFeature, FeatureBaseline>,
+)
+
+data class FrozenPassiveReference(
+    val segment: String,
+    val frozenAsOfTime: Long,
+    val frozenThroughDay: LocalDate,
+    val days: List<PassiveDay>,
 )
 
 data class BaselineShiftDomainEvidence(
@@ -42,7 +51,7 @@ object PassiveBaselineBuilder {
     const val MIN_WEEKDAY_DAYS = 8
     const val MIN_WEEKEND_DAYS = 8
     const val MIN_STRATUM_VALUES = 14
-    const val TRAILING_CANDIDATE_DAYS = MIN_STRATUM_VALUES
+    const val TRAILING_CANDIDATE_DAYS = 56
     private const val WEEKEND_START_DAY = 6
     private const val MAD_SCALE = 1.4826
     private const val IQR_SCALE = 1.349
@@ -71,35 +80,76 @@ object PassiveBaselineBuilder {
         asOfTime: Long,
         segment: String,
     ): PassiveBaseline? {
-        val eligible = PassiveHistory.effectiveFinalDays(history, targetDay, asOfTime, segment)
-        val frozenReference = firstReadyPrefix(eligible) ?: return null
-        return buildBaseline(frozenReference, targetDay, segment)
+        val reference = freeze(history, targetDay, asOfTime, segment) ?: return null
+        return build(reference, targetDay)
     }
+
+    fun freeze(
+        history: List<PassiveDay>,
+        targetDay: LocalDate,
+        asOfTime: Long,
+        segment: String,
+    ): FrozenPassiveReference? {
+        val cutoffs = history.asSequence()
+            .filter { it.day.isBefore(targetDay) }
+            .filter { it.ingestedAt <= asOfTime }
+            .filter { it.baselineSegment == segment && it.dataStatus.canEstimate }
+            .map { it.ingestedAt }
+            .distinct()
+            .sorted()
+        cutoffs.forEach { cutoff ->
+            val eligible = PassiveHistory.effectiveFinalDays(history, targetDay, cutoff, segment)
+            val prefix = (MIN_DAYS..eligible.size).asSequence()
+                .map { eligible.take(it) }
+                .firstOrNull { eligibility(it).ready }
+                ?: return@forEach
+            return FrozenPassiveReference(
+                segment = segment,
+                frozenAsOfTime = cutoff,
+                frozenThroughDay = prefix.last().day,
+                days = prefix,
+            )
+        }
+        return null
+    }
+
+    fun build(reference: FrozenPassiveReference, stratumDay: LocalDate): PassiveBaseline =
+        buildBaseline(reference, stratumDay)
 
     fun buildTrailingCandidate(
         history: List<PassiveDay>,
         targetDay: LocalDate,
         asOfTime: Long,
         segment: String,
+        reference: PassiveBaseline,
     ): PassiveBaseline? {
         val eligible = PassiveHistory.effectiveFinalDays(history, targetDay, asOfTime, segment)
         if (eligible.size < TRAILING_CANDIDATE_DAYS) return null
-        return buildBaseline(eligible.takeLast(TRAILING_CANDIDATE_DAYS), targetDay, segment)
-    }
-
-    private fun firstReadyPrefix(eligible: List<PassiveDay>): List<PassiveDay>? {
-        for (size in MIN_DAYS..eligible.size) {
-            val prefix = eligible.take(size)
-            if (eligibility(prefix).ready) return prefix
-        }
-        return null
+        val candidateDays = eligible.takeLast(TRAILING_CANDIDATE_DAYS)
+        val targetWeekend = targetDay.dayOfWeek.value >= WEEKEND_START_DAY
+        val features = reference.features.mapNotNull { (feature, referenceFeature) ->
+            val population = candidateDays.filter { day ->
+                day.isEligible(feature) && (
+                    referenceFeature.pooledStratum ||
+                        (day.day.dayOfWeek.value >= WEEKEND_START_DAY) == targetWeekend
+                    )
+            }.mapNotNull { it.features[feature] }
+            statistics(feature, population, referenceFeature.pooledStratum)?.let { feature to it }
+        }.toMap()
+        return PassiveBaseline(
+            segment = segment,
+            frozenAsOfTime = reference.frozenAsOfTime,
+            frozenThroughDay = reference.frozenThroughDay,
+            referenceDays = candidateDays.size,
+            features = features,
+        )
     }
 
     private fun buildBaseline(
-        eligible: List<PassiveDay>,
+        reference: FrozenPassiveReference,
         targetDay: LocalDate,
-        segment: String,
     ): PassiveBaseline {
+        val eligible = reference.days
         val targetWeekend = targetDay.dayOfWeek.value >= WEEKEND_START_DAY
         val baselines = PassiveFeature.entries.filter { it.scored }.mapNotNull { feature ->
             val all = eligible.filter { it.isEligible(feature) }.mapNotNull { it.features[feature] }
@@ -111,7 +161,13 @@ object PassiveBaselineBuilder {
             val values = if (pooled) all else stratum
             statistics(feature, values, pooled)?.let { feature to it }
         }.toMap()
-        return PassiveBaseline(segment, eligible.size, baselines)
+        return PassiveBaseline(
+            segment = reference.segment,
+            frozenAsOfTime = reference.frozenAsOfTime,
+            frozenThroughDay = reference.frozenThroughDay,
+            referenceDays = eligible.size,
+            features = baselines,
+        )
     }
 
     private fun statistics(feature: PassiveFeature, values: List<Double>, pooled: Boolean): FeatureBaseline? {
