@@ -1,9 +1,16 @@
 package org.mindanchor.continuity
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -31,6 +38,16 @@ class ContinuitySnapshotCodecTest {
         "legacyBackupJson",
     )
     private val programOneFields = programZeroFields + setOf("researchLedgerEvents", "studyPhases")
+    private val programTwoFields = setOf(
+        "passiveRawProvenance",
+        "passiveSourceReads",
+        "passiveSourceLags",
+        "passiveBaselineSegments",
+        "passivePipelineRuns",
+        "passiveWindowRevisions",
+        "passiveDailyRevisions",
+        "passiveObservationDecisions",
+    )
 
     private fun samplePayload(entryBodySuffix: String = "one"): ContinuityPayload = ContinuityPayload(
         journalEntries = listOf(
@@ -156,26 +173,53 @@ class ContinuitySnapshotCodecTest {
         ),
     )
 
-    private fun historicalDocument(
-        version: Int,
-        payload: ContinuityPayload,
-        allowedPayloadFields: Set<String>,
-    ): String {
-        val snapshot = ContinuitySnapshot(
-            formatVersion = version,
-            snapshotId = "historical-$version",
-            createdAt = 1_000L,
-            appVersionCode = version,
-            appVersionName = "historical",
-            sourceDeviceId = "device-a",
-            payload = payload,
-            contentSha256 = ContinuityContentHasher.hash(payload, version),
+    /** Literal outputs of the v1 (`ea346d4`) and v2 (`6eb7d88`) historical serializers. */
+    private fun literalFixture(version: Int): String = requireNotNull(
+        javaClass.getResource("/continuity/snapshot-v$version.json"),
+    ).readText()
+
+    private fun decodeLiteralFixture(version: Int): ContinuitySnapshot {
+        val decoded = ContinuitySnapshotCodec.decode(literalFixture(version))
+        assertTrue(
+            "literal v$version fixture must decode, got $decoded",
+            decoded is ContinuitySnapshotCodec.DecodeResult.Success,
         )
-        val root = Json.parseToJsonElement(ContinuitySnapshotCodec.encode(snapshot)).jsonObject
-        val historicalPayload = JsonObject(
-            root.getValue("payload").jsonObject.filterKeys { it in allowedPayloadFields },
+        return (decoded as ContinuitySnapshotCodec.DecodeResult.Success).snapshot
+    }
+
+    private fun allPopulatedPayload(): ContinuityPayload {
+        val programTwo = ProgramTwoPayloadFixture.payload()
+        return programOnePayload().copy(
+            passiveRawProvenance = programTwo.passiveRawProvenance,
+            passiveSourceReads = programTwo.passiveSourceReads,
+            passiveSourceLags = programTwo.passiveSourceLags,
+            passiveBaselineSegments = programTwo.passiveBaselineSegments,
+            passivePipelineRuns = programTwo.passivePipelineRuns,
+            passiveWindowRevisions = programTwo.passiveWindowRevisions,
+            passiveDailyRevisions = programTwo.passiveDailyRevisions,
+            passiveObservationDecisions = programTwo.passiveObservationDecisions,
         )
-        return JsonObject(root + ("payload" to historicalPayload)).toString()
+    }
+
+    private fun encodedDocument(version: Int): JsonObject {
+        val payload = when (version) {
+            ContinuityContract.PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION -> ProgramZeroPayloadFixture.payload()
+            ContinuityContract.PROGRAM_ONE_SNAPSHOT_FORMAT_VERSION -> programOnePayload()
+            else -> allPopulatedPayload()
+        }
+        return Json.parseToJsonElement(
+            ContinuitySnapshotCodec.encode(
+                sampleSnapshot(payload).copy(
+                    formatVersion = version,
+                    contentSha256 = ContinuityContentHasher.hash(payload, version),
+                ),
+            ),
+        ).jsonObject
+    }
+
+    private fun mutatePayload(document: JsonObject, field: String, value: JsonElement): String {
+        val payload = document.getValue("payload").jsonObject
+        return JsonObject(document + ("payload" to JsonObject(payload + (field to value)))).toString()
     }
 
     @Test
@@ -303,34 +347,38 @@ class ContinuitySnapshotCodecTest {
     }
 
     @Test
-    fun `genuine version one and two fixtures retain pinned hashes and default Program 2 rows empty`() {
-        val versionOne = ContinuitySnapshotCodec.decode(
-            historicalDocument(
-                ContinuityContract.PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION,
-                ProgramZeroPayloadFixture.payload(),
-                programZeroFields,
-            ),
-        ) as ContinuitySnapshotCodec.DecodeResult.Success
-        val versionTwo = ContinuitySnapshotCodec.decode(
-            historicalDocument(
-                ContinuityContract.PROGRAM_ONE_SNAPSHOT_FORMAT_VERSION,
-                programOnePayload(),
-                programOneFields,
-            ),
-        ) as ContinuitySnapshotCodec.DecodeResult.Success
+    fun `literal historical version one and two documents retain their frozen wire hashes`() {
+        val versionOne = decodeLiteralFixture(ContinuityContract.PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION)
+        val versionTwo = decodeLiteralFixture(ContinuityContract.PROGRAM_ONE_SNAPSHOT_FORMAT_VERSION)
 
+        assertEquals("ff5e149fed2b67c6217a468aa6caba29449f7c80e72984cf0bb9bab67b660906", versionOne.contentSha256)
+        assertEquals("e742d00616ff5dc35a7e669857b6e74edede207a7374abf7b6ef201ae48bdba5", versionTwo.contentSha256)
         assertEquals(
-            "a9da88f8d627c266e994b3292002c84594d119ac552c76a10745e458eaf3f9af",
-            versionOne.snapshot.contentSha256,
+            versionOne.contentSha256,
+            ContinuityContentHasher.hash(versionOne.payload, versionOne.formatVersion),
         )
         assertEquals(
-            "888b11076e526b64e7ca2c93bfa7179b01e2e6dea692e12a05003ddbde02373e",
-            versionTwo.snapshot.contentSha256,
+            versionTwo.contentSha256,
+            ContinuityContentHasher.hash(versionTwo.payload, versionTwo.formatVersion),
         )
-        assertEquals(emptyList<ResearchLedgerEventDto>(), versionOne.snapshot.payload.researchLedgerEvents)
-        assertEquals(emptyList<StudyPhaseDto>(), versionOne.snapshot.payload.studyPhases)
-        listOf(versionOne.snapshot.payload, versionTwo.snapshot.payload).forEach { payload ->
+        assertEquals("Historical v1", versionOne.payload.journalEntries.single().title)
+        assertEquals("historical-event-v2", versionTwo.payload.researchLedgerEvents.single().id)
+        assertEquals(
+            programZeroFields,
+            Json.parseToJsonElement(literalFixture(1)).jsonObject.getValue("payload").jsonObject.keys,
+        )
+        assertEquals(
+            programOneFields,
+            Json.parseToJsonElement(literalFixture(2)).jsonObject.getValue("payload").jsonObject.keys,
+        )
+        assertEquals(emptyList<ResearchLedgerEventDto>(), versionOne.payload.researchLedgerEvents)
+        assertEquals(emptyList<StudyPhaseDto>(), versionOne.payload.studyPhases)
+        listOf(versionOne.payload, versionTwo.payload).forEach { payload ->
             assertTrue(programTwoSnapshotContentByField(payload).values.none { it })
+        }
+        listOf(literalFixture(1), literalFixture(2)).forEach { document ->
+            assertFalse(document.contains("passiveRawSamples"))
+            assertFalse(document.contains("passiveRawProvenance"))
         }
     }
 
@@ -370,6 +418,92 @@ class ContinuitySnapshotCodecTest {
                 ),
             )
             assertEquals(ContinuitySnapshotCodec.DecodeResult.Corrupt, ContinuitySnapshotCodec.decode(encoded))
+        }
+    }
+
+    @Test
+    fun `raw version one and two documents reject every known later field when populated`() {
+        val donorPayload = encodedDocument(ContinuityContract.SNAPSHOT_FORMAT_VERSION).getValue("payload").jsonObject
+        mapOf(
+            ContinuityContract.PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION to
+                (programOneFields - programZeroFields) + programTwoFields,
+            ContinuityContract.PROGRAM_ONE_SNAPSHOT_FORMAT_VERSION to programTwoFields,
+        ).forEach { (version, fields) ->
+            val historical = Json.parseToJsonElement(literalFixture(version)).jsonObject
+            fields.forEach { field ->
+                val smuggled = mutatePayload(historical, field, donorPayload.getValue(field))
+                assertEquals(
+                    "v$version must reject populated $field",
+                    ContinuitySnapshotCodec.DecodeResult.Corrupt,
+                    ContinuitySnapshotCodec.decode(smuggled),
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `supported versions reject unknown payload content before typed decoding discards it`() {
+        val smuggled = buildJsonArray {
+            add(buildJsonObject { put("value", JsonPrimitive(97.0)) })
+        }
+        ContinuityContract.SUPPORTED_SNAPSHOT_FORMAT_VERSIONS.forEach { version ->
+            val document = if (version < ContinuityContract.SNAPSHOT_FORMAT_VERSION) {
+                Json.parseToJsonElement(literalFixture(version)).jsonObject
+            } else {
+                encodedDocument(version)
+            }
+            assertEquals(
+                "v$version must reject unknown non-empty content",
+                ContinuitySnapshotCodec.DecodeResult.Corrupt,
+                ContinuitySnapshotCodec.decode(mutatePayload(document, "futurePassiveRows", smuggled)),
+            )
+        }
+    }
+
+    @Test
+    fun `older versions tolerate only explicitly known later fields when empty`() {
+        mapOf(
+            ContinuityContract.PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION to
+                (programOneFields - programZeroFields) + programTwoFields,
+            ContinuityContract.PROGRAM_ONE_SNAPSHOT_FORMAT_VERSION to programTwoFields,
+        ).forEach { (version, fields) ->
+            val historical = Json.parseToJsonElement(literalFixture(version)).jsonObject
+            fields.forEach { field ->
+                assertTrue(
+                    "v$version must tolerate known empty $field",
+                    ContinuitySnapshotCodec.decode(mutatePayload(historical, field, JsonArray(emptyList()))) is
+                        ContinuitySnapshotCodec.DecodeResult.Success,
+                )
+            }
+            assertEquals(
+                ContinuitySnapshotCodec.DecodeResult.Corrupt,
+                ContinuitySnapshotCodec.decode(
+                    mutatePayload(historical, "unknownEmptyRows", JsonArray(emptyList())),
+                ),
+            )
+        }
+    }
+
+    @Test
+    fun `every supported version rejects passive raw sample values`() {
+        val rawSamples = buildJsonArray {
+            add(buildJsonObject {
+                put("provenanceId", JsonPrimitive("raw-1"))
+                put("value", JsonPrimitive(97.0))
+                put("ingestedAt", JsonPrimitive(2_200L))
+            })
+        }
+        ContinuityContract.SUPPORTED_SNAPSHOT_FORMAT_VERSIONS.forEach { version ->
+            val document = if (version < ContinuityContract.SNAPSHOT_FORMAT_VERSION) {
+                Json.parseToJsonElement(literalFixture(version)).jsonObject
+            } else {
+                encodedDocument(version)
+            }
+            assertEquals(
+                "v$version must reject passiveRawSamples",
+                ContinuitySnapshotCodec.DecodeResult.Corrupt,
+                ContinuitySnapshotCodec.decode(mutatePayload(document, "passiveRawSamples", rawSamples)),
+            )
         }
     }
 }

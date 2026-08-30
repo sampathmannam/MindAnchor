@@ -38,6 +38,20 @@ import org.mindanchor.journal.JournalRepository
 import org.mindanchor.journal.StructuralContextExtractor
 import org.mindanchor.letters.Letter
 import org.mindanchor.letters.LetterStore
+import org.mindanchor.intelligence.PassiveDailyAggregate
+import org.mindanchor.intelligence.PassiveDataStatus
+import org.mindanchor.intelligence.PassiveFeature
+import org.mindanchor.intelligence.PassiveFeatureWindow
+import org.mindanchor.intelligence.PassiveFinalityDecision
+import org.mindanchor.intelligence.PassiveObservation
+import org.mindanchor.intelligence.PassiveObservationState
+import org.mindanchor.intelligence.PassivePipelineCodec
+import org.mindanchor.intelligence.PassiveReadState
+import org.mindanchor.intelligence.PassiveSourceFamily
+import org.mindanchor.intelligence.PassiveWindowFeature
+import org.mindanchor.intelligence.PassiveWindowQuality
+import org.mindanchor.intelligence.RevisionReason
+import org.mindanchor.intelligence.SourceLag
 import org.mindanchor.model.Note
 import org.mindanchor.research.toEntity
 
@@ -62,7 +76,7 @@ internal object PassiveContinuityFixture {
             recordVersion = 1L,
         ),
     )
-    val rawSamples = listOf(PassiveRawSampleEntity(provenanceId = "raw-1", value = 97.0, ingestedAt = 2_200L))
+    val rawSamples = listOf(PassiveRawSampleEntity(provenanceId = "raw-1", value = 173.25, ingestedAt = 2_200L))
     val sourceReads = listOf(
         PassiveSourceReadEntity(
             id = "read-1",
@@ -113,35 +127,42 @@ internal object PassiveContinuityFixture {
         ),
     )
     val windowRevisions = listOf(
-        windowRevision(id = "window-provisional", asOfTime = 2_200L, final = false, reason = "INITIAL"),
-        windowRevision(id = "window-final", asOfTime = 2_400L, final = true, reason = "WATERMARK_FINAL"),
+        PassivePipelineCodec.windowEntity(
+            window(97.0), "segment-1", 2_100L, 2_200L, false, RevisionReason.INITIAL, 2_200L,
+        ),
+        PassivePipelineCodec.windowEntity(
+            window(97.0), "segment-1", 2_100L, 2_400L, true, RevisionReason.FINALITY, 2_400L,
+        ),
+        PassivePipelineCodec.windowEntity(
+            window(98.0), "segment-1", 2_500L, 2_600L, true, RevisionReason.BACKFILL, 2_600L,
+        ),
     )
     val dailyRevisions = listOf(
-        dailyRevision(
-            id = "daily-provisional",
-            asOfTime = 2_200L,
-            status = "AVAILABLE_PROVISIONAL",
-            reason = "INITIAL",
+        PassivePipelineCodec.dailyEntity(
+            dailyAggregate(PassiveDataStatus.AVAILABLE_PROVISIONAL, false, 97.0, 2_100L, 2_200L),
+            setOf("raw-1"), RevisionReason.INITIAL, 2_200L,
         ),
-        dailyRevision(
-            id = "daily-final",
-            asOfTime = 2_400L,
-            status = "AVAILABLE_FINAL",
-            reason = "WATERMARK_FINAL",
+        PassivePipelineCodec.dailyEntity(
+            dailyAggregate(PassiveDataStatus.AVAILABLE_FINAL, true, 97.0, 2_100L, 2_400L),
+            setOf("raw-1"), RevisionReason.FINALITY, 2_400L,
+        ),
+        PassivePipelineCodec.dailyEntity(
+            dailyAggregate(PassiveDataStatus.AVAILABLE_FINAL, true, 98.0, 2_500L, 2_600L),
+            setOf("raw-1"), RevisionReason.BACKFILL, 2_600L,
         ),
     )
     val observationDecisions = listOf(
-        observationDecision(
-            id = "decision-provisional",
-            asOfTime = 2_200L,
-            status = "AVAILABLE_PROVISIONAL",
-            reason = "INITIAL",
+        PassivePipelineCodec.decisionEntity(
+            observation(PassiveDataStatus.AVAILABLE_PROVISIONAL, 2_200L, "Provisional data only."),
+            RevisionReason.INITIAL,
         ),
-        observationDecision(
-            id = "decision-final",
-            asOfTime = 2_400L,
-            status = "AVAILABLE_FINAL",
-            reason = "WATERMARK_FINAL",
+        PassivePipelineCodec.decisionEntity(
+            observation(PassiveDataStatus.AVAILABLE_FINAL, 2_400L, "Final recorded data only."),
+            RevisionReason.FINALITY,
+        ),
+        PassivePipelineCodec.decisionEntity(
+            observation(PassiveDataStatus.AVAILABLE_FINAL, 2_600L, "Backfilled recorded data only."),
+            RevisionReason.BACKFILL,
         ),
     )
 
@@ -158,80 +179,60 @@ internal object PassiveContinuityFixture {
         dao.insertObservationDecisions(observationDecisions)
     }
 
-    private fun windowRevision(
-        id: String,
-        asOfTime: Long,
-        final: Boolean,
-        reason: String,
-    ) = PassiveWindowRevisionEntity(
-        id = id,
-        windowStart = 1_000L,
-        windowEnd = 1_900L,
-        asOfTime = asOfTime,
+    private fun window(value: Double) = PassiveFeatureWindow(
+        startInclusive = 1_000L,
+        endExclusive = 1_900L,
         zoneId = "Asia/Calcutta",
         zoneOffsetSeconds = 19_800,
-        wakeRelativeMinute = 15,
-        baselineSegment = "segment-1",
-        featureRowsJson = "[]",
-        heartRateCoverage = 1.0,
-        physiologyEligible = true,
-        exerciseOverlapMillis = 0L,
-        provenanceRecordIdsJson = "[\"raw-1\"]",
-        missingnessJson = "[]",
-        exclusionsJson = "[]",
-        transformationVersion = "window-v1",
-        sourceUpdatedTime = 2_100L,
-        ingestedAt = asOfTime,
-        final = final,
-        revisionReason = reason,
-        contentHash = "$id-hash",
+        quality = PassiveWindowQuality(1.0, true, 0L, 15),
+        features = listOf(PassiveWindowFeature(PassiveFeature.RESTING_HEART_RATE, value, "bpm", 1.0, true, null)),
+        provenanceRecordIds = listOf("raw-1"),
     )
 
-    private fun dailyRevision(
-        id: String,
-        asOfTime: Long,
-        status: String,
-        reason: String,
-    ) = PassiveDailyRevisionEntity(
-        id = id,
-        localDate = "2026-08-30",
-        asOfTime = asOfTime,
-        dataStatus = status,
-        featuresJson = "{}",
-        excludedFeaturesJson = "[]",
-        baselineSegment = "segment-1",
-        sourceUpdatedTime = 2_100L,
-        ingestedAt = asOfTime,
-        sourceReadStatesJson = "{}",
-        coverageJson = "{}",
-        missingnessJson = "[]",
-        exclusionsJson = "[]",
-        provenanceJson = "[\"raw-1\"]",
-        windowTransformationVersion = "window-v1",
-        dailyTransformationVersion = "daily-v1",
-        watermark = 2_000L,
-        revisionReason = reason,
-        contentHash = "$id-hash",
+    private fun dailyAggregate(
+        status: PassiveDataStatus,
+        final: Boolean,
+        value: Double,
+        sourceUpdatedTime: Long,
+        ingestedAt: Long,
+    ) = PassiveDailyAggregate(
+        passiveDay = org.mindanchor.intelligence.PassiveDay(
+            LocalDate.parse("2026-08-30"),
+            status,
+            mapOf(PassiveFeature.RESTING_HEART_RATE to value),
+            emptySet(),
+            "segment-1",
+            sourceUpdatedTime,
+            ingestedAt,
+        ),
+        windows = listOf(window(value)),
+        readStates = mapOf(PassiveSourceFamily.HEART_RATE to PassiveReadState.SUCCESS),
+        coverageByFeature = mapOf(PassiveFeature.RESTING_HEART_RATE to 1.0),
+        missingFeatures = emptySet(),
+        exclusions = emptyMap(),
+        finality = PassiveFinalityDecision(2_000L, final, mapOf(PassiveSourceFamily.HEART_RATE to 100L)),
+        sourceLags = listOf(SourceLag(PassiveSourceFamily.HEART_RATE, 100L, false)),
     )
 
-    private fun observationDecision(
-        id: String,
+    private fun observation(
+        status: PassiveDataStatus,
         asOfTime: Long,
-        status: String,
-        reason: String,
-    ) = PassiveObservationDecisionEntity(
-        id = id,
-        localDate = "2026-08-30",
+        explanation: String,
+    ) = PassiveObservation(
+        day = LocalDate.parse("2026-08-30"),
         asOfTime = asOfTime,
         dataStatus = status,
-        observationState = "NO_OBSERVATION",
-        baselineSegment = "segment-1",
-        calibrationSeed = null,
+        state = PassiveObservationState.NO_OBSERVATION,
+        threshold = null,
+        crossed = false,
+        baselineDays = 0,
         frozenBaselineAsOfTime = null,
         frozenBaselineThroughDay = null,
-        decisionJson = "{}",
-        revisionReason = reason,
-        contentHash = "$id-hash",
+        baselineSegment = "segment-1",
+        domains = emptyList(),
+        calibration = null,
+        baselineShift = null,
+        explanation = explanation,
     )
 }
 
@@ -427,7 +428,7 @@ class ContinuitySnapshotRepositoryTest {
             snapshot.payload.passiveObservationDecisions,
         )
         assertFalse(encoded.contains("passiveRawSamples"))
-        assertFalse(encoded.contains("\"value\":97.0"))
-        assertFalse(encoded.contains("97.0"))
+        assertFalse(encoded.contains("\"value\":173.25"))
+        assertFalse(encoded.contains("173.25"))
     }
 }

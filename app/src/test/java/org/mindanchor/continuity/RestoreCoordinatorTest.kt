@@ -768,6 +768,20 @@ class RestoreCoordinatorTest {
     }
 
     @Test
+    fun `large restore membership builds one stored id set and reports genuinely missing ids`() {
+        val count = 50_000
+        val ids = List(count) { "passive-row-$it" }
+        val stored = object : AbstractCollection<String>() {
+            override val size: Int = ids.size
+            override fun iterator(): Iterator<String> = ids.iterator()
+            override fun contains(element: String): Boolean = error("linear Collection.contains must not be used")
+        }
+
+        assertTrue(missingRestoredIds(stored, ids).isEmpty())
+        assertEquals(listOf("passive-row-missing"), missingRestoredIds(stored, ids + "passive-row-missing"))
+    }
+
+    @Test
     fun `production restore preflight and merge cover all long-term passive tables but no raw values`() {
         val source = File("src/main/java/org/mindanchor/continuity/RestoreCoordinator.kt").readText()
         listOf(

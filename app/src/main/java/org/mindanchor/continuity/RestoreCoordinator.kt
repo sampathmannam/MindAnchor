@@ -587,13 +587,35 @@ internal suspend fun mergePassiveRows(database: AnchorDatabase, payload: Continu
     dao.insertDailyRevisions(payload.passiveDailyRevisions.map { it.toEntity() })
     dao.insertObservationDecisions(payload.passiveObservationDecisions.map { it.toEntity() })
 
-    check(dao.rawProvenanceNow().map { it.id }.containsAll(payload.passiveRawProvenance.map { it.id }))
-    check(dao.windowRevisionsNow().map { it.id }.containsAll(payload.passiveWindowRevisions.map { it.id }))
-    check(dao.dailyRevisionsNow().map { it.id }.containsAll(payload.passiveDailyRevisions.map { it.id }))
     check(
-        dao.observationDecisionsNow().map { it.id }
-            .containsAll(payload.passiveObservationDecisions.map { it.id }),
+        missingRestoredIds(
+            dao.rawProvenanceNow().map { it.id },
+            payload.passiveRawProvenance.map { it.id },
+        ).isEmpty(),
     )
+    check(
+        missingRestoredIds(
+            dao.windowRevisionsNow().map { it.id },
+            payload.passiveWindowRevisions.map { it.id },
+        ).isEmpty(),
+    )
+    check(
+        missingRestoredIds(
+            dao.dailyRevisionsNow().map { it.id },
+            payload.passiveDailyRevisions.map { it.id },
+        ).isEmpty(),
+    )
+    check(
+        missingRestoredIds(
+            dao.observationDecisionsNow().map { it.id },
+            payload.passiveObservationDecisions.map { it.id },
+        ).isEmpty(),
+    )
+}
+
+internal fun missingRestoredIds(storedIds: Collection<String>, incomingIds: Collection<String>): List<String> {
+    val storedIdSet = storedIds.toHashSet()
+    return incomingIds.filterNot { it in storedIdSet }
 }
 
 // --- DTO -> Room entity / domain mapping, back-direction of ContinuitySnapshot.kt's toDto() ---

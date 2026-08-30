@@ -19,6 +19,7 @@ import org.mindanchor.backup.BackupRepository
 import org.mindanchor.continuity.crypto.BackupEnvelopeCodec
 import org.mindanchor.continuity.crypto.RecoveryKey
 import org.mindanchor.continuity.crypto.RecoveryKeyCodec
+import org.mindanchor.continuity.crypto.RecoveryKeyStore
 import org.mindanchor.data.FrictionPrefs
 import org.mindanchor.data.LauncherPrefs
 import org.mindanchor.data.NotesPrefs
@@ -137,8 +138,215 @@ class ContinuityRoundTripTest {
         stagingFile.delete()
         stagingTmpFile.delete()
         val realDb = AnchorDatabase.get(context)
-        realDb.safety().savePlan(SafetyPlan())
-        realDb.safety().contactsNow().forEach { realDb.safety().removeContact(it) }
+        clearProductionRoom(realDb)
+        RecoveryKeyStore.create(context).clear()
+        continuityPrefs.reset()
+    }
+
+    private fun clearProductionRoom(database: AnchorDatabase) {
+        val immutableTables = listOf(
+            "research_ledger_events",
+            "study_phases",
+            "passive_raw_provenance",
+            "passive_source_reads",
+            "passive_source_lags",
+            "passive_baseline_segments",
+            "passive_pipeline_runs",
+            "passive_window_revisions",
+            "passive_daily_revisions",
+            "passive_observation_decisions",
+        )
+        val sqlite = database.openHelper.writableDatabase
+        try {
+            immutableTables.forEach { table -> sqlite.execSQL("DROP TRIGGER IF EXISTS ${table}_no_delete") }
+            listOf(
+                "passive_raw_samples",
+                "passive_observation_decisions",
+                "passive_daily_revisions",
+                "passive_window_revisions",
+                "passive_pipeline_runs",
+                "passive_baseline_segments",
+                "passive_source_lags",
+                "passive_source_reads",
+                "passive_raw_provenance",
+                "research_ledger_events",
+                "study_phases",
+                "journal_context",
+                "continuity_changes",
+                "morning_measures",
+                "journal_entries",
+                "pulse_results",
+                "crisis_contacts",
+                "safety_plan",
+            ).forEach { table -> sqlite.execSQL("DELETE FROM $table") }
+        } finally {
+            AnchorDatabase.installResearchImmutability(sqlite)
+        }
+    }
+
+    private suspend fun assertProductionNonPassiveStoresEmpty(database: AnchorDatabase) {
+        assertTrue(database.journal().entriesNow().isEmpty())
+        assertTrue(database.journal().allContext().isEmpty())
+        assertTrue(database.journal().morningMeasuresNow().isEmpty())
+        assertTrue(notesPrefs.notes.first().notes.isEmpty())
+        assertTrue(letterStore.letters.first().isEmpty())
+        assertTrue(database.safety().plan().first().let { it == null || it.isEmpty })
+        assertTrue(database.safety().contactsNow().isEmpty())
+        assertTrue(database.pulses().history().first().isEmpty())
+        assertTrue(launcherPrefs.favorites.first().isEmpty())
+        assertTrue(launcherPrefs.hidden.first().isEmpty())
+        assertTrue(launcherPrefs.renames.first().isEmpty())
+        assertEquals(0, database.research().ledgerEventCount())
+        assertEquals(0, database.research().studyPhaseCount())
+    }
+
+    @Test
+    fun productionBuildPreflightChecksEachPassiveTableWithAllNonPassiveStoresEmpty() = runBlocking {
+        val realDb = AnchorDatabase.get(context)
+        val passive = realDb.passive()
+        val blockers = listOf<Pair<String, suspend () -> Unit>>(
+            "raw provenance" to { passive.insertRawProvenance(PassiveContinuityFixture.rawProvenance) },
+            "source reads" to { passive.insertSourceReads(PassiveContinuityFixture.sourceReads) },
+            "source lags" to { passive.insertSourceLags(PassiveContinuityFixture.sourceLags) },
+            "baseline segments" to { passive.insertBaselineSegment(PassiveContinuityFixture.baselineSegments.single()) },
+            "pipeline runs" to { passive.insertPipelineRun(PassiveContinuityFixture.pipelineRuns.single()) },
+            "window revisions" to { passive.insertWindowRevisions(PassiveContinuityFixture.windowRevisions.take(1)) },
+            "daily revisions" to { passive.insertDailyRevisions(PassiveContinuityFixture.dailyRevisions.take(1)) },
+            "observation decisions" to {
+                passive.insertObservationDecisions(PassiveContinuityFixture.observationDecisions.take(1))
+            },
+        )
+
+        blockers.forEach { (name, insert) ->
+            clearProductionRoom(realDb)
+            restoreStateStore.reset()
+            stagingFile.delete()
+            assertProductionNonPassiveStoresEmpty(realDb)
+            insert()
+
+            val result = RestoreCoordinator.build(context).beginRestore(
+                "blocked-$name.mab",
+                byteArrayOf(1),
+                "unused-content-hash",
+                ContinuityContract.SNAPSHOT_FORMAT_VERSION,
+            )
+
+            assertEquals("$name must block a new production restore", RestoreResult.PreflightBlocked, result)
+            assertEquals(RestoreStage.NONE, restoreStateStore.currentInfo().stage)
+            assertTrue("preflight must not stage bytes when $name blocks", !stagingFile.exists())
+        }
+    }
+
+    @Test
+    fun productionBuildRestoresAndReplaysAllPassiveHistoryWithStableRealIdentities() = runBlocking {
+        val realDb = AnchorDatabase.get(context)
+        PassiveContinuityFixture.insertInto(sourceDb)
+        val sourceRepository = ContinuitySnapshotRepository(
+            context,
+            sourceDb,
+            notesPrefs,
+            letterStore,
+            frictionPrefs,
+            deviceIdentity,
+            backupRepository,
+        )
+        val staged = sourceRepository.capture(5_000L)
+        val envelopeBytes = BackupEnvelopeCodec.encode(
+            BackupEnvelopeCodec.encrypt(ContinuitySnapshotCodec.encode(staged), key, 5_000L),
+        ).encodeToByteArray()
+        RecoveryKeyStore.create(context).apply {
+            save(key)
+            markVerified()
+        }
+
+        val first = RestoreCoordinator.build(context).beginRestore(
+            "passive-production.mab",
+            envelopeBytes,
+            staged.contentSha256,
+            staged.formatVersion,
+        )
+        assertTrue("first production restore must verify, got $first", first is RestoreResult.Verified)
+
+        val expectedReasons = listOf("INITIAL", "FINALITY", "BACKFILL")
+        val passive = realDb.passive()
+        suspend fun restoredSignatures() = listOf(
+            passive.windowRevisionsNow().map { Triple(it.id, it.contentHash, it.revisionReason) },
+            passive.dailyRevisionsNow().map { Triple(it.id, it.contentHash, it.revisionReason) },
+            passive.observationDecisionsNow().map { Triple(it.id, it.contentHash, it.revisionReason) },
+        )
+        suspend fun restoredIds() = listOf(
+            passive.rawProvenanceNow().map { it.id },
+            passive.sourceReadsNow().map { it.id },
+            passive.sourceLagsNow().map { it.id },
+            passive.baselineSegmentsNow().map { it.id },
+            passive.pipelineRunsNow().map { it.id },
+            passive.windowRevisionsNow().map { it.id },
+            passive.dailyRevisionsNow().map { it.id },
+            passive.observationDecisionsNow().map { it.id },
+        )
+        val expectedIds = listOf(
+            PassiveContinuityFixture.rawProvenance.map { it.id },
+            PassiveContinuityFixture.sourceReads.map { it.id },
+            PassiveContinuityFixture.sourceLags.map { it.id },
+            PassiveContinuityFixture.baselineSegments.map { it.id },
+            PassiveContinuityFixture.pipelineRuns.map { it.id },
+            PassiveContinuityFixture.windowRevisions.map { it.id },
+            PassiveContinuityFixture.dailyRevisions.map { it.id },
+            PassiveContinuityFixture.observationDecisions.map { it.id },
+        )
+        val firstSignatures = restoredSignatures()
+        val firstIds = restoredIds()
+        assertEquals(expectedIds, firstIds)
+        assertEquals(expectedReasons, passive.windowRevisionsNow().map { it.revisionReason })
+        assertEquals(expectedReasons, passive.dailyRevisionsNow().map { it.revisionReason })
+        assertEquals(expectedReasons, passive.observationDecisionsNow().map { it.revisionReason })
+        assertEquals(listOf(false, true, true), passive.windowRevisionsNow().map { it.final })
+        assertEquals(
+            listOf("AVAILABLE_PROVISIONAL", "AVAILABLE_FINAL", "AVAILABLE_FINAL"),
+            passive.dailyRevisionsNow().map { it.dataStatus },
+        )
+        assertEquals(
+            listOf(1, 1, 1, 1, 1, 3, 3, 3),
+            listOf(
+                passive.rawProvenanceNow().size,
+                passive.sourceReadsNow().size,
+                passive.sourceLagsNow().size,
+                passive.baselineSegmentsNow().size,
+                passive.pipelineRunsNow().size,
+                passive.windowRevisionsNow().size,
+                passive.dailyRevisionsNow().size,
+                passive.observationDecisionsNow().size,
+            ),
+        )
+        assertTrue(passive.rawRecords(0L, Long.MAX_VALUE).isEmpty())
+
+        val recaptured = ContinuitySnapshotRepository(
+            context,
+            realDb,
+            notesPrefs,
+            letterStore,
+            frictionPrefs,
+            deviceIdentity,
+            backupRepository,
+        ).capture(9_000L)
+        assertEquals(staged.contentSha256, recaptured.contentSha256)
+
+        restoreStateStore.reset()
+        stagingFile.parentFile?.mkdirs()
+        stagingFile.writeBytes(envelopeBytes)
+        restoreStateStore.markDownloaded(
+            "passive-production.mab",
+            "staged-again-after-interruption",
+            staged.contentSha256,
+            staged.formatVersion,
+        )
+        restoreStateStore.markDecrypted(staged.contentSha256, staged.formatVersion)
+        val second = RestoreCoordinator.build(context).resume()
+        assertTrue("replayed production restore must verify, got $second", second is RestoreResult.Verified)
+        assertEquals(firstSignatures, restoredSignatures())
+        assertEquals(firstIds, restoredIds())
+        assertTrue(passive.rawRecords(0L, Long.MAX_VALUE).isEmpty())
+        assertEquals(staged.contentSha256, (second as RestoreResult.Verified).contentHash)
     }
 
     @Test
@@ -366,9 +574,9 @@ class ContinuityRoundTripTest {
             assertEquals(PassiveContinuityFixture.dailyRevisions.map { it.id }, restoredPassiveIds[6])
             assertEquals(PassiveContinuityFixture.observationDecisions.map { it.id }, restoredPassiveIds[7])
             assertTrue(destDb.passive().rawRecords(0L, 3_000L).isEmpty())
-            assertEquals(listOf(false, true), destDb.passive().windowRevisionsNow().map { it.final })
+            assertEquals(listOf(false, true, true), destDb.passive().windowRevisionsNow().map { it.final })
             assertEquals(
-                listOf("AVAILABLE_PROVISIONAL", "AVAILABLE_FINAL"),
+                listOf("AVAILABLE_PROVISIONAL", "AVAILABLE_FINAL", "AVAILABLE_FINAL"),
                 destDb.passive().dailyRevisionsNow().map { it.dataStatus },
             )
 

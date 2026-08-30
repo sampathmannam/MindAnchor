@@ -3,6 +3,11 @@ package org.mindanchor.continuity
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Reading and writing a [ContinuitySnapshot] as JSON.
@@ -16,9 +21,42 @@ import kotlinx.serialization.json.Json
 object ContinuitySnapshotCodec {
 
     private val json = Json {
-        ignoreUnknownKeys = true
         encodeDefaults = true
     }
+
+    private val snapshotFields = setOf(
+        "formatVersion",
+        "snapshotId",
+        "createdAt",
+        "appVersionCode",
+        "appVersionName",
+        "sourceDeviceId",
+        "payload",
+        "contentSha256",
+    )
+    private val programZeroFields = setOf(
+        "journalEntries",
+        "contextRows",
+        "morningMeasures",
+        "notes",
+        "letters",
+        "readLetterDates",
+        "frictionedApps",
+        "alwaysOpenApps",
+        "continuityChanges",
+        "legacyBackupJson",
+    )
+    private val programOneFields = setOf("researchLedgerEvents", "studyPhases")
+    private val programTwoFields = setOf(
+        "passiveRawProvenance",
+        "passiveSourceReads",
+        "passiveSourceLags",
+        "passiveBaselineSegments",
+        "passivePipelineRuns",
+        "passiveWindowRevisions",
+        "passiveDailyRevisions",
+        "passiveObservationDecisions",
+    )
 
     sealed class DecodeResult {
         data class Success(val snapshot: ContinuitySnapshot) : DecodeResult()
@@ -28,14 +66,42 @@ object ContinuitySnapshotCodec {
 
     fun encode(snapshot: ContinuitySnapshot): String = json.encodeToString(snapshot)
 
+    @Suppress("ReturnCount")
     fun decode(text: String): DecodeResult {
+        val raw = runCatching { Json.parseToJsonElement(text).jsonObject }
+            .getOrElse { return DecodeResult.Corrupt }
+        val formatVersion = raw["formatVersion"]?.jsonPrimitive?.intOrNull
+            ?: return DecodeResult.Corrupt
+        if (formatVersion !in ContinuityContract.SUPPORTED_SNAPSHOT_FORMAT_VERSIONS) {
+            return DecodeResult.UnsupportedVersion(formatVersion)
+        }
+        if (!rawFieldsAreCompatible(raw, formatVersion)) return DecodeResult.Corrupt
+
         val parsed = runCatching { json.decodeFromString<ContinuitySnapshot>(text) }
             .getOrElse { return DecodeResult.Corrupt }
-        if (parsed.formatVersion !in ContinuityContract.SUPPORTED_SNAPSHOT_FORMAT_VERSIONS) {
-            return DecodeResult.UnsupportedVersion(parsed.formatVersion)
-        }
         if (smugglesNewerContent(parsed)) return DecodeResult.Corrupt
         return DecodeResult.Success(parsed)
+    }
+
+    private fun rawFieldsAreCompatible(root: JsonObject, formatVersion: Int): Boolean {
+        if (root.keys.any { it !in snapshotFields }) return false
+        val payload = root["payload"] as? JsonObject ?: return false
+        if ("passiveRawSamples" in payload) return false
+
+        val allowedFields = when (formatVersion) {
+            ContinuityContract.PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION -> programZeroFields
+            ContinuityContract.PROGRAM_ONE_SNAPSHOT_FORMAT_VERSION -> programZeroFields + programOneFields
+            else -> programZeroFields + programOneFields + programTwoFields
+        }
+        val knownLaterFields = when (formatVersion) {
+            ContinuityContract.PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION -> programOneFields + programTwoFields
+            ContinuityContract.PROGRAM_ONE_SNAPSHOT_FORMAT_VERSION -> programTwoFields
+            else -> emptySet()
+        }
+        return payload.all { (field, value) ->
+            field in allowedFields ||
+                (field in knownLaterFields && value is JsonArray && value.isEmpty())
+        }
     }
 
     private fun smugglesNewerContent(snapshot: ContinuitySnapshot): Boolean = when (snapshot.formatVersion) {
