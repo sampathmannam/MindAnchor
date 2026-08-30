@@ -110,9 +110,14 @@ population decision: a pooled reference gets a pooled candidate; a stratum-speci
 weekday/weekend stratum in the candidate. Either population still needs at least 14 eligible values. For every
 feature shared by both baselines, candidate/reference centre disagreement is standardized by the frozen reference
 scale. At least two domains must each reach `1.0`
-frozen-scale unit, and that corroborated disagreement must persist for seven consecutive eligible observations,
-before `BASELINE_SHIFT_CANDIDATE` is emitted. Ineligible days do not count. The candidate never silently replaces
-the frozen reference, and the state records disagreement only—not improvement or deterioration.
+frozen-scale unit. Every assessment records a reconstructible comparison population. If all frozen reference
+features are pooled, it is `POOLED`; if any reference feature is stratum-specific (including a mix of pooled and
+stratum-specific features), it is the comparison day's `WEEKDAY` or `WEEKEND` population. Persistence requires the
+current disagreement plus six preceding disagreements from that same population. Other calendar strata neither
+count nor break a weekday/weekend run; an eligible non-disagreement within the same population breaks it. For
+`POOLED`, every eligible day is examined and must itself carry a pooled disagreement. Ineligible days do not count.
+Only after seven same-population disagreements is `BASELINE_SHIFT_CANDIDATE` emitted. The candidate never silently
+replaces the frozen reference, and the state records disagreement only—not improvement or deterioration.
 
 ## 7. Staged models
 
@@ -134,8 +139,8 @@ Derived feature records may be revised by explicit append-only supersession. Obs
 - domain and feature evidence;
 - calibrated threshold and algorithm versions;
 - calibration seed and complete block/calibration/simulation/budget/refractory configuration;
-- trailing-candidate sample count, standardized disagreement threshold, corroborating-domain floor, persistence
-  days, and domain evidence;
+- trailing-candidate sample count, comparison population, standardized disagreement threshold,
+  corroborating-domain floor, persistence days, and domain evidence;
 - study phase and source device;
 - explanations and exclusions.
 

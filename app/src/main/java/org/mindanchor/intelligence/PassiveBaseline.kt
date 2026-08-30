@@ -37,11 +37,14 @@ data class BaselineShiftDomainEvidence(
     val features: List<PassiveFeature>,
 )
 
+enum class BaselineComparisonPopulation { POOLED, WEEKDAY, WEEKEND }
+
 data class BaselineShiftAssessment(
     val candidateDays: Int,
     val standardizedDisagreementThreshold: Double,
     val minimumCorroboratingDomains: Int,
     val persistenceDays: Int,
+    val comparisonPopulation: BaselineComparisonPopulation,
     val domains: List<BaselineShiftDomainEvidence>,
     val disagrees: Boolean,
 )
@@ -52,7 +55,7 @@ object PassiveBaselineBuilder {
     const val MIN_WEEKEND_DAYS = 8
     const val MIN_STRATUM_VALUES = 14
     const val TRAILING_CANDIDATE_DAYS = 56
-    private const val WEEKEND_START_DAY = 6
+    internal const val WEEKEND_START_DAY = 6
     private const val MAD_SCALE = 1.4826
     private const val IQR_SCALE = 1.349
     private const val FIRST_QUARTILE = 0.25
@@ -199,9 +202,19 @@ object BaselineShiftDetector {
     const val MIN_CORROBORATING_DOMAINS = 2
     const val PERSISTENCE_DAYS = 7
 
-    fun assess(reference: PassiveBaseline, candidate: PassiveBaseline): BaselineShiftAssessment {
+    fun assess(
+        reference: PassiveBaseline,
+        candidate: PassiveBaseline,
+        comparisonDay: LocalDate,
+    ): BaselineShiftAssessment {
+        val population = when {
+            reference.features.values.all { it.pooledStratum } -> BaselineComparisonPopulation.POOLED
+            comparisonDay.dayOfWeek.value >= PassiveBaselineBuilder.WEEKEND_START_DAY ->
+                BaselineComparisonPopulation.WEEKEND
+            else -> BaselineComparisonPopulation.WEEKDAY
+        }
         if (reference.segment != candidate.segment) {
-            return assessment(candidate.referenceDays, emptyList())
+            return assessment(candidate.referenceDays, population, emptyList())
         }
         val featureDisagreements = candidate.features.mapNotNull { (feature, candidateFeature) ->
             val referenceFeature = reference.features[feature] ?: return@mapNotNull null
@@ -217,17 +230,19 @@ object BaselineShiftDetector {
                 features = disagreements.map { it.second }.sortedBy { it.name },
             )
         }.sortedBy { it.domain.name }
-        return assessment(candidate.referenceDays, domains)
+        return assessment(candidate.referenceDays, population, domains)
     }
 
     private fun assessment(
         candidateDays: Int,
+        population: BaselineComparisonPopulation,
         domains: List<BaselineShiftDomainEvidence>,
     ) = BaselineShiftAssessment(
         candidateDays = candidateDays,
         standardizedDisagreementThreshold = STANDARDIZED_DISAGREEMENT,
         minimumCorroboratingDomains = MIN_CORROBORATING_DOMAINS,
         persistenceDays = PERSISTENCE_DAYS,
+        comparisonPopulation = population,
         domains = domains,
         disagrees = domains.size >= MIN_CORROBORATING_DOMAINS,
     )

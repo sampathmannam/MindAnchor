@@ -349,10 +349,10 @@ class PassiveBaselineTest {
             candidate.features.getValue(PassiveFeature.RESTING_HEART_RATE).centre,
             0.0,
         )
-        assertFalse(BaselineShiftDetector.assess(reference, candidate).disagrees)
+        assertFalse(BaselineShiftDetector.assess(reference, candidate, targetDay).disagrees)
     }
 
-    @Test fun `trailing candidate disagreement requires two domains at one frozen scale`() {
+    @Test fun `mixed reference populations use the comparison day stratum`() {
         val reference = PassiveBaseline(
             segment = "a",
             frozenAsOfTime = 1L,
@@ -363,10 +363,10 @@ class PassiveBaselineTest {
                     PassiveFeature.RESTING_HEART_RATE, 60.0, 5.0, 60, false,
                 ),
                 PassiveFeature.SLEEP_MINUTES to FeatureBaseline(
-                    PassiveFeature.SLEEP_MINUTES, 420.0, 20.0, 60, false,
+                    PassiveFeature.SLEEP_MINUTES, 420.0, 20.0, 60, true,
                 ),
                 PassiveFeature.STEPS to FeatureBaseline(
-                    PassiveFeature.STEPS, 5_000.0, 500.0, 60, false,
+                    PassiveFeature.STEPS, 5_000.0, 500.0, 60, true,
                 ),
             ),
         )
@@ -377,7 +377,7 @@ class PassiveBaselineTest {
             referenceDays = 56,
             features = mapOf(
                 PassiveFeature.RESTING_HEART_RATE to FeatureBaseline(
-                    PassiveFeature.RESTING_HEART_RATE, 65.0, 4.0, 14, true,
+                    PassiveFeature.RESTING_HEART_RATE, 65.0, 4.0, 14, false,
                 ),
                 PassiveFeature.SLEEP_MINUTES to FeatureBaseline(
                     PassiveFeature.SLEEP_MINUTES, 400.0, 15.0, 14, true,
@@ -388,15 +388,56 @@ class PassiveBaselineTest {
             ),
         )
 
-        val assessment = BaselineShiftDetector.assess(reference, candidate)
+        val assessment = BaselineShiftDetector.assess(
+            reference,
+            candidate,
+            comparisonDay = LocalDate.parse("2026-03-02"),
+        )
 
         assertTrue(assessment.disagrees)
+        assertEquals(BaselineComparisonPopulation.WEEKDAY, assessment.comparisonPopulation)
         assertEquals(56, assessment.candidateDays)
         assertEquals(
             listOf(PassiveDomain.PHYSIOLOGY, PassiveDomain.SLEEP),
             assessment.domains.map { it.domain },
         )
         assertEquals(listOf(1.0, 1.0), assessment.domains.map { it.standardizedDisagreement })
+    }
+
+    @Test fun `all pooled references use pooled comparison population`() {
+        val reference = PassiveBaseline(
+            segment = "a",
+            frozenAsOfTime = 1L,
+            frozenThroughDay = LocalDate.parse("2026-03-01"),
+            referenceDays = 60,
+            features = mapOf(
+                PassiveFeature.RESTING_HEART_RATE to FeatureBaseline(
+                    PassiveFeature.RESTING_HEART_RATE, 60.0, 5.0, 60, true,
+                ),
+                PassiveFeature.SLEEP_MINUTES to FeatureBaseline(
+                    PassiveFeature.SLEEP_MINUTES, 420.0, 20.0, 60, true,
+                ),
+            ),
+        )
+        val candidate = reference.copy(
+            referenceDays = 56,
+            features = mapOf(
+                PassiveFeature.RESTING_HEART_RATE to FeatureBaseline(
+                    PassiveFeature.RESTING_HEART_RATE, 65.0, 4.0, 56, true,
+                ),
+                PassiveFeature.SLEEP_MINUTES to FeatureBaseline(
+                    PassiveFeature.SLEEP_MINUTES, 400.0, 15.0, 56, true,
+                ),
+            ),
+        )
+
+        val assessment = BaselineShiftDetector.assess(
+            reference,
+            candidate,
+            comparisonDay = LocalDate.parse("2026-03-07"),
+        )
+
+        assertEquals(BaselineComparisonPopulation.POOLED, assessment.comparisonPopulation)
     }
 
     private fun revision(

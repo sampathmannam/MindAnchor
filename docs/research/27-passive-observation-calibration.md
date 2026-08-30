@@ -41,7 +41,7 @@ personal-baseline scale for `1`, `2`, `3`, or `7` days. Resting heart rate and s
 steps shift downward. This constructed control isolates corroboration mechanics while the separate five-seed AR(1)
 streams retain the stochastic false-episode check. Delay is zero-based from the first injected day.
 
-Program 2A rule version `passive-observation-rules-v4` calibrates the second-largest eligible domain magnitude,
+Program 2A rule version `passive-observation-rules-v5` calibrates the second-largest eligible domain magnitude,
 so at least two domains must cross the same threshold. Candidate thresholds are traversed downward from the
 maximum, which is guaranteed safe under strict crossings. The selected threshold is the last safe candidate
 before the first episode-budget violation. Refractory grouping makes episode counts non-monotonic: dense
@@ -55,9 +55,12 @@ After pooling, a feature needs at least 14 eligible values or remains absent.
 The frozen reference is never silently replaced. A separately persisted trailing candidate uses the latest 56
 eligible distinct days (eight complete weeks). For each feature it mirrors the reference's pooling decision: pooled
 with pooled, or the same weekday/weekend stratum with at least 14 values. `BASELINE_SHIFT_CANDIDATE` requires
-candidate/reference centre disagreement of at least
-`1.0` frozen-reference scale in two domains for seven consecutive eligible observations. It records persistent
-baseline disagreement, not improvement or deterioration. After a deviation, the first eligible in-range day is
+candidate/reference centre disagreement of at least `1.0` frozen-reference scale in two domains. The assessment
+records `POOLED` only when every frozen reference feature is pooled; if any feature is stratum-specific, including
+mixed pooled/specific evidence, it records the comparison day's `WEEKDAY` or `WEEKEND` population. Seven
+same-population disagreements are required. Other calendar strata neither count nor break a stratum-specific run;
+a same-population non-disagreement breaks it. A pooled run examines every eligible day and requires each counted
+assessment to be pooled. This records persistent baseline disagreement, not improvement or deterioration. After a deviation, the first eligible in-range day is
 `RANGE_RETURN_PENDING`; the second is `WITHIN_PERSON_RANGE`; ineligible days do not count or break that sequence.
 
 ## Deterministic results
@@ -107,6 +110,13 @@ frozen content hash changed from `edfbaee8dc3c317201a3e0bf0f006688a8821a90a3515a
 `2d1e1fe37f3793a7179732e58752d520c742d1c5bd9e7d31ac8919949cce59d7`. This re-pin reflects only Program 2A
 provenance content (the rule/model versions and the registered transformation versions/descriptions); the export
 projection, document version, and encoder did not change.
+
+The comparison-population remediation advances only the runtime rule version from
+`passive-observation-rules-v4` to `passive-observation-rules-v5`. The baseline model and transformation registry did
+not change, so the transformation-set hash remains
+`e36fe716c37f318166ccb8d764af56c546a6aa8b57df6dab34be48b4447d9fea`. The current export fixture hash remains
+`2d1e1fe37f3793a7179732e58752d520c742d1c5bd9e7d31ac8919949cce59d7`; no hash was re-pinned. The runtime
+provenance vector is pinned separately by `ProvenanceVersionsTest`.
 
 The acceptance run also confirmed that no ineligible day emitted a deviation and that no threshold or baseline
 observation was available before day 61.

@@ -31,8 +31,9 @@
   reuse only revisions visible at that cutoff and persist its cutoff/through-day identity.
 - Score each calibration day against its own weekday/weekend stratum from that same frozen snapshot.
 - Compare the reference with the latest 56 eligible-day candidate using the corresponding feature's same pooling
-  decision and at least 14 like-for-like values; require `1.0` frozen-scale disagreement in two domains for seven
-  consecutive eligible observations before `BASELINE_SHIFT_CANDIDATE`.
+  decision and at least 14 like-for-like values. Record `POOLED` only when every frozen feature is pooled; otherwise
+  record the current `WEEKDAY`/`WEEKEND` stratum. Require `1.0` frozen-scale disagreement in two domains for seven
+  same-population comparisons before `BASELINE_SHIFT_CANDIDATE`; other strata neither count nor break a run.
 - User-facing text names observable data only and must not contain diagnoses or mental-state predictions.
 - Preserve the unrelated modified `app/src/main/java/org/mindanchor/llm/LlmPrefs.kt` and untracked root `AGENTS.md`.
 
@@ -502,7 +503,7 @@ Expected: compilation fails because `PassiveEstimator` does not exist.
 
 ```kotlin
 object PassiveEstimator {
-    const val RULE_VERSION = "passive-observation-rules-v4"
+    const val RULE_VERSION = "passive-observation-rules-v5"
 
     fun observe(
         day: PassiveDay,
@@ -553,7 +554,7 @@ object PassiveEstimator {
 }
 ```
 
-`PassiveExplanation` uses only fixed templates and tests stable status-specific concepts rather than whole sentences. Crossed observations name differing domains and state that they describe recorded data only. `RANGE_RETURN_PENDING` states that one eligible in-range day is recorded and two are required. `BASELINE_SHIFT_CANDIDATE` names the frozen reference, trailing candidate, differing domains, and seven eligible days without interpreting direction. Every no-observation status names its own data limitation.
+`PassiveExplanation` uses only fixed templates and tests stable status-specific concepts rather than whole sentences. Crossed observations name differing domains and state that they describe recorded data only. `RANGE_RETURN_PENDING` states that one eligible in-range day is recorded and two are required. `BASELINE_SHIFT_CANDIDATE` names the frozen reference, trailing candidate, differing domains, and seven same-population eligible comparisons without interpreting direction. Every no-observation status names its own data limitation.
 
 - [ ] **Step 4: Run estimator tests**
 
@@ -702,7 +703,7 @@ an intervening ineligible day neither counts nor breaks the eligible sequence.
 Freeze at the first eligible ingestion cutoff and retain its ready prefix. Build a candidate from the latest 56
 eligible distinct days with the same pooling or calendar-stratum decision as each reference feature. Standardize
 candidate/reference centre disagreement by frozen scale, require `>= 1.0` in at least two domains, persist the
-assessment, and emit `BASELINE_SHIFT_CANDIDATE` on the seventh consecutive eligible disagreement day. Explanation
+assessment, and emit `BASELINE_SHIFT_CANDIDATE` on the seventh same-population eligible disagreement. Explanation
 tokens describe baseline disagreement only.
 
 - [ ] **Step 4: RED/GREEN provenance corrections and narrow regressions**
@@ -737,6 +738,27 @@ shift with seven-day persistence and current crossing priority.
 Advance the changed rule/model/baseline/calibration semantic versions, re-pin only provenance-derived registry/export
 content hashes, update deterministic simulation evidence, then run focused, Program 2A, provenance/export, detekt,
 lint, full JVM, and diff checks without staging `LlmPrefs.kt` or root `AGENTS.md`.
+
+### Task 9: Comparison-population-aware shift persistence
+
+- [ ] **Step 1: RED/GREEN the chronological weekday run**
+
+Generate all prior observations through `PassiveEstimator.observe`. Prove seven shifted weekday assessments reach
+`BASELINE_SHIFT_CANDIDATE` despite unchanged intervening weekends, while a non-disagreeing weekday assessment
+breaks the run. Keep current crossing evidence and state priority explicit.
+
+- [ ] **Step 2: Persist and apply the population contract**
+
+Add `POOLED`, `WEEKDAY`, and `WEEKEND` to `BaselineShiftAssessment`. If every frozen reference feature is pooled,
+use `POOLED`; if any feature is stratum-specific, including mixed evidence, use the current calendar stratum.
+Filter canonical eligible priors by that stratum before taking six predecessors. For pooled comparisons, inspect
+every eligible prior. In all cases each counted predecessor must carry the same population and disagree; a
+same-population gap breaks the run.
+
+- [ ] **Step 3: Provenance and verification**
+
+Advance only the passive observation rule version, document why registry/export hashes do or do not move, and run
+focused, Program 2A, provenance/export, detekt, lint, full JVM, and diff checks.
 
 ## Self-review
 

@@ -1,7 +1,7 @@
 package org.mindanchor.intelligence
 
 object PassiveEstimator {
-    const val RULE_VERSION = "passive-observation-rules-v4"
+    const val RULE_VERSION = "passive-observation-rules-v5"
 
     @Suppress("ReturnCount")
     fun observe(
@@ -46,7 +46,7 @@ object PassiveEstimator {
             day.baselineSegment,
             baseline,
         )
-        val baselineShift = candidate?.let { BaselineShiftDetector.assess(baseline, it) }
+        val baselineShift = candidate?.let { BaselineShiftDetector.assess(baseline, it, day.day) }
         val state = stateFor(day, asOfTime, prior, crossed, baselineShift)
         val draft = PassiveObservation(
             day.day,
@@ -81,10 +81,23 @@ object PassiveEstimator {
             day.baselineSegment,
         ).filter { it.dataStatus.canEstimate }
         val previousEligible = eligiblePrior.takeLast(2)
-        val priorCandidateDays = eligiblePrior.takeLast(BaselineShiftDetector.PERSISTENCE_DAYS - 1)
+        val comparablePrior = when (baselineShift?.comparisonPopulation) {
+            BaselineComparisonPopulation.POOLED -> eligiblePrior
+            BaselineComparisonPopulation.WEEKDAY -> eligiblePrior.filter {
+                it.day.dayOfWeek.value < PassiveBaselineBuilder.WEEKEND_START_DAY
+            }
+            BaselineComparisonPopulation.WEEKEND -> eligiblePrior.filter {
+                it.day.dayOfWeek.value >= PassiveBaselineBuilder.WEEKEND_START_DAY
+            }
+            null -> emptyList()
+        }
+        val priorCandidateDays = comparablePrior.takeLast(BaselineShiftDetector.PERSISTENCE_DAYS - 1)
         val persistentBaselineShift = baselineShift?.disagrees == true &&
             priorCandidateDays.size == BaselineShiftDetector.PERSISTENCE_DAYS - 1 &&
-            priorCandidateDays.all { it.baselineShift?.disagrees == true }
+            priorCandidateDays.all {
+                it.baselineShift?.comparisonPopulation == baselineShift.comparisonPopulation &&
+                    it.baselineShift.disagrees
+            }
         return when {
             persistentBaselineShift -> PassiveObservationState.BASELINE_SHIFT_CANDIDATE
             crossed && previousEligible.any { it.crossed } -> PassiveObservationState.SUSTAINED_DEVIATION

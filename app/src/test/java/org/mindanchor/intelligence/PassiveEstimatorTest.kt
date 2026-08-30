@@ -191,55 +191,72 @@ class PassiveEstimatorTest {
         assertEquals(PassiveObservationState.WITHIN_PERSON_RANGE, secondAcrossGap.state)
     }
 
-    @Test fun `seven eligible days of same-stratum two-domain disagreement emit a baseline-shift candidate`() {
-        val shiftedHistory = calendarRhythmHistory(60) + List(56) { index ->
-            val date = start.plusDays(60L + index)
-            val stableRhythm = calendarRhythmFeatures(date)
-            val weekday = date.dayOfWeek.value <= 5
-            day(
-                date,
-                features = mapOf(
-                    PassiveFeature.RESTING_HEART_RATE to stableRhythm.getValue(
-                        PassiveFeature.RESTING_HEART_RATE,
-                    ) + if (weekday) 20.0 else 0.0,
-                    PassiveFeature.SLEEP_MINUTES to stableRhythm.getValue(
-                        PassiveFeature.SLEEP_MINUTES,
-                    ) - if (weekday) 120.0 else 0.0,
-                ),
-            )
-        }
-        val targetDay = start.plusDays(116)
-        val prior = List(BaselineShiftDetector.PERSISTENCE_DAYS - 1) { index ->
-            priorObservation(
-                date = targetDay.minusDays((BaselineShiftDetector.PERSISTENCE_DAYS - 1 - index).toLong()),
-                crossed = false,
-                baselineShiftDisagreement = true,
-            )
-        }
+    @Test fun `seven shifted weekday comparisons persist across unchanged weekends`() {
+        val history = primedWeekdayShiftHistory()
+        val prior = mutableListOf<PassiveObservation>()
 
-        val observation = PassiveEstimator.observe(
-            day(
-                targetDay,
-                features = mapOf(
-                    PassiveFeature.RESTING_HEART_RATE to 91.0,
-                    PassiveFeature.SLEEP_MINUTES to 250.0,
-                ),
-            ),
-            targetDay.toEpochDay(),
-            shiftedHistory,
-            prior,
-            42L,
+        val observations = observeShiftedWeekdays(history, prior, weekdayCount = 7)
+        val weekdays = observations.filter { it.day.dayOfWeek.value <= 5 }
+        val weekends = observations.filter { it.day.dayOfWeek.value >= 6 }
+        val observation = weekdays.last()
+
+        assertEquals(7, weekdays.size)
+        assertEquals(2, weekends.size)
+        assertTrue(weekdays.all { it.baselineShift?.disagrees == true })
+        assertTrue(
+            weekdays.all {
+                it.baselineShift?.comparisonPopulation == BaselineComparisonPopulation.WEEKDAY
+            },
         )
-
+        assertTrue(weekends.all { it.baselineShift?.disagrees == false })
+        assertTrue(
+            weekends.all {
+                it.baselineShift?.comparisonPopulation == BaselineComparisonPopulation.WEEKEND
+            },
+        )
+        assertTrue(weekends.none { it.state == PassiveObservationState.BASELINE_SHIFT_CANDIDATE })
         assertEquals(PassiveObservationState.BASELINE_SHIFT_CANDIDATE, observation.state)
         assertTrue(observation.crossed)
-        assertTrue(requireNotNull(observation.baselineShift).disagrees)
         assertEquals(2, requireNotNull(observation.baselineShift).domains.size)
         val explanation = observation.explanation.lowercase()
         assertTrue(explanation.contains("frozen reference"))
         assertTrue(explanation.contains("trailing candidate"))
         assertFalse(observation.explanation.contains("improvement", ignoreCase = true))
         assertFalse(observation.explanation.contains("deterioration", ignoreCase = true))
+    }
+
+    @Test fun `an unchanged weekday comparison breaks weekday shift persistence`() {
+        val history = primedWeekdayShiftHistory()
+        val prior = mutableListOf<PassiveObservation>()
+        observeShiftedWeekdays(history, prior, weekdayCount = 6)
+        appendCalendarHistory(history, count = 56, shiftWeekdays = false)
+        val gapDay = history.last().day.plusDays(1)
+        val gap = PassiveEstimator.observe(
+            day(gapDay, features = calendarRhythmFeatures(gapDay)),
+            gapDay.toEpochDay(),
+            history,
+            prior,
+            42L,
+        )
+        prior += gap
+        history += day(gapDay, features = calendarRhythmFeatures(gapDay))
+        appendCalendarHistory(history, count = 56, shiftWeekdays = true)
+        val targetDay = history.last().day.plusDays(1)
+
+        val observation = PassiveEstimator.observe(
+            day(targetDay, features = weekdayShiftFeatures(targetDay, crossing = true)),
+            targetDay.toEpochDay(),
+            history,
+            prior,
+            42L,
+        )
+
+        assertFalse(requireNotNull(gap.baselineShift).disagrees)
+        assertEquals(BaselineComparisonPopulation.WEEKDAY, gap.baselineShift?.comparisonPopulation)
+        assertTrue(requireNotNull(observation.baselineShift).disagrees)
+        assertEquals(BaselineComparisonPopulation.WEEKDAY, observation.baselineShift?.comparisonPopulation)
+        assertTrue(observation.crossed)
+        assertFalse(observation.state == PassiveObservationState.BASELINE_SHIFT_CANDIDATE)
     }
 
     @Test fun `fixed explanations are observation only and exclude banned terms`() {
@@ -347,6 +364,61 @@ class PassiveEstimatorTest {
         )
     }
 
+    private fun primedWeekdayShiftHistory(): MutableList<PassiveDay> =
+        calendarRhythmHistory(60).toMutableList().also { history ->
+            appendCalendarHistory(history, count = 56, shiftWeekdays = true)
+        }
+
+    private fun appendCalendarHistory(
+        history: MutableList<PassiveDay>,
+        count: Int,
+        shiftWeekdays: Boolean,
+    ) {
+        repeat(count) {
+            val date = history.last().day.plusDays(1)
+            val features = if (shiftWeekdays) {
+                weekdayShiftFeatures(date, crossing = false)
+            } else {
+                calendarRhythmFeatures(date)
+            }
+            history += day(date, features = features)
+        }
+    }
+
+    private fun observeShiftedWeekdays(
+        history: MutableList<PassiveDay>,
+        prior: MutableList<PassiveObservation>,
+        weekdayCount: Int,
+    ): List<PassiveObservation> {
+        val observations = mutableListOf<PassiveObservation>()
+        while (observations.count { it.day.dayOfWeek.value <= 5 } < weekdayCount) {
+            val date = history.last().day.plusDays(1)
+            val current = day(date, features = weekdayShiftFeatures(date, crossing = true))
+            val observation = PassiveEstimator.observe(
+                current,
+                date.toEpochDay(),
+                history,
+                prior,
+                42L,
+            )
+            observations += observation
+            prior += observation
+            history += current
+        }
+        return observations
+    }
+
+    private fun weekdayShiftFeatures(date: LocalDate, crossing: Boolean): Map<PassiveFeature, Double> {
+        val features = calendarRhythmFeatures(date)
+        if (date.dayOfWeek.value >= 6) return features
+        return mapOf(
+            PassiveFeature.RESTING_HEART_RATE to features.getValue(PassiveFeature.RESTING_HEART_RATE) +
+                if (crossing) 30.0 else 20.0,
+            PassiveFeature.SLEEP_MINUTES to features.getValue(PassiveFeature.SLEEP_MINUTES) -
+                if (crossing) 180.0 else 120.0,
+        )
+    }
+
     private fun day(
         date: LocalDate,
         status: PassiveDataStatus = PassiveDataStatus.AVAILABLE_FINAL,
@@ -374,7 +446,6 @@ class PassiveEstimatorTest {
         } else {
             PassiveObservationState.WITHIN_PERSON_RANGE
         },
-        baselineShiftDisagreement: Boolean = false,
     ) = PassiveObservation(
         day = date,
         asOfTime = asOfTime,
@@ -388,18 +459,7 @@ class PassiveEstimatorTest {
         baselineSegment = baselineSegment,
         domains = emptyList(),
         calibration = null,
-        baselineShift = if (baselineShiftDisagreement) {
-            BaselineShiftAssessment(
-                candidateDays = PassiveBaselineBuilder.TRAILING_CANDIDATE_DAYS,
-                standardizedDisagreementThreshold = BaselineShiftDetector.STANDARDIZED_DISAGREEMENT,
-                minimumCorroboratingDomains = BaselineShiftDetector.MIN_CORROBORATING_DOMAINS,
-                persistenceDays = BaselineShiftDetector.PERSISTENCE_DAYS,
-                domains = emptyList(),
-                disagrees = true,
-            )
-        } else {
-            null
-        },
+        baselineShift = null,
         explanation = "prior observation",
     )
 }
