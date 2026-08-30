@@ -46,28 +46,29 @@ object TransformationRegistry {
                 "of the same data agree byte for byte regardless of when or where they were taken.",
         ),
         Transformation(
-            id = "passive-daily-features",
-            version = "daily-features-v1",
-            input = "Raw passive signal samples with timestamps, quality metadata, and exercise intervals.",
-            output = "Daily passive features with explicit exclusions and data-quality status.",
-            description = "Aggregates raw signals through fifteen-minute windows so quality checks and " +
-                "exercise overlap handling can exclude ineligible physiology before producing daily features.",
-        ),
-        Transformation(
             id = "passive-personal-baseline",
-            version = "personal-baseline-v1",
-            input = "Eligible historical daily passive features within one baseline segment.",
-            output = "Per-feature personal centres, scales, sample counts, and pooled-stratum flags.",
+            version = "personal-baseline-v2",
+            input = "Point-in-time eligible daily passive-feature revisions within one baseline segment.",
+            output = "Frozen-reference and trailing-candidate feature centres, scales, and sample counts.",
             description = "Builds a personal baseline from median/MAD statistics, with a declared IQR fallback " +
-                "for zero MAD and eligibility floors for total, weekday, weekend, and stratum data.",
+                "for zero MAD and eligibility floors for total, weekday, weekend, and stratum data. Canonical " +
+                "point-in-time history feeds a frozen reference and a separately reconstructible trailing candidate.",
         ),
         Transformation(
             id = "passive-block-calibration",
-            version = "block-calibration-v1",
+            version = "block-calibration-v2",
             input = "Historical daily passive observation scores.",
-            output = "A block-resampled threshold and expected episode rate.",
+            output = "A block-resampled threshold, expected episode rate, seed, and configuration.",
             description = "Calibrates thresholds with block resampling against an engineering false-observation " +
                 "budget rather than clinical accuracy.",
+        ),
+        Transformation(
+            id = "passive-observation-explanation",
+            version = "observation-explanation-v1",
+            input = "A passive observation state with its domain evidence and data status.",
+            output = "A deterministic observation-only explanation.",
+            description = "Renders fixed templates that describe recorded signals and data limitations without " +
+                "diagnosis, prediction, or intervention language.",
         ),
     )
 

@@ -22,6 +22,8 @@ class PassiveContractsTest {
             features = mapOf(PassiveFeature.RESTING_HEART_RATE to 80.0),
             excludedFeatures = setOf(PassiveFeature.RESTING_HEART_RATE),
             baselineSegment = "device-a",
+            sourceUpdatedTime = 1_000L,
+            ingestedAt = 1_000L,
         )
         assertEquals(80.0, day.features[PassiveFeature.RESTING_HEART_RATE])
         assertFalse(day.isEligible(PassiveFeature.RESTING_HEART_RATE))

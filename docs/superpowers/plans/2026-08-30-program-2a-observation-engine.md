@@ -14,10 +14,22 @@
 - Only `AVAILABLE_FINAL` days may emit a deviation.
 - No imputation, interpolation, carry-forward, zero-fill, or arbitrary epsilon.
 - Baseline floor: 60 eligible days, including at least 8 weekdays and 8 weekend days.
-- Feature stratum floor: 14 observations; otherwise pool into the all-days stratum and record that choice.
+- Feature stratum floor: 14 observations; otherwise pool weekday/weekend values, record that choice, and still
+  require at least 14 pooled values or leave the feature absent.
+- Every `PassiveDay` revision has required `sourceUpdatedTime` and `ingestedAt`; at a decision cutoff select one
+  newest eligible final revision per date, discard future revisions, and sort distinct dates chronologically.
+- Wake-relative semantics belong only to Program 2B's 15-minute quality/alignment windows. Program 2A daily
+  baselines use weekday/weekend strata only.
 - Scale: `1.4826 * MAD`, then `IQR / 1.349` only when MAD is zero; an all-zero scale makes the feature unscorable.
 - Calibration: deterministic seven-day circular block resampling against an engineering budget of at most one observation episode per 30 valid days; traverse candidates downward from the guaranteed-safe maximum and stop at the first violation so disconnected dense-crossing safe islands are rejected.
-- Two crossings among three eligible days are sustained; crossings within 48 hours belong to one episode.
+- Two crossings among three eligible days are sustained; crossings within 48 hours belong to one episode. Prior
+  decisions must be before the target, known by the current cutoff, in the same segment, and deduplicated by latest
+  `asOfTime` per date.
+- After a deviation, the first eligible in-range day is `RANGE_RETURN_PENDING`; the second returns to
+  `WITHIN_PERSON_RANGE`. Ineligible days neither count nor break this eligible-day sequence.
+- Freeze the first ready reference prefix. Compare it with the latest 14 eligible-day candidate; require at least
+  `1.0` frozen-scale disagreement in two domains for seven consecutive eligible observations before
+  `BASELINE_SHIFT_CANDIDATE`.
 - User-facing text names observable data only and must not contain diagnoses or mental-state predictions.
 - Preserve the unrelated modified `app/src/main/java/org/mindanchor/llm/LlmPrefs.kt` and untracked root `AGENTS.md`.
 
@@ -59,6 +71,8 @@ class PassiveContractsTest {
             features = mapOf(PassiveFeature.RESTING_HEART_RATE to 80.0),
             excludedFeatures = setOf(PassiveFeature.RESTING_HEART_RATE),
             baselineSegment = "device-a",
+            sourceUpdatedTime = 1_000L,
+            ingestedAt = 1_000L,
         )
         assertEquals(80.0, day.features[PassiveFeature.RESTING_HEART_RATE])
         assertFalse(day.isEligible(PassiveFeature.RESTING_HEART_RATE))
@@ -102,6 +116,7 @@ enum class PassiveDataStatus(val canEstimate: Boolean) {
 
 enum class PassiveObservationState {
     WITHIN_PERSON_RANGE,
+    RANGE_RETURN_PENDING,
     TRANSIENT_DEVIATION,
     SUSTAINED_DEVIATION,
     BASELINE_SHIFT_CANDIDATE,
@@ -114,6 +129,8 @@ data class PassiveDay(
     val features: Map<PassiveFeature, Double>,
     val excludedFeatures: Set<PassiveFeature> = emptySet(),
     val baselineSegment: String,
+    val sourceUpdatedTime: Long,
+    val ingestedAt: Long,
 ) {
     fun isEligible(feature: PassiveFeature): Boolean =
         dataStatus.canEstimate && feature.scored && feature !in excludedFeatures && features[feature]?.isFinite() == true
@@ -145,6 +162,8 @@ data class PassiveObservation(
     val baselineDays: Int,
     val baselineSegment: String,
     val domains: List<DomainEvidence>,
+    val calibration: CalibrationResult?,
+    val baselineShift: BaselineShiftAssessment?,
     val explanation: String,
 )
 ```
@@ -184,20 +203,26 @@ import org.junit.Test
 class PassiveBaselineTest {
     private fun days(count: Int, start: LocalDate = LocalDate.parse("2026-01-01")) =
         List(count) { i ->
-            PassiveDay(start.plusDays(i.toLong()), PassiveDataStatus.AVAILABLE_FINAL,
-                mapOf(PassiveFeature.STEPS to (5_000 + (i % 9) * 100).toDouble()), baselineSegment = "a")
+            val day = start.plusDays(i.toLong())
+            PassiveDay(day, PassiveDataStatus.AVAILABLE_FINAL,
+                mapOf(PassiveFeature.STEPS to (5_000 + (i % 9) * 100).toDouble()), baselineSegment = "a",
+                sourceUpdatedTime = day.toEpochDay(), ingestedAt = day.toEpochDay())
         }
 
     @Test fun `baseline stays unavailable below sixty eligible days`() {
-        assertFalse(PassiveBaselineBuilder.evaluate(days(59), "a").ready)
+        val history = days(59)
+        val target = history.last().day.plusDays(1)
+        assertFalse(PassiveBaselineBuilder.evaluate(history, target, target.toEpochDay(), "a").ready)
     }
 
     @Test fun `baseline requires weekday and weekend coverage`() {
         val weekdays = generateSequence(LocalDate.parse("2026-01-05")) { it.plusDays(1) }
             .filter { it.dayOfWeek.value <= 5 }.take(60)
             .map { PassiveDay(it, PassiveDataStatus.AVAILABLE_FINAL,
-                mapOf(PassiveFeature.STEPS to 5_000.0), baselineSegment = "a") }.toList()
-        assertFalse(PassiveBaselineBuilder.evaluate(weekdays, "a").ready)
+                mapOf(PassiveFeature.STEPS to 5_000.0), baselineSegment = "a",
+                sourceUpdatedTime = it.toEpochDay(), ingestedAt = it.toEpochDay()) }.toList()
+        val target = weekdays.last().day.plusDays(1)
+        assertFalse(PassiveBaselineBuilder.evaluate(weekdays, target, target.toEpochDay(), "a").ready)
     }
 
     @Test fun `zero MAD falls back to nonzero IQR`() {
@@ -205,14 +230,16 @@ class PassiveBaselineTest {
         val history = days(60).mapIndexed { i, day ->
             day.copy(features = mapOf(PassiveFeature.STEPS to values[i]))
         }
-        val scale = PassiveBaselineBuilder.build(history, history.last().day.plusDays(1), "a")!!
+        val target = history.last().day.plusDays(1)
+        val scale = PassiveBaselineBuilder.build(history, target, target.toEpochDay(), "a")!!
             .features.getValue(PassiveFeature.STEPS).scale
         assertTrue(scale > 0.0)
     }
 
     @Test fun `constant feature is omitted instead of divided by epsilon`() {
         val history = days(60).map { it.copy(features = mapOf(PassiveFeature.STEPS to 10.0)) }
-        assertFalse(PassiveBaselineBuilder.build(history, history.last().day.plusDays(1), "a")!!
+        val target = history.last().day.plusDays(1)
+        assertFalse(PassiveBaselineBuilder.build(history, target, target.toEpochDay(), "a")!!
             .features.containsKey(PassiveFeature.STEPS))
     }
 }
@@ -255,15 +282,25 @@ object PassiveBaselineBuilder {
     private const val MAD_SCALE = 1.4826
     private const val IQR_SCALE = 1.349
 
-    fun evaluate(history: List<PassiveDay>, segment: String): BaselineEligibility {
-        val eligible = history.filter { it.baselineSegment == segment && it.dataStatus.canEstimate }
+    fun evaluate(
+        history: List<PassiveDay>,
+        targetDay: LocalDate,
+        asOfTime: Long,
+        segment: String,
+    ): BaselineEligibility {
+        val eligible = PassiveHistory.effectiveFinalDays(history, targetDay, asOfTime, segment)
         val weekend = eligible.count { it.day.dayOfWeek.value >= 6 }
         return BaselineEligibility(eligible.size, eligible.size - weekend, weekend)
     }
 
-    fun build(history: List<PassiveDay>, targetDay: LocalDate, segment: String): PassiveBaseline? {
-        val eligible = history.filter { it.day.isBefore(targetDay) && it.baselineSegment == segment && it.dataStatus.canEstimate }
-        if (!evaluate(eligible, segment).ready) return null
+    fun build(
+        history: List<PassiveDay>,
+        targetDay: LocalDate,
+        asOfTime: Long,
+        segment: String,
+    ): PassiveBaseline? {
+        val effective = PassiveHistory.effectiveFinalDays(history, targetDay, asOfTime, segment)
+        val eligible = firstReadyPrefix(effective) ?: return null
         val targetWeekend = targetDay.dayOfWeek.value >= 6
         val baselines = PassiveFeature.entries.filter { it.scored }.mapNotNull { feature ->
             val all = eligible.filter { it.isEligible(feature) }.mapNotNull { it.features[feature] }
@@ -277,7 +314,7 @@ object PassiveBaselineBuilder {
     }
 
     private fun statistics(feature: PassiveFeature, values: List<Double>, pooled: Boolean): FeatureBaseline? {
-        if (values.isEmpty()) return null
+        if (values.size < MIN_STRATUM_VALUES) return null
         val centre = median(values)
         val mad = median(values.map { kotlin.math.abs(it - centre) })
         val q1 = quantile(values, 0.25)
@@ -300,6 +337,12 @@ object PassiveBaselineBuilder {
     }
 }
 ```
+
+`PassiveHistory.effectiveFinalDays` discards `ingestedAt > asOfTime`, keeps only final matching-segment revisions
+strictly before `targetDay`, selects the maximum `(sourceUpdatedTime, ingestedAt)` revision per date, and sorts by
+date. `firstReadyPrefix` freezes the earliest chronological prefix meeting the 60/8/8 floors.
+`buildTrailingCandidate` applies the same point-in-time selector and builds from exactly the latest 14 eligible
+distinct days; it does not replace the frozen reference.
 
 - [ ] **Step 4: Run baseline tests**
 
@@ -337,8 +380,9 @@ class PassiveCalibrationTest {
         val baseline = PassiveBaseline("a", 60, mapOf(
             PassiveFeature.STEPS to FeatureBaseline(PassiveFeature.STEPS, 5_000.0, 500.0, 60, false)))
         val day = PassiveDay(LocalDate.parse("2026-08-30"), PassiveDataStatus.AVAILABLE_FINAL,
-            mapOf(PassiveFeature.STEPS to 8_000.0), baselineSegment = "a")
-        assertNull(PassiveScorer.score(day, baseline))
+            mapOf(PassiveFeature.STEPS to 8_000.0), baselineSegment = "a",
+            sourceUpdatedTime = 1_000L, ingestedAt = 1_000L)
+        assertNull(PassiveScorer.score(day, baseline, asOfTime = day.ingestedAt))
     }
 
     @Test fun `exercise-excluded physiology cannot contribute`() {
@@ -347,8 +391,9 @@ class PassiveCalibrationTest {
             PassiveFeature.SLEEP_MINUTES to FeatureBaseline(PassiveFeature.SLEEP_MINUTES, 450.0, 30.0, 60, false)))
         val day = PassiveDay(LocalDate.parse("2026-08-30"), PassiveDataStatus.AVAILABLE_FINAL,
             mapOf(PassiveFeature.RESTING_HEART_RATE to 100.0, PassiveFeature.SLEEP_MINUTES to 300.0),
-            excludedFeatures = setOf(PassiveFeature.RESTING_HEART_RATE), baselineSegment = "a")
-        assertNull(PassiveScorer.score(day, baseline))
+            excludedFeatures = setOf(PassiveFeature.RESTING_HEART_RATE), baselineSegment = "a",
+            sourceUpdatedTime = 1_000L, ingestedAt = 1_000L)
+        assertNull(PassiveScorer.score(day, baseline, asOfTime = day.ingestedAt))
     }
 
     @Test fun `calibration is deterministic and respects the episode budget`() {
@@ -373,15 +418,29 @@ Expected: compilation fails because the scorer and calibrator do not exist.
 
 - [ ] **Step 3: Implement scoring and deterministic block calibration**
 
-Implement `PassiveScorer` by calculating `(value - centre) / scale`, grouping evidence by domain, and using each domain's maximum absolute feature z-score. Return null unless at least two domains are present, and use the second-largest eligible domain magnitude as the corroborated `DayScore.score`, so a crossing requires two domains above the same threshold. Implement `BlockThresholdCalibrator` with constants `BLOCK_DAYS = 7`, `CALIBRATION_DAYS = 30`, `SIMULATIONS = 512`, `TARGET_EPISODES_PER_30 = 1.0`, and `REFRACTORY_DAYS = 2`. Use `java.util.Random(seed)` and circular seven-day blocks. Candidate crossings are strict `score > threshold`, so the maximum candidate is a guaranteed zero-episode starting point. Traverse candidates downward and select the last budget-compliant threshold before the first violation. Do not continue into a disconnected lower-threshold safe island: refractory grouping can merge dense crossings into one episode and make episode count non-monotonic.
+Implement `PassiveScorer` by calculating `(value - centre) / scale`, grouping evidence by domain, and using each domain's maximum absolute feature z-score. It receives the decision `asOfTime` and rejects a day revision ingested after that cutoff. Return null unless at least two domains are present, and use the second-largest eligible domain magnitude as the corroborated `DayScore.score`, so a crossing requires two domains above the same threshold. Implement `BlockThresholdCalibrator` with constants `BLOCK_DAYS = 7`, `CALIBRATION_DAYS = 30`, `SIMULATIONS = 512`, `TARGET_EPISODES_PER_30 = 1.0`, and `REFRACTORY_DAYS = 2`. Use `java.util.Random(seed)` and circular seven-day blocks. Persist the seed and all five constants in `CalibrationResult.configuration`. Candidate crossings are strict `score > threshold`, so the maximum candidate is a guaranteed zero-episode starting point. Traverse candidates downward and select the last budget-compliant threshold before the first violation. Do not continue into a disconnected lower-threshold safe island: refractory grouping can merge dense crossings into one episode and make episode count non-monotonic.
 
 ```kotlin
 data class DayScore(val score: Double, val domains: List<DomainEvidence>)
-data class CalibrationResult(val threshold: Double, val expectedEpisodesPer30: Double, val simulations: Int)
+data class CalibrationConfiguration(
+    val blockDays: Int,
+    val calibrationDays: Int,
+    val simulations: Int,
+    val targetEpisodesPer30: Double,
+    val refractoryDays: Int,
+)
+data class CalibrationResult(
+    val threshold: Double,
+    val expectedEpisodesPer30: Double,
+    val simulations: Int,
+    val seed: Long,
+    val configuration: CalibrationConfiguration,
+)
 
 object PassiveScorer {
-    fun score(day: PassiveDay, baseline: PassiveBaseline): DayScore? {
-        if (!day.dataStatus.canEstimate || day.baselineSegment != baseline.segment) return null
+    fun score(day: PassiveDay, baseline: PassiveBaseline, asOfTime: Long): DayScore? {
+        if (day.ingestedAt > asOfTime || !day.dataStatus.canEstimate ||
+            day.baselineSegment != baseline.segment) return null
         val evidence = baseline.features.values.mapNotNull { reference ->
             if (!day.isEligible(reference.feature)) return@mapNotNull null
             val value = day.features[reference.feature] ?: return@mapNotNull null
@@ -422,7 +481,7 @@ git commit -m "feat: calibrate passive observations on personal history"
 
 - [ ] **Step 1: Write failing state and safety tests**
 
-Tests must prove all five non-final/ineligible statuses return `NO_OBSERVATION`, 59 days cannot activate a baseline, a first crossing is transient, a second crossing among three eligible observations is sustained, and every generated explanation excludes the case-insensitive terms `anxiety`, `depression`, `bpd`, `panic`, `anger`, `diagnosis`, `illness`, and `disorder`.
+Tests must prove all five non-final/ineligible statuses return `NO_OBSERVATION`, 59 distinct days cannot activate a baseline, a first crossing is transient, a second crossing among three eligible observations is sustained, point-in-time prior revisions cannot leak across date/cutoff/segment boundaries, two eligible in-range days are required after deviation, and every generated explanation excludes the case-insensitive terms `anxiety`, `depression`, `bpd`, `panic`, `anger`, `diagnosis`, `illness`, and `disorder`.
 
 Use deterministic history with physiology and sleep features alternating around non-zero dispersion, then append high resting-heart-rate and low-sleep test days. Assert `threshold != null` only after the baseline and calibration are available.
 
@@ -436,7 +495,7 @@ Expected: compilation fails because `PassiveEstimator` does not exist.
 
 ```kotlin
 object PassiveEstimator {
-    const val RULE_VERSION = "passive-observation-rules-v2"
+    const val RULE_VERSION = "passive-observation-rules-v3"
 
     fun observe(
         day: PassiveDay,
@@ -446,37 +505,48 @@ object PassiveEstimator {
         seed: Long,
     ): PassiveObservation {
         if (!day.dataStatus.canEstimate) return noObservation(day, asOfTime, 0)
-        val baseline = PassiveBaselineBuilder.build(history, day.day, day.baselineSegment)
+        val effectiveHistory = PassiveHistory.effectiveFinalDays(history, day.day, asOfTime, day.baselineSegment)
+        val baseline = PassiveBaselineBuilder.build(history, day.day, asOfTime, day.baselineSegment)
             ?: return noObservation(day.copy(dataStatus = PassiveDataStatus.BASELINE_BUILDING), asOfTime,
-                PassiveBaselineBuilder.evaluate(history, day.baselineSegment).eligibleDays)
-        val current = PassiveScorer.score(day, baseline)
+                PassiveBaselineBuilder.evaluate(history, day.day, asOfTime, day.baselineSegment).eligibleDays)
+        val current = PassiveScorer.score(day, baseline, asOfTime)
             ?: return noObservation(day.copy(dataStatus = PassiveDataStatus.INSUFFICIENT_DATA), asOfTime,
                 baseline.referenceDays)
-        val historicalScores = history.filter { it.day.isBefore(day.day) }
-            .mapNotNull { PassiveScorer.score(it, baseline)?.score }
+        val historicalScores = effectiveHistory.mapNotNull { PassiveScorer.score(it, baseline, asOfTime)?.score }
         val calibration = BlockThresholdCalibrator.calibrate(historicalScores, seed)
             ?: return noObservation(day.copy(dataStatus = PassiveDataStatus.BASELINE_BUILDING), asOfTime,
                 baseline.referenceDays)
         val crossed = current.score > calibration.threshold
-        val previousEligible = prior.filter { it.dataStatus.canEstimate }.sortedByDescending { it.day }.take(2)
+        val eligiblePrior = PassiveHistory.effectiveObservations(prior, day.day, asOfTime, day.baselineSegment)
+            .filter { it.dataStatus.canEstimate }
+        val baselineShift = PassiveBaselineBuilder.buildTrailingCandidate(
+            history, day.day, asOfTime, day.baselineSegment,
+        )?.let { BaselineShiftDetector.assess(baseline, it) }
+        val shiftPersists = baselineShift?.disagrees == true &&
+            eligiblePrior.takeLast(6).let { recent ->
+                recent.size == 6 && recent.all { it.baselineShift?.disagrees == true }
+            }
+        val previousEligible = eligiblePrior.takeLast(2)
         val state = when {
+            shiftPersists -> PassiveObservationState.BASELINE_SHIFT_CANDIDATE
             crossed && previousEligible.any { it.crossed } -> PassiveObservationState.SUSTAINED_DEVIATION
             crossed -> PassiveObservationState.TRANSIENT_DEVIATION
+            requiresRangeReturnConfirmation(eligiblePrior) -> PassiveObservationState.RANGE_RETURN_PENDING
             else -> PassiveObservationState.WITHIN_PERSON_RANGE
         }
         val draft = PassiveObservation(day.day, asOfTime, day.dataStatus, state, calibration.threshold,
-            crossed, baseline.referenceDays, day.baselineSegment, current.domains, "")
+            crossed, baseline.referenceDays, day.baselineSegment, current.domains, calibration, baselineShift, "")
         return draft.copy(explanation = PassiveExplanation.render(draft))
     }
 
     private fun noObservation(day: PassiveDay, asOfTime: Long, baselineDays: Int) =
         PassiveObservation(day.day, asOfTime, day.dataStatus, PassiveObservationState.NO_OBSERVATION,
-            null, false, baselineDays, day.baselineSegment, emptyList(),
+            null, false, baselineDays, day.baselineSegment, emptyList(), null, null,
             PassiveExplanation.noObservation(day.dataStatus, baselineDays))
 }
 ```
 
-`PassiveExplanation` uses only fixed templates. For crossed observations it lists the differing domain names in lowercase and ends with “This describes recorded data, not a diagnosis.” For in-range observations it says “Available signals were within your calibrated personal range.” For every no-observation status it names the data limitation instead of interpreting the day.
+`PassiveExplanation` uses only fixed templates and tests stable status-specific concepts rather than whole sentences. Crossed observations name differing domains and state that they describe recorded data only. `RANGE_RETURN_PENDING` states that one eligible in-range day is recorded and two are required. `BASELINE_SHIFT_CANDIDATE` names the frozen reference, trailing candidate, differing domains, and seven eligible days without interpreting direction. Every no-observation status names its own data limitation.
 
 - [ ] **Step 4: Run estimator tests**
 
@@ -501,11 +571,12 @@ git commit -m "feat: add non-diagnostic passive estimator"
 
 **Interfaces:**
 - Consumes: `PassiveEstimator.RULE_VERSION`.
-- Produces: Program 2 rule/model version vector and registered feature/baseline/calibration transformations.
+- Produces: Program 2 rule/model version vector and the baseline, calibration, and fixed-explanation transformations
+  this build actually performs.
 
 - [ ] **Step 1: Update tests to require Program 2 semantic versions and transformation IDs**
 
-Add assertions that `ProvenanceVersions.RULE_SET_VERSION == PassiveEstimator.RULE_VERSION`, `MODEL_SET_VERSION == "personal-robust-baseline-v1"`, and that the transformation registry contains `passive-daily-features@daily-features-v1`, `passive-personal-baseline@personal-baseline-v1`, and `passive-block-calibration@block-calibration-v1`. Update the frozen registry hash only from the implementation's deterministic output.
+Add assertions that `ProvenanceVersions.RULE_SET_VERSION == PassiveEstimator.RULE_VERSION`, `MODEL_SET_VERSION == "personal-robust-baseline-v2"`, and that the transformation registry contains `passive-personal-baseline@personal-baseline-v2`, `passive-block-calibration@block-calibration-v2`, and `passive-observation-explanation@observation-explanation-v1`. Assert that `passive-daily-features` is absent until Program 2B implements raw-to-daily aggregation. Update the frozen registry and export-content hashes only from this registry-content change; do not change the export projection or encoder.
 
 - [ ] **Step 2: Run focused provenance tests and verify failure**
 
@@ -519,10 +590,10 @@ Set:
 
 ```kotlin
 const val RULE_SET_VERSION = PassiveEstimator.RULE_VERSION
-const val MODEL_SET_VERSION = "personal-robust-baseline-v1"
+const val MODEL_SET_VERSION = "personal-robust-baseline-v2"
 ```
 
-Append the three exact transformation records named in Step 1. Descriptions must state that fifteen-minute windows support quality/exercise handling, that the baseline uses median/MAD with declared fallback and eligibility floors, and that calibration targets an engineering false-observation budget rather than clinical accuracy.
+Register the three exact transformations named in Step 1. The baseline description names point-in-time canonicalization, the frozen reference, trailing candidate, median/MAD, fallback, and eligibility floors. Calibration persists its seed/configuration and targets an engineering false-observation budget rather than clinical accuracy. Explanation uses deterministic fixed templates. Do not register 15-minute or daily-feature aggregation until Program 2B performs it.
 
 - [ ] **Step 4: Run provenance tests and record the new deterministic hash**
 
@@ -560,6 +631,8 @@ Assert only mechanics the implementation promises:
 - the selected primary-stream injection window has seven unshifted days with zero observation-level and domain-level crossings;
 - seven-day 2.0-scale shifts produce at least one crossing;
 - a one-domain shift with all other domains still available never produces an observation, while a two-domain shift can, because corroborating domains are required.
+- one structured `SimulationMetrics` value pins every per-seed count, control-window count, one/two-domain count,
+  injection date/offset, and all 16 `(crossings, delay)` cells to the research table.
 
 - [ ] **Step 2: Run the simulation and verify any genuine implementation defects**
 
@@ -590,6 +663,51 @@ Expected: all commands pass; `git status --short` still shows the user's unrelat
 git add app/src/test/java/org/mindanchor/intelligence/PassiveSimulationTest.kt docs/research/27-passive-observation-calibration.md docs/superpowers/specs/2026-08-30-program-2-passive-intelligence-design.md docs/superpowers/plans/2026-08-30-program-2a-observation-engine.md
 git commit -m "test: validate passive observation mechanics"
 ```
+
+### Task 7: Whole-review point-in-time and state hardening
+
+**Files:**
+- Modify: all four `app/src/main/java/org/mindanchor/intelligence/Passive*.kt` files.
+- Modify: all five `app/src/test/java/org/mindanchor/intelligence/Passive*Test.kt` files.
+- Modify: `app/src/main/java/org/mindanchor/research/TransformationRegistry.kt`.
+- Modify: `app/src/main/java/org/mindanchor/research/ProvenanceVersions.kt`.
+- Modify: provenance/registry/export-hash tests and the Program 2 design, plan, and calibration note.
+
+**Interfaces:**
+- Produces: required `PassiveDay.sourceUpdatedTime`/`ingestedAt`, canonical point-in-time selectors,
+  `RANGE_RETURN_PENDING`, reconstructible `CalibrationResult`, `BaselineShiftAssessment`, and rule/model v3/v2
+  provenance.
+
+- [ ] **Step 1: RED/GREEN the 13/14 sparse-feature boundary and canonical daily revisions**
+
+Add tests where 13 pooled values leave a feature absent and 14 produce a feature. Add shuffled histories with an
+older final revision, a newer final revision, a later provisional revision, a future-ingested revision, duplicates,
+and another segment. Assert one chronological effective final revision per date and 59—not 60—distinct days.
+
+- [ ] **Step 2: RED/GREEN prior canonicalization and range-return hysteresis**
+
+Assert future, same-day, other-segment, and superseded duplicate observations cannot sustain a crossing. Assert the
+first eligible in-range day after a deviation is `RANGE_RETURN_PENDING`, the second is `WITHIN_PERSON_RANGE`, and
+an intervening ineligible day neither counts nor breaks the eligible sequence.
+
+- [ ] **Step 3: RED/GREEN frozen/trailing candidate reachability**
+
+Freeze the first ready reference prefix. Build a candidate from the latest 14 eligible distinct days. Standardize
+candidate/reference centre disagreement by frozen scale, require `>= 1.0` in at least two domains, persist the
+assessment, and emit `BASELINE_SHIFT_CANDIDATE` on the seventh consecutive eligible disagreement day. Explanation
+tokens describe baseline disagreement only.
+
+- [ ] **Step 4: RED/GREEN provenance corrections and narrow regressions**
+
+Persist calibration seed/configuration in `CalibrationResult` and `PassiveObservation`. Replace the unimplemented
+`passive-daily-features` registry entry with `passive-observation-explanation`; advance only the changed semantic
+versions. Re-pin the registry set hash and current export content hash from the registry-content delta only. Add the
+table-driven four-status scorer gate, status-specific explanation-token assertions, and structured simulation pin.
+
+- [ ] **Step 5: Verify and commit**
+
+Run focused intelligence/provenance/export tests, all Program 2A tests, detekt, lint, the full JVM suite, and
+`git diff --check`. Preserve and do not stage `LlmPrefs.kt` or root `AGENTS.md`.
 
 ## Self-review
 

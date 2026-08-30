@@ -493,9 +493,11 @@ class ResearchExportCodecTest {
         // the hash is expected to move and re-pinning is correct. This pin
         // cannot tell those apart on its own, so the reasoning belongs in
         // the commit message that changes it.
-        // This re-pin records Program 2 transformation-registry content,
-        // not an export-shape or encoder change.
-        assertEquals("cc8199225d02400487f5ae11275bc3d78e0fe578951678e7dbc56bae6c0bff25", sample().contentSha256)
+        // This re-pin records only the corrected Program 2A transformation-registry content:
+        // the unimplemented 2B daily-feature entry was removed, baseline/calibration versions
+        // advanced, and the implemented fixed explanation transformation was added. Neither
+        // the export projection nor encoder changed.
+        assertEquals("edfbaee8dc3c317201a3e0bf0f006688a8821a90a3515ad3394fd86588926a77", sample().contentSha256)
     }
 
     /**

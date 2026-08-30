@@ -25,6 +25,7 @@ enum class PassiveDataStatus(val canEstimate: Boolean) {
 
 enum class PassiveObservationState {
     WITHIN_PERSON_RANGE,
+    RANGE_RETURN_PENDING,
     TRANSIENT_DEVIATION,
     SUSTAINED_DEVIATION,
     BASELINE_SHIFT_CANDIDATE,
@@ -37,10 +38,46 @@ data class PassiveDay(
     val features: Map<PassiveFeature, Double>,
     val excludedFeatures: Set<PassiveFeature> = emptySet(),
     val baselineSegment: String,
+    val sourceUpdatedTime: Long,
+    val ingestedAt: Long,
 ) {
     fun isEligible(feature: PassiveFeature): Boolean =
         dataStatus.canEstimate && feature.scored && feature !in excludedFeatures &&
             features[feature]?.isFinite() == true
+}
+
+object PassiveHistory {
+    fun effectiveFinalDays(
+        history: List<PassiveDay>,
+        targetDay: LocalDate,
+        asOfTime: Long,
+        segment: String,
+    ): List<PassiveDay> = history.asSequence()
+        .filter { it.day.isBefore(targetDay) }
+        .filter { it.ingestedAt <= asOfTime }
+        .filter { it.baselineSegment == segment && it.dataStatus.canEstimate }
+        .groupBy { it.day }
+        .values
+        .map { revisions ->
+            revisions.maxWith(
+                compareBy<PassiveDay> { it.sourceUpdatedTime }
+                    .thenBy { it.ingestedAt },
+            )
+        }
+        .sortedBy { it.day }
+
+    fun effectiveObservations(
+        prior: List<PassiveObservation>,
+        targetDay: LocalDate,
+        asOfTime: Long,
+        segment: String,
+    ): List<PassiveObservation> = prior.asSequence()
+        .filter { it.day.isBefore(targetDay) }
+        .filter { it.asOfTime <= asOfTime && it.baselineSegment == segment }
+        .groupBy { it.day }
+        .values
+        .map { revisions -> revisions.maxBy { it.asOfTime } }
+        .sortedBy { it.day }
 }
 
 data class FeatureEvidence(
@@ -69,5 +106,7 @@ data class PassiveObservation(
     val baselineDays: Int,
     val baselineSegment: String,
     val domains: List<DomainEvidence>,
+    val calibration: CalibrationResult?,
+    val baselineShift: BaselineShiftAssessment?,
     val explanation: String,
 )

@@ -87,25 +87,25 @@ class PassiveSimulationTest {
     }
 
     @Test fun `simulation metrics are reproducible`() {
-        val shifts = shiftResults.entries.joinToString(separator = ",") { (shift, result) ->
+        val metrics = simulationMetrics
+        val shifts = metrics.shifts.entries.joinToString(separator = ",") { (shift, result) ->
             "${shift.magnitude}x${shift.duration}=${result.crossings}/${result.firstCrossingDelay ?: "none"}"
         }
-        val injectionDay = generatedDays[REFERENCE_DAYS + injectionOffset].day
-        val seedEpisodes = falseEpisodeCounts.entries.joinToString(separator = ",") { (seed, episodes) ->
+        val seedEpisodes = metrics.seedEpisodes.entries.joinToString(separator = ",") { (seed, episodes) ->
             "$seed:$episodes"
         }
         println(
-            "PASSIVE_SIMULATION_METRICS seeds=$seedEpisodes primarySeed=$PRIMARY_SEED " +
-                "calibrationSeed=$CALIBRATION_SEED " +
-                "injectionOffset=$injectionOffset injectionDay=$injectionDay " +
-                "aggregateFalseEpisodes=${falseEpisodeCounts.values.sum()} " +
-                "unshiftedWindowCrossings=$unshiftedWindowCrossings " +
-                "unshiftedWindowDomainCrossings=$unshiftedWindowDomainCrossings " +
-                "oneDomainCrossings=$oneDomainCrossings twoDomainCrossings=$twoDomainCrossings shifts=$shifts",
+            "PASSIVE_SIMULATION_METRICS seeds=$seedEpisodes primarySeed=${metrics.primarySeed} " +
+                "calibrationSeed=${metrics.calibrationSeed} " +
+                "injectionOffset=${metrics.injectionOffset} injectionDay=${metrics.injectionDay} " +
+                "aggregateFalseEpisodes=${metrics.aggregateFalseEpisodes} " +
+                "unshiftedWindowCrossings=${metrics.unshiftedWindowCrossings} " +
+                "unshiftedWindowDomainCrossings=${metrics.unshiftedWindowDomainCrossings} " +
+                "oneDomainCrossings=${metrics.oneDomainCrossings} " +
+                "twoDomainCrossings=${metrics.twoDomainCrossings} shifts=$shifts",
         )
 
-        assertEquals(MAGNITUDES.size * DURATIONS.size, shiftResults.size)
-        assertEquals(SEEDS.size, falseEpisodeCounts.size)
+        assertEquals(EXPECTED_METRICS, metrics)
     }
 
     private data class Signal(
@@ -118,6 +118,20 @@ class PassiveSimulationTest {
     private data class Shift(val magnitude: Double, val duration: Int)
 
     private data class ShiftResult(val crossings: Int, val firstCrossingDelay: Int?)
+
+    private data class SimulationMetrics(
+        val seedEpisodes: Map<Long, Int>,
+        val primarySeed: Long,
+        val calibrationSeed: Long,
+        val injectionOffset: Int,
+        val injectionDay: LocalDate,
+        val aggregateFalseEpisodes: Int,
+        val unshiftedWindowCrossings: Int,
+        val unshiftedWindowDomainCrossings: Int,
+        val oneDomainCrossings: Int,
+        val twoDomainCrossings: Int,
+        val shifts: Map<Shift, ShiftResult>,
+    )
 
     companion object {
         private const val PRIMARY_SEED = 20_260_830L
@@ -180,6 +194,51 @@ class PassiveSimulationTest {
                 shiftedFeatures = setOf(PassiveFeature.RESTING_HEART_RATE, PassiveFeature.SLEEP_MINUTES),
             ).crossings
         }
+        private val simulationMetrics by lazy {
+            SimulationMetrics(
+                seedEpisodes = falseEpisodeCounts,
+                primarySeed = PRIMARY_SEED,
+                calibrationSeed = CALIBRATION_SEED,
+                injectionOffset = injectionOffset,
+                injectionDay = generatedDays[REFERENCE_DAYS + injectionOffset].day,
+                aggregateFalseEpisodes = falseEpisodeCounts.values.sum(),
+                unshiftedWindowCrossings = unshiftedWindowCrossings,
+                unshiftedWindowDomainCrossings = unshiftedWindowDomainCrossings,
+                oneDomainCrossings = oneDomainCrossings,
+                twoDomainCrossings = twoDomainCrossings,
+                shifts = shiftResults,
+            )
+        }
+        private val EXPECTED_METRICS = SimulationMetrics(
+            seedEpisodes = mapOf(1L to 2, 7L to 6, 42L to 4, 2_026L to 3, PRIMARY_SEED to 5),
+            primarySeed = PRIMARY_SEED,
+            calibrationSeed = CALIBRATION_SEED,
+            injectionOffset = 18,
+            injectionDay = LocalDate.parse("2026-05-19"),
+            aggregateFalseEpisodes = 20,
+            unshiftedWindowCrossings = 0,
+            unshiftedWindowDomainCrossings = 0,
+            oneDomainCrossings = 0,
+            twoDomainCrossings = 2,
+            shifts = mapOf(
+                Shift(0.5, 1) to ShiftResult(0, null),
+                Shift(0.5, 2) to ShiftResult(0, null),
+                Shift(0.5, 3) to ShiftResult(0, null),
+                Shift(0.5, 7) to ShiftResult(0, null),
+                Shift(1.0, 1) to ShiftResult(0, null),
+                Shift(1.0, 2) to ShiftResult(0, null),
+                Shift(1.0, 3) to ShiftResult(0, null),
+                Shift(1.0, 7) to ShiftResult(0, null),
+                Shift(1.5, 1) to ShiftResult(0, null),
+                Shift(1.5, 2) to ShiftResult(0, null),
+                Shift(1.5, 3) to ShiftResult(0, null),
+                Shift(1.5, 7) to ShiftResult(0, null),
+                Shift(2.0, 1) to ShiftResult(0, null),
+                Shift(2.0, 2) to ShiftResult(0, null),
+                Shift(2.0, 3) to ShiftResult(0, null),
+                Shift(2.0, 7) to ShiftResult(3, 3),
+            ),
+        )
 
         private fun generateDays(seed: Long): List<PassiveDay> {
             val random = Random(seed)
@@ -194,6 +253,8 @@ class PassiveSimulationTest {
                     dataStatus = PassiveDataStatus.AVAILABLE_FINAL,
                     features = features,
                     baselineSegment = SEGMENT,
+                    sourceUpdatedTime = START.plusDays(index.toLong()).toEpochDay(),
+                    ingestedAt = START.plusDays(index.toLong()).toEpochDay(),
                 )
             }
         }
@@ -220,7 +281,9 @@ class PassiveSimulationTest {
             val injectionStart = REFERENCE_DAYS + injectionOffset
             val shifted = generatedDays.mapIndexed { index, day ->
                 if (index !in injectionStart until injectionStart + shift.duration) return@mapIndexed day
-                val baseline = requireNotNull(PassiveBaselineBuilder.build(referenceDays, day.day, SEGMENT))
+                val baseline = requireNotNull(
+                    PassiveBaselineBuilder.build(referenceDays, day.day, day.day.toEpochDay(), SEGMENT),
+                )
                 val features = day.features.filterKeys { it in availableFeatures }.mapValues { (feature, value) ->
                     if (feature !in shiftedFeatures) return@mapValues value
                     val signal = SIGNALS.single { it.feature == feature }

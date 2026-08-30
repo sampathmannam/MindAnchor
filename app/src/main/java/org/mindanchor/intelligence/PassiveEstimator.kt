@@ -1,7 +1,7 @@
 package org.mindanchor.intelligence
 
 object PassiveEstimator {
-    const val RULE_VERSION = "passive-observation-rules-v2"
+    const val RULE_VERSION = "passive-observation-rules-v3"
 
     @Suppress("ReturnCount")
     fun observe(
@@ -12,20 +12,20 @@ object PassiveEstimator {
         seed: Long,
     ): PassiveObservation {
         if (!day.dataStatus.canEstimate) return noObservation(day, asOfTime, 0)
-        val baseline = PassiveBaselineBuilder.build(history, day.day, day.baselineSegment)
+        val effectiveHistory = PassiveHistory.effectiveFinalDays(history, day.day, asOfTime, day.baselineSegment)
+        val baseline = PassiveBaselineBuilder.build(history, day.day, asOfTime, day.baselineSegment)
             ?: return noObservation(
                 day.copy(dataStatus = PassiveDataStatus.BASELINE_BUILDING),
                 asOfTime,
-                PassiveBaselineBuilder.evaluate(history, day.baselineSegment).eligibleDays,
+                PassiveBaselineBuilder.evaluate(history, day.day, asOfTime, day.baselineSegment).eligibleDays,
             )
-        val current = PassiveScorer.score(day, baseline)
+        val current = PassiveScorer.score(day, baseline, asOfTime)
             ?: return noObservation(
                 day.copy(dataStatus = PassiveDataStatus.INSUFFICIENT_DATA),
                 asOfTime,
                 baseline.referenceDays,
             )
-        val historicalScores = history.filter { it.day.isBefore(day.day) }
-            .mapNotNull { PassiveScorer.score(it, baseline)?.score }
+        val historicalScores = effectiveHistory.mapNotNull { PassiveScorer.score(it, baseline, asOfTime)?.score }
         val calibration = BlockThresholdCalibrator.calibrate(historicalScores, seed)
             ?: return noObservation(
                 day.copy(dataStatus = PassiveDataStatus.BASELINE_BUILDING),
@@ -35,14 +35,14 @@ object PassiveEstimator {
         val crossingDomains = current.domains.count { it.score > calibration.threshold }
         val crossed = current.score > calibration.threshold &&
             crossingDomains >= PassiveScorer.MIN_CORROBORATING_DOMAINS
-        val previousEligible = prior.filter { it.dataStatus.canEstimate }
-            .sortedByDescending { it.day }
-            .take(2)
-        val state = when {
-            crossed && previousEligible.any { it.crossed } -> PassiveObservationState.SUSTAINED_DEVIATION
-            crossed -> PassiveObservationState.TRANSIENT_DEVIATION
-            else -> PassiveObservationState.WITHIN_PERSON_RANGE
-        }
+        val candidate = PassiveBaselineBuilder.buildTrailingCandidate(
+            history,
+            day.day,
+            asOfTime,
+            day.baselineSegment,
+        )
+        val baselineShift = candidate?.let { BaselineShiftDetector.assess(baseline, it) }
+        val state = stateFor(day, asOfTime, prior, crossed, baselineShift)
         val draft = PassiveObservation(
             day.day,
             asOfTime,
@@ -53,9 +53,43 @@ object PassiveEstimator {
             baseline.referenceDays,
             day.baselineSegment,
             current.domains,
+            calibration,
+            baselineShift,
             "",
         )
         return draft.copy(explanation = PassiveExplanation.render(draft))
+    }
+
+    private fun stateFor(
+        day: PassiveDay,
+        asOfTime: Long,
+        prior: List<PassiveObservation>,
+        crossed: Boolean,
+        baselineShift: BaselineShiftAssessment?,
+    ): PassiveObservationState {
+        val eligiblePrior = PassiveHistory.effectiveObservations(
+            prior,
+            day.day,
+            asOfTime,
+            day.baselineSegment,
+        ).filter { it.dataStatus.canEstimate }
+        val previousEligible = eligiblePrior.takeLast(2)
+        val priorCandidateDays = eligiblePrior.takeLast(BaselineShiftDetector.PERSISTENCE_DAYS - 1)
+        val persistentBaselineShift = baselineShift?.disagrees == true &&
+            priorCandidateDays.size == BaselineShiftDetector.PERSISTENCE_DAYS - 1 &&
+            priorCandidateDays.all { it.baselineShift?.disagrees == true }
+        return when {
+            persistentBaselineShift -> PassiveObservationState.BASELINE_SHIFT_CANDIDATE
+            crossed && previousEligible.any { it.crossed } -> PassiveObservationState.SUSTAINED_DEVIATION
+            crossed -> PassiveObservationState.TRANSIENT_DEVIATION
+            requiresRangeReturnConfirmation(eligiblePrior) -> PassiveObservationState.RANGE_RETURN_PENDING
+            else -> PassiveObservationState.WITHIN_PERSON_RANGE
+        }
+    }
+
+    private fun requiresRangeReturnConfirmation(prior: List<PassiveObservation>): Boolean {
+        val lastCrossing = prior.indexOfLast { it.crossed }
+        return lastCrossing >= 0 && prior.size - lastCrossing == 1
     }
 
     private fun noObservation(day: PassiveDay, asOfTime: Long, baselineDays: Int) = PassiveObservation(
@@ -68,12 +102,20 @@ object PassiveEstimator {
         baselineDays,
         day.baselineSegment,
         emptyList(),
+        null,
+        null,
         PassiveExplanation.noObservation(day.dataStatus, baselineDays),
     )
 }
 
 object PassiveExplanation {
     fun render(observation: PassiveObservation): String {
+        if (observation.state == PassiveObservationState.BASELINE_SHIFT_CANDIDATE) {
+            val domains = requireNotNull(observation.baselineShift).domains
+                .joinToString(" and ") { it.domain.name.lowercase() }
+            return "Trailing candidate baseline differed from the frozen reference baseline across $domains " +
+                "for seven eligible days. This records baseline disagreement only."
+        }
         if (observation.crossed) {
             val threshold = requireNotNull(observation.threshold)
             val domains = observation.domains.filter { it.score > threshold }
@@ -84,6 +126,9 @@ object PassiveExplanation {
         return when (observation.state) {
             PassiveObservationState.WITHIN_PERSON_RANGE ->
                 "Available signals were within your calibrated personal range."
+            PassiveObservationState.RANGE_RETURN_PENDING ->
+                "One eligible in-range day was recorded; two consecutive eligible in-range days " +
+                    "are required for within-person range."
             PassiveObservationState.NO_OBSERVATION ->
                 noObservation(observation.dataStatus, observation.baselineDays)
             else -> "Recorded signals were within your calibrated personal range."

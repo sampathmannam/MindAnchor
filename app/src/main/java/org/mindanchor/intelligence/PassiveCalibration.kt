@@ -5,17 +5,29 @@ import kotlin.math.abs
 
 data class DayScore(val score: Double, val domains: List<DomainEvidence>)
 
+data class CalibrationConfiguration(
+    val blockDays: Int,
+    val calibrationDays: Int,
+    val simulations: Int,
+    val targetEpisodesPer30: Double,
+    val refractoryDays: Int,
+)
+
 data class CalibrationResult(
     val threshold: Double,
     val expectedEpisodesPer30: Double,
     val simulations: Int,
+    val seed: Long,
+    val configuration: CalibrationConfiguration,
 )
 
 object PassiveScorer {
     const val MIN_CORROBORATING_DOMAINS = 2
 
-    fun score(day: PassiveDay, baseline: PassiveBaseline): DayScore? {
-        if (!day.dataStatus.canEstimate || day.baselineSegment != baseline.segment) return null
+    fun score(day: PassiveDay, baseline: PassiveBaseline, asOfTime: Long): DayScore? {
+        if (day.ingestedAt > asOfTime || !day.dataStatus.canEstimate || day.baselineSegment != baseline.segment) {
+            return null
+        }
         val evidence = baseline.features.values.mapNotNull { reference ->
             if (!day.isEligible(reference.feature)) return@mapNotNull null
             val value = day.features[reference.feature] ?: return@mapNotNull null
@@ -44,6 +56,13 @@ object BlockThresholdCalibrator {
     const val SIMULATIONS = 512
     const val TARGET_EPISODES_PER_30 = 1.0
     const val REFRACTORY_DAYS = 2
+    val CONFIGURATION = CalibrationConfiguration(
+        blockDays = BLOCK_DAYS,
+        calibrationDays = CALIBRATION_DAYS,
+        simulations = SIMULATIONS,
+        targetEpisodesPer30 = TARGET_EPISODES_PER_30,
+        refractoryDays = REFRACTORY_DAYS,
+    )
 
     fun calibrate(scores: List<Double>, seed: Long): CalibrationResult? {
         if (scores.size < CALIBRATION_DAYS || scores.any { !it.isFinite() }) return null
@@ -53,7 +72,13 @@ object BlockThresholdCalibrator {
             expectedEpisodeCount(samples, candidate)
         }
         val threshold = selectConnectedSafeThreshold(expectedEpisodes)
-        return CalibrationResult(threshold, expectedEpisodes.getValue(threshold), SIMULATIONS)
+        return CalibrationResult(
+            threshold,
+            expectedEpisodes.getValue(threshold),
+            SIMULATIONS,
+            seed,
+            CONFIGURATION,
+        )
     }
 
     internal fun selectConnectedSafeThreshold(expectedEpisodes: Map<Double, Double>): Double {

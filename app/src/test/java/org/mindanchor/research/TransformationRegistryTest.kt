@@ -20,9 +20,9 @@ class TransformationRegistryTest {
             listOf(
                 "structural-context",
                 "research-export-canonicalisation",
-                "passive-daily-features",
                 "passive-personal-baseline",
                 "passive-block-calibration",
+                "passive-observation-explanation",
             ),
             TransformationRegistry.transformations.map { it.id },
         )
@@ -32,22 +32,28 @@ class TransformationRegistryTest {
     fun `passive transformations record their semantic versions and limitations`() {
         val transformations = TransformationRegistry.transformations.associateBy { it.id }
 
-        val features = requireNotNull(transformations["passive-daily-features"])
-        assertEquals("daily-features-v1", features.version)
-        assertTrue(features.description.contains("fifteen-minute windows"))
-        assertTrue(features.description.contains("quality"))
-        assertTrue(features.description.contains("exercise"))
+        assertEquals(null, transformations["passive-daily-features"])
 
         val baseline = requireNotNull(transformations["passive-personal-baseline"])
-        assertEquals("personal-baseline-v1", baseline.version)
+        assertEquals("personal-baseline-v2", baseline.version)
         assertTrue(baseline.description.contains("median/MAD"))
         assertTrue(baseline.description.contains("fallback"))
         assertTrue(baseline.description.contains("eligibility floors"))
+        assertTrue(baseline.description.contains("point-in-time"))
+        assertTrue(baseline.description.contains("frozen reference"))
+        assertTrue(baseline.description.contains("trailing candidate"))
 
         val calibration = requireNotNull(transformations["passive-block-calibration"])
-        assertEquals("block-calibration-v1", calibration.version)
+        assertEquals("block-calibration-v2", calibration.version)
         assertTrue(calibration.description.contains("engineering false-observation budget"))
         assertTrue(calibration.description.contains("clinical accuracy"))
+        assertTrue(calibration.output.contains("seed"))
+        assertTrue(calibration.output.contains("configuration"))
+
+        val explanation = requireNotNull(transformations["passive-observation-explanation"])
+        assertEquals("observation-explanation-v1", explanation.version)
+        assertTrue(explanation.description.contains("fixed templates"))
+        assertTrue(explanation.description.contains("diagnosis"))
     }
 
     @Test
@@ -77,7 +83,7 @@ class TransformationRegistryTest {
     @Test
     fun `the set version is frozen`() {
         assertEquals(
-            "441e76b3167fd7b96c8a493111bb0916c3805fa2ac008b0b3ce604a001c27316",
+            "160a63549fcb1c515daf8083532bbd98aa57c96e2913b66b7b557e5580337aa6",
             TransformationRegistry.setVersion,
         )
     }

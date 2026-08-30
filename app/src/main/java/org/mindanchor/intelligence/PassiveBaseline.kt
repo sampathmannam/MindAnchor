@@ -22,11 +22,27 @@ data class PassiveBaseline(
     val features: Map<PassiveFeature, FeatureBaseline>,
 )
 
+data class BaselineShiftDomainEvidence(
+    val domain: PassiveDomain,
+    val standardizedDisagreement: Double,
+    val features: List<PassiveFeature>,
+)
+
+data class BaselineShiftAssessment(
+    val candidateDays: Int,
+    val standardizedDisagreementThreshold: Double,
+    val minimumCorroboratingDomains: Int,
+    val persistenceDays: Int,
+    val domains: List<BaselineShiftDomainEvidence>,
+    val disagrees: Boolean,
+)
+
 object PassiveBaselineBuilder {
     const val MIN_DAYS = 60
     const val MIN_WEEKDAY_DAYS = 8
     const val MIN_WEEKEND_DAYS = 8
     const val MIN_STRATUM_VALUES = 14
+    const val TRAILING_CANDIDATE_DAYS = MIN_STRATUM_VALUES
     private const val WEEKEND_START_DAY = 6
     private const val MAD_SCALE = 1.4826
     private const val IQR_SCALE = 1.349
@@ -34,17 +50,56 @@ object PassiveBaselineBuilder {
     private const val MEDIAN_QUANTILE = 0.5
     private const val THIRD_QUARTILE = 0.75
 
-    fun evaluate(history: List<PassiveDay>, segment: String): BaselineEligibility {
-        val eligible = history.filter { it.baselineSegment == segment && it.dataStatus.canEstimate }
+    fun evaluate(
+        history: List<PassiveDay>,
+        targetDay: LocalDate,
+        asOfTime: Long,
+        segment: String,
+    ): BaselineEligibility {
+        val eligible = PassiveHistory.effectiveFinalDays(history, targetDay, asOfTime, segment)
+        return eligibility(eligible)
+    }
+
+    private fun eligibility(eligible: List<PassiveDay>): BaselineEligibility {
         val weekend = eligible.count { it.day.dayOfWeek.value >= WEEKEND_START_DAY }
         return BaselineEligibility(eligible.size, eligible.size - weekend, weekend)
     }
 
-    fun build(history: List<PassiveDay>, targetDay: LocalDate, segment: String): PassiveBaseline? {
-        val eligible = history.filter {
-            it.day.isBefore(targetDay) && it.baselineSegment == segment && it.dataStatus.canEstimate
+    fun build(
+        history: List<PassiveDay>,
+        targetDay: LocalDate,
+        asOfTime: Long,
+        segment: String,
+    ): PassiveBaseline? {
+        val eligible = PassiveHistory.effectiveFinalDays(history, targetDay, asOfTime, segment)
+        val frozenReference = firstReadyPrefix(eligible) ?: return null
+        return buildBaseline(frozenReference, targetDay, segment)
+    }
+
+    fun buildTrailingCandidate(
+        history: List<PassiveDay>,
+        targetDay: LocalDate,
+        asOfTime: Long,
+        segment: String,
+    ): PassiveBaseline? {
+        val eligible = PassiveHistory.effectiveFinalDays(history, targetDay, asOfTime, segment)
+        if (eligible.size < TRAILING_CANDIDATE_DAYS) return null
+        return buildBaseline(eligible.takeLast(TRAILING_CANDIDATE_DAYS), targetDay, segment)
+    }
+
+    private fun firstReadyPrefix(eligible: List<PassiveDay>): List<PassiveDay>? {
+        for (size in MIN_DAYS..eligible.size) {
+            val prefix = eligible.take(size)
+            if (eligibility(prefix).ready) return prefix
         }
-        if (!evaluate(eligible, segment).ready) return null
+        return null
+    }
+
+    private fun buildBaseline(
+        eligible: List<PassiveDay>,
+        targetDay: LocalDate,
+        segment: String,
+    ): PassiveBaseline {
         val targetWeekend = targetDay.dayOfWeek.value >= WEEKEND_START_DAY
         val baselines = PassiveFeature.entries.filter { it.scored }.mapNotNull { feature ->
             val all = eligible.filter { it.isEligible(feature) }.mapNotNull { it.features[feature] }
@@ -60,7 +115,7 @@ object PassiveBaselineBuilder {
     }
 
     private fun statistics(feature: PassiveFeature, values: List<Double>, pooled: Boolean): FeatureBaseline? {
-        if (values.isEmpty()) return null
+        if (values.size < MIN_STRATUM_VALUES) return null
         val centre = median(values)
         val mad = median(values.map { kotlin.math.abs(it - centre) })
         val q1 = quantile(values, FIRST_QUARTILE)
@@ -81,4 +136,43 @@ object PassiveBaselineBuilder {
         if (lower == upper) return sorted[lower]
         return sorted[lower] + (sorted[upper] - sorted[lower]) * (position - lower)
     }
+}
+
+object BaselineShiftDetector {
+    const val STANDARDIZED_DISAGREEMENT = 1.0
+    const val MIN_CORROBORATING_DOMAINS = 2
+    const val PERSISTENCE_DAYS = 7
+
+    fun assess(reference: PassiveBaseline, candidate: PassiveBaseline): BaselineShiftAssessment {
+        if (reference.segment != candidate.segment) {
+            return assessment(candidate.referenceDays, emptyList())
+        }
+        val featureDisagreements = candidate.features.mapNotNull { (feature, candidateFeature) ->
+            val referenceFeature = reference.features[feature] ?: return@mapNotNull null
+            val disagreement = kotlin.math.abs(candidateFeature.centre - referenceFeature.centre) /
+                referenceFeature.scale
+            if (disagreement < STANDARDIZED_DISAGREEMENT) return@mapNotNull null
+            Triple(requireNotNull(feature.domain), feature, disagreement)
+        }
+        val domains = featureDisagreements.groupBy { it.first }.map { (domain, disagreements) ->
+            BaselineShiftDomainEvidence(
+                domain = domain,
+                standardizedDisagreement = disagreements.maxOf { it.third },
+                features = disagreements.map { it.second }.sortedBy { it.name },
+            )
+        }.sortedBy { it.domain.name }
+        return assessment(candidate.referenceDays, domains)
+    }
+
+    private fun assessment(
+        candidateDays: Int,
+        domains: List<BaselineShiftDomainEvidence>,
+    ) = BaselineShiftAssessment(
+        candidateDays = candidateDays,
+        standardizedDisagreementThreshold = STANDARDIZED_DISAGREEMENT,
+        minimumCorroboratingDomains = MIN_CORROBORATING_DOMAINS,
+        persistenceDays = PERSISTENCE_DAYS,
+        domains = domains,
+        disagrees = domains.size >= MIN_CORROBORATING_DOMAINS,
+    )
 }

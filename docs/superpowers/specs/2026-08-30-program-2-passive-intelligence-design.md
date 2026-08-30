@@ -11,6 +11,7 @@ Program 2 is an observation system, not a mental-health classifier. It records w
 The production output names observable departures only:
 
 - `WITHIN_PERSON_RANGE`
+- `RANGE_RETURN_PENDING`
 - `TRANSIENT_DEVIATION`
 - `SUSTAINED_DEVIATION`
 - `BASELINE_SHIFT_CANDIDATE`
@@ -57,6 +58,12 @@ Every stored input or decision records the time needed to reconstruct what was k
 
 Later Health Connect backfills may create a new finalized record or decision. They never overwrite the original point-in-time decision.
 
+Every daily feature revision therefore carries required `sourceUpdatedTime` and `ingestedAt` values; there are no
+implicit timing defaults. For a decision at `asOfTime`, the engine discards revisions ingested after that cutoff,
+keeps the newest eligible final revision for each `LocalDate` within the matching baseline segment (ordered by
+`sourceUpdatedTime`, then `ingestedAt`), and sorts the resulting distinct days chronologically. Duplicate revisions
+cannot increase a sample floor or reorder a resampling block.
+
 ### 3.3 Features
 
 The initial feature set is deliberately small:
@@ -81,7 +88,11 @@ Device or source-version changes start a new baseline segment. Historical segmen
 
 ## 5. Personal baseline
 
-The first observation baseline requires at least 60 valid, final, non-exercise days, including at least eight weekdays and eight weekend days. A feature is compared with the appropriate weekday/weekend and wake-relative stratum when that stratum has at least 14 observations; otherwise adjacent strata are pooled and that pooling is recorded.
+The first observation baseline requires at least 60 distinct valid, final, non-exercise days, including at least eight weekdays and eight weekend days. The first chronological prefix meeting those floors becomes the frozen reference. A daily feature is compared with the appropriate weekday/weekend stratum when that stratum has at least 14 observations; otherwise weekday and weekend values are pooled and that pooling is recorded. After pooling, a feature still requires at least 14 eligible values: 0–13 values leave that feature absent, so it cannot score or corroborate.
+
+Daily aggregates do not claim a wake-relative baseline. Wake-relative semantics apply only to the 15-minute
+quality and source-alignment windows implemented by Program 2B; Program 2A daily personal baselines use only the
+declared weekday/weekend strata.
 
 For each feature, the center is the median. Dispersion is scaled MAD (`1.4826 * MAD`). When MAD is zero, the implementation may use a predeclared IQR scale (`IQR / 1.349`); if that is also zero, that feature has no score. No arbitrary epsilon is inserted.
 
@@ -91,9 +102,14 @@ Features are grouped into physiology, sleep, activity, and routine domains. A do
 
 There is no universal “anxiety threshold.” The initial detector calibrates its observation boundary from contiguous blocks of the person's own historical corroborated day scores. Seven-day circular block resampling preserves weekly rhythm and short-term autocorrelation. Candidate thresholds are traversed downward from the maximum, which is guaranteed safe under strict crossings, and calibration selects the last budget-compliant candidate before the first violation. Refractory grouping makes episode count non-monotonic, so disconnected lower-threshold safe islands created by dense crossings are rejected rather than mistaken for low burden. The declared engineering budget is no more than one observation episode per 30 valid days in the calibration sample; it is not a clinical constant.
 
-A first crossing is `TRANSIENT_DEVIATION`. Two crossings among three eligible days are `SUSTAINED_DEVIATION`. Adjacent crossings within 48 hours belong to the same episode. Return to `WITHIN_PERSON_RANGE` requires two consecutive eligible in-range days.
+A first crossing is `TRANSIENT_DEVIATION`. Two crossings among three eligible days are `SUSTAINED_DEVIATION`. Adjacent crossings within 48 hours belong to the same episode. After a deviation, the first eligible in-range day is `RANGE_RETURN_PENDING`; the second consecutive eligible in-range day returns to `WITHIN_PERSON_RANGE`. Ineligible days are `NO_OBSERVATION`: they neither count toward nor break this eligible-day sequence.
 
-A frozen reference baseline and a trailing candidate baseline are maintained separately. Persistent disagreement may emit `BASELINE_SHIFT_CANDIDATE`; the system never silently replaces the frozen baseline or interprets the shift as improvement or deterioration.
+A frozen reference baseline and a trailing candidate baseline are maintained separately. The candidate uses the
+latest 14 point-in-time eligible distinct days. For every feature shared by both baselines, candidate/reference
+centre disagreement is standardized by the frozen reference scale. At least two domains must each reach `1.0`
+frozen-scale unit, and that corroborated disagreement must persist for seven consecutive eligible observations,
+before `BASELINE_SHIFT_CANDIDATE` is emitted. Ineligible days do not count. The candidate never silently replaces
+the frozen reference, and the state records disagreement only—not improvement or deterioration.
 
 ## 7. Staged models
 
@@ -113,10 +129,16 @@ Derived feature records may be revised by explicit append-only supersession. Obs
 - baseline segment and sample counts;
 - domain and feature evidence;
 - calibrated threshold and algorithm versions;
+- calibration seed and complete block/calibration/simulation/budget/refractory configuration;
+- trailing-candidate sample count, standardized disagreement threshold, corroborating-domain floor, persistence
+  days, and domain evidence;
 - study phase and source device;
 - explanations and exclusions.
 
-Program 2 replaces Program 1's `rule-set-none-v1` and `model-set-none-v1` provenance values. Feature-window, baseline, calibration, and explanation transformations are registered. The first Program 2 write therefore opens a new study phase automatically.
+Program 2 replaces Program 1's `rule-set-none-v1` and `model-set-none-v1` provenance values. Program 2A registers
+the transformations it actually performs: personal baseline, block calibration, and fixed observation explanation.
+The raw-to-daily and 15-minute feature-window transformation is registered only when Program 2B performs it. The
+first Program 2 write therefore opens a new study phase automatically.
 
 Feature records and decisions participate in encrypted continuity snapshots, replacement-phone restore, canonical research export, and the frozen data dictionary. Snapshot and research-export versions change additively in the same commit as their payload shapes.
 
