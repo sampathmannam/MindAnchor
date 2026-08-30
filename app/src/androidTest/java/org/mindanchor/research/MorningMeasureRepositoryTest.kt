@@ -158,4 +158,19 @@ class MorningMeasureRepositoryTest {
         val stored = db.journal().morningMeasuresNow()
         assertEquals(2, stored.size)
     }
+
+    @Test
+    fun aClockRollbackCannotTimestampAMeasureBeforeItsAssignedPhase() = runBlocking {
+        var vector = ProvenanceVersions.vector(95, "0.71.0", "device-a")
+        val ledger = ResearchLedgerRepository(context, db, currentVector = { vector })
+        val repository = MorningMeasureRepository(context, db, deviceIdentity, ledger.provenance)
+        repository.save(LocalDate.of(2026, 8, 27), 1_700_000_000_000L, 3, 3, 3, 3, 3)
+        vector = vector.copy(appVersionCode = 96)
+
+        val measure = repository.save(LocalDate.of(2026, 8, 28), 1_000L, 3, 3, 3, 3, 3)
+        val phase = requireNotNull(db.research().latestStudyPhase())
+
+        assertEquals(phase.startedAt, measure.createdAt)
+        assertEquals(phase.startedAt, measure.updatedAt)
+    }
 }

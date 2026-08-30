@@ -62,8 +62,11 @@ interface JournalDao {
     @Query("SELECT * FROM continuity_changes WHERE acknowledgedSnapshotId IS NULL ORDER BY occurredAt, id")
     suspend fun pendingChanges(): List<ContinuityChangeEntity>
 
-    @Query("UPDATE continuity_changes SET acknowledgedSnapshotId = :snapshotId WHERE acknowledgedSnapshotId IS NULL")
-    suspend fun acknowledgePending(snapshotId: String)
+    @Query(
+        "UPDATE continuity_changes SET acknowledgedSnapshotId = :snapshotId " +
+            "WHERE acknowledgedSnapshotId IS NULL AND id IN (:changeIds)",
+    )
+    suspend fun acknowledgePending(snapshotId: String, changeIds: List<String>)
 
     // One-shot sorted queries for snapshot export (Task 7), so a
     // point-in-time capture does not call .first() on a UI Flow.

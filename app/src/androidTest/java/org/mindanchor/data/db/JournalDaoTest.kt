@@ -147,7 +147,7 @@ class JournalDaoTest {
     }
 
     @Test
-    fun pendingChangesAreAcknowledgedBySnapshotId() = runBlocking {
+    fun onlyChangesCarriedByTheVerifiedSnapshotAreAcknowledged() = runBlocking {
         dao.insertChange(
             ContinuityChangeEntity(
                 id = "change-1",
@@ -158,11 +158,21 @@ class JournalDaoTest {
                 acknowledgedSnapshotId = null,
             ),
         )
+        dao.insertChange(
+            ContinuityChangeEntity(
+                id = "change-after-capture",
+                entityType = "JournalContext",
+                entityId = "context-1",
+                operation = "CREATE",
+                occurredAt = 2_000L,
+                acknowledgedSnapshotId = null,
+            ),
+        )
 
-        assertEquals(1, dao.pendingChanges().size)
+        assertEquals(2, dao.pendingChanges().size)
 
-        dao.acknowledgePending("snapshot-1")
+        dao.acknowledgePending("snapshot-1", listOf("change-1"))
 
-        assertTrue(dao.pendingChanges().isEmpty())
+        assertEquals(listOf("change-after-capture"), dao.pendingChanges().map { it.id })
     }
 }

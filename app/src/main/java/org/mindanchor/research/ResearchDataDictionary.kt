@@ -7,7 +7,6 @@ import kotlinx.serialization.json.Json
 import org.mindanchor.continuity.ContinuityContract
 import org.mindanchor.journal.ContextRecordType
 import org.mindanchor.journal.JournalKind
-import org.mindanchor.journal.StructuralContextExtractor
 
 /** The datasets a research export carries. A closed set, so a variable cannot name a table that does not exist. */
 @Serializable
@@ -38,6 +37,9 @@ enum class VariableProvenance {
 
     /** Written by MindAnchor about itself: versions, hashes, timestamps, device identity. */
     SYSTEM_RECORDED,
+
+    /** The origin depends on the row's event kind; the variable description names both cases. */
+    MIXED,
 }
 
 /** One variable in the research export, described well enough to analyse without reading the source. */
@@ -107,6 +109,7 @@ object ResearchDataDictionary {
 
     private const val EPOCH_MILLIS = "milliseconds since the Unix epoch"
     private const val STRUCTURAL_CONTEXT = "structural-context"
+    private val STRUCTURAL_CONTEXT_KEYS = listOf("entry_kind", "local_date", "word_count", "user_title")
     private const val STABLE_ID = "Stable identifier for this "
     private const val RECORDING_PHONE = "The phone that recorded the "
 
@@ -220,12 +223,12 @@ object ResearchDataDictionary {
 
     private fun journalContext() = dataset(DictionaryDataset.JOURNAL_CONTEXT) {
         add(
-            "id", TEXT, "${STABLE_ID}context row.", VariableProvenance.SYSTEM_RECORDED,
+            "id", TEXT, "${STABLE_ID}context row.", VariableProvenance.DERIVED_STRUCTURAL,
             transformationId = STRUCTURAL_CONTEXT,
         )
         add(
             "entryId", TEXT, "The Journal entry this was derived from.",
-            VariableProvenance.SYSTEM_RECORDED, transformationId = STRUCTURAL_CONTEXT,
+            VariableProvenance.DERIVED_STRUCTURAL, transformationId = STRUCTURAL_CONTEXT,
         )
         add(
             "recordType", ENUM,
@@ -236,7 +239,7 @@ object ResearchDataDictionary {
         )
         add(
             "key", ENUM, "Which structural fact this row holds.", VariableProvenance.DERIVED_STRUCTURAL,
-            allowedValues = StructuralContextExtractor.FACT_KEYS,
+            allowedValues = STRUCTURAL_CONTEXT_KEYS,
             transformationId = STRUCTURAL_CONTEXT,
         )
         add(
@@ -257,10 +260,10 @@ object ResearchDataDictionary {
         )
         add(
             "extractorVersion", TEXT, "The transformation version that produced the row.",
-            VariableProvenance.SYSTEM_RECORDED, transformationId = STRUCTURAL_CONTEXT,
+            VariableProvenance.DERIVED_STRUCTURAL, transformationId = STRUCTURAL_CONTEXT,
         )
         add(
-            "createdAt", TIMESTAMP, "When the row was derived.", VariableProvenance.SYSTEM_RECORDED,
+            "createdAt", TIMESTAMP, "When the row was derived.", VariableProvenance.DERIVED_STRUCTURAL,
             unit = EPOCH_MILLIS, transformationId = STRUCTURAL_CONTEXT,
         )
     }
@@ -308,12 +311,17 @@ object ResearchDataDictionary {
             VariableProvenance.SYSTEM_RECORDED,
         )
         add(
-            "kind", ENUM, "What the event records.", VariableProvenance.SYSTEM_RECORDED,
+            "kind", ENUM,
+            "What the event records. Its origin depends on event kind: chosen by the person for a " +
+                "self-reported event and assigned by MindAnchor for a provenance event.",
+            VariableProvenance.MIXED,
             allowedValues = LedgerEventKind.entries.map { it.name },
         )
         add(
-            "occurredAt", TIMESTAMP, "When the recorded thing happened.",
-            VariableProvenance.USER_REPORTED, unit = EPOCH_MILLIS,
+            "occurredAt", TIMESTAMP,
+            "When the recorded thing happened. Its origin depends on event kind: supplied by the person " +
+                "for a self-reported event and assigned by MindAnchor for a provenance event.",
+            VariableProvenance.MIXED, unit = EPOCH_MILLIS,
         )
         add(
             "recordedAt", TIMESTAMP, "When the row was written. Never rewritten.",
@@ -331,9 +339,9 @@ object ResearchDataDictionary {
         add("sourceDeviceId", TEXT, "The phone that wrote the row.", VariableProvenance.SYSTEM_RECORDED)
         add(
             "note", TEXT,
-            "The person's own words about the event, stored exactly as written and never interpreted. " +
-                "Empty for events MindAnchor wrote about itself.",
-            VariableProvenance.USER_AUTHORED,
+            "Text whose origin depends on event kind: the person's exact words for a self-reported event, " +
+                "and an empty value assigned by MindAnchor for a provenance event. Never interpreted.",
+            VariableProvenance.MIXED,
         )
         add(
             "payloadJson", JSON,

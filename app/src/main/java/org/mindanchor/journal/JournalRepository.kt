@@ -32,11 +32,11 @@ class JournalRepository(
     private val dao = database.journal()
 
     suspend fun create(title: String, body: String, now: Long, localDate: LocalDate): JournalEntry {
-        ensurePhase(now)
+        val recordedAt = ensurePhase(now)
         val entry = JournalEntry.create(
             title = title,
             body = body,
-            now = now,
+            now = recordedAt,
             localDate = localDate,
             sourceDeviceId = deviceIdentity.id(),
         )
@@ -48,7 +48,7 @@ class JournalRepository(
                     entityType = "JOURNAL_ENTRY",
                     entityId = entry.id,
                     operation = ChangeOperation.CREATE.name,
-                    occurredAt = now,
+                    occurredAt = recordedAt,
                     acknowledgedSnapshotId = null,
                 ),
             )
@@ -57,7 +57,7 @@ class JournalRepository(
         // state; requested after the transaction above already
         // committed, purely additive.
         ContinuityWorkScheduler.requestCheckpoint(context)
-        deriveContext(entry, now)
+        deriveContext(entry, recordedAt)
         return entry
     }
 
@@ -103,20 +103,20 @@ class JournalRepository(
      * honest — it simply predates any recorded phase — where an entry
      * timestamped before the phase that supposedly covers it would not be.
      */
-    private suspend fun ensurePhase(now: Long) {
-        runCatching {
-            provenance.ensureCurrentPhase(now)
+    private suspend fun ensurePhase(now: Long): Long {
+        return try {
+            val phase = provenance.ensureCurrentPhase(now)
             // Outside any transaction here: this runs before the entry's
             // own `withTransaction`, and the phase has already committed.
             provenance.refreshAfterCommit()
-        }.onFailure { thrown ->
-            // Never swallow a cancellation: the coroutine is being torn
-            // down, and turning that into "carry on" would break the
-            // caller's structured concurrency.
-            if (thrown is CancellationException) throw thrown
+            maxOf(now, phase.startedAt)
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
             // A device stuck failing to open a phase would otherwise write
             // Journal entries attributed to nothing, silently, forever.
-            Log.w("JournalRepository", "could not open a study phase for this entry", thrown)
+            Log.w("JournalRepository", "could not open a study phase for this entry", failure)
+            now
         }
     }
 
@@ -130,10 +130,10 @@ class JournalRepository(
     private suspend fun deriveContext(entry: JournalEntry, now: Long) {
         runCatching {
             if (!ContinuityPrefs(context).contextExtractionEnabled.first()) return@runCatching
-            val context = extractor.extract(entry, now)
-            if (context.isNotEmpty()) {
+            val rows = extractor.extract(entry, now)
+            if (rows.isNotEmpty()) {
                 database.withTransaction {
-                    dao.upsertContext(context.map { it.toEntity() })
+                    dao.upsertContext(rows.map { it.toEntity() })
                     dao.insertChange(
                         ContinuityChangeEntity(
                             id = UUID.randomUUID().toString(),
@@ -145,6 +145,7 @@ class JournalRepository(
                         ),
                     )
                 }
+                ContinuityWorkScheduler.requestCheckpoint(context)
             }
         }
     }

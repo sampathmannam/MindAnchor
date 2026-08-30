@@ -368,6 +368,23 @@ class EvidenceProtocolRegistryTest {
     }
 
     @Test
+    fun `a registry does not share nested caller collections`() {
+        val mutableExclusions = mutableListOf("initial exclusion")
+        val supplied = validProtocol().copy(exclusions = mutableExclusions)
+        val registry = EvidenceProtocolRegistry.of(listOf(supplied))
+        val originalHash = registry.catalogSha256
+
+        mutableExclusions += "smuggled after registration"
+
+        assertEquals(listOf("initial exclusion"), registry.protocols.single().exclusions)
+        assertEquals(originalHash, registry.catalogSha256)
+        assertEquals(
+            originalHash,
+            EvidenceProtocolRegistry.of(registry.protocols).catalogSha256,
+        )
+    }
+
+    @Test
     fun `a catalog hash is stable and order-independent`() {
         val a = validProtocol()
         val b = validProtocol().copy(id = "other-protocol")

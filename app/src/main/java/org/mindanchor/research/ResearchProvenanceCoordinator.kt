@@ -151,7 +151,7 @@ class ResearchProvenanceCoordinator(
         check((head?.sequence ?: 0L) < Long.MAX_VALUE) { "ledger sequence exhausted" }
         var previousHash = head?.eventHash ?: LedgerChain.GENESIS_PREVIOUS_HASH
         var sequence = (head?.sequence ?: 0L) + 1L
-        val localDate = localDateOf(now)
+        val localDate = localDateOf(opened.startedAt)
 
         val appended = mutableListOf<ResearchLedgerEvent>()
         fun append(kind: LedgerEventKind, payloadJson: String) {
@@ -159,8 +159,8 @@ class ResearchProvenanceCoordinator(
                 UnlinkedLedgerEvent(
                     sequence = sequence,
                     kind = kind,
-                    occurredAt = now,
-                    recordedAt = now,
+                    occurredAt = opened.startedAt,
+                    recordedAt = opened.startedAt,
                     localDate = localDate,
                     studyPhaseId = opened.id,
                     sourceDeviceId = vector.sourceDeviceId,

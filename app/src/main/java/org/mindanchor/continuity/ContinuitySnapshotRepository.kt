@@ -1,6 +1,7 @@
 package org.mindanchor.continuity
 
 import android.content.Context
+import androidx.room.withTransaction
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -18,6 +19,7 @@ import org.mindanchor.letters.LetterStore
  * canonical order, and hashed. Local-only — no network call is made
  * anywhere in this class; the actual upload is a later task.
  */
+@Suppress("LongParameterList")
 class ContinuitySnapshotRepository(
     private val context: Context,
     private val database: AnchorDatabase,
@@ -26,25 +28,51 @@ class ContinuitySnapshotRepository(
     private val frictionPrefs: FrictionPrefs,
     private val deviceIdentity: DeviceIdentityStore,
     private val backupRepository: BackupRepository,
+    private val afterResearchLedgerRead: suspend () -> Unit = {},
 ) {
+
+    private data class RoomRows(
+        val journalEntries: List<JournalEntryDto>,
+        val contextRows: List<JournalContextDto>,
+        val morningMeasures: List<MorningMeasureDto>,
+        val continuityChanges: List<ContinuityChangeDto>,
+        val researchLedgerEvents: List<ResearchLedgerEventDto>,
+        val studyPhases: List<StudyPhaseDto>,
+    )
 
     suspend fun capture(now: Long): ContinuitySnapshot = withContext(Dispatchers.IO) {
         val dao = database.journal()
         val researchDao = database.research()
+        val roomRows = database.withTransaction {
+            val journalEntries = dao.entriesNow().map { it.toDto() }
+            val contextRows = dao.allContext().map { it.toDto() }
+            val morningMeasures = dao.morningMeasuresNow().map { it.toDto() }
+            val continuityChanges = dao.allChangesNow().map { it.toDto() }
+            val researchLedgerEvents = researchDao.ledgerEventsNow().map { it.toDto() }
+            afterResearchLedgerRead()
+            RoomRows(
+                journalEntries = journalEntries,
+                contextRows = contextRows,
+                morningMeasures = morningMeasures,
+                continuityChanges = continuityChanges,
+                researchLedgerEvents = researchLedgerEvents,
+                studyPhases = researchDao.studyPhasesNow().map { it.toDto() },
+            )
+        }
 
         val rawPayload = ContinuityPayload(
-            journalEntries = dao.entriesNow().map { it.toDto() },
-            contextRows = dao.allContext().map { it.toDto() },
-            morningMeasures = dao.morningMeasuresNow().map { it.toDto() },
+            journalEntries = roomRows.journalEntries,
+            contextRows = roomRows.contextRows,
+            morningMeasures = roomRows.morningMeasures,
             notes = notesPrefs.notes.first().notes.map { it.toDto() },
             letters = letterStore.letters.first().map { it.toDto() },
             readLetterDates = letterStore.readDates.first().map { it.toString() },
             frictionedApps = frictionPrefs.flaggedApps.first().toList(),
             alwaysOpenApps = frictionPrefs.alwaysOpen.first().toList(),
-            continuityChanges = dao.allChangesNow().map { it.toDto() },
+            continuityChanges = roomRows.continuityChanges,
             legacyBackupJson = backupRepository.export(now),
-            researchLedgerEvents = researchDao.ledgerEventsNow().map { it.toDto() },
-            studyPhases = researchDao.studyPhasesNow().map { it.toDto() },
+            researchLedgerEvents = roomRows.researchLedgerEvents,
+            studyPhases = roomRows.studyPhases,
         )
         val payload = ContinuityContentHasher.sorted(rawPayload)
         // Explicit rather than defaulted: the version stamped on the

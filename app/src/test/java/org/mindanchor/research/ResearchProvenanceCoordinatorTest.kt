@@ -199,11 +199,14 @@ class ResearchProvenanceCoordinatorTest {
         // The two authorities on "which phase" must agree; before the
         // clamp, phaseAt would have answered with the older phase forever.
         assertEquals(second, StudyPhaseDecision.phaseAt(store.phases, 1_700_000_000_500L))
+        val phaseEvent = store.events.last { it.kind == LedgerEventKind.STUDY_PHASE_STARTED }
+        assertEquals(second.startedAt, phaseEvent.occurredAt)
+        assertEquals(second.startedAt, phaseEvent.recordedAt)
+        assertEquals(second.id, phaseEvent.studyPhaseId)
         // The raw clock reading is kept in the phase-start payload, so
         // the jump stays visible rather than being erased by the clamp.
         assertTrue(
-            store.events.last { it.kind == LedgerEventKind.STUDY_PHASE_STARTED }
-                .payloadJson.contains(""""clockMillis":1000000000"""),
+            phaseEvent.payloadJson.contains(""""clockMillis":1000000000"""),
         )
     }
 

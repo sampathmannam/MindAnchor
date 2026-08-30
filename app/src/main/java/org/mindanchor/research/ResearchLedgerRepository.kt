@@ -77,24 +77,24 @@ open class ResearchLedgerRepository(
         require(kind.isSelfReported) {
             "$kind is recorded by MindAnchor about itself, not by the person"
         }
-        val trimmed = note.trim()
-        require(trimmed.length <= MAX_LEDGER_NOTE_LENGTH) {
-            "a research note must be at most $MAX_LEDGER_NOTE_LENGTH characters, was ${trimmed.length}"
+        require(note.length <= MAX_LEDGER_NOTE_LENGTH) {
+            "a research note must be at most $MAX_LEDGER_NOTE_LENGTH characters, was ${note.length}"
         }
 
         val event = database.withTransaction {
             val phase = provenance.ensureCurrentPhase(now)
+            val recordedAt = maxOf(now, phase.startedAt)
             val head = dao.ledgerHead()?.toDomain()
             val linked = LedgerChain.link(
                 UnlinkedLedgerEvent(
                     sequence = LedgerChain.nextSequence(listOfNotNull(head)),
                     kind = kind,
                     occurredAt = occurredAt,
-                    recordedAt = now,
+                    recordedAt = recordedAt,
                     localDate = localDateOf(occurredAt),
                     studyPhaseId = phase.id,
                     sourceDeviceId = phase.vector.sourceDeviceId,
-                    note = trimmed,
+                    note = note,
                     payloadJson = EMPTY_PAYLOAD,
                 ),
                 head?.eventHash ?: LedgerChain.GENESIS_PREVIOUS_HASH,

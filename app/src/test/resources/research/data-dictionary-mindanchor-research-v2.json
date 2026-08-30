@@ -116,7 +116,7 @@
       "unit": "",
       "allowedValues": [],
       "description": "Stable identifier for this context row.",
-      "provenance": "SYSTEM_RECORDED",
+      "provenance": "DERIVED_STRUCTURAL",
       "missingPolicy": "missing-data-v2",
       "transformationId": "structural-context"
     },
@@ -127,7 +127,7 @@
       "unit": "",
       "allowedValues": [],
       "description": "The Journal entry this was derived from.",
-      "provenance": "SYSTEM_RECORDED",
+      "provenance": "DERIVED_STRUCTURAL",
       "missingPolicy": "missing-data-v2",
       "transformationId": "structural-context"
     },
@@ -212,7 +212,7 @@
       "unit": "",
       "allowedValues": [],
       "description": "The transformation version that produced the row.",
-      "provenance": "SYSTEM_RECORDED",
+      "provenance": "DERIVED_STRUCTURAL",
       "missingPolicy": "missing-data-v2",
       "transformationId": "structural-context"
     },
@@ -223,7 +223,7 @@
       "unit": "milliseconds since the Unix epoch",
       "allowedValues": [],
       "description": "When the row was derived.",
-      "provenance": "SYSTEM_RECORDED",
+      "provenance": "DERIVED_STRUCTURAL",
       "missingPolicy": "missing-data-v2",
       "transformationId": "structural-context"
     },
@@ -425,8 +425,8 @@
         "DEVICE_CHANGE",
         "SENSOR_GAP"
       ],
-      "description": "What the event records.",
-      "provenance": "SYSTEM_RECORDED",
+      "description": "What the event records. Its origin depends on event kind: chosen by the person for a self-reported event and assigned by MindAnchor for a provenance event.",
+      "provenance": "MIXED",
       "missingPolicy": "missing-data-v2",
       "transformationId": null
     },
@@ -436,8 +436,8 @@
       "type": "timestamp_epoch_millis",
       "unit": "milliseconds since the Unix epoch",
       "allowedValues": [],
-      "description": "When the recorded thing happened.",
-      "provenance": "USER_REPORTED",
+      "description": "When the recorded thing happened. Its origin depends on event kind: supplied by the person for a self-reported event and assigned by MindAnchor for a provenance event.",
+      "provenance": "MIXED",
       "missingPolicy": "missing-data-v2",
       "transformationId": null
     },
@@ -491,8 +491,8 @@
       "type": "string",
       "unit": "",
       "allowedValues": [],
-      "description": "The person's own words about the event, stored exactly as written and never interpreted. Empty for events MindAnchor wrote about itself.",
-      "provenance": "USER_AUTHORED",
+      "description": "Text whose origin depends on event kind: the person's exact words for a self-reported event, and an empty value assigned by MindAnchor for a provenance event. Never interpreted.",
+      "provenance": "MIXED",
       "missingPolicy": "missing-data-v2",
       "transformationId": null
     },

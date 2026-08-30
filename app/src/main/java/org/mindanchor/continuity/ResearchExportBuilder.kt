@@ -2,6 +2,7 @@ package org.mindanchor.continuity
 
 import android.content.Context
 import android.net.Uri
+import androidx.room.withTransaction
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -35,6 +36,28 @@ import org.mindanchor.research.toDomain
  * more than its name suggests.
  */
 object ResearchExportBuilder {
+
+    private data class RoomRows(
+        val entries: List<JournalEntryDto>,
+        val contextRows: List<JournalContextDto>,
+        val measures: List<MorningMeasureDto>,
+        val ledger: List<org.mindanchor.data.db.ResearchLedgerEventEntity>,
+        val phases: List<StudyPhaseDto>,
+    )
+
+    private suspend fun readRoomRows(
+        database: AnchorDatabase,
+        afterLedgerRead: suspend () -> Unit,
+    ): RoomRows = database.withTransaction {
+        val dao = database.journal()
+        val research = database.research()
+        val entries = dao.entriesNow().map { it.toDto() }
+        val contextRows = dao.allContext().map { it.toDto() }
+        val measures = dao.morningMeasuresNow().map { it.toDto() }
+        val ledger = research.ledgerEventsNow()
+        afterLedgerRead()
+        RoomRows(entries, contextRows, measures, ledger, research.studyPhasesNow().map { it.toDto() })
+    }
 
     /** `mindanchor-research-YYYY-MM-DD.json`, from [today]'s local date (ISO-8601, e.g. "2026-08-29"). */
     fun fileName(today: LocalDate = LocalDate.now()): String = "mindanchor-research-$today.json"
@@ -124,15 +147,14 @@ object ResearchExportBuilder {
         zone: ZoneId,
         appVersionCode: Int,
         appVersionName: String,
+        afterLedgerRead: suspend () -> Unit = {},
     ): ResearchExport = withContext(Dispatchers.IO) {
-        val dao = database.journal()
-        val research = database.research()
-
-        val entries = dao.entriesNow().map { it.toDto() }
-        val contextRows = dao.allContext().map { it.toDto() }
-        val measures = dao.morningMeasuresNow().map { it.toDto() }
-        val ledger = research.ledgerEventsNow()
-        val phases = research.studyPhasesNow().map { it.toDto() }
+        val rows = readRoomRows(database, afterLedgerRead)
+        val entries = rows.entries
+        val contextRows = rows.contextRows
+        val measures = rows.measures
+        val ledger = rows.ledger
+        val phases = rows.phases
 
         val exportDate = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
         val window = MissingDataPolicy.windowFor(

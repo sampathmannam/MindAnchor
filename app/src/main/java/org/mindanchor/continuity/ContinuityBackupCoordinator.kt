@@ -104,12 +104,13 @@ sealed class PutAndVerifyResult {
  * byte-compare → decrypt → content-hash sequence verifies the nightly
  * snapshot too, rather than a second, unverified `put()`.
  */
+@Suppress("LongParameterList")
 class ContinuityBackupCoordinator(
     private val isBackupEnabled: suspend () -> Boolean,
     private val currentVerifiedKey: suspend () -> RecoveryKey?,
     private val remoteBackupStore: RemoteBackupStore,
     private val captureSnapshot: suspend (now: Long) -> ContinuitySnapshot,
-    private val acknowledgePending: suspend (snapshotId: String) -> Unit,
+    private val acknowledgePending: suspend (snapshotId: String, changeIds: List<String>) -> Unit,
     private val recordError: suspend (ContinuityErrorCode) -> Unit,
     private val recordVerified: suspend (at: Long, snapshotId: String, contentHash: String) -> Unit,
     private val now: () -> Long = System::currentTimeMillis,
@@ -205,7 +206,10 @@ class ContinuityBackupCoordinator(
         }
 
         // Step 9: only now — after 6, 7, and 8 all passed — acknowledge and record verified.
-        acknowledgePending(snapshot.snapshotId)
+        val capturedPendingIds = snapshot.payload.continuityChanges
+            .filter { it.acknowledgedSnapshotId == null }
+            .map { it.id }
+        acknowledgePending(snapshot.snapshotId, capturedPendingIds)
         recordVerified(nowMs, snapshot.snapshotId, snapshot.contentSha256)
 
         return CheckpointResult.Verified(

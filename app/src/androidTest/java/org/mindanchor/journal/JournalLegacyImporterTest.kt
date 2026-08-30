@@ -180,7 +180,8 @@ class JournalLegacyImporterTest {
         override suspend fun morningMeasureByDate(localDate: String) = delegate.morningMeasureByDate(localDate)
         override suspend fun insertChange(change: ContinuityChangeEntity) = delegate.insertChange(change)
         override suspend fun pendingChanges() = delegate.pendingChanges()
-        override suspend fun acknowledgePending(snapshotId: String) = delegate.acknowledgePending(snapshotId)
+        override suspend fun acknowledgePending(snapshotId: String, changeIds: List<String>) =
+            delegate.acknowledgePending(snapshotId, changeIds)
         override suspend fun entriesNow() = delegate.entriesNow()
         override suspend fun morningMeasuresNow() = delegate.morningMeasuresNow()
         override suspend fun allChangesNow() = delegate.allChangesNow()

@@ -83,7 +83,7 @@ class ContinuityBackupCoordinatorTest {
 
     /** Tracks every [acknowledgePending] / [recordError] / [recordVerified] call the coordinator makes. */
     private class Recorder {
-        val acknowledged = mutableListOf<String>()
+        val acknowledged = mutableListOf<Pair<String, List<String>>>()
         val errorsRecorded = mutableListOf<ContinuityErrorCode>()
         var verifiedCall: Triple<Long, String, String>? = null
     }
@@ -99,7 +99,7 @@ class ContinuityBackupCoordinatorTest {
         currentVerifiedKey = { key },
         remoteBackupStore = remoteBackupStore,
         captureSnapshot = { snapshot },
-        acknowledgePending = { id -> recorder.acknowledged += id },
+        acknowledgePending = { snapshotId, changeIds -> recorder.acknowledged += snapshotId to changeIds },
         recordError = { code -> recorder.errorsRecorded += code },
         recordVerified = { at, id, hash -> recorder.verifiedCall = Triple(at, id, hash) },
         now = { 5_000L },
@@ -230,7 +230,21 @@ class ContinuityBackupCoordinatorTest {
     fun `full success uploads, verifies, acknowledges, and records verified state exactly once`() = runBlocking {
         val store = FakeRemoteBackupStore()
         val recorder = Recorder()
-        val snapshot = sampleSnapshot(id = "snap-42")
+        val snapshot = sampleSnapshot(
+            id = "snap-42",
+            payload = ContinuityPayload(
+                continuityChanges = listOf(
+                    ContinuityChangeDto(
+                        id = "captured-change",
+                        entityType = "journal_entry",
+                        entityId = "entry-1",
+                        operation = "CREATE",
+                        occurredAt = 1_000L,
+                        acknowledgedSnapshotId = null,
+                    ),
+                ),
+            ),
+        )
 
         val result = coordinator(recorder, store, snapshot = snapshot).runCheckpoint()
 
@@ -240,7 +254,7 @@ class ContinuityBackupCoordinatorTest {
         assertEquals(snapshot.contentSha256, verified.contentSha256)
         assertEquals(1, store.putCalls)
         assertEquals(1, store.getCalls)
-        assertEquals(listOf("snap-42"), recorder.acknowledged)
+        assertEquals(listOf("snap-42" to listOf("captured-change")), recorder.acknowledged)
         assertEquals(Triple(5_000L, "snap-42", snapshot.contentSha256), recorder.verifiedCall)
         assertTrue("no error should be recorded on the happy path", recorder.errorsRecorded.isEmpty())
     }
@@ -262,7 +276,7 @@ class ContinuityBackupCoordinatorTest {
         assertEquals(1, store.getCalls)
         assertTrue("the custom name must be the one actually written to", store.stored.containsKey("custom-versioned-name.mab"))
         assertTrue("LATEST must not be touched by runCheckpoint itself", !store.stored.containsKey(ContinuityFiles.LATEST))
-        assertEquals(listOf("snap-nightly"), recorder.acknowledged)
+        assertEquals(listOf("snap-nightly" to emptyList<String>()), recorder.acknowledged)
     }
 
     @Test

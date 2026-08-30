@@ -1,6 +1,7 @@
 package org.mindanchor.research
 
 import java.security.MessageDigest
+import java.util.Collections
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -185,8 +186,20 @@ class EvidenceProtocolRegistry private constructor(val protocols: List<EvidenceP
                 ?.key
             require(duplicateKey == null) { "duplicate protocol registration: $duplicateKey" }
 
-            return EvidenceProtocolRegistry(protocols.toList())
+            return EvidenceProtocolRegistry(
+                Collections.unmodifiableList(protocols.map { it.defensiveCopy() }),
+            )
         }
+
+        private fun EvidenceProtocol.defensiveCopy(): EvidenceProtocol = copy(
+            exclusions = Collections.unmodifiableList(exclusions.toList()),
+            evidenceSources = Collections.unmodifiableList(evidenceSources.map { it.copy() }),
+            eligibilityRules = Collections.unmodifiableList(eligibilityRules.toList()),
+            contraindicationRules = Collections.unmodifiableList(contraindicationRules.toList()),
+            steps = Collections.unmodifiableList(steps.map { it.copy() }),
+            permittedModalities = Collections.unmodifiableSet(permittedModalities.toSet()),
+            stopRules = Collections.unmodifiableSet(stopRules.toSet()),
+        )
 
         private fun blankFailure(field: String, value: String): ProtocolValidation.Invalid? =
             if (value.isBlank()) ProtocolValidation.Invalid(field, "must not be blank") else null

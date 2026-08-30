@@ -79,14 +79,14 @@ class ResearchLedgerRepositoryTest {
             note = "  moved house — everything is in boxes  ",
             now = 1_000L,
         )
-        assertEquals("moved house — everything is in boxes", event.note)
+        assertEquals("  moved house — everything is in boxes  ", event.note)
         assertEquals(event.note, repository.events().first().last().note)
     }
 
     @Test
-    fun aBlankNoteIsStoredAsTheEmptyString() = runBlocking {
+    fun aWhitespaceOnlyNoteIsStillStoredExactly() = runBlocking {
         val event = repository.record(LedgerEventKind.ILLNESS, occurredAt = 1_000L, note = "   ", now = 1_000L)
-        assertEquals("", event.note)
+        assertEquals("   ", event.note)
     }
 
     @Test
@@ -185,6 +185,34 @@ class ResearchLedgerRepositoryTest {
         assertEquals(listOf(0, 1), phases.map { it.ordinal })
         assertEquals(StudyPhaseReason.DEVICE_CHANGE.name, phases.last().reason)
         assertEquals(LedgerIntegrity.VERIFIED, LedgerChain.verify(repository.events().first()))
+    }
+
+    @Test
+    fun aClockRollbackCannotRecordAnEventBeforeItsAssignedPhase() = runBlocking {
+        var vector = ProvenanceVersions.vector(95, "0.71.0", "device-a")
+        val rollbackRepository = ResearchLedgerRepository(
+            context = context,
+            database = database,
+            currentVector = { vector },
+        )
+        rollbackRepository.record(
+            LedgerEventKind.EXERCISE,
+            occurredAt = 1_700_000_000_000L,
+            note = "before rollback",
+            now = 1_700_000_000_000L,
+        )
+        vector = vector.copy(appVersionCode = 96)
+
+        val event = rollbackRepository.record(
+            LedgerEventKind.CAFFEINE,
+            occurredAt = 1_000L,
+            note = "after rollback",
+            now = 1_000L,
+        )
+        val phase = requireNotNull(database.research().latestStudyPhase()?.toDomain())
+
+        assertEquals(phase.startedAt, event.recordedAt)
+        assertEquals(phase.id, StudyPhaseDecision.phaseAt(database.research().studyPhasesNow().map { it.toDomain() }, event.recordedAt)?.id)
     }
 
     /**

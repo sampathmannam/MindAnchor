@@ -39,35 +39,37 @@ class MorningMeasureRepository(
         energyFunction: Int,
         sleepQuality: Int,
     ): MorningMeasure {
-        val existing = dao.morningMeasureByDate(localDate.toString())
-        val measure = MorningMeasure.create(
-            localDate = localDate,
-            now = now,
-            mood = mood,
-            anxiety = anxiety,
-            angerUrge = angerUrge,
-            energyFunction = energyFunction,
-            sleepQuality = sleepQuality,
-            sourceDeviceId = deviceIdentity.id(),
-            id = existing?.id ?: UUID.randomUUID().toString(),
-            createdAt = existing?.createdAt ?: now,
-        )
-        database.withTransaction {
+        val measure = database.withTransaction {
+            val existing = dao.morningMeasureByDate(localDate.toString())
             // Inside the same transaction, and before the write: a measure
             // that fell outside every recorded phase could not be
             // attributed to the software that produced it.
-            provenance.ensureCurrentPhase(now)
-            dao.upsertMorningMeasure(measure.toEntity())
+            val phase = provenance.ensureCurrentPhase(now)
+            val recordedAt = maxOf(now, phase.startedAt)
+            val candidate = MorningMeasure.create(
+                localDate = localDate,
+                now = recordedAt,
+                mood = mood,
+                anxiety = anxiety,
+                angerUrge = angerUrge,
+                energyFunction = energyFunction,
+                sleepQuality = sleepQuality,
+                sourceDeviceId = deviceIdentity.id(),
+                id = existing?.id ?: UUID.randomUUID().toString(),
+                createdAt = existing?.createdAt ?: recordedAt,
+            )
+            dao.upsertMorningMeasure(candidate.toEntity())
             dao.insertChange(
                 ContinuityChangeEntity(
                     id = UUID.randomUUID().toString(),
                     entityType = "MORNING_MEASURE",
-                    entityId = measure.id,
+                    entityId = candidate.id,
                     operation = if (existing == null) ChangeOperation.CREATE.name else ChangeOperation.UPDATE.name,
-                    occurredAt = now,
+                    occurredAt = recordedAt,
                     acknowledgedSnapshotId = null,
                 ),
             )
+            candidate
         }
         // After the transaction: a morning measure can open a study
         // phase, which appends to the ledger, and the high-water mark has

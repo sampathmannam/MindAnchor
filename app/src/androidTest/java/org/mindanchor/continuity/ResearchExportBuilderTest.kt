@@ -7,6 +7,11 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -50,18 +55,23 @@ class ResearchExportBuilderTest {
     private val dayThree = dayOne + 2 * 86_400_000L
 
     @Before
-    fun open() {
+    fun open() = runBlocking {
+        ContinuityPrefs(context).reset()
         database = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java)
             .withResearchImmutability()
             .build()
     }
 
     @After
-    fun close() = database.close()
+    fun close() = runBlocking {
+        database.close()
+        ContinuityPrefs(context).reset()
+    }
 
     private suspend fun build(
         now: Long = dayThree,
         highWater: ContinuityPrefs.LedgerHighWater? = null,
+        afterLedgerRead: suspend () -> Unit = {},
     ) = ResearchExportBuilder.build(
         database = database,
         highWater = highWater,
@@ -69,6 +79,7 @@ class ResearchExportBuilderTest {
         zone = ZoneOffset.UTC,
         appVersionCode = 95,
         appVersionName = "0.71.0",
+        afterLedgerRead = afterLedgerRead,
     )
 
     private suspend fun seedADayOfRecords() {
@@ -438,5 +449,34 @@ class ResearchExportBuilderTest {
         )
 
         assertEquals(ResearchExportBuilder.ExportOutcome.WriteFailed, outcome)
+    }
+
+    @Test
+    fun everyRoomDatasetComesFromOneTransactionallyConsistentPointInTime() = runBlocking {
+        val ledger = testLedgerRepository(context, database)
+        val writeAttempted = CompletableDeferred<Unit>()
+        lateinit var writer: Deferred<org.mindanchor.research.ResearchLedgerEvent>
+
+        val export = build(
+            afterLedgerRead = {
+                writer = async(Dispatchers.IO) {
+                    writeAttempted.complete(Unit)
+                    ledger.record(
+                        LedgerEventKind.EXERCISE,
+                        occurredAt = dayOne,
+                        note = "racing write",
+                        now = dayOne,
+                    )
+                }
+                writeAttempted.await()
+                delay(100)
+            },
+        )
+        writer.await()
+
+        assertTrue("the racing write must commit after export", database.research().studyPhaseCount() > 0)
+        assertEquals(emptyList<ResearchLedgerEventDto>(), export.ledgerEvents)
+        assertEquals(emptyList<StudyPhaseDto>(), export.studyPhases)
+        assertTrue(ResearchExportCodec.verify(export))
     }
 }

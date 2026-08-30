@@ -21,6 +21,7 @@ import org.mindanchor.research.ResearchProvenanceCoordinator
 import org.mindanchor.research.ResearchProvenanceStore
 import org.mindanchor.research.StudyPhase
 import org.mindanchor.research.testLedgerRepository
+import org.mindanchor.research.ResearchLedgerRepository
 import org.mindanchor.data.db.withResearchImmutability
 
 /**
@@ -36,7 +37,8 @@ class JournalRepositoryTest {
     private lateinit var deviceIdentity: DeviceIdentityStore
 
     @Before
-    fun setUp() {
+    fun setUp() = runBlocking {
+        ContinuityPrefs(context).reset()
         db = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java)
             .withResearchImmutability()
             .build()
@@ -187,5 +189,25 @@ class JournalRepositoryTest {
         )
         assertEquals(0, db.research().studyPhaseCount())
         assertEquals(0, db.research().ledgerEventCount())
+    }
+
+    @Test
+    fun aClockRollbackCannotTimestampAnEntryBeforeItsAssignedPhase() = runBlocking {
+        var vector = ProvenanceVersions.vector(95, "0.71.0", "device-a")
+        val ledger = ResearchLedgerRepository(context, db, currentVector = { vector })
+        val repository = JournalRepository(
+            context,
+            db,
+            deviceIdentity,
+            StructuralContextExtractor(),
+            ledger.provenance,
+        )
+        repository.create("Before", "before rollback", 1_700_000_000_000L, LocalDate.of(2026, 8, 28))
+        vector = vector.copy(appVersionCode = 96)
+
+        val entry = repository.create("After", "after rollback", 1_000L, LocalDate.of(2026, 8, 29))
+        val phase = requireNotNull(db.research().latestStudyPhase())
+
+        assertEquals(phase.startedAt, entry.createdAt)
     }
 }

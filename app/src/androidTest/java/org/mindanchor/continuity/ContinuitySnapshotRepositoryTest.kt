@@ -6,6 +6,11 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.time.LocalDate
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -49,6 +54,7 @@ class ContinuitySnapshotRepositoryTest {
 
     @Before
     fun setUp() = runBlocking {
+        ContinuityPrefs(context).reset()
         db = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java)
             .withResearchImmutability()
             .build()
@@ -72,6 +78,7 @@ class ContinuitySnapshotRepositoryTest {
         letterStore.reset()
         clearNotes()
         clearFriction()
+        ContinuityPrefs(context).reset()
     }
 
     @After
@@ -157,5 +164,41 @@ class ContinuitySnapshotRepositoryTest {
         // The two captures are still genuinely distinct snapshots.
         assertNotEquals(first.snapshotId, second.snapshotId)
         assertNotEquals(first.createdAt, second.createdAt)
+    }
+
+    @Test
+    fun roomRowsComeFromOneTransactionallyConsistentPointInTime() = runBlocking {
+        val ledger = testLedgerRepository(context, db)
+        val writeAttempted = CompletableDeferred<Unit>()
+        lateinit var writer: Deferred<org.mindanchor.research.ResearchLedgerEvent>
+        val racingRepository = ContinuitySnapshotRepository(
+            context = context,
+            database = db,
+            notesPrefs = notesPrefs,
+            letterStore = letterStore,
+            frictionPrefs = frictionPrefs,
+            deviceIdentity = deviceIdentity,
+            backupRepository = BackupRepository(context),
+            afterResearchLedgerRead = {
+                writer = async(Dispatchers.IO) {
+                    writeAttempted.complete(Unit)
+                    ledger.record(
+                        org.mindanchor.research.LedgerEventKind.EXERCISE,
+                        occurredAt = 1_000L,
+                        note = "racing write",
+                        now = 1_000L,
+                    )
+                }
+                writeAttempted.await()
+                delay(100)
+            },
+        )
+
+        val snapshot = racingRepository.capture(now = 5_000L)
+        writer.await()
+
+        assertTrue("the racing write must commit after capture", db.research().studyPhaseCount() > 0)
+        assertEquals(emptyList<ResearchLedgerEventDto>(), snapshot.payload.researchLedgerEvents)
+        assertEquals(emptyList<StudyPhaseDto>(), snapshot.payload.studyPhases)
     }
 }

@@ -76,7 +76,7 @@ class CheckpointBackupWorker(
                 },
                 remoteBackupStore = remoteBackupStore,
                 captureSnapshot = { now -> snapshotRepository.capture(now) },
-                acknowledgePending = { snapshotId -> dao.acknowledgePending(snapshotId) },
+                acknowledgePending = { snapshotId, changeIds -> dao.acknowledgePending(snapshotId, changeIds) },
                 recordError = { code -> continuityPrefs.recordError(code) },
                 recordVerified = { at, id, hash -> continuityPrefs.recordCheckpointVerified(at, id, hash) },
             )

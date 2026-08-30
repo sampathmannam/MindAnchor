@@ -51,15 +51,6 @@ class StructuralContextExtractor : JournalContextExtractor {
     companion object {
         const val EXTRACTOR_VERSION = "structural-v1"
 
-        /**
-         * Every key this extractor can emit, in emission order. Named here
-         * so the frozen data dictionary can describe the closed value set
-         * without restating it — a second copy would drift silently, and
-         * an export claiming a closed set the data violates is worse than
-         * one claiming none.
-         */
-        val FACT_KEYS = listOf("entry_kind", "local_date", "word_count", "user_title")
-
         private fun deterministicId(entryId: String, recordType: ContextRecordType, key: String): String =
             UUID.nameUUIDFromBytes("$entryId|$recordType|$key|$EXTRACTOR_VERSION".toByteArray()).toString()
     }

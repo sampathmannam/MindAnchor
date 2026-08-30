@@ -2,6 +2,7 @@ package org.mindanchor.research
 
 import java.io.File
 import java.lang.reflect.Modifier
+import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -12,6 +13,8 @@ import org.mindanchor.continuity.JournalEntryDto
 import org.mindanchor.continuity.MorningMeasureDto
 import org.mindanchor.data.db.ResearchLedgerEventEntity
 import org.mindanchor.data.db.StudyPhaseEntity
+import org.mindanchor.journal.JournalEntry
+import org.mindanchor.journal.StructuralContextExtractor
 
 /**
  * Program 1 Task 9 — the data dictionary is frozen, and the freeze is
@@ -55,7 +58,7 @@ class ResearchDataDictionaryTest {
         // the version, both have to be visible here rather than looking
         // like the same one-line re-pin.
         val frozen = mapOf(
-            "mindanchor-research-v2" to "b639b3432b349070fe1cf7f66982cfb3e26a6d95d2274cc3818916dd1ad55e4f",
+            "mindanchor-research-v2" to "1cbfa2cf7552b675500583959511b8df069bf2aa932beeade1196ca6302393a9",
         )
         assertEquals(
             "the current dictionary version needs a frozen hash",
@@ -153,11 +156,27 @@ class ResearchDataDictionaryTest {
 
         val note = ResearchDataDictionary.dictionary.variables
             .single { it.dataset == DictionaryDataset.RESEARCH_LEDGER_EVENTS && it.name == "note" }
-        assertEquals(VariableProvenance.USER_AUTHORED, note.provenance)
+        assertEquals(VariableProvenance.MIXED, note.provenance)
 
         ResearchDataDictionary.dictionary.variables
             .filter { it.dataset == DictionaryDataset.JOURNAL_CONTEXT }
-            .forEach { assertEquals("structural-context", it.transformationId) }
+            .forEach {
+                assertEquals(VariableProvenance.DERIVED_STRUCTURAL, it.provenance)
+                assertEquals("structural-context", it.transformationId)
+            }
+    }
+
+    @Test
+    fun `mixed-origin ledger fields say their origin depends on event kind`() {
+        val mixed = setOf("kind", "occurredAt", "note")
+        val ledger = ResearchDataDictionary.dictionary.variables
+            .filter { it.dataset == DictionaryDataset.RESEARCH_LEDGER_EVENTS }
+            .associateBy { it.name }
+
+        mixed.forEach { name ->
+            assertEquals(VariableProvenance.MIXED, ledger.getValue(name).provenance)
+            assertTrue(ledger.getValue(name).description.contains("event kind", ignoreCase = true))
+        }
     }
 
     @Test
@@ -165,6 +184,23 @@ class ResearchDataDictionaryTest {
         ResearchDataDictionary.dictionary.variables.mapNotNull { it.transformationId }.distinct().forEach { id ->
             assertTrue("$id must be a registered transformation", TransformationRegistry.versionOf(id) != null)
         }
+    }
+
+    @Test
+    fun `the closed context key list matches what the unchanged extractor emits`() {
+        val entry = JournalEntry.create(
+            title = "A title",
+            body = "two words",
+            now = 1_000L,
+            localDate = LocalDate.of(2026, 8, 29),
+            sourceDeviceId = "device-a",
+        )
+        val emitted = StructuralContextExtractor().extract(entry, now = 1_000L).map { it.key }
+        val declared = ResearchDataDictionary.dictionary.variables.single {
+            it.dataset == DictionaryDataset.JOURNAL_CONTEXT && it.name == "key"
+        }.allowedValues
+
+        assertEquals(emitted, declared)
     }
 
     @Test
