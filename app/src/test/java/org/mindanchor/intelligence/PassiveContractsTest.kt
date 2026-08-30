@@ -3,6 +3,7 @@ package org.mindanchor.intelligence
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PassiveContractsTest {
@@ -12,6 +13,12 @@ class PassiveContractsTest {
     }
 
     @Test fun `SpO2 is context and never a scored feature`() {
+        assertFalse(PassiveFeature.SPO2_PERCENT.scored)
+    }
+
+    @Test fun `active minutes is scored activity while oxygen remains context`() {
+        assertEquals(PassiveDomain.ACTIVITY, PassiveFeature.ACTIVE_MINUTES.domain)
+        assertTrue(PassiveFeature.ACTIVE_MINUTES.scored)
         assertFalse(PassiveFeature.SPO2_PERCENT.scored)
     }
 

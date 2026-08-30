@@ -10,6 +10,7 @@ enum class PassiveFeature(val domain: PassiveDomain?, val scored: Boolean = true
     SLEEP_MINUTES(PassiveDomain.SLEEP),
     SLEEP_ONSET_AFTER_SIX_PM(PassiveDomain.SLEEP),
     STEPS(PassiveDomain.ACTIVITY),
+    ACTIVE_MINUTES(PassiveDomain.ACTIVITY),
     FIRST_UNLOCK_MINUTE(PassiveDomain.ROUTINE),
     SCREEN_MINUTES(PassiveDomain.ROUTINE),
     SPO2_PERCENT(null, scored = false),
