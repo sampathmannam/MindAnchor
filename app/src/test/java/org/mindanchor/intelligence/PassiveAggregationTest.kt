@@ -338,6 +338,90 @@ class PassiveAggregationTest {
         }
     }
 
+    @Suppress("LongMethod")
+    @Test fun `routine provenance includes only the prior anchor and target day events`() {
+        val zone = ZoneId.of("UTC")
+        val day = LocalDate.parse("2026-08-30")
+        val dayStart = day.atStartOfDay(zone).toInstant().toEpochMilli()
+        val dayEnd = day.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val unrelatedPrior = record(
+            PassiveSourceFamily.USAGE_STATS,
+            PassiveRecordKind.SCREEN_NON_INTERACTIVE,
+            dayStart - 36L * 3_600_000L,
+            null,
+            "unrelated-prior",
+        ).copy(sourceUpdatedTime = dayEnd + 3L * 24L * 3_600_000L)
+        val anchor = record(
+            PassiveSourceFamily.USAGE_STATS,
+            PassiveRecordKind.SCREEN_INTERACTIVE,
+            dayStart - 10L * 60_000L,
+            null,
+            "anchor",
+        ).copy(sourceUpdatedTime = null, ingestedAt = dayStart + 23L * 3_600_000L)
+        val midnightOff = record(
+            PassiveSourceFamily.USAGE_STATS,
+            PassiveRecordKind.SCREEN_NON_INTERACTIVE,
+            dayStart + 10L * 60_000L,
+            null,
+            "midnight-off",
+        )
+        val unlock = record(
+            PassiveSourceFamily.USAGE_STATS,
+            PassiveRecordKind.SCREEN_UNLOCKED,
+            dayStart + 7L * 3_600_000L,
+            null,
+            "unlock",
+        )
+        val morningOff = record(
+            PassiveSourceFamily.USAGE_STATS,
+            PassiveRecordKind.SCREEN_NON_INTERACTIVE,
+            dayStart + 7L * 3_600_000L + 20L * 60_000L,
+            null,
+            "morning-off",
+        )
+        val unrelatedFuture = record(
+            PassiveSourceFamily.USAGE_STATS,
+            PassiveRecordKind.SCREEN_INTERACTIVE,
+            dayEnd,
+            null,
+            "unrelated-future",
+        ).copy(sourceUpdatedTime = dayEnd + 4L * 24L * 3_600_000L)
+        val records = listOf(
+            unrelatedPrior,
+            anchor,
+            midnightOff,
+            unlock,
+            morningOff,
+            unrelatedFuture,
+        )
+        val read = successRead(
+            PassiveSourceFamily.USAGE_STATS,
+            unrelatedPrior.eventStart,
+            unrelatedFuture.eventStart + 1L,
+            zone,
+            dayEnd,
+            records,
+        )
+
+        val aggregate = daily(day, zone, records, listOf(read), dayEnd)
+
+        assertEquals(420.0, aggregate.passiveDay.features[PassiveFeature.FIRST_UNLOCK_MINUTE]!!, 0.0)
+        assertEquals(30.0, aggregate.passiveDay.features[PassiveFeature.SCREEN_MINUTES]!!, 0.0)
+        assertEquals(anchor.ingestedAt, aggregate.passiveDay.sourceUpdatedTime)
+        assertEquals(anchor.ingestedAt, aggregate.passiveDay.ingestedAt)
+        val contributing = listOf(anchor, midnightOff, unlock, morningOff)
+        assertEquals(
+            contributing.map { record ->
+                SourceLag(
+                    PassiveSourceFamily.USAGE_STATS,
+                    ((record.sourceUpdatedTime ?: record.ingestedAt) - record.eventEnd).coerceAtLeast(0L),
+                    usedIngestedAtFallback = record.sourceUpdatedTime == null,
+                )
+            },
+            aggregate.sourceLags,
+        )
+    }
+
     @Test fun `daily status honors provisional final exercise and insufficient ordering`() {
         val zone = ZoneId.of("UTC")
         val day = LocalDate.parse("2026-08-30")
@@ -428,42 +512,69 @@ class PassiveAggregationTest {
         assertEquals(PassiveDataStatus.INSUFFICIENT_DATA, aggregate.passiveDay.dataStatus)
     }
 
-    @Test fun `exercise suppression requires restoring a second scoreable domain`() {
+    @Suppress("LongMethod")
+    @Test fun `exercise counterfactual restores only physiology that passes heart rate coverage`() {
         val zone = ZoneId.of("UTC")
         val day = LocalDate.parse("2026-08-30")
-        val dayEnd = day.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-        val suppressedPhysiology = featureWindow(
-            start = dayEnd - PassiveWindowAggregator.WINDOW_MILLIS,
-            exerciseMillis = 60_000L,
-            features = listOf(
-                PassiveWindowFeature(
-                    PassiveFeature.RESTING_HEART_RATE,
+        val start = day.atStartOfDay(zone).toInstant().toEpochMilli()
+        val end = start + PassiveWindowAggregator.WINDOW_MILLIS
+
+        mapOf(
+            0 to PassiveDataStatus.INSUFFICIENT_DATA,
+            7 to PassiveDataStatus.INSUFFICIENT_DATA,
+            8 to PassiveDataStatus.SUPPRESSED_EXERCISE,
+        ).forEach { (heartRateBins, expectedStatus) ->
+            val records = (0 until heartRateBins).map { minute ->
+                record(
+                    PassiveSourceFamily.HEART_RATE,
+                    PassiveRecordKind.HEART_RATE_SAMPLE,
+                    start + minute * 60_000L,
+                    70.0,
+                    "hr-$heartRateBins-$minute",
+                )
+            } + listOf(
+                record(
+                    PassiveSourceFamily.RESTING_HEART_RATE,
+                    PassiveRecordKind.RESTING_HEART_RATE,
+                    start + 30_000L,
                     60.0,
-                    "bpm",
-                    1.0,
-                    false,
-                    "EXERCISE_OVERLAP",
+                    "rhr-$heartRateBins",
                 ),
-            ),
-        )
-        val steps = record(
-            PassiveSourceFamily.STEPS,
-            PassiveRecordKind.STEPS_INTERVAL,
-            dayEnd - PassiveWindowAggregator.WINDOW_MILLIS,
-            10.0,
-            "steps",
-            dayEnd,
-        )
+                record(
+                    PassiveSourceFamily.HRV_RMSSD,
+                    PassiveRecordKind.HRV_RMSSD,
+                    start + 45_000L,
+                    40.0,
+                    "hrv-$heartRateBins",
+                ),
+                record(
+                    PassiveSourceFamily.EXERCISE,
+                    PassiveRecordKind.EXERCISE_SESSION,
+                    start + 60_000L,
+                    null,
+                    "exercise-$heartRateBins",
+                    start + 120_000L,
+                ),
+                record(
+                    PassiveSourceFamily.STEPS,
+                    PassiveRecordKind.STEPS_INTERVAL,
+                    start,
+                    100.0,
+                    "steps-$heartRateBins",
+                    end,
+                ),
+            )
+            val windows = PassiveWindowAggregator.aggregate(
+                records,
+                PassiveReadRange(start, end, zone.id),
+                zone,
+                wakeTimeMillis = null,
+            )
 
-        val oneCounterfactualDomain = daily(
-            day, zone, emptyList(), emptyList(), dayEnd, listOf(suppressedPhysiology),
-        )
-        val restoredSecondDomain = daily(
-            day, zone, listOf(steps), emptyList(), dayEnd, listOf(suppressedPhysiology),
-        )
+            val aggregate = daily(day, zone, records, emptyList(), end, windows)
 
-        assertEquals(PassiveDataStatus.INSUFFICIENT_DATA, oneCounterfactualDomain.passiveDay.dataStatus)
-        assertEquals(PassiveDataStatus.SUPPRESSED_EXERCISE, restoredSecondDomain.passiveDay.dataStatus)
+            assertEquals("$heartRateBins HR bins", expectedStatus, aggregate.passiveDay.dataStatus)
+        }
     }
 
     @Test fun `daily aggregate records coverage missingness and exercise exclusions`() {
@@ -661,49 +772,35 @@ class PassiveAggregationTest {
     }
 
     @Test fun `every source family accepts exactly its legal record kinds`() {
-        val legalKinds = mapOf(
-            PassiveSourceFamily.HEART_RATE to setOf(PassiveRecordKind.HEART_RATE_SAMPLE),
-            PassiveSourceFamily.RESTING_HEART_RATE to setOf(PassiveRecordKind.RESTING_HEART_RATE),
-            PassiveSourceFamily.HRV_RMSSD to setOf(PassiveRecordKind.HRV_RMSSD),
-            PassiveSourceFamily.SLEEP to setOf(PassiveRecordKind.SLEEP_SESSION),
-            PassiveSourceFamily.STEPS to setOf(PassiveRecordKind.STEPS_INTERVAL),
-            PassiveSourceFamily.EXERCISE to setOf(PassiveRecordKind.EXERCISE_SESSION),
-            PassiveSourceFamily.OXYGEN_SATURATION to setOf(PassiveRecordKind.SPO2),
-            PassiveSourceFamily.USAGE_STATS to setOf(
-                PassiveRecordKind.SCREEN_INTERACTIVE,
-                PassiveRecordKind.SCREEN_NON_INTERACTIVE,
-                PassiveRecordKind.SCREEN_UNLOCKED,
-            ),
-        )
-        assertEquals(PassiveSourceFamily.entries.toSet(), legalKinds.keys)
+        val allKinds = PassiveRecordKind.entries.toSet()
+        assertEquals(allKinds, PassiveSourceFamily.entries.flatMap { it.legalRecordKinds }.toSet())
+        allKinds.forEach { kind ->
+            assertEquals(1, PassiveSourceFamily.entries.count { kind in it.legalRecordKinds })
+        }
 
-        legalKinds.forEach { (family, kinds) ->
-            val records = kinds.map { kind ->
-                record(
-                    family,
-                    kind,
-                    1L,
-                    if (kind == PassiveRecordKind.STEPS_INTERVAL) 1.0 else null,
-                    kind.name,
-                    if (kind in setOf(
-                            PassiveRecordKind.SLEEP_SESSION,
-                            PassiveRecordKind.STEPS_INTERVAL,
-                            PassiveRecordKind.EXERCISE_SESSION,
-                        )
-                    ) {
-                        2L
-                    } else {
-                        1L
-                    },
-                )
+        PassiveSourceFamily.entries.forEach { family ->
+            PassiveRecordKind.entries.forEach { kind ->
+                val accepted = runCatching {
+                    record(
+                        family,
+                        kind,
+                        1L,
+                        if (kind == PassiveRecordKind.STEPS_INTERVAL) 1.0 else null,
+                        "$family-$kind",
+                        if (kind in setOf(
+                                PassiveRecordKind.SLEEP_SESSION,
+                                PassiveRecordKind.STEPS_INTERVAL,
+                                PassiveRecordKind.EXERCISE_SESSION,
+                            )
+                        ) {
+                            2L
+                        } else {
+                            1L
+                        },
+                    )
+                }.isSuccess
+                assertEquals("$family + $kind", kind in family.legalRecordKinds, accepted)
             }
-            PassiveSourceRead(
-                family,
-                PassiveReadState.SUCCESS,
-                PassiveReadRange(0L, 3L, "UTC"),
-                attemptedAt = 3L,
-                records = records,
-            )
         }
     }
 

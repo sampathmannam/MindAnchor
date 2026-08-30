@@ -5,32 +5,25 @@ import java.security.MessageDigest
 
 private fun canonicalPart(value: String?): String = value?.let { "${it.length}:$it" } ?: "null:"
 
-enum class PassiveSourceFamily {
-    HEART_RATE,
-    RESTING_HEART_RATE,
-    HRV_RMSSD,
-    SLEEP,
-    STEPS,
-    EXERCISE,
-    OXYGEN_SATURATION,
-    USAGE_STATS,
-
-    ;
-
-    internal fun accepts(kind: PassiveRecordKind): Boolean = when (this) {
-        HEART_RATE -> kind == PassiveRecordKind.HEART_RATE_SAMPLE
-        RESTING_HEART_RATE -> kind == PassiveRecordKind.RESTING_HEART_RATE
-        HRV_RMSSD -> kind == PassiveRecordKind.HRV_RMSSD
-        SLEEP -> kind == PassiveRecordKind.SLEEP_SESSION
-        STEPS -> kind == PassiveRecordKind.STEPS_INTERVAL
-        EXERCISE -> kind == PassiveRecordKind.EXERCISE_SESSION
-        OXYGEN_SATURATION -> kind == PassiveRecordKind.SPO2
-        USAGE_STATS -> kind in setOf(
+enum class PassiveSourceFamily(internal val legalRecordKinds: Set<PassiveRecordKind>) {
+    HEART_RATE(setOf(PassiveRecordKind.HEART_RATE_SAMPLE)),
+    RESTING_HEART_RATE(setOf(PassiveRecordKind.RESTING_HEART_RATE)),
+    HRV_RMSSD(setOf(PassiveRecordKind.HRV_RMSSD)),
+    SLEEP(setOf(PassiveRecordKind.SLEEP_SESSION)),
+    STEPS(setOf(PassiveRecordKind.STEPS_INTERVAL)),
+    EXERCISE(setOf(PassiveRecordKind.EXERCISE_SESSION)),
+    OXYGEN_SATURATION(setOf(PassiveRecordKind.SPO2)),
+    USAGE_STATS(
+        setOf(
             PassiveRecordKind.SCREEN_INTERACTIVE,
             PassiveRecordKind.SCREEN_NON_INTERACTIVE,
             PassiveRecordKind.SCREEN_UNLOCKED,
-        )
-    }
+        ),
+    ),
+
+    ;
+
+    internal fun accepts(kind: PassiveRecordKind): Boolean = kind in legalRecordKinds
 }
 
 enum class PassiveRecordKind {

@@ -13,7 +13,7 @@ object PassiveWindowAggregator {
     const val TRANSFORMATION_VERSION = "passive-window-v1"
     private const val MINUTE_MILLIS = 60_000L
     private const val HEART_RATE_BINS_PER_WINDOW = 15.0
-    private const val MIN_HEART_RATE_COVERAGE = 0.5
+    internal const val MIN_HEART_RATE_COVERAGE = 0.5
     private const val EXERCISE_EXCLUSION = "EXERCISE_OVERLAP"
     private const val COVERAGE_EXCLUSION = "INSUFFICIENT_HEART_RATE_COVERAGE"
 
@@ -226,9 +226,14 @@ object PassiveDailyAggregator {
         val dayWindows = windows.filter {
             Instant.ofEpochMilli(it.startInclusive).atZone(zone).toLocalDate() == date
         }
-        val relevantRecords = relevantRecords(date, zone, records)
+        val routineRecords = if (readStates[PassiveSourceFamily.USAGE_STATS] == PassiveReadState.SUCCESS) {
+            routineRecords(date, zone, records, asOfTime)
+        } else {
+            emptyList()
+        }
+        val relevantRecords = relevantRecords(date, zone, records, routineRecords)
         val sourceLags = sourceLags(relevantRecords)
-        val features = dailyFeatures(date, zone, dayWindows, records, readStates, asOfTime)
+        val features = dailyFeatures(date, zone, dayWindows, relevantRecords, readStates, asOfTime)
         val excluded = dailyExclusions(dayWindows)
         val status = dailyStatus(features, excluded, dayWindows, finality.final)
         val updateTimes = relevantRecords.map { it.sourceUpdatedTime ?: it.ingestedAt }
@@ -270,13 +275,14 @@ object PassiveDailyAggregator {
         val actualDomains = features.keys.filter { it.scored && it !in excluded }
             .mapNotNull { it.domain }
             .toSet()
-        val restoredDomains = actualDomains + windows.flatMap { it.features }
-            .filter { row ->
-                !row.eligible && row.exclusion == "EXERCISE_OVERLAP" &&
+        val restoredDomains = actualDomains + windows.flatMap { window ->
+            window.features.filter { row ->
+                !row.eligible && window.quality.exerciseOverlapMillis > 0L &&
+                    window.quality.heartRateCoverage >= PassiveWindowAggregator.MIN_HEART_RATE_COVERAGE &&
                     row.feature.scored && row.feature.domain == PassiveDomain.PHYSIOLOGY &&
                     row.value?.isFinite() == true
             }
-            .mapNotNull { it.feature.domain }
+        }.mapNotNull { it.feature.domain }
         val exercisePreventedSecondDomain = actualDomains.size < 2 && restoredDomains.size >= 2
         return when {
             !final -> PassiveDataStatus.AVAILABLE_PROVISIONAL
@@ -290,6 +296,7 @@ object PassiveDailyAggregator {
         date: LocalDate,
         zone: ZoneId,
         records: List<PassiveSourceRecord>,
+        routineRecords: List<PassiveSourceRecord>,
     ): List<PassiveSourceRecord> {
         val dayStart = date.atStartOfDay(zone).toInstant().toEpochMilli()
         val dayEnd = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
@@ -304,8 +311,29 @@ object PassiveDailyAggregator {
                         dayStart,
                         dayEnd,
                     ) > 0L
+                PassiveRecordKind.SCREEN_INTERACTIVE,
+                PassiveRecordKind.SCREEN_NON_INTERACTIVE,
+                PassiveRecordKind.SCREEN_UNLOCKED,
+                -> record in routineRecords
                 else -> record.eventStart >= dayStart && record.eventStart < dayEnd
             }
+        }
+    }
+
+    private fun routineRecords(
+        date: LocalDate,
+        zone: ZoneId,
+        records: List<PassiveSourceRecord>,
+        asOfTime: Long,
+    ): List<PassiveSourceRecord> {
+        val dayStart = date.atStartOfDay(zone).toInstant().toEpochMilli()
+        val dayEnd = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val until = minOf(asOfTime, dayEnd)
+        val screenRecords = records.filter { it.sourceFamily == PassiveSourceFamily.USAGE_STATS }
+            .sortedBy { it.eventStart }
+        val anchor = screenRecords.lastOrNull { it.eventStart < dayStart }
+        return listOfNotNull(anchor) + screenRecords.filter {
+            it.eventStart >= dayStart && it.eventStart < dayEnd && it.eventStart <= until
         }
     }
 
