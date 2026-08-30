@@ -204,6 +204,12 @@ class ContinuityRoundTripTest {
         )
         assertTrue(sourceLedger.any { it.kind == LedgerEventKind.EXERCISE.name })
 
+        // Long-term passive provenance and operational history, including
+        // provisional and final revisions. The raw value exists only on
+        // the source phone and must never cross the snapshot boundary.
+        PassiveContinuityFixture.insertInto(sourceDb)
+        assertEquals(1, sourceDb.passive().rawRecords(0L, 3_000L).size)
+
         // --- Step 4: a Quick Note, a Letter (marked read), a frictioned app,
         // an always-open app ---
         notesPrefs.add(Note(id = 1L, body = "A quick note about the day", createdAt = 2_000L, updatedAt = 2_000L))
@@ -291,7 +297,15 @@ class ContinuityRoundTripTest {
                         launcherPrefs.hidden.first().isEmpty() &&
                         launcherPrefs.renames.first().isEmpty() &&
                         destDb.research().ledgerEventCount() == 0 &&
-                        destDb.research().studyPhaseCount() == 0
+                        destDb.research().studyPhaseCount() == 0 &&
+                        destDb.passive().rawProvenanceNow().isEmpty() &&
+                        destDb.passive().sourceReadsNow().isEmpty() &&
+                        destDb.passive().sourceLagsNow().isEmpty() &&
+                        destDb.passive().baselineSegmentsNow().isEmpty() &&
+                        destDb.passive().pipelineRunsNow().isEmpty() &&
+                        destDb.passive().windowRevisionsNow().isEmpty() &&
+                        destDb.passive().dailyRevisionsNow().isEmpty() &&
+                        destDb.passive().observationDecisionsNow().isEmpty()
                 },
                 mergeRoom = { payload ->
                     destDb.withTransaction {
@@ -301,6 +315,7 @@ class ContinuityRoundTripTest {
                         payload.continuityChanges.forEach { destDao.insertChange(it.toEntity()) }
                         // The production function, not a copy of it.
                         mergeResearchRows(destDb, payload)
+                        mergePassiveRows(destDb, payload)
                     }
                 },
                 mergeDataStores = { payload ->
@@ -332,6 +347,31 @@ class ContinuityRoundTripTest {
             val recapturedSnapshot = destSnapshotRepository.capture(now = 9_000L)
             assertEquals(originalSnapshot.contentSha256, recapturedSnapshot.contentSha256)
 
+            val restoredPassiveIds = listOf(
+                destDb.passive().rawProvenanceNow().map { it.id },
+                destDb.passive().sourceReadsNow().map { it.id },
+                destDb.passive().sourceLagsNow().map { it.id },
+                destDb.passive().baselineSegmentsNow().map { it.id },
+                destDb.passive().pipelineRunsNow().map { it.id },
+                destDb.passive().windowRevisionsNow().map { it.id },
+                destDb.passive().dailyRevisionsNow().map { it.id },
+                destDb.passive().observationDecisionsNow().map { it.id },
+            )
+            assertEquals(PassiveContinuityFixture.rawProvenance.map { it.id }, restoredPassiveIds[0])
+            assertEquals(PassiveContinuityFixture.sourceReads.map { it.id }, restoredPassiveIds[1])
+            assertEquals(PassiveContinuityFixture.sourceLags.map { it.id }, restoredPassiveIds[2])
+            assertEquals(PassiveContinuityFixture.baselineSegments.map { it.id }, restoredPassiveIds[3])
+            assertEquals(PassiveContinuityFixture.pipelineRuns.map { it.id }, restoredPassiveIds[4])
+            assertEquals(PassiveContinuityFixture.windowRevisions.map { it.id }, restoredPassiveIds[5])
+            assertEquals(PassiveContinuityFixture.dailyRevisions.map { it.id }, restoredPassiveIds[6])
+            assertEquals(PassiveContinuityFixture.observationDecisions.map { it.id }, restoredPassiveIds[7])
+            assertTrue(destDb.passive().rawRecords(0L, 3_000L).isEmpty())
+            assertEquals(listOf(false, true), destDb.passive().windowRevisionsNow().map { it.final })
+            assertEquals(
+                listOf("AVAILABLE_PROVISIONAL", "AVAILABLE_FINAL"),
+                destDb.passive().dailyRevisionsNow().map { it.dataStatus },
+            )
+
             // The research history crossed intact: same rows, same chain,
             // same head. A hash match alone would not show the chain still
             // links, and a chain that verified against itself would not
@@ -342,12 +382,26 @@ class ContinuityRoundTripTest {
             // post-condition replaced per-insert row-id checks, this threw
             // — and resumeIfPending runs on app start, so it would have
             // crashed the launcher on every cold start.
-            destDb.withTransaction { mergeResearchRows(destDb, originalSnapshot.payload) }
+            repeat(2) {
+                destDb.withTransaction {
+                    mergeResearchRows(destDb, originalSnapshot.payload)
+                    mergePassiveRows(destDb, originalSnapshot.payload)
+                }
+            }
             assertEquals(
                 originalSnapshot.payload.researchLedgerEvents.size,
                 destDb.research().ledgerEventCount(),
             )
             assertEquals(originalSnapshot.payload.studyPhases.size, destDb.research().studyPhaseCount())
+            assertEquals(restoredPassiveIds[0], destDb.passive().rawProvenanceNow().map { it.id })
+            assertEquals(restoredPassiveIds[1], destDb.passive().sourceReadsNow().map { it.id })
+            assertEquals(restoredPassiveIds[2], destDb.passive().sourceLagsNow().map { it.id })
+            assertEquals(restoredPassiveIds[3], destDb.passive().baselineSegmentsNow().map { it.id })
+            assertEquals(restoredPassiveIds[4], destDb.passive().pipelineRunsNow().map { it.id })
+            assertEquals(restoredPassiveIds[5], destDb.passive().windowRevisionsNow().map { it.id })
+            assertEquals(restoredPassiveIds[6], destDb.passive().dailyRevisionsNow().map { it.id })
+            assertEquals(restoredPassiveIds[7], destDb.passive().observationDecisionsNow().map { it.id })
+            assertTrue(destDb.passive().rawRecords(0L, 3_000L).isEmpty())
 
             val restoredLedger = destDb.research().ledgerEventsNow()
             assertEquals(sourceLedger.map { it.id }, restoredLedger.map { it.id })

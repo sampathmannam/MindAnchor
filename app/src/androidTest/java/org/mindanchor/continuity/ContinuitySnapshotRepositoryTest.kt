@@ -22,6 +22,15 @@ import org.mindanchor.backup.BackupRepository
 import org.mindanchor.data.FrictionPrefs
 import org.mindanchor.data.NotesPrefs
 import org.mindanchor.data.db.AnchorDatabase
+import org.mindanchor.data.db.PassiveBaselineSegmentEntity
+import org.mindanchor.data.db.PassiveDailyRevisionEntity
+import org.mindanchor.data.db.PassiveObservationDecisionEntity
+import org.mindanchor.data.db.PassivePipelineRunEntity
+import org.mindanchor.data.db.PassiveRawProvenanceEntity
+import org.mindanchor.data.db.PassiveRawSampleEntity
+import org.mindanchor.data.db.PassiveSourceLagEntity
+import org.mindanchor.data.db.PassiveSourceReadEntity
+import org.mindanchor.data.db.PassiveWindowRevisionEntity
 import org.mindanchor.research.testLedgerRepository
 import org.mindanchor.data.db.withResearchImmutability
 import org.mindanchor.journal.DeviceIdentityStore
@@ -31,6 +40,200 @@ import org.mindanchor.letters.Letter
 import org.mindanchor.letters.LetterStore
 import org.mindanchor.model.Note
 import org.mindanchor.research.toEntity
+
+internal object PassiveContinuityFixture {
+    val rawProvenance = listOf(
+        PassiveRawProvenanceEntity(
+            id = "raw-1",
+            sourceFamily = "HEART_RATE",
+            recordKind = "HeartRateRecord",
+            eventStart = 1_000L,
+            eventEnd = 2_000L,
+            unit = "bpm",
+            dataOriginPackage = "com.example.health",
+            deviceManufacturer = "Example",
+            deviceModel = "Watch",
+            deviceType = "WATCH",
+            sourceUpdatedTime = 2_100L,
+            ingestedAt = 2_200L,
+            zoneId = "Asia/Calcutta",
+            zoneOffsetSeconds = 19_800,
+            recordId = "record-1",
+            recordVersion = 1L,
+        ),
+    )
+    val rawSamples = listOf(PassiveRawSampleEntity(provenanceId = "raw-1", value = 97.0, ingestedAt = 2_200L))
+    val sourceReads = listOf(
+        PassiveSourceReadEntity(
+            id = "read-1",
+            runId = "run-1",
+            sourceFamily = "HEART_RATE",
+            state = "AVAILABLE",
+            rangeStart = 1_000L,
+            rangeEnd = 2_000L,
+            zoneId = "Asia/Calcutta",
+            attemptedAt = 2_200L,
+            recordCount = 1,
+            errorCode = null,
+        ),
+    )
+    val sourceLags = listOf(
+        PassiveSourceLagEntity(
+            id = "lag-1",
+            sourceFamily = "HEART_RATE",
+            eventEnd = 2_000L,
+            observedUpdatedAt = 2_100L,
+            ingestedAt = 2_200L,
+            lagMillis = 100L,
+            usedIngestedAtFallback = false,
+            observedAt = 2_200L,
+        ),
+    )
+    val baselineSegments = listOf(
+        PassiveBaselineSegmentEntity(
+            id = "segment-1",
+            openedAt = 500L,
+            fingerprintsJson = "{}",
+            windowTransformationVersion = "window-v1",
+            dailyTransformationVersion = "daily-v1",
+        ),
+    )
+    val pipelineRuns = listOf(
+        PassivePipelineRunEntity(
+            id = "run-1",
+            startedAt = 2_000L,
+            completedAt = 2_300L,
+            scanStart = 1_000L,
+            scanEnd = 2_000L,
+            zoneId = "Asia/Calcutta",
+            historyPermissionGranted = true,
+            firstSuccessfulPermissionedRun = true,
+            result = "SUCCESS_PERMISSIONED",
+            sourceStatesJson = "{}",
+        ),
+    )
+    val windowRevisions = listOf(
+        windowRevision(id = "window-provisional", asOfTime = 2_200L, final = false, reason = "INITIAL"),
+        windowRevision(id = "window-final", asOfTime = 2_400L, final = true, reason = "WATERMARK_FINAL"),
+    )
+    val dailyRevisions = listOf(
+        dailyRevision(
+            id = "daily-provisional",
+            asOfTime = 2_200L,
+            status = "AVAILABLE_PROVISIONAL",
+            reason = "INITIAL",
+        ),
+        dailyRevision(
+            id = "daily-final",
+            asOfTime = 2_400L,
+            status = "AVAILABLE_FINAL",
+            reason = "WATERMARK_FINAL",
+        ),
+    )
+    val observationDecisions = listOf(
+        observationDecision(
+            id = "decision-provisional",
+            asOfTime = 2_200L,
+            status = "AVAILABLE_PROVISIONAL",
+            reason = "INITIAL",
+        ),
+        observationDecision(
+            id = "decision-final",
+            asOfTime = 2_400L,
+            status = "AVAILABLE_FINAL",
+            reason = "WATERMARK_FINAL",
+        ),
+    )
+
+    suspend fun insertInto(database: AnchorDatabase, includeRawSamples: Boolean = true) {
+        val dao = database.passive()
+        dao.insertRawProvenance(rawProvenance)
+        if (includeRawSamples) dao.insertRawSamples(rawSamples)
+        dao.insertSourceReads(sourceReads)
+        dao.insertSourceLags(sourceLags)
+        baselineSegments.forEach { dao.insertBaselineSegment(it) }
+        pipelineRuns.forEach { dao.insertPipelineRun(it) }
+        dao.insertWindowRevisions(windowRevisions)
+        dao.insertDailyRevisions(dailyRevisions)
+        dao.insertObservationDecisions(observationDecisions)
+    }
+
+    private fun windowRevision(
+        id: String,
+        asOfTime: Long,
+        final: Boolean,
+        reason: String,
+    ) = PassiveWindowRevisionEntity(
+        id = id,
+        windowStart = 1_000L,
+        windowEnd = 1_900L,
+        asOfTime = asOfTime,
+        zoneId = "Asia/Calcutta",
+        zoneOffsetSeconds = 19_800,
+        wakeRelativeMinute = 15,
+        baselineSegment = "segment-1",
+        featureRowsJson = "[]",
+        heartRateCoverage = 1.0,
+        physiologyEligible = true,
+        exerciseOverlapMillis = 0L,
+        provenanceRecordIdsJson = "[\"raw-1\"]",
+        missingnessJson = "[]",
+        exclusionsJson = "[]",
+        transformationVersion = "window-v1",
+        sourceUpdatedTime = 2_100L,
+        ingestedAt = asOfTime,
+        final = final,
+        revisionReason = reason,
+        contentHash = "$id-hash",
+    )
+
+    private fun dailyRevision(
+        id: String,
+        asOfTime: Long,
+        status: String,
+        reason: String,
+    ) = PassiveDailyRevisionEntity(
+        id = id,
+        localDate = "2026-08-30",
+        asOfTime = asOfTime,
+        dataStatus = status,
+        featuresJson = "{}",
+        excludedFeaturesJson = "[]",
+        baselineSegment = "segment-1",
+        sourceUpdatedTime = 2_100L,
+        ingestedAt = asOfTime,
+        sourceReadStatesJson = "{}",
+        coverageJson = "{}",
+        missingnessJson = "[]",
+        exclusionsJson = "[]",
+        provenanceJson = "[\"raw-1\"]",
+        windowTransformationVersion = "window-v1",
+        dailyTransformationVersion = "daily-v1",
+        watermark = 2_000L,
+        revisionReason = reason,
+        contentHash = "$id-hash",
+    )
+
+    private fun observationDecision(
+        id: String,
+        asOfTime: Long,
+        status: String,
+        reason: String,
+    ) = PassiveObservationDecisionEntity(
+        id = id,
+        localDate = "2026-08-30",
+        asOfTime = asOfTime,
+        dataStatus = status,
+        observationState = "NO_OBSERVATION",
+        baselineSegment = "segment-1",
+        calibrationSeed = null,
+        frozenBaselineAsOfTime = null,
+        frozenBaselineThroughDay = null,
+        decisionJson = "{}",
+        revisionReason = reason,
+        contentHash = "$id-hash",
+    )
+}
 
 /**
  * Proves the Task 7 capture guarantee: [ContinuitySnapshotRepository.capture]
@@ -200,5 +403,31 @@ class ContinuitySnapshotRepositoryTest {
         assertTrue("the racing write must commit after capture", db.research().studyPhaseCount() > 0)
         assertEquals(emptyList<ResearchLedgerEventDto>(), snapshot.payload.researchLedgerEvents)
         assertEquals(emptyList<StudyPhaseDto>(), snapshot.payload.studyPhases)
+    }
+
+    @Test
+    fun captureCarriesEveryLongTermPassiveRowButNeverRawSampleValues() = runBlocking {
+        PassiveContinuityFixture.insertInto(db)
+
+        val snapshot = repository.capture(now = 5_000L)
+        val encoded = ContinuitySnapshotCodec.encode(snapshot)
+
+        assertEquals(PassiveContinuityFixture.rawProvenance.map { it.toDto() }, snapshot.payload.passiveRawProvenance)
+        assertEquals(PassiveContinuityFixture.sourceReads.map { it.toDto() }, snapshot.payload.passiveSourceReads)
+        assertEquals(PassiveContinuityFixture.sourceLags.map { it.toDto() }, snapshot.payload.passiveSourceLags)
+        assertEquals(
+            PassiveContinuityFixture.baselineSegments.map { it.toDto() },
+            snapshot.payload.passiveBaselineSegments,
+        )
+        assertEquals(PassiveContinuityFixture.pipelineRuns.map { it.toDto() }, snapshot.payload.passivePipelineRuns)
+        assertEquals(PassiveContinuityFixture.windowRevisions.map { it.toDto() }, snapshot.payload.passiveWindowRevisions)
+        assertEquals(PassiveContinuityFixture.dailyRevisions.map { it.toDto() }, snapshot.payload.passiveDailyRevisions)
+        assertEquals(
+            PassiveContinuityFixture.observationDecisions.map { it.toDto() },
+            snapshot.payload.passiveObservationDecisions,
+        )
+        assertFalse(encoded.contains("passiveRawSamples"))
+        assertFalse(encoded.contains("\"value\":97.0"))
+        assertFalse(encoded.contains("97.0"))
     }
 }

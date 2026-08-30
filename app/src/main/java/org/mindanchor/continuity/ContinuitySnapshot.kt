@@ -5,6 +5,14 @@ import org.mindanchor.data.db.ContinuityChangeEntity
 import org.mindanchor.data.db.JournalContextEntity
 import org.mindanchor.data.db.JournalEntryEntity
 import org.mindanchor.data.db.MorningMeasureEntity
+import org.mindanchor.data.db.PassiveBaselineSegmentEntity
+import org.mindanchor.data.db.PassiveDailyRevisionEntity
+import org.mindanchor.data.db.PassiveObservationDecisionEntity
+import org.mindanchor.data.db.PassivePipelineRunEntity
+import org.mindanchor.data.db.PassiveRawProvenanceEntity
+import org.mindanchor.data.db.PassiveSourceLagEntity
+import org.mindanchor.data.db.PassiveSourceReadEntity
+import org.mindanchor.data.db.PassiveWindowRevisionEntity
 import org.mindanchor.data.db.ResearchLedgerEventEntity
 import org.mindanchor.data.db.StudyPhaseEntity
 import org.mindanchor.letters.Letter
@@ -62,6 +70,16 @@ data class ContinuityPayload(
     // the first ten, and a test asserts exactly that.
     val researchLedgerEvents: List<ResearchLedgerEventDto> = emptyList(),
     val studyPhases: List<StudyPhaseDto> = emptyList(),
+    // Program 2, appended never inserted: v1 and v2 projections freeze
+    // the payload shapes already written by earlier builds.
+    val passiveRawProvenance: List<PassiveRawProvenanceDto> = emptyList(),
+    val passiveSourceReads: List<PassiveSourceReadDto> = emptyList(),
+    val passiveSourceLags: List<PassiveSourceLagDto> = emptyList(),
+    val passiveBaselineSegments: List<PassiveBaselineSegmentDto> = emptyList(),
+    val passivePipelineRuns: List<PassivePipelineRunDto> = emptyList(),
+    val passiveWindowRevisions: List<PassiveWindowRevisionDto> = emptyList(),
+    val passiveDailyRevisions: List<PassiveDailyRevisionDto> = emptyList(),
+    val passiveObservationDecisions: List<PassiveObservationDecisionDto> = emptyList(),
 )
 
 @Serializable
@@ -147,6 +165,139 @@ data class StudyPhaseDto(
     val instrumentVersion: String,
     val dictionaryVersion: String,
     val sourceDeviceId: String,
+)
+
+@Serializable
+data class PassiveRawProvenanceDto(
+    val id: String,
+    val sourceFamily: String,
+    val recordKind: String,
+    val eventStart: Long,
+    val eventEnd: Long,
+    val unit: String,
+    val dataOriginPackage: String,
+    val deviceManufacturer: String?,
+    val deviceModel: String?,
+    val deviceType: String?,
+    val sourceUpdatedTime: Long?,
+    val ingestedAt: Long,
+    val zoneId: String,
+    val zoneOffsetSeconds: Int,
+    val recordId: String,
+    val recordVersion: Long,
+)
+
+@Serializable
+data class PassiveSourceReadDto(
+    val id: String,
+    val runId: String,
+    val sourceFamily: String,
+    val state: String,
+    val rangeStart: Long,
+    val rangeEnd: Long,
+    val zoneId: String,
+    val attemptedAt: Long,
+    val recordCount: Int,
+    val errorCode: String?,
+)
+
+@Serializable
+data class PassiveSourceLagDto(
+    val id: String,
+    val sourceFamily: String,
+    val eventEnd: Long,
+    val observedUpdatedAt: Long,
+    val ingestedAt: Long,
+    val lagMillis: Long,
+    val usedIngestedAtFallback: Boolean,
+    val observedAt: Long,
+)
+
+@Serializable
+data class PassiveBaselineSegmentDto(
+    val id: String,
+    val openedAt: Long,
+    val fingerprintsJson: String,
+    val windowTransformationVersion: String,
+    val dailyTransformationVersion: String,
+)
+
+@Serializable
+data class PassivePipelineRunDto(
+    val id: String,
+    val startedAt: Long,
+    val completedAt: Long,
+    val scanStart: Long,
+    val scanEnd: Long,
+    val zoneId: String,
+    val historyPermissionGranted: Boolean,
+    val firstSuccessfulPermissionedRun: Boolean,
+    val result: String,
+    val sourceStatesJson: String,
+)
+
+@Serializable
+data class PassiveWindowRevisionDto(
+    val id: String,
+    val windowStart: Long,
+    val windowEnd: Long,
+    val asOfTime: Long,
+    val zoneId: String,
+    val zoneOffsetSeconds: Int,
+    val wakeRelativeMinute: Int?,
+    val baselineSegment: String,
+    val featureRowsJson: String,
+    val heartRateCoverage: Double,
+    val physiologyEligible: Boolean,
+    val exerciseOverlapMillis: Long,
+    val provenanceRecordIdsJson: String,
+    val missingnessJson: String,
+    val exclusionsJson: String,
+    val transformationVersion: String,
+    val sourceUpdatedTime: Long,
+    val ingestedAt: Long,
+    val final: Boolean,
+    val revisionReason: String,
+    val contentHash: String,
+)
+
+@Serializable
+data class PassiveDailyRevisionDto(
+    val id: String,
+    val localDate: String,
+    val asOfTime: Long,
+    val dataStatus: String,
+    val featuresJson: String,
+    val excludedFeaturesJson: String,
+    val baselineSegment: String,
+    val sourceUpdatedTime: Long,
+    val ingestedAt: Long,
+    val sourceReadStatesJson: String,
+    val coverageJson: String,
+    val missingnessJson: String,
+    val exclusionsJson: String,
+    val provenanceJson: String,
+    val windowTransformationVersion: String,
+    val dailyTransformationVersion: String,
+    val watermark: Long,
+    val revisionReason: String,
+    val contentHash: String,
+)
+
+@Serializable
+data class PassiveObservationDecisionDto(
+    val id: String,
+    val localDate: String,
+    val asOfTime: Long,
+    val dataStatus: String,
+    val observationState: String,
+    val baselineSegment: String,
+    val calibrationSeed: Long?,
+    val frozenBaselineAsOfTime: Long?,
+    val frozenBaselineThroughDay: String?,
+    val decisionJson: String,
+    val revisionReason: String,
+    val contentHash: String,
 )
 
 @Serializable
@@ -275,6 +426,131 @@ fun StudyPhaseEntity.toDto(): StudyPhaseDto = StudyPhaseDto(
     instrumentVersion = instrumentVersion,
     dictionaryVersion = dictionaryVersion,
     sourceDeviceId = sourceDeviceId,
+)
+
+fun PassiveRawProvenanceEntity.toDto(): PassiveRawProvenanceDto = PassiveRawProvenanceDto(
+    id = id,
+    sourceFamily = sourceFamily,
+    recordKind = recordKind,
+    eventStart = eventStart,
+    eventEnd = eventEnd,
+    unit = unit,
+    dataOriginPackage = dataOriginPackage,
+    deviceManufacturer = deviceManufacturer,
+    deviceModel = deviceModel,
+    deviceType = deviceType,
+    sourceUpdatedTime = sourceUpdatedTime,
+    ingestedAt = ingestedAt,
+    zoneId = zoneId,
+    zoneOffsetSeconds = zoneOffsetSeconds,
+    recordId = recordId,
+    recordVersion = recordVersion,
+)
+
+fun PassiveSourceReadEntity.toDto(): PassiveSourceReadDto = PassiveSourceReadDto(
+    id = id,
+    runId = runId,
+    sourceFamily = sourceFamily,
+    state = state,
+    rangeStart = rangeStart,
+    rangeEnd = rangeEnd,
+    zoneId = zoneId,
+    attemptedAt = attemptedAt,
+    recordCount = recordCount,
+    errorCode = errorCode,
+)
+
+fun PassiveSourceLagEntity.toDto(): PassiveSourceLagDto = PassiveSourceLagDto(
+    id = id,
+    sourceFamily = sourceFamily,
+    eventEnd = eventEnd,
+    observedUpdatedAt = observedUpdatedAt,
+    ingestedAt = ingestedAt,
+    lagMillis = lagMillis,
+    usedIngestedAtFallback = usedIngestedAtFallback,
+    observedAt = observedAt,
+)
+
+fun PassiveBaselineSegmentEntity.toDto(): PassiveBaselineSegmentDto = PassiveBaselineSegmentDto(
+    id = id,
+    openedAt = openedAt,
+    fingerprintsJson = fingerprintsJson,
+    windowTransformationVersion = windowTransformationVersion,
+    dailyTransformationVersion = dailyTransformationVersion,
+)
+
+fun PassivePipelineRunEntity.toDto(): PassivePipelineRunDto = PassivePipelineRunDto(
+    id = id,
+    startedAt = startedAt,
+    completedAt = completedAt,
+    scanStart = scanStart,
+    scanEnd = scanEnd,
+    zoneId = zoneId,
+    historyPermissionGranted = historyPermissionGranted,
+    firstSuccessfulPermissionedRun = firstSuccessfulPermissionedRun,
+    result = result,
+    sourceStatesJson = sourceStatesJson,
+)
+
+fun PassiveWindowRevisionEntity.toDto(): PassiveWindowRevisionDto = PassiveWindowRevisionDto(
+    id = id,
+    windowStart = windowStart,
+    windowEnd = windowEnd,
+    asOfTime = asOfTime,
+    zoneId = zoneId,
+    zoneOffsetSeconds = zoneOffsetSeconds,
+    wakeRelativeMinute = wakeRelativeMinute,
+    baselineSegment = baselineSegment,
+    featureRowsJson = featureRowsJson,
+    heartRateCoverage = heartRateCoverage,
+    physiologyEligible = physiologyEligible,
+    exerciseOverlapMillis = exerciseOverlapMillis,
+    provenanceRecordIdsJson = provenanceRecordIdsJson,
+    missingnessJson = missingnessJson,
+    exclusionsJson = exclusionsJson,
+    transformationVersion = transformationVersion,
+    sourceUpdatedTime = sourceUpdatedTime,
+    ingestedAt = ingestedAt,
+    final = final,
+    revisionReason = revisionReason,
+    contentHash = contentHash,
+)
+
+fun PassiveDailyRevisionEntity.toDto(): PassiveDailyRevisionDto = PassiveDailyRevisionDto(
+    id = id,
+    localDate = localDate,
+    asOfTime = asOfTime,
+    dataStatus = dataStatus,
+    featuresJson = featuresJson,
+    excludedFeaturesJson = excludedFeaturesJson,
+    baselineSegment = baselineSegment,
+    sourceUpdatedTime = sourceUpdatedTime,
+    ingestedAt = ingestedAt,
+    sourceReadStatesJson = sourceReadStatesJson,
+    coverageJson = coverageJson,
+    missingnessJson = missingnessJson,
+    exclusionsJson = exclusionsJson,
+    provenanceJson = provenanceJson,
+    windowTransformationVersion = windowTransformationVersion,
+    dailyTransformationVersion = dailyTransformationVersion,
+    watermark = watermark,
+    revisionReason = revisionReason,
+    contentHash = contentHash,
+)
+
+fun PassiveObservationDecisionEntity.toDto(): PassiveObservationDecisionDto = PassiveObservationDecisionDto(
+    id = id,
+    localDate = localDate,
+    asOfTime = asOfTime,
+    dataStatus = dataStatus,
+    observationState = observationState,
+    baselineSegment = baselineSegment,
+    calibrationSeed = calibrationSeed,
+    frozenBaselineAsOfTime = frozenBaselineAsOfTime,
+    frozenBaselineThroughDay = frozenBaselineThroughDay,
+    decisionJson = decisionJson,
+    revisionReason = revisionReason,
+    contentHash = contentHash,
 )
 
 fun ContinuityChangeEntity.toDto(): ContinuityChangeDto = ContinuityChangeDto(

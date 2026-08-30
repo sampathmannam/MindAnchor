@@ -1,5 +1,6 @@
 package org.mindanchor.continuity
 
+import java.io.File
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -748,5 +749,43 @@ class RestoreCoordinatorTest {
         }
 
         assertTrue(coordinator(stateStore, stagedFile, localStore, key).resume() is RestoreResult.Verified)
+    }
+
+    @Test
+    fun `passive DTO mappings preserve every long-term field without a raw sample`() {
+        val payload = ProgramTwoPayloadFixture.payload()
+        assertEquals(payload.passiveRawProvenance, payload.passiveRawProvenance.map { it.toEntity().toDto() })
+        assertEquals(payload.passiveSourceReads, payload.passiveSourceReads.map { it.toEntity().toDto() })
+        assertEquals(payload.passiveSourceLags, payload.passiveSourceLags.map { it.toEntity().toDto() })
+        assertEquals(payload.passiveBaselineSegments, payload.passiveBaselineSegments.map { it.toEntity().toDto() })
+        assertEquals(payload.passivePipelineRuns, payload.passivePipelineRuns.map { it.toEntity().toDto() })
+        assertEquals(payload.passiveWindowRevisions, payload.passiveWindowRevisions.map { it.toEntity().toDto() })
+        assertEquals(payload.passiveDailyRevisions, payload.passiveDailyRevisions.map { it.toEntity().toDto() })
+        assertEquals(
+            payload.passiveObservationDecisions,
+            payload.passiveObservationDecisions.map { it.toEntity().toDto() },
+        )
+    }
+
+    @Test
+    fun `production restore preflight and merge cover all long-term passive tables but no raw values`() {
+        val source = File("src/main/java/org/mindanchor/continuity/RestoreCoordinator.kt").readText()
+        listOf(
+            "rawProvenanceNow",
+            "sourceReadsNow",
+            "sourceLagsNow",
+            "baselineSegmentsNow",
+            "pipelineRunsNow",
+            "windowRevisionsNow",
+            "dailyRevisionsNow",
+            "observationDecisionsNow",
+        ).forEach { query ->
+            assertTrue("preflight must inspect $query", source.contains("passive.$query().isEmpty()"))
+        }
+        val mergeRoomSource = source.substringAfter("mergeRoom =").substringBefore("mergeDataStores =")
+        assertTrue(mergeRoomSource.contains("database.withTransaction"))
+        assertTrue(mergeRoomSource.contains("mergePassiveRows(database, payload)"))
+        assertFalse(source.contains("insertRawSamples"))
+        assertFalse(source.contains("rawRecords("))
     }
 }

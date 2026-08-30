@@ -67,6 +67,20 @@ object ContinuityContentHasher {
         continuityChanges = payload.continuityChanges.sortedBy { it.id },
         researchLedgerEvents = payload.researchLedgerEvents.sortedWith(compareBy({ it.sequence }, { it.id })),
         studyPhases = payload.studyPhases.sortedWith(compareBy({ it.ordinal }, { it.id })),
+        passiveRawProvenance = payload.passiveRawProvenance.sortedWith(compareBy({ it.eventStart }, { it.id })),
+        passiveSourceReads =
+            payload.passiveSourceReads.sortedWith(compareBy({ it.attemptedAt }, { it.sourceFamily }, { it.id })),
+        passiveSourceLags =
+            payload.passiveSourceLags.sortedWith(compareBy({ it.observedAt }, { it.sourceFamily }, { it.id })),
+        passiveBaselineSegments = payload.passiveBaselineSegments.sortedWith(compareBy({ it.openedAt }, { it.id })),
+        passivePipelineRuns = payload.passivePipelineRuns.sortedWith(compareBy({ it.completedAt }, { it.id })),
+        passiveWindowRevisions =
+            payload.passiveWindowRevisions.sortedWith(compareBy({ it.windowStart }, { it.asOfTime }, { it.id })),
+        passiveDailyRevisions =
+            payload.passiveDailyRevisions.sortedWith(compareBy({ it.localDate }, { it.asOfTime }, { it.id })),
+        passiveObservationDecisions = payload.passiveObservationDecisions.sortedWith(
+            compareBy({ it.localDate }, { it.asOfTime }, { it.id }),
+        ),
     )
 
     /**
@@ -89,6 +103,8 @@ object ContinuityContentHasher {
         val text = when (formatVersion) {
             ContinuityContract.PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION ->
                 json.encodeToString(projectV1(canonical))
+            ContinuityContract.PROGRAM_ONE_SNAPSHOT_FORMAT_VERSION ->
+                json.encodeToString(projectV2(canonical))
             ContinuityContract.SNAPSHOT_FORMAT_VERSION -> json.encodeToString(canonical)
             else -> error("no canonical projection for snapshot format version $formatVersion")
         }
@@ -149,6 +165,21 @@ object ContinuityContentHasher {
         continuityChanges = payload.continuityChanges,
         legacyBackupJson = payload.legacyBackupJson,
     )
+
+    private fun projectV2(payload: ContinuityPayload): ContinuityPayloadV2 = ContinuityPayloadV2(
+        journalEntries = payload.journalEntries,
+        contextRows = payload.contextRows,
+        morningMeasures = payload.morningMeasures,
+        notes = payload.notes,
+        letters = payload.letters,
+        readLetterDates = payload.readLetterDates,
+        frictionedApps = payload.frictionedApps,
+        alwaysOpenApps = payload.alwaysOpenApps,
+        continuityChanges = payload.continuityChanges,
+        legacyBackupJson = payload.legacyBackupJson,
+        researchLedgerEvents = payload.researchLedgerEvents,
+        studyPhases = payload.studyPhases,
+    )
 }
 
 /**
@@ -176,4 +207,21 @@ internal data class ContinuityPayloadV1(
     val alwaysOpenApps: List<String>,
     val continuityChanges: List<ContinuityChangeDto>,
     val legacyBackupJson: String,
+)
+
+/** Program 1's payload field set, frozen in its original declaration order. */
+@Serializable
+internal data class ContinuityPayloadV2(
+    val journalEntries: List<JournalEntryDto>,
+    val contextRows: List<JournalContextDto>,
+    val morningMeasures: List<MorningMeasureDto>,
+    val notes: List<NoteDto>,
+    val letters: List<LetterDto>,
+    val readLetterDates: List<String>,
+    val frictionedApps: List<String>,
+    val alwaysOpenApps: List<String>,
+    val continuityChanges: List<ContinuityChangeDto>,
+    val legacyBackupJson: String,
+    val researchLedgerEvents: List<ResearchLedgerEventDto>,
+    val studyPhases: List<StudyPhaseDto>,
 )

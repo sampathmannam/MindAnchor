@@ -38,11 +38,21 @@ class ContinuitySnapshotRepository(
         val continuityChanges: List<ContinuityChangeDto>,
         val researchLedgerEvents: List<ResearchLedgerEventDto>,
         val studyPhases: List<StudyPhaseDto>,
+        val passiveRawProvenance: List<PassiveRawProvenanceDto>,
+        val passiveSourceReads: List<PassiveSourceReadDto>,
+        val passiveSourceLags: List<PassiveSourceLagDto>,
+        val passiveBaselineSegments: List<PassiveBaselineSegmentDto>,
+        val passivePipelineRuns: List<PassivePipelineRunDto>,
+        val passiveWindowRevisions: List<PassiveWindowRevisionDto>,
+        val passiveDailyRevisions: List<PassiveDailyRevisionDto>,
+        val passiveObservationDecisions: List<PassiveObservationDecisionDto>,
     )
 
+    @Suppress("LongMethod")
     suspend fun capture(now: Long): ContinuitySnapshot = withContext(Dispatchers.IO) {
         val dao = database.journal()
         val researchDao = database.research()
+        val passive = database.passive()
         val roomRows = database.withTransaction {
             val journalEntries = dao.entriesNow().map { it.toDto() }
             val contextRows = dao.allContext().map { it.toDto() }
@@ -57,6 +67,14 @@ class ContinuitySnapshotRepository(
                 continuityChanges = continuityChanges,
                 researchLedgerEvents = researchLedgerEvents,
                 studyPhases = researchDao.studyPhasesNow().map { it.toDto() },
+                passiveRawProvenance = passive.rawProvenanceNow().map { it.toDto() },
+                passiveSourceReads = passive.sourceReadsNow().map { it.toDto() },
+                passiveSourceLags = passive.sourceLagsNow().map { it.toDto() },
+                passiveBaselineSegments = passive.baselineSegmentsNow().map { it.toDto() },
+                passivePipelineRuns = passive.pipelineRunsNow().map { it.toDto() },
+                passiveWindowRevisions = passive.windowRevisionsNow().map { it.toDto() },
+                passiveDailyRevisions = passive.dailyRevisionsNow().map { it.toDto() },
+                passiveObservationDecisions = passive.observationDecisionsNow().map { it.toDto() },
             )
         }
 
@@ -73,6 +91,14 @@ class ContinuitySnapshotRepository(
             legacyBackupJson = backupRepository.export(now),
             researchLedgerEvents = roomRows.researchLedgerEvents,
             studyPhases = roomRows.studyPhases,
+            passiveRawProvenance = roomRows.passiveRawProvenance,
+            passiveSourceReads = roomRows.passiveSourceReads,
+            passiveSourceLags = roomRows.passiveSourceLags,
+            passiveBaselineSegments = roomRows.passiveBaselineSegments,
+            passivePipelineRuns = roomRows.passivePipelineRuns,
+            passiveWindowRevisions = roomRows.passiveWindowRevisions,
+            passiveDailyRevisions = roomRows.passiveDailyRevisions,
+            passiveObservationDecisions = roomRows.passiveObservationDecisions,
         )
         val payload = ContinuityContentHasher.sorted(rawPayload)
         // Explicit rather than defaulted: the version stamped on the

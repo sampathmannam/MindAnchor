@@ -24,6 +24,14 @@ import org.mindanchor.data.db.ContinuityChangeEntity
 import org.mindanchor.data.db.JournalContextEntity
 import org.mindanchor.data.db.JournalEntryEntity
 import org.mindanchor.data.db.MorningMeasureEntity
+import org.mindanchor.data.db.PassiveBaselineSegmentEntity
+import org.mindanchor.data.db.PassiveDailyRevisionEntity
+import org.mindanchor.data.db.PassiveObservationDecisionEntity
+import org.mindanchor.data.db.PassivePipelineRunEntity
+import org.mindanchor.data.db.PassiveRawProvenanceEntity
+import org.mindanchor.data.db.PassiveSourceLagEntity
+import org.mindanchor.data.db.PassiveSourceReadEntity
+import org.mindanchor.data.db.PassiveWindowRevisionEntity
 import org.mindanchor.data.db.ResearchLedgerEventEntity
 import org.mindanchor.data.db.StudyPhaseEntity
 import org.mindanchor.data.mergeRestored
@@ -416,6 +424,7 @@ class RestoreCoordinator(
             val app = context.applicationContext
             val database = AnchorDatabase.get(app)
             val dao = database.journal()
+            val passive = database.passive()
             val notesPrefs = NotesPrefs(app)
             val letterStore = LetterStore(app)
             val frictionPrefs = FrictionPrefs(app)
@@ -485,7 +494,15 @@ class RestoreCoordinator(
                         // fork it, and append-only tables cannot be
                         // un-forked.
                         database.research().ledgerEventCount() == 0 &&
-                        database.research().studyPhaseCount() == 0
+                        database.research().studyPhaseCount() == 0 &&
+                        passive.rawProvenanceNow().isEmpty() &&
+                        passive.sourceReadsNow().isEmpty() &&
+                        passive.sourceLagsNow().isEmpty() &&
+                        passive.baselineSegmentsNow().isEmpty() &&
+                        passive.pipelineRunsNow().isEmpty() &&
+                        passive.windowRevisionsNow().isEmpty() &&
+                        passive.dailyRevisionsNow().isEmpty() &&
+                        passive.observationDecisionsNow().isEmpty()
                 },
                 mergeRoom = { payload ->
                     database.withTransaction {
@@ -498,6 +515,7 @@ class RestoreCoordinator(
                         // so resume is duplicate-free by construction
                         // rather than by a de-duplication pass.
                         mergeResearchRows(database, payload)
+                        mergePassiveRows(database, payload)
                     }
                 },
                 mergeDataStores = { payload ->
@@ -556,6 +574,26 @@ internal suspend fun mergeResearchRows(database: AnchorDatabase, payload: Contin
     check(missingPhases.isEmpty()) {
         "${missingPhases.size} restored study phases are not in the table; their events would point at nothing"
     }
+}
+
+internal suspend fun mergePassiveRows(database: AnchorDatabase, payload: ContinuityPayload) {
+    val dao = database.passive()
+    dao.insertRawProvenance(payload.passiveRawProvenance.map { it.toEntity() })
+    dao.insertSourceReads(payload.passiveSourceReads.map { it.toEntity() })
+    dao.insertSourceLags(payload.passiveSourceLags.map { it.toEntity() })
+    payload.passiveBaselineSegments.forEach { dao.insertBaselineSegment(it.toEntity()) }
+    payload.passivePipelineRuns.forEach { dao.insertPipelineRun(it.toEntity()) }
+    dao.insertWindowRevisions(payload.passiveWindowRevisions.map { it.toEntity() })
+    dao.insertDailyRevisions(payload.passiveDailyRevisions.map { it.toEntity() })
+    dao.insertObservationDecisions(payload.passiveObservationDecisions.map { it.toEntity() })
+
+    check(dao.rawProvenanceNow().map { it.id }.containsAll(payload.passiveRawProvenance.map { it.id }))
+    check(dao.windowRevisionsNow().map { it.id }.containsAll(payload.passiveWindowRevisions.map { it.id }))
+    check(dao.dailyRevisionsNow().map { it.id }.containsAll(payload.passiveDailyRevisions.map { it.id }))
+    check(
+        dao.observationDecisionsNow().map { it.id }
+            .containsAll(payload.passiveObservationDecisions.map { it.id }),
+    )
 }
 
 // --- DTO -> Room entity / domain mapping, back-direction of ContinuitySnapshot.kt's toDto() ---
@@ -630,6 +668,132 @@ internal fun StudyPhaseDto.toEntity(): StudyPhaseEntity = StudyPhaseEntity(
     dictionaryVersion = dictionaryVersion,
     sourceDeviceId = sourceDeviceId,
 )
+
+internal fun PassiveRawProvenanceDto.toEntity(): PassiveRawProvenanceEntity = PassiveRawProvenanceEntity(
+    id = id,
+    sourceFamily = sourceFamily,
+    recordKind = recordKind,
+    eventStart = eventStart,
+    eventEnd = eventEnd,
+    unit = unit,
+    dataOriginPackage = dataOriginPackage,
+    deviceManufacturer = deviceManufacturer,
+    deviceModel = deviceModel,
+    deviceType = deviceType,
+    sourceUpdatedTime = sourceUpdatedTime,
+    ingestedAt = ingestedAt,
+    zoneId = zoneId,
+    zoneOffsetSeconds = zoneOffsetSeconds,
+    recordId = recordId,
+    recordVersion = recordVersion,
+)
+
+internal fun PassiveSourceReadDto.toEntity(): PassiveSourceReadEntity = PassiveSourceReadEntity(
+    id = id,
+    runId = runId,
+    sourceFamily = sourceFamily,
+    state = state,
+    rangeStart = rangeStart,
+    rangeEnd = rangeEnd,
+    zoneId = zoneId,
+    attemptedAt = attemptedAt,
+    recordCount = recordCount,
+    errorCode = errorCode,
+)
+
+internal fun PassiveSourceLagDto.toEntity(): PassiveSourceLagEntity = PassiveSourceLagEntity(
+    id = id,
+    sourceFamily = sourceFamily,
+    eventEnd = eventEnd,
+    observedUpdatedAt = observedUpdatedAt,
+    ingestedAt = ingestedAt,
+    lagMillis = lagMillis,
+    usedIngestedAtFallback = usedIngestedAtFallback,
+    observedAt = observedAt,
+)
+
+internal fun PassiveBaselineSegmentDto.toEntity(): PassiveBaselineSegmentEntity = PassiveBaselineSegmentEntity(
+    id = id,
+    openedAt = openedAt,
+    fingerprintsJson = fingerprintsJson,
+    windowTransformationVersion = windowTransformationVersion,
+    dailyTransformationVersion = dailyTransformationVersion,
+)
+
+internal fun PassivePipelineRunDto.toEntity(): PassivePipelineRunEntity = PassivePipelineRunEntity(
+    id = id,
+    startedAt = startedAt,
+    completedAt = completedAt,
+    scanStart = scanStart,
+    scanEnd = scanEnd,
+    zoneId = zoneId,
+    historyPermissionGranted = historyPermissionGranted,
+    firstSuccessfulPermissionedRun = firstSuccessfulPermissionedRun,
+    result = result,
+    sourceStatesJson = sourceStatesJson,
+)
+
+internal fun PassiveWindowRevisionDto.toEntity(): PassiveWindowRevisionEntity = PassiveWindowRevisionEntity(
+    id = id,
+    windowStart = windowStart,
+    windowEnd = windowEnd,
+    asOfTime = asOfTime,
+    zoneId = zoneId,
+    zoneOffsetSeconds = zoneOffsetSeconds,
+    wakeRelativeMinute = wakeRelativeMinute,
+    baselineSegment = baselineSegment,
+    featureRowsJson = featureRowsJson,
+    heartRateCoverage = heartRateCoverage,
+    physiologyEligible = physiologyEligible,
+    exerciseOverlapMillis = exerciseOverlapMillis,
+    provenanceRecordIdsJson = provenanceRecordIdsJson,
+    missingnessJson = missingnessJson,
+    exclusionsJson = exclusionsJson,
+    transformationVersion = transformationVersion,
+    sourceUpdatedTime = sourceUpdatedTime,
+    ingestedAt = ingestedAt,
+    final = final,
+    revisionReason = revisionReason,
+    contentHash = contentHash,
+)
+
+internal fun PassiveDailyRevisionDto.toEntity(): PassiveDailyRevisionEntity = PassiveDailyRevisionEntity(
+    id = id,
+    localDate = localDate,
+    asOfTime = asOfTime,
+    dataStatus = dataStatus,
+    featuresJson = featuresJson,
+    excludedFeaturesJson = excludedFeaturesJson,
+    baselineSegment = baselineSegment,
+    sourceUpdatedTime = sourceUpdatedTime,
+    ingestedAt = ingestedAt,
+    sourceReadStatesJson = sourceReadStatesJson,
+    coverageJson = coverageJson,
+    missingnessJson = missingnessJson,
+    exclusionsJson = exclusionsJson,
+    provenanceJson = provenanceJson,
+    windowTransformationVersion = windowTransformationVersion,
+    dailyTransformationVersion = dailyTransformationVersion,
+    watermark = watermark,
+    revisionReason = revisionReason,
+    contentHash = contentHash,
+)
+
+internal fun PassiveObservationDecisionDto.toEntity(): PassiveObservationDecisionEntity =
+    PassiveObservationDecisionEntity(
+        id = id,
+        localDate = localDate,
+        asOfTime = asOfTime,
+        dataStatus = dataStatus,
+        observationState = observationState,
+        baselineSegment = baselineSegment,
+        calibrationSeed = calibrationSeed,
+        frozenBaselineAsOfTime = frozenBaselineAsOfTime,
+        frozenBaselineThroughDay = frozenBaselineThroughDay,
+        decisionJson = decisionJson,
+        revisionReason = revisionReason,
+        contentHash = contentHash,
+    )
 
 internal fun ContinuityChangeDto.toEntity(): ContinuityChangeEntity = ContinuityChangeEntity(
     id = id,
