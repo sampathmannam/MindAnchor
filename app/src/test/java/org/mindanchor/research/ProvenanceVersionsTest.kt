@@ -5,9 +5,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Test
 import org.mindanchor.continuity.ContinuityContract
+import org.mindanchor.intelligence.PassiveEstimator
 
 /**
- * Program 1 Task 5 — the provenance version vector is everything that
+ * Program 2A Task 5 — the provenance version vector is everything that
  * could change how a record is produced or interpreted. A difference in
  * any component opens a new study phase, which is the mechanism behind the
  * design's rule that historical decisions are never silently
@@ -22,9 +23,9 @@ class ProvenanceVersionsTest {
     )
 
     @Test
-    fun `this build ships no rules and no models, and says so`() {
-        assertEquals("rule-set-none-v1", ProvenanceVersions.RULE_SET_VERSION)
-        assertEquals("model-set-none-v1", ProvenanceVersions.MODEL_SET_VERSION)
+    fun `the passive intelligence rule and model versions are registered`() {
+        assertEquals(PassiveEstimator.RULE_VERSION, ProvenanceVersions.RULE_SET_VERSION)
+        assertEquals("personal-robust-baseline-v1", ProvenanceVersions.MODEL_SET_VERSION)
     }
 
     @Test

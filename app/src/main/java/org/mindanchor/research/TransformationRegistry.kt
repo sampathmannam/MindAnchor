@@ -19,11 +19,10 @@ data class Transformation(
  * with its own version.
  *
  * The design calls for "versioned raw-to-feature transformations". This is
- * that list — and, importantly, it is the *actual* list, not an aspiration:
- * Program 1 performs exactly two transformations, and both are here.
- * Program 2's feature windows and baselines join it, and because
- * [setVersion] is part of the provenance version vector, that arrival opens
- * a new study phase by construction rather than by anyone remembering to.
+ * that list — and, importantly, it is the *actual* list, not an aspiration.
+ * Because [setVersion] is part of the provenance version vector, adding or
+ * changing a transformation opens a new study phase by construction rather
+ * than by anyone remembering to.
  */
 object TransformationRegistry {
 
@@ -45,6 +44,30 @@ object TransformationRegistry {
             output = "A canonically sorted, content-hashed research export document.",
             description = "Sorts every list into a stable order and hashes the content, so two exports " +
                 "of the same data agree byte for byte regardless of when or where they were taken.",
+        ),
+        Transformation(
+            id = "passive-daily-features",
+            version = "daily-features-v1",
+            input = "Raw passive signal samples with timestamps, quality metadata, and exercise intervals.",
+            output = "Daily passive features with explicit exclusions and data-quality status.",
+            description = "Aggregates raw signals through fifteen-minute windows so quality checks and " +
+                "exercise overlap handling can exclude ineligible physiology before producing daily features.",
+        ),
+        Transformation(
+            id = "passive-personal-baseline",
+            version = "personal-baseline-v1",
+            input = "Eligible historical daily passive features within one baseline segment.",
+            output = "Per-feature personal centres, scales, sample counts, and pooled-stratum flags.",
+            description = "Builds a personal baseline from median/MAD statistics, with a declared IQR fallback " +
+                "for zero MAD and eligibility floors for total, weekday, weekend, and stratum data.",
+        ),
+        Transformation(
+            id = "passive-block-calibration",
+            version = "block-calibration-v1",
+            input = "Historical daily passive observation scores.",
+            output = "A block-resampled threshold and expected episode rate.",
+            description = "Calibrates thresholds with block resampling against an engineering false-observation " +
+                "budget rather than clinical accuracy.",
         ),
     )
 

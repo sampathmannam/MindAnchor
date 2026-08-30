@@ -7,7 +7,7 @@ import org.junit.Test
 import org.mindanchor.journal.StructuralContextExtractor
 
 /**
- * Program 1 Task 5 — the transformations this build actually performs are
+ * Program 2A Task 5 — the transformations this build actually performs are
  * listed, versioned, and hashed, so a change to how a raw record becomes a
  * derived one opens a study phase instead of quietly reinterpreting every
  * day already recorded.
@@ -17,9 +17,37 @@ class TransformationRegistryTest {
     @Test
     fun `the registry lists exactly the transformations this build performs`() {
         assertEquals(
-            listOf("structural-context", "research-export-canonicalisation"),
+            listOf(
+                "structural-context",
+                "research-export-canonicalisation",
+                "passive-daily-features",
+                "passive-personal-baseline",
+                "passive-block-calibration",
+            ),
             TransformationRegistry.transformations.map { it.id },
         )
+    }
+
+    @Test
+    fun `passive transformations record their semantic versions and limitations`() {
+        val transformations = TransformationRegistry.transformations.associateBy { it.id }
+
+        val features = requireNotNull(transformations["passive-daily-features"])
+        assertEquals("daily-features-v1", features.version)
+        assertTrue(features.description.contains("fifteen-minute windows"))
+        assertTrue(features.description.contains("quality"))
+        assertTrue(features.description.contains("exercise"))
+
+        val baseline = requireNotNull(transformations["passive-personal-baseline"])
+        assertEquals("personal-baseline-v1", baseline.version)
+        assertTrue(baseline.description.contains("median/MAD"))
+        assertTrue(baseline.description.contains("fallback"))
+        assertTrue(baseline.description.contains("eligibility floors"))
+
+        val calibration = requireNotNull(transformations["passive-block-calibration"])
+        assertEquals("block-calibration-v1", calibration.version)
+        assertTrue(calibration.description.contains("engineering false-observation budget"))
+        assertTrue(calibration.description.contains("clinical accuracy"))
     }
 
     @Test
@@ -49,7 +77,7 @@ class TransformationRegistryTest {
     @Test
     fun `the set version is frozen`() {
         assertEquals(
-            "ceba249f53c56220cd633ef6bcbd16c2e10f279f69af0603226aaef3a7c7dfe2",
+            "441e76b3167fd7b96c8a493111bb0916c3805fa2ac008b0b3ce604a001c27316",
             TransformationRegistry.setVersion,
         )
     }

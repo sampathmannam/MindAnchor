@@ -2,6 +2,7 @@ package org.mindanchor.research
 
 import kotlinx.serialization.Serializable
 import org.mindanchor.continuity.ContinuityContract
+import org.mindanchor.intelligence.PassiveEstimator
 
 /**
  * Everything that could change how a record is produced or interpreted,
@@ -38,18 +39,11 @@ data class ProvenanceVector(
  */
 object ProvenanceVersions {
 
-    /**
-     * This build ships no decision rules.
-     *
-     * Not a placeholder: it is the honest statement that nothing in this
-     * build decides anything about a person's state. Program 2's first
-     * rule set replaces this constant, and because the constant is part of
-     * the vector, that replacement opens a study phase by construction.
-     */
-    const val RULE_SET_VERSION = "rule-set-none-v1"
+    /** Tracks the rule version declared by the passive estimator itself. */
+    const val RULE_SET_VERSION = PassiveEstimator.RULE_VERSION
 
-    /** This build ships no models. Same reasoning as [RULE_SET_VERSION]. */
-    const val MODEL_SET_VERSION = "model-set-none-v1"
+    /** The personal robust baseline model used by passive intelligence. */
+    const val MODEL_SET_VERSION = "personal-robust-baseline-v1"
 
     fun vector(appVersionCode: Int, appVersionName: String, sourceDeviceId: String): ProvenanceVector =
         ProvenanceVector(
