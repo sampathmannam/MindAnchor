@@ -11,6 +11,14 @@ import org.mindanchor.continuity.ContinuityContract
 import org.mindanchor.continuity.JournalContextDto
 import org.mindanchor.continuity.JournalEntryDto
 import org.mindanchor.continuity.MorningMeasureDto
+import org.mindanchor.continuity.PassiveBaselineSegmentDto
+import org.mindanchor.continuity.PassiveDailyRevisionDto
+import org.mindanchor.continuity.PassiveObservationDecisionDto
+import org.mindanchor.continuity.PassivePipelineRunDto
+import org.mindanchor.continuity.PassiveRawProvenanceDto
+import org.mindanchor.continuity.PassiveSourceLagDto
+import org.mindanchor.continuity.PassiveSourceReadDto
+import org.mindanchor.continuity.PassiveWindowRevisionDto
 import org.mindanchor.data.db.ResearchLedgerEventEntity
 import org.mindanchor.data.db.StudyPhaseEntity
 import org.mindanchor.journal.JournalEntry
@@ -59,6 +67,7 @@ class ResearchDataDictionaryTest {
         // like the same one-line re-pin.
         val frozen = mapOf(
             "mindanchor-research-v2" to "1cbfa2cf7552b675500583959511b8df069bf2aa932beeade1196ca6302393a9",
+            "mindanchor-research-v3" to "4713050fc555021556d3f4fcb269dc4c03ded712bbc24cf7a9d3caa55901aaba",
         )
         assertEquals(
             "the current dictionary version needs a frozen hash",
@@ -114,6 +123,14 @@ class ResearchDataDictionaryTest {
             DictionaryDataset.RESEARCH_LEDGER_EVENTS to ResearchLedgerEventEntity::class.java,
             DictionaryDataset.STUDY_PHASES to StudyPhaseEntity::class.java,
             DictionaryDataset.MISSING_DATA to MissingDataRecord::class.java,
+            DictionaryDataset.PASSIVE_RAW_PROVENANCE to PassiveRawProvenanceDto::class.java,
+            DictionaryDataset.PASSIVE_SOURCE_READS to PassiveSourceReadDto::class.java,
+            DictionaryDataset.PASSIVE_SOURCE_LAGS to PassiveSourceLagDto::class.java,
+            DictionaryDataset.PASSIVE_BASELINE_SEGMENTS to PassiveBaselineSegmentDto::class.java,
+            DictionaryDataset.PASSIVE_PIPELINE_RUNS to PassivePipelineRunDto::class.java,
+            DictionaryDataset.PASSIVE_WINDOW_REVISIONS to PassiveWindowRevisionDto::class.java,
+            DictionaryDataset.PASSIVE_DAILY_REVISIONS to PassiveDailyRevisionDto::class.java,
+            DictionaryDataset.PASSIVE_OBSERVATION_DECISIONS to PassiveObservationDecisionDto::class.java,
         )
         assertEquals(
             "every dataset must be covered",
@@ -127,6 +144,71 @@ class ResearchDataDictionaryTest {
                 namesIn(dataset).sorted(),
             )
         }
+    }
+
+    @Test
+    fun `passive variables follow provenance and transformation contracts`() {
+        val byDataset = ResearchDataDictionary.dictionary.variables.groupBy { it.dataset }
+        byDataset.getValue(DictionaryDataset.PASSIVE_RAW_PROVENANCE).forEach { variable ->
+            assertEquals(VariableProvenance.SYSTEM_RECORDED, variable.provenance)
+            assertEquals(null, variable.transformationId)
+            assertTrue(variable.description.contains("raw measurement values are omitted", ignoreCase = true))
+        }
+        byDataset.getValue(DictionaryDataset.PASSIVE_WINDOW_REVISIONS).forEach { variable ->
+            assertEquals(VariableProvenance.DERIVED_STRUCTURAL, variable.provenance)
+            assertEquals("passive-window-features", variable.transformationId)
+        }
+        byDataset.getValue(DictionaryDataset.PASSIVE_DAILY_REVISIONS).forEach { variable ->
+            assertEquals(VariableProvenance.DERIVED_STRUCTURAL, variable.provenance)
+            assertEquals("passive-daily-features", variable.transformationId)
+        }
+        listOf(
+            DictionaryDataset.PASSIVE_SOURCE_READS,
+            DictionaryDataset.PASSIVE_SOURCE_LAGS,
+            DictionaryDataset.PASSIVE_BASELINE_SEGMENTS,
+            DictionaryDataset.PASSIVE_PIPELINE_RUNS,
+        ).flatMap { byDataset.getValue(it) }.forEach { variable ->
+            assertEquals(VariableProvenance.SYSTEM_RECORDED, variable.provenance)
+            assertEquals(null, variable.transformationId)
+        }
+        val decisions = byDataset.getValue(DictionaryDataset.PASSIVE_OBSERVATION_DECISIONS).associateBy { it.name }
+        decisions.values.forEach { variable ->
+            assertEquals(VariableProvenance.DERIVED_STRUCTURAL, variable.provenance)
+        }
+        assertEquals("passive-block-calibration", decisions.getValue("calibrationSeed").transformationId)
+        assertEquals("passive-personal-baseline", decisions.getValue("frozenBaselineAsOfTime").transformationId)
+        assertEquals("passive-personal-baseline", decisions.getValue("frozenBaselineThroughDay").transformationId)
+        assertEquals("passive-observation-explanation", decisions.getValue("decisionJson").transformationId)
+        (decisions.keys - setOf(
+            "calibrationSeed", "frozenBaselineAsOfTime", "frozenBaselineThroughDay", "decisionJson",
+        )).forEach { name -> assertEquals(null, decisions.getValue(name).transformationId) }
+    }
+
+    @Test
+    fun `passive units and allowed values are explicit`() {
+        val passive = ResearchDataDictionary.dictionary.variables.filter { it.dataset.name.startsWith("PASSIVE_") }
+        passive.filter { it.type == "timestamp_epoch_millis" }.forEach {
+            assertEquals("unit of ${it.dataset}.${it.name}", "milliseconds since the Unix epoch", it.unit)
+        }
+        passive.filter { it.type == "boolean" }.forEach {
+            assertEquals("unit of ${it.dataset}.${it.name}", "boolean", it.unit)
+            assertEquals("allowed values of ${it.dataset}.${it.name}", listOf("false", "true"), it.allowedValues)
+        }
+        passive.filter { it.type == "enum" }.forEach {
+            assertTrue("allowed values of ${it.dataset}.${it.name}", it.allowedValues.isNotEmpty())
+        }
+        assertEquals(
+            "seconds offset from UTC",
+            passive.single {
+                it.dataset == DictionaryDataset.PASSIVE_RAW_PROVENANCE && it.name == "zoneOffsetSeconds"
+            }.unit,
+        )
+        assertEquals(
+            "fraction from 0.0 through 1.0",
+            passive.single {
+                it.dataset == DictionaryDataset.PASSIVE_WINDOW_REVISIONS && it.name == "heartRateCoverage"
+            }.unit,
+        )
     }
 
     @Test

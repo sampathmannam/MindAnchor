@@ -43,6 +43,14 @@ object ResearchExportBuilder {
         val measures: List<MorningMeasureDto>,
         val ledger: List<org.mindanchor.data.db.ResearchLedgerEventEntity>,
         val phases: List<StudyPhaseDto>,
+        val passiveRawProvenance: List<PassiveRawProvenanceDto>,
+        val passiveSourceReads: List<PassiveSourceReadDto>,
+        val passiveSourceLags: List<PassiveSourceLagDto>,
+        val passiveBaselineSegments: List<PassiveBaselineSegmentDto>,
+        val passivePipelineRuns: List<PassivePipelineRunDto>,
+        val passiveWindowRevisions: List<PassiveWindowRevisionDto>,
+        val passiveDailyRevisions: List<PassiveDailyRevisionDto>,
+        val passiveObservationDecisions: List<PassiveObservationDecisionDto>,
     )
 
     private suspend fun readRoomRows(
@@ -56,7 +64,22 @@ object ResearchExportBuilder {
         val measures = dao.morningMeasuresNow().map { it.toDto() }
         val ledger = research.ledgerEventsNow()
         afterLedgerRead()
-        RoomRows(entries, contextRows, measures, ledger, research.studyPhasesNow().map { it.toDto() })
+        val passive = database.passive()
+        RoomRows(
+            entries = entries,
+            contextRows = contextRows,
+            measures = measures,
+            ledger = ledger,
+            phases = research.studyPhasesNow().map { it.toDto() },
+            passiveRawProvenance = passive.rawProvenanceNow().map { it.toDto() },
+            passiveSourceReads = passive.sourceReadsNow().map { it.toDto() },
+            passiveSourceLags = passive.sourceLagsNow().map { it.toDto() },
+            passiveBaselineSegments = passive.baselineSegmentsNow().map { it.toDto() },
+            passivePipelineRuns = passive.pipelineRunsNow().map { it.toDto() },
+            passiveWindowRevisions = passive.windowRevisionsNow().map { it.toDto() },
+            passiveDailyRevisions = passive.dailyRevisionsNow().map { it.toDto() },
+            passiveObservationDecisions = passive.observationDecisionsNow().map { it.toDto() },
+        )
     }
 
     /** `mindanchor-research-YYYY-MM-DD.json`, from [today]'s local date (ISO-8601, e.g. "2026-08-29"). */
@@ -139,7 +162,7 @@ object ResearchExportBuilder {
      * Comparing against a count recorded elsewhere is what can notice rows
      * having gone missing before the export was taken.
      */
-    @Suppress("LongParameterList")
+    @Suppress("LongMethod", "LongParameterList")
     suspend fun build(
         database: AnchorDatabase,
         highWater: ContinuityPrefs.LedgerHighWater?,
@@ -199,6 +222,14 @@ object ResearchExportBuilder {
                 missingDataStatement = MissingDataPolicy.STATEMENT,
                 dataDictionary = ResearchDataDictionary.dictionary,
                 dataDictionarySha256 = ResearchDataDictionary.sha256,
+                passiveRawProvenance = rows.passiveRawProvenance,
+                passiveSourceReads = rows.passiveSourceReads,
+                passiveSourceLags = rows.passiveSourceLags,
+                passiveBaselineSegments = rows.passiveBaselineSegments,
+                passivePipelineRuns = rows.passivePipelineRuns,
+                passiveWindowRevisions = rows.passiveWindowRevisions,
+                passiveDailyRevisions = rows.passiveDailyRevisions,
+                passiveObservationDecisions = rows.passiveObservationDecisions,
             ),
         )
     }

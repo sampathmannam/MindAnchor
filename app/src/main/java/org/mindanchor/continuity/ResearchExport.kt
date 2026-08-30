@@ -27,8 +27,9 @@ import org.mindanchor.research.Transformation
  *
  * [dataDictionaryVersion] versions the dictionary and the document shape
  * together, because they are frozen together. Program 0 files carry
- * `mindanchor-research-v1` and decode into this shape with every Program 1
- * field empty; new files carry `mindanchor-research-v2`.
+ * `mindanchor-research-v1` and decode into this shape with every later
+ * field empty; Program 1 files carry `mindanchor-research-v2`, and new
+ * files carry `mindanchor-research-v3`.
  *
  * ## Two hashes, doing different jobs
  *
@@ -133,6 +134,17 @@ data class ResearchExport(
 
     val dataDictionary: DataDictionary? = null,
     val dataDictionarySha256: String = "",
+
+    // --- Program 2. Appended so the frozen v1/v2 projections do not move. ---
+
+    val passiveRawProvenance: List<PassiveRawProvenanceDto> = emptyList(),
+    val passiveSourceReads: List<PassiveSourceReadDto> = emptyList(),
+    val passiveSourceLags: List<PassiveSourceLagDto> = emptyList(),
+    val passiveBaselineSegments: List<PassiveBaselineSegmentDto> = emptyList(),
+    val passivePipelineRuns: List<PassivePipelineRunDto> = emptyList(),
+    val passiveWindowRevisions: List<PassiveWindowRevisionDto> = emptyList(),
+    val passiveDailyRevisions: List<PassiveDailyRevisionDto> = emptyList(),
+    val passiveObservationDecisions: List<PassiveObservationDecisionDto> = emptyList(),
 ) {
     companion object {
         const val DATA_DICTIONARY_VERSION = ContinuityContract.RESEARCH_DICTIONARY_VERSION

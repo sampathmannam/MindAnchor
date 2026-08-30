@@ -54,17 +54,23 @@ object ContinuityContract {
      * dictionary and the export document shape together, because they are
      * frozen together — a dictionary change is an export change.
      *
-     * Raised to v2 in the same commit that changed the export document,
+     * Raised to v3 in the same commit that changed the export document,
      * never before it, for the same reason the snapshot version is: a file
      * stamped with a version its content does not have is a file nobody
      * can interpret later.
      */
-    const val RESEARCH_DICTIONARY_VERSION = "mindanchor-research-v2"
+    const val RESEARCH_DICTIONARY_VERSION = "mindanchor-research-v3"
 
     /** Program 0's research export version. Still readable and still verifiable. */
     const val PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION = "mindanchor-research-v1"
 
+    /** Program 1's research export version, including the research ledger and provenance registries. */
+    const val PROGRAM_ONE_RESEARCH_DICTIONARY_VERSION = "mindanchor-research-v2"
+
     /** Every research export version this build can decode and content-hash. */
-    val SUPPORTED_RESEARCH_DICTIONARY_VERSIONS =
-        setOf(PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION, RESEARCH_DICTIONARY_VERSION)
+    val SUPPORTED_RESEARCH_DICTIONARY_VERSIONS = setOf(
+        PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION,
+        PROGRAM_ONE_RESEARCH_DICTIONARY_VERSION,
+        RESEARCH_DICTIONARY_VERSION,
+    )
 }

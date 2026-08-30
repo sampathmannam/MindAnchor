@@ -71,6 +71,14 @@ class ResearchExportDisclosureTest {
         "missingData" to "day-by-day list of what you did and did not record",
         "missingDataWindowStart" to "day-by-day list of what you did and did not record",
         "missingDataWindowThrough" to "day-by-day list of what you did and did not record",
+        "passiveRawProvenance" to "Health Connect and UsageStats source and device provenance",
+        "passiveSourceReads" to "availability and failure states",
+        "passiveSourceLags" to "ingestion lag evidence",
+        "passiveBaselineSegments" to "source and device baseline segments",
+        "passivePipelineRuns" to "collection-run provenance",
+        "passiveWindowRevisions" to "window revisions with coverage, missingness and exclusions",
+        "passiveDailyRevisions" to "day revisions with coverage, missingness and exclusions",
+        "passiveObservationDecisions" to "observation decisions",
     )
 
     /**
@@ -153,6 +161,11 @@ class ResearchExportDisclosureTest {
             "the person must be told anyone who opens the file can read it",
             body.contains("Anyone who can open the file can read all of it"),
         )
+    }
+
+    @Test
+    fun `the disclosure explicitly excludes raw sensor and sample values`() {
+        assertTrue(disclosure().contains("Raw sensor and sample values are not included"))
     }
 
     @Test

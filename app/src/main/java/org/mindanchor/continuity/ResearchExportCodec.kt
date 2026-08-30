@@ -5,6 +5,15 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.jsonObject
 import org.mindanchor.research.EvidenceProtocol
 import org.mindanchor.research.LedgerIntegrity
 import org.mindanchor.research.MissingDataRecord
@@ -53,6 +62,50 @@ object ResearchExportCodec {
         prettyPrint = true
     }
 
+    /** Decode strictly after the raw version gate; [json] remains the byte-for-byte frozen encoder. */
+    private val strictJson = Json
+
+    private val programZeroFields = setOf(
+        "dataDictionaryVersion",
+        "exportedAt",
+        "appVersionCode",
+        "appVersionName",
+        "contentSha256",
+        "journalEntries",
+        "contextFacts",
+        "contextInferences",
+        "morningMeasures",
+    )
+    private val programOneFields = setOf(
+        "ledgerEvents",
+        "ledgerHeadHash",
+        "ledgerEventCount",
+        "ledgerHighWaterCount",
+        "ledgerIntegrity",
+        "studyPhases",
+        "protocolRegistry",
+        "protocolCatalogSha256",
+        "transformations",
+        "transformationSetVersion",
+        "missingData",
+        "missingDataWindowStart",
+        "missingDataWindowThrough",
+        "missingDataPolicyVersion",
+        "missingDataStatement",
+        "dataDictionary",
+        "dataDictionarySha256",
+    )
+    private val programTwoFields = setOf(
+        "passiveRawProvenance",
+        "passiveSourceReads",
+        "passiveSourceLags",
+        "passiveBaselineSegments",
+        "passivePipelineRuns",
+        "passiveWindowRevisions",
+        "passiveDailyRevisions",
+        "passiveObservationDecisions",
+    )
+
     sealed class DecodeResult {
         data class Success(val export: ResearchExport) : DecodeResult()
 
@@ -64,18 +117,29 @@ object ResearchExportCodec {
 
     fun encode(export: ResearchExport): String = json.encodeToString(export)
 
+    @Suppress("ReturnCount")
     fun decode(text: String): DecodeResult {
-        val parsed = runCatching { json.decodeFromString<ResearchExport>(text) }
+        val raw = runCatching { Json.parseToJsonElement(text).jsonObject }
             .getOrElse { return DecodeResult.Corrupt }
-        if (parsed.dataDictionaryVersion !in ContinuityContract.SUPPORTED_RESEARCH_DICTIONARY_VERSIONS) {
-            return DecodeResult.UnsupportedVersion(parsed.dataDictionaryVersion)
+        val versionPrimitive = raw["dataDictionaryVersion"] as? JsonPrimitive
+            ?: return DecodeResult.Corrupt
+        if (!versionPrimitive.isString) return DecodeResult.Corrupt
+        val version = versionPrimitive.contentOrNull ?: return DecodeResult.Corrupt
+        if (version !in ContinuityContract.SUPPORTED_RESEARCH_DICTIONARY_VERSIONS) {
+            return DecodeResult.UnsupportedVersion(version)
         }
+        if (!rawFieldsAreCompatible(raw, version, programZeroFields, programOneFields, programTwoFields)) {
+            return DecodeResult.Corrupt
+        }
+
+        val parsed = runCatching { strictJson.decodeFromString<ResearchExport>(text) }
+            .getOrElse { return DecodeResult.Corrupt }
         // A version-1 document is hashed over four content lists, so any
         // Program 1 field it carries is outside its own hash — somebody
         // could paste a fabricated ledger into a genuine Program 0 export
         // and `verify` would still say yes. A v1 document that carries
         // Program 1 content is not a v1 document.
-        if (smugglesProgramOneContent(parsed)) return DecodeResult.Corrupt
+        if (smugglesNewerContent(parsed)) return DecodeResult.Corrupt
         return DecodeResult.Success(parsed)
     }
 
@@ -97,9 +161,14 @@ object ResearchExportCodec {
      * push the function over a complexity threshold — the pressure to
      * leave a new field out is the thing worth designing against.
      */
-    private fun smugglesProgramOneContent(export: ResearchExport): Boolean =
-        export.dataDictionaryVersion == ContinuityContract.PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION &&
-            programOneContentByField(export).values.any { it }
+    private fun smugglesNewerContent(export: ResearchExport): Boolean = when (export.dataDictionaryVersion) {
+        ContinuityContract.PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION ->
+            programOneContentByField(export).values.any { it } ||
+                programTwoContentByField(export).values.any { it }
+        ContinuityContract.PROGRAM_ONE_RESEARCH_DICTIONARY_VERSION ->
+            programTwoContentByField(export).values.any { it }
+        else -> false
+    }
 
     /**
      * Returns [export] with its lists in canonical order and
@@ -121,7 +190,7 @@ object ResearchExportCodec {
      */
     fun verify(export: ResearchExport): Boolean =
         export.dataDictionaryVersion in ContinuityContract.SUPPORTED_RESEARCH_DICTIONARY_VERSIONS &&
-            !smugglesProgramOneContent(export) &&
+            !smugglesNewerContent(export) &&
             carriedDictionaryMatchesItsHash(export) &&
             hashContent(sorted(export), export.dataDictionaryVersion) == export.contentSha256
 
@@ -136,18 +205,6 @@ object ResearchExportCodec {
      * claim about what its own columns mean is checkable rather than
      * assumed.
      */
-    private fun carriedDictionaryMatchesItsHash(export: ResearchExport): Boolean {
-        val carried = export.dataDictionary
-            // Absent is only legitimate in a Program 0 document, which had
-            // no dictionary. In a version-2 document the dictionary is the
-            // whole "readable in five years" claim, and stripping it out
-            // must not leave a file that still verifies -- the same
-            // argument that puts `protocolRegistry` in the hash in full.
-            ?: return export.dataDictionaryVersion ==
-                ContinuityContract.PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION
-        return ResearchDataDictionary.sha256Of(carried) == export.dataDictionarySha256
-    }
-
     /** Every list in its stable canonical order — the same keys the continuity hasher uses. */
     private fun sorted(export: ResearchExport): ResearchExport = export.copy(
         journalEntries = export.journalEntries.sortedBy { it.id },
@@ -159,13 +216,32 @@ object ResearchExportCodec {
         protocolRegistry = export.protocolRegistry.sortedWith(compareBy({ it.id }, { it.version })),
         transformations = export.transformations.sortedBy { it.id },
         missingData = export.missingData.sortedWith(compareBy({ it.localDate }, { it.variable })),
+        passiveRawProvenance = export.passiveRawProvenance.sortedWith(compareBy({ it.eventStart }, { it.id })),
+        passiveSourceReads = export.passiveSourceReads.sortedWith(
+            compareBy({ it.attemptedAt }, { it.sourceFamily }, { it.id }),
+        ),
+        passiveSourceLags = export.passiveSourceLags.sortedWith(
+            compareBy({ it.observedAt }, { it.sourceFamily }, { it.id }),
+        ),
+        passiveBaselineSegments = export.passiveBaselineSegments.sortedWith(compareBy({ it.openedAt }, { it.id })),
+        passivePipelineRuns = export.passivePipelineRuns.sortedWith(compareBy({ it.completedAt }, { it.id })),
+        passiveWindowRevisions = export.passiveWindowRevisions.sortedWith(
+            compareBy({ it.windowStart }, { it.asOfTime }, { it.id }),
+        ),
+        passiveDailyRevisions = export.passiveDailyRevisions.sortedWith(
+            compareBy({ it.localDate }, { it.asOfTime }, { it.id }),
+        ),
+        passiveObservationDecisions = export.passiveObservationDecisions.sortedWith(
+            compareBy({ it.localDate }, { it.asOfTime }, { it.id }),
+        ),
     )
 
     private fun hashContent(export: ResearchExport, version: String): String {
         val text = when (version) {
             ContinuityContract.PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION ->
                 json.encodeToString(projectV1(export))
-            ContinuityContract.RESEARCH_DICTIONARY_VERSION -> json.encodeToString(projectV2(export))
+            ContinuityContract.PROGRAM_ONE_RESEARCH_DICTIONARY_VERSION -> json.encodeToString(projectV2(export))
+            ContinuityContract.RESEARCH_DICTIONARY_VERSION -> json.encodeToString(projectV3(export))
             else -> error("no content projection for research export version $version")
         }
         return MessageDigest.getInstance("SHA-256")
@@ -201,6 +277,37 @@ object ResearchExportCodec {
         missingDataPolicyVersion = export.missingDataPolicyVersion,
         missingDataStatement = export.missingDataStatement,
         dataDictionarySha256 = export.dataDictionarySha256,
+    )
+
+    private fun projectV3(export: ResearchExport) = V3Content(
+        journalEntries = export.journalEntries,
+        contextFacts = export.contextFacts,
+        contextInferences = export.contextInferences,
+        morningMeasures = export.morningMeasures,
+        ledgerEvents = export.ledgerEvents,
+        ledgerHeadHash = export.ledgerHeadHash,
+        ledgerEventCount = export.ledgerEventCount,
+        ledgerIntegrity = export.ledgerIntegrity,
+        ledgerHighWaterCount = export.ledgerHighWaterCount,
+        studyPhases = export.studyPhases,
+        protocolRegistry = export.protocolRegistry,
+        protocolCatalogSha256 = export.protocolCatalogSha256,
+        transformations = export.transformations,
+        transformationSetVersion = export.transformationSetVersion,
+        missingData = export.missingData,
+        missingDataWindowStart = export.missingDataWindowStart,
+        missingDataWindowThrough = export.missingDataWindowThrough,
+        missingDataPolicyVersion = export.missingDataPolicyVersion,
+        missingDataStatement = export.missingDataStatement,
+        dataDictionarySha256 = export.dataDictionarySha256,
+        passiveRawProvenance = export.passiveRawProvenance,
+        passiveSourceReads = export.passiveSourceReads,
+        passiveSourceLags = export.passiveSourceLags,
+        passiveBaselineSegments = export.passiveBaselineSegments,
+        passivePipelineRuns = export.passivePipelineRuns,
+        passiveWindowRevisions = export.passiveWindowRevisions,
+        passiveDailyRevisions = export.passiveDailyRevisions,
+        passiveObservationDecisions = export.passiveObservationDecisions,
     )
 
     /**
@@ -265,6 +372,104 @@ object ResearchExportCodec {
         val missingDataStatement: String,
         val dataDictionarySha256: String,
     )
+
+    /** Program 2's complete content projection: frozen v2 followed by eight operational datasets. */
+    @Serializable
+    private data class V3Content(
+        val journalEntries: List<JournalEntryDto>,
+        val contextFacts: List<JournalContextDto>,
+        val contextInferences: List<JournalContextDto>,
+        val morningMeasures: List<MorningMeasureDto>,
+        val ledgerEvents: List<ResearchLedgerEventDto>,
+        val ledgerHeadHash: String,
+        val ledgerEventCount: Int,
+        val ledgerIntegrity: LedgerIntegrity,
+        val ledgerHighWaterCount: Int,
+        val studyPhases: List<StudyPhaseDto>,
+        val protocolRegistry: List<EvidenceProtocol>,
+        val protocolCatalogSha256: String,
+        val transformations: List<Transformation>,
+        val transformationSetVersion: String,
+        val missingData: List<MissingDataRecord>,
+        val missingDataWindowStart: String?,
+        val missingDataWindowThrough: String?,
+        val missingDataPolicyVersion: String,
+        val missingDataStatement: String,
+        val dataDictionarySha256: String,
+        val passiveRawProvenance: List<PassiveRawProvenanceDto>,
+        val passiveSourceReads: List<PassiveSourceReadDto>,
+        val passiveSourceLags: List<PassiveSourceLagDto>,
+        val passiveBaselineSegments: List<PassiveBaselineSegmentDto>,
+        val passivePipelineRuns: List<PassivePipelineRunDto>,
+        val passiveWindowRevisions: List<PassiveWindowRevisionDto>,
+        val passiveDailyRevisions: List<PassiveDailyRevisionDto>,
+        val passiveObservationDecisions: List<PassiveObservationDecisionDto>,
+    )
+}
+
+private fun carriedDictionaryMatchesItsHash(export: ResearchExport): Boolean {
+    val carried = export.dataDictionary
+        // Absent is only legitimate in a Program 0 document, which had no
+        // dictionary. In v2/v3 the dictionary is the whole "readable in
+        // five years" claim, and stripping it out must not leave a file
+        // that still verifies.
+        ?: return export.dataDictionaryVersion ==
+            ContinuityContract.PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION
+    return ResearchDataDictionary.sha256Of(carried) == export.dataDictionarySha256
+}
+
+private fun rawFieldsAreCompatible(
+    root: JsonObject,
+    version: String,
+    programZeroFields: Set<String>,
+    programOneFields: Set<String>,
+    programTwoFields: Set<String>,
+): Boolean {
+    val allowedFields = when (version) {
+        ContinuityContract.PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION -> programZeroFields
+        ContinuityContract.PROGRAM_ONE_RESEARCH_DICTIONARY_VERSION -> programZeroFields + programOneFields
+        else -> programZeroFields + programOneFields + programTwoFields
+    }
+    val knownLaterFields = when (version) {
+        ContinuityContract.PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION -> programOneFields + programTwoFields
+        ContinuityContract.PROGRAM_ONE_RESEARCH_DICTIONARY_VERSION -> programTwoFields
+        else -> emptySet()
+    }
+    if (root.any { (field, value) ->
+            field !in allowedFields && (field !in knownLaterFields || !isEmptyLaterField(field, value))
+        }
+    ) {
+        return false
+    }
+    return programTwoFields.none { field ->
+        root[field]?.containsRawSampleValue(inPassiveContent = true) == true
+    }
+}
+
+private fun isEmptyLaterField(field: String, value: JsonElement): Boolean = when {
+    value is JsonNull -> true
+    value is JsonArray -> value.isEmpty()
+    value is JsonObject -> value.isEmpty()
+    value !is JsonPrimitive -> false
+    field == "ledgerIntegrity" -> value.contentOrNull == LedgerIntegrity.NOT_APPLICABLE.name
+    value.booleanOrNull != null -> value.booleanOrNull == false
+    value.doubleOrNull != null -> value.doubleOrNull == 0.0
+    else -> value.contentOrNull.isNullOrEmpty()
+}
+
+private fun JsonElement.containsRawSampleValue(inPassiveContent: Boolean): Boolean = when (this) {
+    is JsonArray -> any { it.containsRawSampleValue(inPassiveContent) }
+    is JsonObject -> any { (field, value) ->
+        val normalized = field.lowercase()
+        val forbiddenName = normalized == "passiverawsamples" ||
+            normalized == "rawvalue" ||
+            normalized == "samplevalue" ||
+            normalized == "sensorvalue" ||
+            (normalized.contains("raw") && normalized.contains("sample")) ||
+            (inPassiveContent && normalized == "value")
+        forbiddenName || value.containsRawSampleValue(inPassiveContent)
+    }
+    else -> false
 }
 
 /**
@@ -299,4 +504,15 @@ internal fun programOneContentByField(export: ResearchExport): Map<String, Boole
     "missingDataStatement" to export.missingDataStatement.isNotEmpty(),
     "dataDictionary" to (export.dataDictionary != null),
     "dataDictionarySha256" to export.dataDictionarySha256.isNotEmpty(),
+)
+
+internal fun programTwoContentByField(export: ResearchExport): Map<String, Boolean> = mapOf(
+    "passiveRawProvenance" to export.passiveRawProvenance.isNotEmpty(),
+    "passiveSourceReads" to export.passiveSourceReads.isNotEmpty(),
+    "passiveSourceLags" to export.passiveSourceLags.isNotEmpty(),
+    "passiveBaselineSegments" to export.passiveBaselineSegments.isNotEmpty(),
+    "passivePipelineRuns" to export.passivePipelineRuns.isNotEmpty(),
+    "passiveWindowRevisions" to export.passiveWindowRevisions.isNotEmpty(),
+    "passiveDailyRevisions" to export.passiveDailyRevisions.isNotEmpty(),
+    "passiveObservationDecisions" to export.passiveObservationDecisions.isNotEmpty(),
 )

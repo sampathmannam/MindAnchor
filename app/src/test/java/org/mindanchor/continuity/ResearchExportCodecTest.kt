@@ -1,6 +1,16 @@
 package org.mindanchor.continuity
 
 import java.lang.reflect.Modifier
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -8,6 +18,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mindanchor.research.EvidenceProtocolCatalog
+import org.mindanchor.research.DataDictionary
 import org.mindanchor.research.LedgerIntegrity
 import org.mindanchor.research.MissingDataPolicy
 import org.mindanchor.research.MissingDataReason
@@ -24,6 +35,7 @@ import org.mindanchor.research.TransformationRegistry
  * to keep decoding and keep verifying, and its hash has to stay the value
  * Program 0 computed rather than whatever today's field set produces.
  */
+@Suppress("LargeClass")
 class ResearchExportCodecTest {
 
     private fun entry(id: String, body: String = "Body") = JournalEntryDto(
@@ -129,6 +141,64 @@ class ResearchExportCodecTest {
             dataDictionarySha256 = ResearchDataDictionary.sha256,
         ),
     )
+
+    private fun sampleV3(passive: ContinuityPayload = ProgramTwoPayloadFixture.payload()): ResearchExport {
+        return ResearchExportCodec.seal(
+            sample().copy(
+                contentSha256 = "",
+                passiveRawProvenance = passive.passiveRawProvenance,
+                passiveSourceReads = passive.passiveSourceReads,
+                passiveSourceLags = passive.passiveSourceLags,
+                passiveBaselineSegments = passive.passiveBaselineSegments,
+                passivePipelineRuns = passive.passivePipelineRuns,
+                passiveWindowRevisions = passive.passiveWindowRevisions,
+                passiveDailyRevisions = passive.passiveDailyRevisions,
+                passiveObservationDecisions = passive.passiveObservationDecisions,
+            ),
+        )
+    }
+
+    private fun programOneExport(): ResearchExport {
+        val dictionary = Json.decodeFromString<DataDictionary>(
+            requireNotNull(javaClass.getResource("/research/data-dictionary-mindanchor-research-v2.json")).readText(),
+        )
+        val transformations = TransformationRegistry.transformations.filterNot {
+            it.id == "passive-window-features" || it.id == "passive-daily-features"
+        }
+        return ResearchExportCodec.seal(
+            sample().copy(
+                dataDictionaryVersion = ContinuityContract.PROGRAM_ONE_RESEARCH_DICTIONARY_VERSION,
+                contentSha256 = "",
+                transformations = transformations,
+                transformationSetVersion = TransformationRegistry.setVersionOf(transformations),
+                dataDictionary = dictionary,
+                dataDictionarySha256 = ResearchDataDictionary.sha256Of(dictionary),
+            ),
+        )
+    }
+
+    @Test
+    fun `research versions one and two remain readable when current is v3`() {
+        assertEquals("mindanchor-research-v1", ContinuityContract.PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION)
+        assertEquals("mindanchor-research-v2", ContinuityContract.PROGRAM_ONE_RESEARCH_DICTIONARY_VERSION)
+        assertEquals("mindanchor-research-v3", ContinuityContract.RESEARCH_DICTIONARY_VERSION)
+        assertEquals(
+            setOf("mindanchor-research-v1", "mindanchor-research-v2", "mindanchor-research-v3"),
+            ContinuityContract.SUPPORTED_RESEARCH_DICTIONARY_VERSIONS,
+        )
+    }
+
+    @Test
+    fun `Program 2 export contains provenance and derived values but no raw values`() {
+        val export = sampleV3()
+
+        assertTrue(export.passiveRawProvenance.isNotEmpty())
+        assertTrue(export.passiveWindowRevisions.isNotEmpty())
+        assertTrue(export.passiveDailyRevisions.isNotEmpty())
+        assertTrue(export.passiveObservationDecisions.isNotEmpty())
+        assertFalse(PassiveRawProvenanceDto::class.java.declaredFields.any { it.name == "value" })
+        assertFalse(ResearchExportCodec.encode(export).contains("passiveRawSamples"))
+    }
 
     /**
      * A document exactly as a Program 0 build wrote one: the four content
@@ -314,6 +384,30 @@ class ResearchExportCodecTest {
         ),
         "dataDictionarySha256" to original.copy(dataDictionarySha256 = "a different dictionary"),
         "ledgerHighWaterCount" to original.copy(ledgerHighWaterCount = 4096),
+        "passiveRawProvenance" to original.copy(
+            passiveRawProvenance = ProgramTwoPayloadFixture.payload().passiveRawProvenance,
+        ),
+        "passiveSourceReads" to original.copy(
+            passiveSourceReads = ProgramTwoPayloadFixture.payload().passiveSourceReads,
+        ),
+        "passiveSourceLags" to original.copy(
+            passiveSourceLags = ProgramTwoPayloadFixture.payload().passiveSourceLags,
+        ),
+        "passiveBaselineSegments" to original.copy(
+            passiveBaselineSegments = ProgramTwoPayloadFixture.payload().passiveBaselineSegments,
+        ),
+        "passivePipelineRuns" to original.copy(
+            passivePipelineRuns = ProgramTwoPayloadFixture.payload().passivePipelineRuns,
+        ),
+        "passiveWindowRevisions" to original.copy(
+            passiveWindowRevisions = ProgramTwoPayloadFixture.payload().passiveWindowRevisions,
+        ),
+        "passiveDailyRevisions" to original.copy(
+            passiveDailyRevisions = ProgramTwoPayloadFixture.payload().passiveDailyRevisions,
+        ),
+        "passiveObservationDecisions" to original.copy(
+            passiveObservationDecisions = ProgramTwoPayloadFixture.payload().passiveObservationDecisions,
+        ),
     )
 
     @Test
@@ -479,7 +573,7 @@ class ResearchExportCodecTest {
     }
 
     @Test
-    fun `the current content hash is frozen`() {
+    fun `the Program 1 content hash is frozen`() {
         // The v1 pin protects Program 0's files. This one protects the
         // files this build writes: reordering a field of the version-2
         // projection, or retuning the encoder, would otherwise invalidate
@@ -496,7 +590,38 @@ class ResearchExportCodecTest {
         // This re-pin records Program 2A's immutable freeze and like-for-like stratum semantics:
         // the rule, model, baseline-transformation, and calibration-transformation versions
         // advanced. Neither the export projection nor encoder changed.
-        assertEquals("2d1e1fe37f3793a7179732e58752d520c742d1c5bd9e7d31ac8919949cce59d7", sample().contentSha256)
+        assertEquals(
+            "2d1e1fe37f3793a7179732e58752d520c742d1c5bd9e7d31ac8919949cce59d7",
+            programOneExport().contentSha256,
+        )
+    }
+
+    @Test
+    fun `the Program 2 content hash is frozen`() {
+        assertEquals("820506733d7475010c862ba4e6d5dacaaf68cbaafabdbfbca1ba075c989bd89f", sampleV3().contentSha256)
+    }
+
+    @Test
+    fun `genuine Program 1 document retains its frozen projection and verifies`() {
+        val document = rawDocument(ContinuityContract.PROGRAM_ONE_RESEARCH_DICTIONARY_VERSION)
+        assertEquals(programOneFields, document.keys)
+        assertTrue(programTwoFields.none { it in document })
+
+        val decoded = ResearchExportCodec.decode(document.toString())
+        assertTrue("$decoded", decoded is ResearchExportCodec.DecodeResult.Success)
+        val export = (decoded as ResearchExportCodec.DecodeResult.Success).export
+        assertEquals(programOneExport().contentSha256, export.contentSha256)
+        assertTrue(ResearchExportCodec.verify(export))
+    }
+
+    @Test
+    fun `older versions tolerate only their known later fields when empty`() {
+        listOf(programZeroExport(), programOneExport()).forEach { historical ->
+            val decoded = ResearchExportCodec.decode(ResearchExportCodec.encode(historical))
+            assertTrue("${historical.dataDictionaryVersion} known empty fields must decode: $decoded", decoded is
+                ResearchExportCodec.DecodeResult.Success)
+            assertTrue(ResearchExportCodec.verify((decoded as ResearchExportCodec.DecodeResult.Success).export))
+        }
     }
 
     /**
@@ -515,6 +640,213 @@ class ResearchExportCodecTest {
         "contextInferences",
         "morningMeasures",
     )
+    private val programOneFields = programZeroFields + setOf(
+        "ledgerEvents",
+        "ledgerHeadHash",
+        "ledgerEventCount",
+        "ledgerHighWaterCount",
+        "ledgerIntegrity",
+        "studyPhases",
+        "protocolRegistry",
+        "protocolCatalogSha256",
+        "transformations",
+        "transformationSetVersion",
+        "missingData",
+        "missingDataWindowStart",
+        "missingDataWindowThrough",
+        "missingDataPolicyVersion",
+        "missingDataStatement",
+        "dataDictionary",
+        "dataDictionarySha256",
+    )
+    private val programTwoFields = setOf(
+        "passiveRawProvenance",
+        "passiveSourceReads",
+        "passiveSourceLags",
+        "passiveBaselineSegments",
+        "passivePipelineRuns",
+        "passiveWindowRevisions",
+        "passiveDailyRevisions",
+        "passiveObservationDecisions",
+    )
+
+    private fun rawDocument(version: String): JsonObject {
+        val export = when (version) {
+            ContinuityContract.PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION -> programZeroExport()
+            ContinuityContract.PROGRAM_ONE_RESEARCH_DICTIONARY_VERSION -> programOneExport()
+            else -> sampleV3()
+        }
+        val allowed = when (version) {
+            ContinuityContract.PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION -> programZeroFields
+            ContinuityContract.PROGRAM_ONE_RESEARCH_DICTIONARY_VERSION -> programOneFields
+            else -> programOneFields + programTwoFields
+        }
+        val root = Json.parseToJsonElement(ResearchExportCodec.encode(export)).jsonObject
+        return JsonObject(root.filterKeys { it in allowed })
+    }
+
+    private fun mutate(document: JsonObject, field: String, value: JsonElement): String =
+        JsonObject(document + (field to value)).toString()
+
+    private fun mutateFirstRow(
+        document: JsonObject,
+        dataset: String,
+        field: String,
+        value: JsonElement,
+    ): String {
+        val rows = document.getValue(dataset) as JsonArray
+        val mutated = JsonArray(listOf(JsonObject(rows.first().jsonObject + (field to value))) + rows.drop(1))
+        return mutate(document, dataset, mutated)
+    }
+
+    @Test
+    fun `supported versions reject unknown non-empty raw JSON before typed decoding discards it`() {
+        val smuggled = buildJsonArray {
+            add(buildJsonObject { put("value", JsonPrimitive(97.0)) })
+        }
+        ContinuityContract.SUPPORTED_RESEARCH_DICTIONARY_VERSIONS.forEach { version ->
+            val document = rawDocument(version)
+            assertTrue(
+                "v$version fixture must decode before mutation",
+                ResearchExportCodec.decode(document.toString()) is ResearchExportCodec.DecodeResult.Success,
+            )
+            assertEquals(
+                "v$version must reject unknown non-empty content",
+                ResearchExportCodec.DecodeResult.Corrupt,
+                ResearchExportCodec.decode(mutate(document, "futurePassiveRows", smuggled)),
+            )
+        }
+    }
+
+    @Test
+    fun `supported versions reject nested unknown fields before typed decoding discards them`() {
+        ContinuityContract.SUPPORTED_RESEARCH_DICTIONARY_VERSIONS.forEach { version ->
+            assertEquals(
+                "$version must reject a nested field outside its DTO projection",
+                ResearchExportCodec.DecodeResult.Corrupt,
+                ResearchExportCodec.decode(
+                    mutateFirstRow(rawDocument(version), "journalEntries", "futureMetadata", JsonPrimitive("x")),
+                ),
+            )
+        }
+    }
+
+    @Test
+    fun `non-string raw dictionary version is corrupt rather than unsupported`() {
+        val document = rawDocument(ContinuityContract.RESEARCH_DICTIONARY_VERSION)
+
+        assertEquals(
+            ResearchExportCodec.DecodeResult.Corrupt,
+            ResearchExportCodec.decode(mutate(document, "dataDictionaryVersion", JsonPrimitive(3))),
+        )
+    }
+
+    @Test
+    fun `raw version one and two documents reject every populated later field`() {
+        val donor = rawDocument(ContinuityContract.RESEARCH_DICTIONARY_VERSION)
+        mapOf(
+            ContinuityContract.PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION to
+                (programOneFields - programZeroFields) + programTwoFields,
+            ContinuityContract.PROGRAM_ONE_RESEARCH_DICTIONARY_VERSION to programTwoFields,
+        ).forEach { (version, fields) ->
+            val historical = rawDocument(version)
+            fields.forEach { field ->
+                assertEquals(
+                    "$version must reject populated $field",
+                    ResearchExportCodec.DecodeResult.Corrupt,
+                    ResearchExportCodec.decode(mutate(historical, field, donor.getValue(field))),
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `every supported version rejects raw sensor sample values`() {
+        val rawSamples = buildJsonArray {
+            add(buildJsonObject {
+                put("provenanceId", JsonPrimitive("raw-1"))
+                put("value", JsonPrimitive(97.0))
+                put("ingestedAt", JsonPrimitive(2_200L))
+            })
+        }
+        ContinuityContract.SUPPORTED_RESEARCH_DICTIONARY_VERSIONS.forEach { version ->
+            assertEquals(
+                "$version must reject passiveRawSamples",
+                ResearchExportCodec.DecodeResult.Corrupt,
+                ResearchExportCodec.decode(mutate(rawDocument(version), "passiveRawSamples", rawSamples)),
+            )
+        }
+    }
+
+    @Test
+    fun `raw value inside passive provenance is rejected before typed decoding discards it`() {
+        val document = rawDocument(ContinuityContract.RESEARCH_DICTIONARY_VERSION)
+        val provenance = document.getValue("passiveRawProvenance") as JsonArray
+        val row = provenance.single().jsonObject
+        val smuggled = JsonArray(listOf(JsonObject(row + ("value" to JsonPrimitive(97.0)))))
+
+        assertEquals(
+            ResearchExportCodec.DecodeResult.Corrupt,
+            ResearchExportCodec.decode(mutate(document, "passiveRawProvenance", smuggled)),
+        )
+    }
+
+    private fun programTwoSmuggles(base: ResearchExport): Map<String, ResearchExport> {
+        val passive = ProgramTwoPayloadFixture.payload()
+        return mapOf(
+            "passiveRawProvenance" to base.copy(passiveRawProvenance = passive.passiveRawProvenance),
+            "passiveSourceReads" to base.copy(passiveSourceReads = passive.passiveSourceReads),
+            "passiveSourceLags" to base.copy(passiveSourceLags = passive.passiveSourceLags),
+            "passiveBaselineSegments" to base.copy(passiveBaselineSegments = passive.passiveBaselineSegments),
+            "passivePipelineRuns" to base.copy(passivePipelineRuns = passive.passivePipelineRuns),
+            "passiveWindowRevisions" to base.copy(passiveWindowRevisions = passive.passiveWindowRevisions),
+            "passiveDailyRevisions" to base.copy(passiveDailyRevisions = passive.passiveDailyRevisions),
+            "passiveObservationDecisions" to base.copy(
+                passiveObservationDecisions = passive.passiveObservationDecisions,
+            ),
+        )
+    }
+
+    @Test
+    fun `every Program 2 field alone condemns version one and version two exports`() {
+        listOf(programZeroExport(), programOneExport()).forEach { base ->
+            programTwoSmuggles(base).forEach { (field, smuggled) ->
+                assertTrue(programTwoContentByField(smuggled)[field] == true)
+                assertFalse(
+                    "${base.dataDictionaryVersion} carrying $field must not verify",
+                    ResearchExportCodec.verify(smuggled),
+                )
+            }
+        }
+        assertEquals(programTwoFields, programTwoSmuggles(sample()).keys)
+    }
+
+    @Test
+    fun `Program 2 rows sort canonically before hashing`() {
+        val reversed = ProgramTwoPayloadFixture.payloadWithReversedRows()
+        val ordered = ContinuityPayload(
+            passiveRawProvenance = reversed.passiveRawProvenance.reversed(),
+            passiveSourceReads = reversed.passiveSourceReads.reversed(),
+            passiveSourceLags = reversed.passiveSourceLags.reversed(),
+            passiveBaselineSegments = reversed.passiveBaselineSegments.reversed(),
+            passivePipelineRuns = reversed.passivePipelineRuns.reversed(),
+            passiveWindowRevisions = reversed.passiveWindowRevisions.reversed(),
+            passiveDailyRevisions = reversed.passiveDailyRevisions.reversed(),
+            passiveObservationDecisions = reversed.passiveObservationDecisions.reversed(),
+        )
+        val forward = sampleV3(ordered)
+        val shuffled = sampleV3(reversed)
+
+        assertEquals(forward.contentSha256, shuffled.contentSha256)
+        assertEquals(forward.passiveRawProvenance, shuffled.passiveRawProvenance)
+        assertEquals(forward.passiveSourceReads, shuffled.passiveSourceReads)
+        assertEquals(forward.passiveSourceLags, shuffled.passiveSourceLags)
+        assertEquals(forward.passiveBaselineSegments, shuffled.passiveBaselineSegments)
+        assertEquals(forward.passivePipelineRuns, shuffled.passivePipelineRuns)
+        assertEquals(forward.passiveWindowRevisions, shuffled.passiveWindowRevisions)
+        assertEquals(forward.passiveDailyRevisions, shuffled.passiveDailyRevisions)
+        assertEquals(forward.passiveObservationDecisions, shuffled.passiveObservationDecisions)
+    }
 
     @Test
     fun `no export field escapes the version 1 smuggle check`() {
@@ -530,8 +862,18 @@ class ResearchExportCodecTest {
                 "document could have carried it: name it in `programOneContentByField`, " +
                 "or add it to `programZeroFields` here",
             declared,
-            programOneContentByField(sample()).keys + programZeroFields,
+            programOneContentByField(sample()).keys + programTwoContentByField(sample()).keys + programZeroFields,
         )
+    }
+
+    @Test
+    fun `no export field escapes the version 2 smuggle check`() {
+        val declared = ResearchExport::class.java.declaredFields
+            .filter { !it.isSynthetic && !Modifier.isStatic(it.modifiers) }
+            .map { it.name }
+            .toSet()
+        assertEquals(programTwoFields, declared - programOneFields)
+        assertEquals(programTwoFields, programTwoContentByField(sample()).keys)
     }
 
     /**

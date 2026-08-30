@@ -13,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -32,6 +33,7 @@ import org.mindanchor.research.MissingDataPolicy
 import org.mindanchor.research.MissingDataReason
 import org.mindanchor.research.MorningMeasureRepository
 import org.mindanchor.research.ResearchDataDictionary
+import org.mindanchor.research.TransformationRegistry
 import org.mindanchor.research.testLedgerRepository
 
 /**
@@ -148,7 +150,7 @@ class ResearchExportBuilderTest {
         assertEquals(ResearchDataDictionary.sha256, export.dataDictionarySha256)
         assertEquals(1, export.protocolRegistry.size)
         assertTrue(export.protocolCatalogSha256.isNotBlank())
-        assertEquals(2, export.transformations.size)
+        assertEquals(TransformationRegistry.transformations.sortedBy { it.id }, export.transformations)
         assertEquals(MissingDataPolicy.VERSION, export.missingDataPolicyVersion)
         assertEquals(MissingDataPolicy.STATEMENT, export.missingDataStatement)
     }
@@ -477,6 +479,29 @@ class ResearchExportBuilderTest {
         assertTrue("the racing write must commit after export", database.research().studyPhaseCount() > 0)
         assertEquals(emptyList<ResearchLedgerEventDto>(), export.ledgerEvents)
         assertEquals(emptyList<StudyPhaseDto>(), export.studyPhases)
+        assertTrue(ResearchExportCodec.verify(export))
+    }
+
+    @Test
+    fun passiveHistoryIsExportedButRawSampleValuesAreExcluded() = runBlocking {
+        PassiveContinuityFixture.insertInto(database)
+
+        val export = build()
+        val encoded = ResearchExportCodec.encode(export)
+
+        assertEquals(PassiveContinuityFixture.rawProvenance.map { it.toDto() }, export.passiveRawProvenance)
+        assertEquals(PassiveContinuityFixture.sourceReads.map { it.toDto() }, export.passiveSourceReads)
+        assertEquals(PassiveContinuityFixture.sourceLags.map { it.toDto() }, export.passiveSourceLags)
+        assertEquals(PassiveContinuityFixture.baselineSegments.map { it.toDto() }, export.passiveBaselineSegments)
+        assertEquals(PassiveContinuityFixture.pipelineRuns.map { it.toDto() }, export.passivePipelineRuns)
+        assertEquals(PassiveContinuityFixture.windowRevisions.map { it.toDto() }, export.passiveWindowRevisions)
+        assertEquals(PassiveContinuityFixture.dailyRevisions.map { it.toDto() }, export.passiveDailyRevisions)
+        assertEquals(
+            PassiveContinuityFixture.observationDecisions.map { it.toDto() },
+            export.passiveObservationDecisions,
+        )
+        assertFalse(encoded.contains("passiveRawSamples"))
+        assertFalse(encoded.contains("173.25"))
         assertTrue(ResearchExportCodec.verify(export))
     }
 }
