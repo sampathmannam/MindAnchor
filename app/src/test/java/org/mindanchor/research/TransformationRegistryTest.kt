@@ -4,6 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.mindanchor.intelligence.PassiveDailyAggregator
+import org.mindanchor.intelligence.PassiveWindowAggregator
 import org.mindanchor.journal.StructuralContextExtractor
 
 /**
@@ -23,6 +25,8 @@ class TransformationRegistryTest {
                 "passive-personal-baseline",
                 "passive-block-calibration",
                 "passive-observation-explanation",
+                "passive-window-features",
+                "passive-daily-features",
             ),
             TransformationRegistry.transformations.map { it.id },
         )
@@ -32,7 +36,17 @@ class TransformationRegistryTest {
     fun `passive transformations record their semantic versions and limitations`() {
         val transformations = TransformationRegistry.transformations.associateBy { it.id }
 
-        assertEquals(null, transformations["passive-daily-features"])
+        val windows = requireNotNull(transformations["passive-window-features"])
+        assertEquals(PassiveWindowAggregator.TRANSFORMATION_VERSION, windows.version)
+        assertTrue(windows.description.contains("half-open windows"))
+        assertTrue(windows.description.contains("wake-relative alignment"))
+        assertTrue(windows.description.contains("No absent value is filled or carried forward"))
+
+        val daily = requireNotNull(transformations["passive-daily-features"])
+        assertEquals(PassiveDailyAggregator.TRANSFORMATION_VERSION, daily.version)
+        assertTrue(daily.description.contains("wake date"))
+        assertTrue(daily.description.contains("explicit successful UsageStats reads"))
+        assertTrue(daily.description.contains("source-lag watermarks"))
 
         val baseline = requireNotNull(transformations["passive-personal-baseline"])
         assertEquals("personal-baseline-v3", baseline.version)
@@ -86,7 +100,7 @@ class TransformationRegistryTest {
     @Test
     fun `the set version is frozen`() {
         assertEquals(
-            "e36fe716c37f318166ccb8d764af56c546a6aa8b57df6dab34be48b4447d9fea",
+            "e52453a3bcb3fb940e41a9a390f74e12780129fc8e4654ee23e1a9a0a118e0dc",
             TransformationRegistry.setVersion,
         )
     }

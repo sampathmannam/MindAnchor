@@ -2,6 +2,8 @@ package org.mindanchor.research
 
 import java.security.MessageDigest
 import kotlinx.serialization.Serializable
+import org.mindanchor.intelligence.PassiveDailyAggregator
+import org.mindanchor.intelligence.PassiveWindowAggregator
 import org.mindanchor.journal.StructuralContextExtractor
 
 /** One raw-to-derived transformation this build performs, and its version. */
@@ -72,6 +74,23 @@ object TransformationRegistry {
             output = "A deterministic observation-only explanation.",
             description = "Renders fixed templates that describe recorded signals and data limitations without " +
                 "diagnosis, prediction, or intervention language.",
+        ),
+        Transformation(
+            id = "passive-window-features",
+            version = PassiveWindowAggregator.TRANSFORMATION_VERSION,
+            input = "Provenance-preserving Health Connect and UsageStats source records.",
+            output = "Absolute UTC 15-minute feature and quality revisions.",
+            description = "Clips intervals to half-open windows, measures heart-rate minute-bin coverage, " +
+                "marks wake-relative alignment, and suppresses only physiology overlapping exercise. " +
+                "No absent value is filled or carried forward.",
+        ),
+        Transformation(
+            id = "passive-daily-features",
+            version = PassiveDailyAggregator.TRANSFORMATION_VERSION,
+            input = "Versioned passive windows, source-read outcomes, and raw interval provenance.",
+            output = "Local-date passive feature revisions with finality, coverage, missingness, and exclusions.",
+            description = "Assigns sleep to wake date, clips steps and active minutes to local days, requires " +
+                "explicit successful UsageStats reads, and applies source-lag watermarks before final status.",
         ),
     )
 

@@ -26,7 +26,7 @@ class ProvenanceVersionsTest {
     fun `the passive intelligence rule and model versions are registered`() {
         assertEquals("passive-observation-rules-v6", PassiveEstimator.RULE_VERSION)
         assertEquals(PassiveEstimator.RULE_VERSION, ProvenanceVersions.RULE_SET_VERSION)
-        assertEquals("personal-robust-baseline-v3", ProvenanceVersions.MODEL_SET_VERSION)
+        assertEquals("personal-robust-baseline-v4", ProvenanceVersions.MODEL_SET_VERSION)
     }
 
     @Test
@@ -47,6 +47,19 @@ class ProvenanceVersionsTest {
     @Test
     fun `the vector is a pure function of its arguments`() {
         assertEquals(vector(), vector())
+    }
+
+    @Test
+    fun `the first Program 2B provenance check opens a model phase before the transformation phase`() {
+        val next = vector()
+        val prior = StudyPhaseDecision.next(null, next.copy(
+            modelSetVersion = "personal-robust-baseline-v3",
+            transformationSetVersion = "e36fe716c37f318166ccb8d764af56c546a6aa8b57df6dab34be48b4447d9fea",
+        ), 1L)!!
+
+        val opened = StudyPhaseDecision.next(prior, next, 2L)
+
+        assertEquals(StudyPhaseReason.MODEL_VERSION_CHANGE, opened?.reason)
     }
 
     @Test
