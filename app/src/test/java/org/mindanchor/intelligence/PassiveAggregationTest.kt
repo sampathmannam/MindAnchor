@@ -772,34 +772,30 @@ class PassiveAggregationTest {
     }
 
     @Test fun `every source family accepts exactly its legal record kinds`() {
-        val allKinds = PassiveRecordKind.entries.toSet()
-        assertEquals(allKinds, PassiveSourceFamily.entries.flatMap { it.legalRecordKinds }.toSet())
-        allKinds.forEach { kind ->
-            assertEquals(1, PassiveSourceFamily.entries.count { kind in it.legalRecordKinds })
-        }
+        val expectedLegalKinds = mapOf(
+            PassiveSourceFamily.HEART_RATE to setOf(PassiveRecordKind.HEART_RATE_SAMPLE),
+            PassiveSourceFamily.RESTING_HEART_RATE to setOf(PassiveRecordKind.RESTING_HEART_RATE),
+            PassiveSourceFamily.HRV_RMSSD to setOf(PassiveRecordKind.HRV_RMSSD),
+            PassiveSourceFamily.SLEEP to setOf(PassiveRecordKind.SLEEP_SESSION),
+            PassiveSourceFamily.STEPS to setOf(PassiveRecordKind.STEPS_INTERVAL),
+            PassiveSourceFamily.EXERCISE to setOf(PassiveRecordKind.EXERCISE_SESSION),
+            PassiveSourceFamily.OXYGEN_SATURATION to setOf(PassiveRecordKind.SPO2),
+            PassiveSourceFamily.USAGE_STATS to setOf(
+                PassiveRecordKind.SCREEN_INTERACTIVE,
+                PassiveRecordKind.SCREEN_NON_INTERACTIVE,
+                PassiveRecordKind.SCREEN_UNLOCKED,
+            ),
+        )
+        assertEquals(PassiveSourceFamily.entries.toSet(), expectedLegalKinds.keys)
+        assertEquals(PassiveRecordKind.entries.toSet(), expectedLegalKinds.values.flatten().toSet())
 
         PassiveSourceFamily.entries.forEach { family ->
             PassiveRecordKind.entries.forEach { kind ->
-                val accepted = runCatching {
-                    record(
-                        family,
-                        kind,
-                        1L,
-                        if (kind == PassiveRecordKind.STEPS_INTERVAL) 1.0 else null,
-                        "$family-$kind",
-                        if (kind in setOf(
-                                PassiveRecordKind.SLEEP_SESSION,
-                                PassiveRecordKind.STEPS_INTERVAL,
-                                PassiveRecordKind.EXERCISE_SESSION,
-                            )
-                        ) {
-                            2L
-                        } else {
-                            1L
-                        },
-                    )
-                }.isSuccess
-                assertEquals("$family + $kind", kind in family.legalRecordKinds, accepted)
+                assertEquals(
+                    "$family + $kind",
+                    kind in expectedLegalKinds.getValue(family),
+                    family.accepts(kind),
+                )
             }
         }
     }
