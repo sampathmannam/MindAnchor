@@ -6,11 +6,10 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.time.LocalDate
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
-import kotlinx.coroutines.delay
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -169,7 +168,6 @@ class ContinuitySnapshotRepositoryTest {
     @Test
     fun roomRowsComeFromOneTransactionallyConsistentPointInTime() = runBlocking {
         val ledger = testLedgerRepository(context, db)
-        val writeAttempted = CompletableDeferred<Unit>()
         lateinit var writer: Deferred<org.mindanchor.research.ResearchLedgerEvent>
         val racingRepository = ContinuitySnapshotRepository(
             context = context,
@@ -180,8 +178,7 @@ class ContinuitySnapshotRepositoryTest {
             deviceIdentity = deviceIdentity,
             backupRepository = BackupRepository(context),
             afterResearchLedgerRead = {
-                writer = async(Dispatchers.IO) {
-                    writeAttempted.complete(Unit)
+                writer = async(Dispatchers.IO, start = CoroutineStart.UNDISPATCHED) {
                     ledger.record(
                         org.mindanchor.research.LedgerEventKind.EXERCISE,
                         occurredAt = 1_000L,
@@ -189,8 +186,11 @@ class ContinuitySnapshotRepositoryTest {
                         now = 1_000L,
                     )
                 }
-                writeAttempted.await()
-                delay(100)
+                // UNDISPATCHED runs through the writer's first suspension.
+                // record() has no suspend point before database.withTransaction,
+                // so this proves the competing write reached transaction
+                // acquisition and is blocked by the capture transaction.
+                assertTrue(writer.isActive && !writer.isCompleted)
             },
         )
 

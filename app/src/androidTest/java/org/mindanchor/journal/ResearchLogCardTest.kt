@@ -139,6 +139,18 @@ class ResearchLogCardTest {
     }
 
     @Test
+    fun trailingWhitespaceCountsTowardTheVerbatimNoteLimit() {
+        render()
+        compose.onNodeWithTag("research_log_chip_${LedgerEventKind.LIFE_EVENT.name}").performClick()
+        compose.onNodeWithTag("research_log_note_field").performTextInput(
+            "x".repeat(MAX_LEDGER_NOTE_LENGTH) + " ",
+        )
+
+        compose.onNodeWithTag("research_log_save").assertIsNotEnabled()
+        compose.onNodeWithText("Too long by 1", substring = true).assertExists()
+    }
+
+    @Test
     fun todaysRecordsAreShownNewestFirstAndCannotBeChanged() {
         render(
             todaysEvents = listOf(

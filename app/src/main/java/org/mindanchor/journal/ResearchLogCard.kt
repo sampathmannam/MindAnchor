@@ -165,7 +165,7 @@ private fun RecordedToday(events: List<ResearchLedgerEvent>) {
 @Suppress("FunctionNaming")
 private fun RecordDialog(logKind: LogKind, onDismiss: () -> Unit, onRecord: (String) -> Unit) {
     var note by remember(logKind) { mutableStateOf("") }
-    val tooLong = note.trim().length > MAX_LEDGER_NOTE_LENGTH
+    val tooLong = note.length > MAX_LEDGER_NOTE_LENGTH
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -188,7 +188,7 @@ private fun RecordDialog(logKind: LogKind, onDismiss: () -> Unit, onRecord: (Str
                     supportingText = {
                         Text(
                             if (tooLong) {
-                                "Too long by ${note.trim().length - MAX_LEDGER_NOTE_LENGTH} characters."
+                                "Too long by ${note.length - MAX_LEDGER_NOTE_LENGTH} characters."
                             } else {
                                 "Optional. Your words, kept as you write them."
                             },

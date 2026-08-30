@@ -59,8 +59,8 @@ open class ResearchLedgerRepository(
      * Records one self-reported event: something that might explain a day.
      *
      * [occurredAt] is when the person says it happened, which can be
-     * earlier than [now]; [note] is their own words, trimmed and stored
-     * verbatim. The whole write runs in one transaction with the phase
+     * earlier than [now]; [note] is their own words, stored verbatim. The
+     * whole write runs in one transaction with the phase
      * check, so an event can never be attributed to a phase that failed to
      * open.
      *

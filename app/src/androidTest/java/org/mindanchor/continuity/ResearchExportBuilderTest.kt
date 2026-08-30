@@ -7,11 +7,10 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
-import kotlinx.coroutines.delay
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -454,13 +453,11 @@ class ResearchExportBuilderTest {
     @Test
     fun everyRoomDatasetComesFromOneTransactionallyConsistentPointInTime() = runBlocking {
         val ledger = testLedgerRepository(context, database)
-        val writeAttempted = CompletableDeferred<Unit>()
         lateinit var writer: Deferred<org.mindanchor.research.ResearchLedgerEvent>
 
         val export = build(
             afterLedgerRead = {
-                writer = async(Dispatchers.IO) {
-                    writeAttempted.complete(Unit)
+                writer = async(Dispatchers.IO, start = CoroutineStart.UNDISPATCHED) {
                     ledger.record(
                         LedgerEventKind.EXERCISE,
                         occurredAt = dayOne,
@@ -468,8 +465,11 @@ class ResearchExportBuilderTest {
                         now = dayOne,
                     )
                 }
-                writeAttempted.await()
-                delay(100)
+                // The writer starts synchronously through its first
+                // suspension, and record() reaches database.withTransaction
+                // before any suspension. It is therefore waiting on this
+                // export transaction, not merely queued to start later.
+                assertTrue(writer.isActive && !writer.isCompleted)
             },
         )
         writer.await()
