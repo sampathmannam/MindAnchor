@@ -1,7 +1,7 @@
 package org.mindanchor.continuity
 
 import java.lang.reflect.Modifier
-import kotlinx.serialization.decodeFromString
+import java.security.MessageDigest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -18,7 +18,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mindanchor.research.EvidenceProtocolCatalog
-import org.mindanchor.research.DataDictionary
+import org.mindanchor.research.DictionaryDataset
 import org.mindanchor.research.LedgerIntegrity
 import org.mindanchor.research.MissingDataPolicy
 import org.mindanchor.research.MissingDataReason
@@ -158,23 +158,14 @@ class ResearchExportCodecTest {
         )
     }
 
+    private fun programOneDocument(): String = requireNotNull(
+        javaClass.getResource("/research/research-export-mindanchor-research-v2.json"),
+    ).readText()
+
     private fun programOneExport(): ResearchExport {
-        val dictionary = Json.decodeFromString<DataDictionary>(
-            requireNotNull(javaClass.getResource("/research/data-dictionary-mindanchor-research-v2.json")).readText(),
-        )
-        val transformations = TransformationRegistry.transformations.filterNot {
-            it.id == "passive-window-features" || it.id == "passive-daily-features"
-        }
-        return ResearchExportCodec.seal(
-            sample().copy(
-                dataDictionaryVersion = ContinuityContract.PROGRAM_ONE_RESEARCH_DICTIONARY_VERSION,
-                contentSha256 = "",
-                transformations = transformations,
-                transformationSetVersion = TransformationRegistry.setVersionOf(transformations),
-                dataDictionary = dictionary,
-                dataDictionarySha256 = ResearchDataDictionary.sha256Of(dictionary),
-            ),
-        )
+        val decoded = ResearchExportCodec.decode(programOneDocument())
+        check(decoded is ResearchExportCodec.DecodeResult.Success) { "historical v2 fixture did not decode: $decoded" }
+        return decoded.export
     }
 
     @Test
@@ -198,6 +189,58 @@ class ResearchExportCodecTest {
         assertTrue(export.passiveObservationDecisions.isNotEmpty())
         assertFalse(PassiveRawProvenanceDto::class.java.declaredFields.any { it.name == "value" })
         assertFalse(ResearchExportCodec.encode(export).contains("passiveRawSamples"))
+    }
+
+    @Test
+    fun `Program 2 exported enum values are declared by the dictionary`() {
+        val export = sampleV3()
+        val exportedValues = mapOf(
+            (DictionaryDataset.PASSIVE_RAW_PROVENANCE to "sourceFamily") to
+                export.passiveRawProvenance.map { it.sourceFamily },
+            (DictionaryDataset.PASSIVE_RAW_PROVENANCE to "recordKind") to
+                export.passiveRawProvenance.map { it.recordKind },
+            (DictionaryDataset.PASSIVE_SOURCE_READS to "sourceFamily") to
+                export.passiveSourceReads.map { it.sourceFamily },
+            (DictionaryDataset.PASSIVE_SOURCE_READS to "state") to export.passiveSourceReads.map { it.state },
+            (DictionaryDataset.PASSIVE_SOURCE_LAGS to "sourceFamily") to
+                export.passiveSourceLags.map { it.sourceFamily },
+            (DictionaryDataset.PASSIVE_PIPELINE_RUNS to "result") to
+                export.passivePipelineRuns.map { it.result },
+            (DictionaryDataset.PASSIVE_WINDOW_REVISIONS to "revisionReason") to
+                export.passiveWindowRevisions.map { it.revisionReason },
+            (DictionaryDataset.PASSIVE_DAILY_REVISIONS to "dataStatus") to
+                export.passiveDailyRevisions.map { it.dataStatus },
+            (DictionaryDataset.PASSIVE_DAILY_REVISIONS to "revisionReason") to
+                export.passiveDailyRevisions.map { it.revisionReason },
+            (DictionaryDataset.PASSIVE_OBSERVATION_DECISIONS to "dataStatus") to
+                export.passiveObservationDecisions.map { it.dataStatus },
+            (DictionaryDataset.PASSIVE_OBSERVATION_DECISIONS to "observationState") to
+                export.passiveObservationDecisions.map { it.observationState },
+            (DictionaryDataset.PASSIVE_OBSERVATION_DECISIONS to "revisionReason") to
+                export.passiveObservationDecisions.map { it.revisionReason },
+        )
+        val dictionary = ResearchDataDictionary.dictionary.variables.associateBy { it.dataset to it.name }
+
+        exportedValues.forEach { (field, values) ->
+            val allowed = dictionary.getValue(field).allowedValues
+            assertTrue("$field exported $values outside $allowed", values.all { it in allowed })
+        }
+    }
+
+    @Test
+    fun `historical Program 1 export is stored as immutable literal JSON`() {
+        val bytes = requireNotNull(
+            javaClass.getResource("/research/research-export-mindanchor-research-v2.json"),
+        ).readBytes()
+        val fixtureSha256 = MessageDigest.getInstance("SHA-256")
+            .digest(bytes)
+            .joinToString(separator = "") { "%02x".format(it) }
+
+        assertEquals(
+            "the historical bytes must move only by an explicit compatibility-fixture review",
+            "2d79ce397ed8684baf8ff43d9893cd7d5a4946d310990bd7b548678e2fde23b0",
+            fixtureSha256,
+        )
     }
 
     /**
@@ -598,19 +641,30 @@ class ResearchExportCodecTest {
 
     @Test
     fun `the Program 2 content hash is frozen`() {
-        assertEquals("820506733d7475010c862ba4e6d5dacaaf68cbaafabdbfbca1ba075c989bd89f", sampleV3().contentSha256)
+        assertEquals("e304f02bffcf94e78b6819f679c0660a8ff5806d5ab868ee6e8d25abeb2757bb", sampleV3().contentSha256)
     }
 
     @Test
     fun `genuine Program 1 document retains its frozen projection and verifies`() {
-        val document = rawDocument(ContinuityContract.PROGRAM_ONE_RESEARCH_DICTIONARY_VERSION)
+        val document = Json.parseToJsonElement(programOneDocument()).jsonObject
         assertEquals(programOneFields, document.keys)
         assertTrue(programTwoFields.none { it in document })
 
-        val decoded = ResearchExportCodec.decode(document.toString())
+        val decoded = ResearchExportCodec.decode(programOneDocument())
         assertTrue("$decoded", decoded is ResearchExportCodec.DecodeResult.Success)
         val export = (decoded as ResearchExportCodec.DecodeResult.Success).export
-        assertEquals(programOneExport().contentSha256, export.contentSha256)
+        assertEquals(5_000L, export.exportedAt)
+        assertEquals("entry-1", export.journalEntries.single().id)
+        assertEquals("Body", export.journalEntries.single().body)
+        assertEquals("event-1", export.ledgerEvents.single().id)
+        assertEquals("a walk", export.ledgerEvents.single().note)
+        assertEquals("phase-0", export.studyPhases.single().id)
+        assertEquals("mindanchor-research-v2", export.studyPhases.single().dictionaryVersion)
+        assertEquals(
+            "2d1e1fe37f3793a7179732e58752d520c742d1c5bd9e7d31ac8919949cce59d7",
+            export.contentSha256,
+        )
+        assertTrue(programTwoContentByField(export).values.none { it })
         assertTrue(ResearchExportCodec.verify(export))
     }
 
@@ -671,9 +725,11 @@ class ResearchExportCodecTest {
     )
 
     private fun rawDocument(version: String): JsonObject {
+        if (version == ContinuityContract.PROGRAM_ONE_RESEARCH_DICTIONARY_VERSION) {
+            return Json.parseToJsonElement(programOneDocument()).jsonObject
+        }
         val export = when (version) {
             ContinuityContract.PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION -> programZeroExport()
-            ContinuityContract.PROGRAM_ONE_RESEARCH_DICTIONARY_VERSION -> programOneExport()
             else -> sampleV3()
         }
         val allowed = when (version) {

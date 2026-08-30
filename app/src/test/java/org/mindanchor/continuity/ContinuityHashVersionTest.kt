@@ -307,7 +307,7 @@ internal object ProgramTwoPayloadFixture {
             PassiveRawProvenanceDto(
                 id = "raw-1",
                 sourceFamily = "HEART_RATE",
-                recordKind = "HeartRateRecord",
+                recordKind = "HEART_RATE_SAMPLE",
                 eventStart = 1_000L,
                 eventEnd = 2_000L,
                 unit = "bpm",
@@ -328,7 +328,7 @@ internal object ProgramTwoPayloadFixture {
                 id = "read-1",
                 runId = "run-1",
                 sourceFamily = "HEART_RATE",
-                state = "AVAILABLE",
+                state = "SUCCESS",
                 rangeStart = 1_000L,
                 rangeEnd = 2_000L,
                 zoneId = "Asia/Calcutta",
