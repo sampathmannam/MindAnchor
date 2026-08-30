@@ -869,12 +869,12 @@
 
     <!-- Health Connect permission flow (Phase 2) -->
     <string name="health_connect_title">Wearable</string>
-    <string name="health_connect_explainer">MindAnchor can read heart rate, sleep, steps, exercise and mindfulness sessions from any watch or app that writes to Health Connect. The data never leaves this phone. You stay in control — grant or revoke each type from the system Health Connect screen at any time.</string>
+    <string name="health_connect_explainer">MindAnchor can locally read heart rate, HRV, oxygen saturation, sleep, steps, and exercise from Health Connect. Oxygen saturation is kept as context and is not scored. History access lets your own baseline use older records; background access lets the six-hour local reader run when this screen is closed. You can grant or revoke each permission in Health Connect.</string>
     <string name="health_connect_status_loading">Checking what your watch is sharing…</string>
     <string name="health_connect_status_unavailable">Health Connect is not installed on this phone. Install it from the Play Store to bring your wearable data in.</string>
     <string name="health_connect_status_not_granted">No data is being read yet. Tap below to choose what to share.</string>
-    <string name="health_connect_status_partial" tools:ignore="PluralsCandidate">Reading %1$d of %2$d signal types from your watch. Tap to change.</string>
-    <string name="health_connect_status_full" tools:ignore="PluralsCandidate">All %1$d signal types connected.</string>
+    <string name="health_connect_status_partial" tools:ignore="PluralsCandidate">Reading %1$d of %2$d Health Connect permissions. Tap to change.</string>
+    <string name="health_connect_status_full" tools:ignore="PluralsCandidate">All %1$d Health Connect permissions connected.</string>
     <string name="health_connect_launch_failed">Couldn\'t open Health Connect. The app may be missing, disabled, or may not have responded in time. Check it is installed and enabled, then try again.</string>
     <!--
         v0.26+: the SDK\'s permission contract is the canonical
@@ -906,6 +906,9 @@
     <string name="health_connect_reads_exercise">exercise sessions — used for active minutes</string>
     <string name="health_connect_reads_calories">calories burned — kept for future use; nothing reads it today</string>
     <string name="health_connect_reads_mindfulness">mindfulness sessions — used to surface practice time next to steps and sleep</string>
+    <string name="health_connect_reads_oxygen_saturation">oxygen saturation — retained as context only and never scored</string>
+    <string name="health_connect_reads_history">health-data history — lets baseline building read up to 120 days on the first successful run</string>
+    <string name="health_connect_reads_background">background health data — lets the local six-hour reader collect while MindAnchor is closed</string>
     <string name="health_connect_what_we_dont_header">What this app does NOT do</string>
     <string name="health_connect_does_not_write">Write back to your watch or any other app. The launcher only reads.</string>
     <string name="health_connect_does_not_send">Send anything off this phone. There is no network call to a server, ever.</string>

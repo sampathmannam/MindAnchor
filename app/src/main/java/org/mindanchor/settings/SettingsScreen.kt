@@ -2699,6 +2699,9 @@ fun SettingsScreen(
                 "exercise" to R.string.health_connect_reads_exercise,
                 "calories" to R.string.health_connect_reads_calories,
                 "mindfulness" to R.string.health_connect_reads_mindfulness,
+                "oxygen_saturation" to R.string.health_connect_reads_oxygen_saturation,
+                "history" to R.string.health_connect_reads_history,
+                "background" to R.string.health_connect_reads_background,
             )
             Text(
                 text = stringResource(R.string.health_connect_what_reads_header),

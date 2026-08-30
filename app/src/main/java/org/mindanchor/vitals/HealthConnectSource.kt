@@ -13,6 +13,7 @@ import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.HeartRateVariabilityRmssdRecord
 import androidx.health.connect.client.records.MindfulnessSessionRecord
+import androidx.health.connect.client.records.OxygenSaturationRecord
 import androidx.health.connect.client.records.Record
 import androidx.health.connect.client.records.RestingHeartRateRecord
 import androidx.health.connect.client.records.SleepSessionRecord
@@ -78,6 +79,9 @@ object HealthConnectSource {
         HealthPermission.getReadPermission(ExerciseSessionRecord::class),
         HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
         HealthPermission.getReadPermission(MindfulnessSessionRecord::class),
+        HealthPermission.getReadPermission(OxygenSaturationRecord::class),
+        HealthPermission.PERMISSION_READ_HEALTH_DATA_HISTORY,
+        HealthPermission.PERMISSION_READ_HEALTH_DATA_IN_BACKGROUND,
     )
 
     /**
@@ -188,6 +192,9 @@ object HealthConnectSource {
         "exercise" to HealthPermission.getReadPermission(ExerciseSessionRecord::class),
         "calories" to HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
         "mindfulness" to HealthPermission.getReadPermission(MindfulnessSessionRecord::class),
+        "oxygen_saturation" to HealthPermission.getReadPermission(OxygenSaturationRecord::class),
+        "history" to HealthPermission.PERMISSION_READ_HEALTH_DATA_HISTORY,
+        "background" to HealthPermission.PERMISSION_READ_HEALTH_DATA_IN_BACKGROUND,
     )
 
     /**
