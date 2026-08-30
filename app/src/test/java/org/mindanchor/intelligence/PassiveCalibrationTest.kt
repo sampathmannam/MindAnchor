@@ -1,7 +1,9 @@
 package org.mindanchor.intelligence
 
 import java.time.LocalDate
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PassiveCalibrationTest {
@@ -15,7 +17,9 @@ class PassiveCalibrationTest {
 
     @Test fun `exercise-excluded physiology cannot contribute`() {
         val baseline = PassiveBaseline("a", 60, mapOf(
-            PassiveFeature.RESTING_HEART_RATE to FeatureBaseline(PassiveFeature.RESTING_HEART_RATE, 60.0, 5.0, 60, false),
+            PassiveFeature.RESTING_HEART_RATE to FeatureBaseline(
+                PassiveFeature.RESTING_HEART_RATE, 60.0, 5.0, 60, false,
+            ),
             PassiveFeature.SLEEP_MINUTES to FeatureBaseline(PassiveFeature.SLEEP_MINUTES, 450.0, 30.0, 60, false)))
         val day = PassiveDay(LocalDate.parse("2026-08-30"), PassiveDataStatus.AVAILABLE_FINAL,
             mapOf(PassiveFeature.RESTING_HEART_RATE to 100.0, PassiveFeature.SLEEP_MINUTES to 300.0),

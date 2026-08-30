@@ -46,9 +46,11 @@ object BlockThresholdCalibrator {
         if (scores.size < CALIBRATION_DAYS || scores.any { !it.isFinite() }) return null
         val random = Random(seed)
         val samples = List(SIMULATIONS) { circularBlockSample(scores, random) }
-        val candidates = scores.distinct().sorted()
-        val threshold = candidates.first { candidate ->
-            expectedEpisodeCount(samples, candidate) <= TARGET_EPISODES_PER_30
+        val candidates = scores.distinct().sortedDescending()
+        var threshold = candidates.first()
+        for (candidate in candidates.drop(1)) {
+            if (expectedEpisodeCount(samples, candidate) > TARGET_EPISODES_PER_30) break
+            threshold = candidate
         }
         return CalibrationResult(threshold, expectedEpisodeCount(samples, threshold), SIMULATIONS)
     }

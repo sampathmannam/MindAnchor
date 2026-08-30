@@ -3,6 +3,7 @@ package org.mindanchor.intelligence
 object PassiveEstimator {
     const val RULE_VERSION = "passive-observation-rules-v1"
 
+    @Suppress("ReturnCount")
     fun observe(
         day: PassiveDay,
         asOfTime: Long,

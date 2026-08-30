@@ -39,7 +39,8 @@ data class PassiveDay(
     val baselineSegment: String,
 ) {
     fun isEligible(feature: PassiveFeature): Boolean =
-        dataStatus.canEstimate && feature.scored && feature !in excludedFeatures && features[feature]?.isFinite() == true
+        dataStatus.canEstimate && feature.scored && feature !in excludedFeatures &&
+            features[feature]?.isFinite() == true
 }
 
 data class FeatureEvidence(
