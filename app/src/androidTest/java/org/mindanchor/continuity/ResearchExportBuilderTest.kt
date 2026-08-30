@@ -382,6 +382,14 @@ class ResearchExportBuilderTest {
         val export = build()
 
         assertTrue("the export must still be produced", ResearchExportCodec.verify(export))
+        assertEquals("2026-08-27", export.missingDataWindowStart)
+        assertEquals("2026-08-29", export.missingDataWindowThrough)
+        assertEquals(
+            listOf("2026-08-28", "2026-08-29"),
+            export.missingData
+                .filter { it.variable == MissingDataPolicy.VARIABLE_MORNING_MEASURE }
+                .map { it.localDate },
+        )
         assertTrue(
             "one corrupt row must not expand the report: ${export.missingData.size} rows",
             export.missingData.size <= MAX_PLAUSIBLE_REPORT_ROWS,
@@ -416,5 +424,19 @@ class ResearchExportBuilderTest {
         database = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java)
             .withResearchImmutability()
             .build()
+    }
+
+    @Test
+    fun aRejectedWriteReturnsWriteFailedRatherThanSuccess() = runBlocking {
+        val outcome = ResearchExportBuilder.export(
+            context = context,
+            database = database,
+            uri = android.net.Uri.parse("content://provider/rejected"),
+            now = dayThree,
+            zone = ZoneOffset.UTC,
+            writeExport = { _, _, _ -> false },
+        )
+
+        assertEquals(ResearchExportBuilder.ExportOutcome.WriteFailed, outcome)
     }
 }

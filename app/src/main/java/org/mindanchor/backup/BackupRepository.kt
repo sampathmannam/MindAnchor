@@ -135,8 +135,14 @@ class BackupRepository(private val context: Context) {
         }.getOrNull()
 
         fun write(context: Context, uri: Uri, text: String): Boolean = runCatching {
-            context.contentResolver.openOutputStream(uri)?.use { it.write(text.encodeToByteArray()) }
-            true
+            writeTo(context.contentResolver.openOutputStream(uri), text)
         }.getOrDefault(false)
+
+        /** A provider is allowed to return null; that means no bytes were written. */
+        internal fun writeTo(output: java.io.OutputStream?, text: String): Boolean {
+            val destination = output ?: return false
+            destination.use { it.write(text.encodeToByteArray()) }
+            return true
+        }
     }
 }

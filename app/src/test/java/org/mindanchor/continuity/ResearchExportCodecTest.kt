@@ -381,18 +381,23 @@ class ResearchExportCodecTest {
     }
 
     @Test
-    fun `the dictionary travels beside the content hash, never inside it`() {
+    fun `the dictionary payload is outside the content hash but its digest is inside`() {
         val original = sample()
+        val dictionary = requireNotNull(original.dataDictionary)
         assertEquals(ResearchDataDictionary.sha256, original.dataDictionarySha256)
-        // The dictionary's *bytes* are outside the hash, so bumping the
-        // dictionary is not a data change. Its hash is inside, so the
-        // document still commits to which dictionary it was written under.
-        assertNotEquals(
-            "the dictionary itself must not be digested",
+        val rewritten = dictionary.copy(statement = "rewritten payload")
+        val resealed = ResearchExportCodec.seal(
+            original.copy(contentSha256 = "", dataDictionary = rewritten),
+        )
+
+        assertEquals(
+            "only the carried digest, not the repeated dictionary payload, is projected",
             original.contentSha256,
-            ResearchExportCodec.seal(
-                original.copy(contentSha256 = "", dataDictionarySha256 = "another dictionary"),
-            ).contentSha256,
+            resealed.contentSha256,
+        )
+        assertFalse(
+            "verification must still reject a payload that disagrees with its digest",
+            ResearchExportCodec.verify(resealed),
         )
     }
 
@@ -423,9 +428,18 @@ class ResearchExportCodecTest {
                 contentSha256 = "",
                 journalEntries = listOf(entry("entry-1"), entry("entry-2")),
                 contextFacts = listOf(contextRow("context-1"), contextRow("context-2")),
+                contextInferences = listOf(
+                    contextRow("inference-1", "INFERENCE"),
+                    contextRow("inference-2", "INFERENCE"),
+                ),
                 morningMeasures = listOf(measure("measure-1"), measure("measure-2")),
                 ledgerEvents = listOf(ledgerEvent("event-1", 1L), ledgerEvent("event-2", 2L)),
                 studyPhases = listOf(phase("phase-0", 0), phase("phase-1", 1)),
+                protocolRegistry = listOf(
+                    sample().protocolRegistry.single().copy(id = "protocol-a"),
+                    sample().protocolRegistry.single().copy(id = "protocol-b"),
+                ),
+                transformations = TransformationRegistry.transformations,
                 missingData = listOf(
                     MissingDataRecord("2026-08-28", "morning_measure", MissingDataReason.NOT_RECORDED),
                     MissingDataRecord("2026-08-29", "journal_context", MissingDataReason.CONTEXT_NOT_DERIVED),
@@ -437,22 +451,31 @@ class ResearchExportCodecTest {
                 contentSha256 = "",
                 journalEntries = ordered.journalEntries.reversed(),
                 contextFacts = ordered.contextFacts.reversed(),
+                contextInferences = ordered.contextInferences.reversed(),
                 morningMeasures = ordered.morningMeasures.reversed(),
                 ledgerEvents = ordered.ledgerEvents.reversed(),
                 studyPhases = ordered.studyPhases.reversed(),
+                protocolRegistry = ordered.protocolRegistry.reversed(),
+                transformations = ordered.transformations.reversed(),
                 missingData = ordered.missingData.reversed(),
             ),
         )
 
         assertEquals(ordered.contentSha256, shuffled.contentSha256)
         assertEquals(ordered.journalEntries, shuffled.journalEntries)
+        assertEquals(ordered.contextInferences, shuffled.contextInferences)
         assertEquals(ordered.ledgerEvents, shuffled.ledgerEvents)
+        assertEquals(ordered.protocolRegistry, shuffled.protocolRegistry)
+        assertEquals(ordered.transformations, shuffled.transformations)
         assertEquals(ordered.missingData, shuffled.missingData)
         assertNotEquals(
             "the fixture must actually exercise the sort keys",
             ordered.journalEntries,
             ordered.journalEntries.reversed(),
         )
+        assertNotEquals(ordered.contextInferences, ordered.contextInferences.reversed())
+        assertNotEquals(ordered.protocolRegistry, ordered.protocolRegistry.reversed())
+        assertNotEquals(ordered.transformations, ordered.transformations.reversed())
     }
 
     @Test

@@ -35,6 +35,7 @@ private val DATE_HEADER_FORMATTER: DateTimeFormatter =
  * they answer once a day second, and the optional context last.
  */
 @Composable
+@Suppress("FunctionNaming", "LongParameterList")
 fun JournalToday(
     today: LocalDate,
     title: String,

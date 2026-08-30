@@ -17,6 +17,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mindanchor.data.db.AnchorDatabase
 import org.mindanchor.data.db.withResearchImmutability
+import org.mindanchor.continuity.ContinuityPrefs
 
 /**
  * Program 1 Task 8 — the ledger repository over real Room.
@@ -37,7 +38,8 @@ class ResearchLedgerRepositoryTest {
         Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().toString()
 
     @Before
-    fun open() {
+    fun open() = runBlocking {
+        ContinuityPrefs(context).reset()
         database = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java)
             .withResearchImmutability()
             .build()
@@ -49,7 +51,10 @@ class ResearchLedgerRepositoryTest {
     }
 
     @After
-    fun close() = database.close()
+    fun close() = runBlocking {
+        database.close()
+        ContinuityPrefs(context).reset()
+    }
 
     @Test
     fun recordingAnEventOpensPhaseZeroFirst() = runBlocking {
@@ -61,6 +66,9 @@ class ResearchLedgerRepositoryTest {
         assertEquals(StudyPhaseReason.INITIAL.name, phase.reason)
         assertEquals(phase.id, event.studyPhaseId)
         assertEquals(LedgerIntegrity.VERIFIED, LedgerChain.verify(repository.events().first()))
+        val highWater = requireNotNull(ContinuityPrefs(context).ledgerHighWater.first())
+        assertEquals(database.research().ledgerEventCount(), highWater.eventCount)
+        assertEquals(database.research().ledgerHead()?.eventHash, highWater.headHash)
     }
 
     @Test

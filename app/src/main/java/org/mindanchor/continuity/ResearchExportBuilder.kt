@@ -75,6 +75,7 @@ object ResearchExportBuilder {
         uri: Uri,
         now: Long = System.currentTimeMillis(),
         zone: ZoneId = ZoneId.systemDefault(),
+        writeExport: (Context, Uri, String) -> Boolean = BackupRepository::write,
     ): ExportOutcome {
         val export = try {
             withContext(Dispatchers.IO) {
@@ -98,7 +99,7 @@ object ResearchExportBuilder {
         }
 
         val wrote = withContext(Dispatchers.IO) {
-            BackupRepository.write(context, uri, ResearchExportCodec.encode(export))
+            writeExport(context, uri, ResearchExportCodec.encode(export))
         }
         return if (wrote) ExportOutcome.Success(export.contentSha256) else ExportOutcome.WriteFailed
     }

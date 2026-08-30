@@ -15,6 +15,8 @@ import org.junit.runner.RunWith
 import org.mindanchor.data.db.AnchorDatabase
 import org.mindanchor.data.db.withResearchImmutability
 import org.mindanchor.journal.DeviceIdentityStore
+import org.mindanchor.continuity.ContinuityPrefs
+import kotlinx.coroutines.flow.first
 
 /**
  * Proves the core Task 5 guarantees: saving a morning measure commits the
@@ -30,7 +32,8 @@ class MorningMeasureRepositoryTest {
     private lateinit var deviceIdentity: DeviceIdentityStore
 
     @Before
-    fun setUp() {
+    fun setUp() = runBlocking {
+        ContinuityPrefs(context).reset()
         db = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java)
             .withResearchImmutability()
             .build()
@@ -38,8 +41,9 @@ class MorningMeasureRepositoryTest {
     }
 
     @After
-    fun tearDown() {
+    fun tearDown() = runBlocking {
         db.close()
+        ContinuityPrefs(context).reset()
     }
 
     @Test
@@ -72,6 +76,9 @@ class MorningMeasureRepositoryTest {
                 it.entityType == "MORNING_MEASURE" && it.entityId == measure.id && it.operation == "CREATE"
             },
         )
+        val highWater = requireNotNull(ContinuityPrefs(context).ledgerHighWater.first())
+        assertEquals(db.research().ledgerEventCount(), highWater.eventCount)
+        assertEquals(db.research().ledgerHead()?.eventHash, highWater.headHash)
     }
 
     @Test

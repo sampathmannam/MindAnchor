@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.time.LocalDate
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.first
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -74,6 +75,9 @@ class JournalRepositoryTest {
 
         val pending = db.journal().pendingChanges()
         assertTrue(pending.any { it.entityType == "JOURNAL_ENTRY" && it.entityId == entry.id && it.operation == "CREATE" })
+        val highWater = requireNotNull(ContinuityPrefs(context).ledgerHighWater.first())
+        assertEquals(db.research().ledgerEventCount(), highWater.eventCount)
+        assertEquals(db.research().ledgerHead()?.eventHash, highWater.headHash)
     }
 
     @Test

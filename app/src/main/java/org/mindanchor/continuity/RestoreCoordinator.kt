@@ -157,6 +157,7 @@ sealed class RestoreResult {
  * so a later [resume] call retries the same final check rather than
  * silently claiming success.
  */
+@Suppress("LongParameterList")
 class RestoreCoordinator(
     private val currentStageInfo: suspend () -> RestoreStageInfo,
     private val persistDownloaded: suspend (

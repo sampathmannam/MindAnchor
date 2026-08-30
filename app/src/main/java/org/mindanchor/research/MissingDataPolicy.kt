@@ -49,7 +49,7 @@ data class MissingDataRecord(val localDate: String, val variable: String, val re
  * function.
  *
  * **Nothing is imputed, interpolated, carried forward, or filled in. Every
- * absence is listed with a reason.**
+ * absence in the explicitly reported window is listed with a reason.**
  *
  * A series that quietly looks complete is worse than one with visible
  * holes, because only the second lets a reader judge how much of a pattern

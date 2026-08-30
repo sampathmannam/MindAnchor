@@ -34,10 +34,11 @@ import org.mindanchor.research.Transformation
  *
  * [contentSha256] covers the content only — never [exportedAt], never the
  * app version — so "did the data change" stays answerable independently of
- * "was this exported again". [dataDictionarySha256] is carried beside it
- * rather than inside it, so a dictionary version bump does not masquerade
- * as a data change. [ResearchExportCodec.verify] recomputes the first
- * using the projection for this file's own version.
+ * "was this exported again". The full dictionary payload is not repeated
+ * inside that projection, but [dataDictionarySha256] is: changing the
+ * carried dictionary is therefore visible and tamper-evident.
+ * [ResearchExportCodec.verify] recomputes both using the projection for
+ * this file's own version.
  */
 @Serializable
 data class ResearchExport(
@@ -57,10 +58,10 @@ data class ResearchExport(
     val ledgerEvents: List<ResearchLedgerEventDto> = emptyList(),
 
     /**
-     * The ledger's anchor: the head event's hash and how many events
-     * precede it. Carried because it is the part of the chain that cannot
-     * live *in* the chain — without it, dropping the newest events leaves
-     * a shorter but perfectly self-consistent history.
+     * A reproducible summary of the carried ledger: the newest event's
+     * hash and the number of carried events. Both are derived from the
+     * list, so they detect file tampering but not rows lost before export.
+     * [ledgerHighWaterCount] is the independent truncation check.
      */
     val ledgerHeadHash: String = "",
     val ledgerEventCount: Int = 0,

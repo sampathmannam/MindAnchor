@@ -32,7 +32,7 @@ import org.mindanchor.research.Transformation
  * ## The hash is versioned, for the same reason the snapshot's is
  *
  * A Program 0 export's hash covers four content lists. Digesting today's
- * twelve fields against it would make every export written before Program 1
+ * twenty fields against it would make every export written before Program 1
  * fail [verify] — a file a person may already have handed to somebody.
  * [hashContent] therefore projects onto the field set of the document's own
  * `dataDictionaryVersion`, and both projections are frozen by test.
