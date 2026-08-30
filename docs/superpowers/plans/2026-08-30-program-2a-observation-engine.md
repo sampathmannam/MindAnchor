@@ -16,7 +16,7 @@
 - Baseline floor: 60 eligible days, including at least 8 weekdays and 8 weekend days.
 - Feature stratum floor: 14 observations; otherwise pool into the all-days stratum and record that choice.
 - Scale: `1.4826 * MAD`, then `IQR / 1.349` only when MAD is zero; an all-zero scale makes the feature unscorable.
-- Calibration: deterministic seven-day circular block resampling against an engineering budget of at most one observation episode per 30 valid days.
+- Calibration: deterministic seven-day circular block resampling against an engineering budget of at most one observation episode per 30 valid days; traverse candidates downward from the guaranteed-safe maximum and stop at the first violation so disconnected dense-crossing safe islands are rejected.
 - Two crossings among three eligible days are sustained; crossings within 48 hours belong to one episode.
 - User-facing text names observable data only and must not contain diagnoses or mental-state predictions.
 - Preserve the unrelated modified `app/src/main/java/org/mindanchor/llm/LlmPrefs.kt` and untracked root `AGENTS.md`.
@@ -373,7 +373,7 @@ Expected: compilation fails because the scorer and calibrator do not exist.
 
 - [ ] **Step 3: Implement scoring and deterministic block calibration**
 
-Implement `PassiveScorer` by calculating `(value - centre) / scale`, grouping evidence by domain, and using each domain's maximum absolute feature z-score. Return null unless at least two domains are present. Implement `BlockThresholdCalibrator` with constants `BLOCK_DAYS = 7`, `CALIBRATION_DAYS = 30`, `SIMULATIONS = 512`, `TARGET_EPISODES_PER_30 = 1.0`, and `REFRACTORY_DAYS = 2`. Use `java.util.Random(seed)`, circular seven-day blocks, and the smallest observed candidate threshold whose mean simulated episode count is at most the target. Candidate crossings are strict `score > threshold`; the maximum candidate therefore always supplies a safe zero-episode fallback.
+Implement `PassiveScorer` by calculating `(value - centre) / scale`, grouping evidence by domain, and using each domain's maximum absolute feature z-score. Return null unless at least two domains are present, and use the second-largest eligible domain magnitude as the corroborated `DayScore.score`, so a crossing requires two domains above the same threshold. Implement `BlockThresholdCalibrator` with constants `BLOCK_DAYS = 7`, `CALIBRATION_DAYS = 30`, `SIMULATIONS = 512`, `TARGET_EPISODES_PER_30 = 1.0`, and `REFRACTORY_DAYS = 2`. Use `java.util.Random(seed)` and circular seven-day blocks. Candidate crossings are strict `score > threshold`, so the maximum candidate is a guaranteed zero-episode starting point. Traverse candidates downward and select the last budget-compliant threshold before the first violation. Do not continue into a disconnected lower-threshold safe island: refractory grouping can merge dense crossings into one episode and make episode count non-monotonic.
 
 ```kotlin
 data class DayScore(val score: Double, val domains: List<DomainEvidence>)
@@ -392,7 +392,7 @@ object PassiveScorer {
             DomainEvidence(domain, features.maxOf { kotlin.math.abs(it.zScore) }, features.sortedBy { it.feature.name })
         }.sortedBy { it.domain.name }
         if (domains.size < 2) return null
-        return DayScore(domains.maxOf { it.score }, domains)
+        return DayScore(domains.map { it.score }.sortedDescending()[1], domains)
     }
 }
 ```
@@ -436,7 +436,7 @@ Expected: compilation fails because `PassiveEstimator` does not exist.
 
 ```kotlin
 object PassiveEstimator {
-    const val RULE_VERSION = "passive-observation-rules-v1"
+    const val RULE_VERSION = "passive-observation-rules-v2"
 
     fun observe(
         day: PassiveDay,
@@ -549,16 +549,17 @@ git commit -m "feat: register passive intelligence provenance"
 
 - [ ] **Step 1: Write the simulation test**
 
-Generate 240 deterministic daily records using an AR(1)-style residual (`x[t] = 0.65*x[t-1] + seededNoise`) for resting heart rate, sleep, steps, and screen time. Use the first 120 days as reference/calibration and evaluate the remaining 120 chronologically. Add separate copies with injected shifts of 0.5, 1.0, 1.5, and 2.0 scaled units lasting 1, 2, 3, and 7 days.
+Generate 240 deterministic daily records using an AR(1)-style residual (`x[t] = 0.65*x[t-1] + seededNoise`) for resting heart rate, sleep, steps, and screen time. Predeclare generator seeds `1`, `7`, `42`, `2026`, and `20260830`; retain `20260830` as the primary injected-shift evidence stream. For every seed, use the first 120 days as reference/calibration and evaluate the remaining 120 chronologically. The aggregate unshifted criterion is at most the declared four-episode budget plus one finite-sample episode per seed: at most 25 episodes across the five 120-day evaluations. Add separate primary-stream copies with injected shifts of 0.5, 1.0, 1.5, and 2.0 scaled units lasting 1, 2, 3, and 7 days.
 
 Assert only mechanics the implementation promises:
 
 - identical seeds produce byte-for-byte equal observation sequences;
 - no ineligible day emits a deviation;
 - baseline is absent before day 61;
-- the unshifted evaluation does not exceed the declared calibration episode budget by more than one finite-sample episode;
+- the five unshifted evaluations satisfy the predeclared aggregate episode criterion and report every seed's count;
+- the selected primary-stream injection window has seven unshifted days with zero observation-level and domain-level crossings;
 - seven-day 2.0-scale shifts produce at least one crossing;
-- a one-domain shift never produces an observation because corroborating domains are required.
+- a one-domain shift with all other domains still available never produces an observation, while a two-domain shift can, because corroborating domains are required.
 
 - [ ] **Step 2: Run the simulation and verify any genuine implementation defects**
 
@@ -568,7 +569,7 @@ Expected: pass after fixing only deterministic engine defects; do not tune again
 
 - [ ] **Step 3: Record the interpretation boundary**
 
-Create `docs/research/27-passive-observation-calibration.md` with the seed, generator equation, tested durations and magnitudes, observed false episode count, and the explicit statement: “Synthetic shifts test detector mechanics. They do not estimate sensitivity or specificity for anxiety, depression, anger, BPD, or any other condition.”
+Create `docs/research/27-passive-observation-calibration.md` with the predeclared seeds, generator equation, tested durations and magnitudes, per-seed and aggregate false episode counts, the zero-crossing control-window rule, the connected-safe-region calibration rule, and the explicit statement: “Synthetic shifts test detector mechanics. They do not estimate sensitivity or specificity for anxiety, depression, anger, BPD, or any other condition.”
 
 - [ ] **Step 4: Run Program 2A and repository verification**
 

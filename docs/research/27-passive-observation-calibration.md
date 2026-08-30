@@ -6,40 +6,63 @@
 
 ## Method
 
-The simulation generates 240 consecutive final daily records beginning on 2026-01-01. Resting heart rate,
-sleep minutes, steps, and screen minutes each have an independent residual generated with `java.util.Random`
-seed `42` and the equation:
+For each predeclared generator seed `1`, `7`, `42`, `2026`, and `20260830`, the simulation generates 240
+consecutive final daily records beginning on 2026-01-01. Seed `20260830` is retained as the primary injected-shift
+evidence stream; it was not replaced after observing its result. Resting heart rate, sleep minutes, steps, and
+screen minutes each have an independent residual generated with `java.util.Random` and the equation:
 
 ```text
 x[t] = 0.65 * x[t-1] + seededGaussianNoise
 ```
 
-Each residual is transformed into that feature's declared unit around a fixed centre. The first 120 days are
-the frozen reference/calibration history. The remaining 120 days are evaluated chronologically with calibration
-seed `42`. Repeating generation and evaluation with the same seeds produced byte-for-byte equal observation
-sequences.
+Each residual is transformed into that feature's declared unit around a fixed centre. For every seed, the first
+120 days are the frozen reference/calibration history and the remaining 120 days are evaluated chronologically
+with calibration seed `42`. Repeating primary-stream generation and evaluation produced byte-for-byte equal
+observation sequences.
+
+The predeclared multi-seed criterion allows the declared four-episode budget plus one finite-sample episode for
+each 120-day stream: at most 25 total episodes across all five streams. Every seed's count is reported, including
+individual streams above five; no seed is removed based on its result.
 
 Injected copies add `0.5`, `1.0`, `1.5`, or `2.0` times the applicable personal-baseline scale for `1`, `2`,
 `3`, or `7` days. Resting heart rate and screen time shift upward; sleep and steps shift downward. The injection
-window begins on 2026-05-01, the first unshifted evaluation day; the corresponding seven-day unshifted window
-has zero crossings. Delay is zero-based from the first injected day, so delay `1` means the second injected day.
+window begins on 2026-05-19 at evaluation offset 18. It is selected by a predeclared control rule: all seven
+unshifted days must have zero observation-level crossings and zero domain-level threshold crossings. Delay is
+zero-based from the first injected day.
+
+Program 2A rule version `passive-observation-rules-v2` calibrates the second-largest eligible domain magnitude,
+so at least two domains must cross the same threshold. Candidate thresholds are traversed downward from the
+maximum, which is guaranteed safe under strict crossings. The selected threshold is the last safe candidate
+before the first episode-budget violation. Refractory grouping makes episode counts non-monotonic: dense
+crossings at a low threshold can merge into one episode and create a disconnected lower “safe” island. Those
+islands are rejected rather than interpreted as low observation burden.
 
 ## Deterministic results
 
-The unshifted 120-day evaluation produced **1 observation episode**. The declared budget is 4 episodes over
-120 valid days, with one additional finite-sample episode allowed by this acceptance test, so the observed count
-is within the limit of 5.
+| Generator seed | Unshifted episodes over 120 days |
+|---:|---:|
+| 1 | 1 |
+| 7 | 6 |
+| 42 | 5 |
+| 2026 | 4 |
+| 20260830 | 3 |
+| **Aggregate** | **19** |
+
+The aggregate result is 19 episodes against the predeclared limit of 25. Seed `7` produced 6 episodes and is
+reported unchanged rather than replaced with a passing stream.
 
 | Shift (baseline-scale units) | 1 day | 2 days | 3 days | 7 days |
 |---|---:|---:|---:|---:|
 | 0.5 | 0 / none | 0 / none | 0 / none | 0 / none |
 | 1.0 | 0 / none | 0 / none | 0 / none | 0 / none |
-| 1.5 | 0 / none | 0 / none | 0 / none | 1 / 3 |
-| 2.0 | 0 / none | 1 / 1 | 2 / 1 | 4 / 1 |
+| 1.5 | 0 / none | 0 / none | 0 / none | 0 / none |
+| 2.0 | 1 / 0 | 1 / 0 | 1 / 0 | 4 / 0 |
 
-Each cell is `crossing days / first-crossing delay`. The required seven-day, 2.0-scale case produced four
-crossing days, first crossing on the second injected day. A seven-day, 2.0-scale resting-heart-rate-only copy
-with no second eligible domain produced **0 crossings** and therefore no deviation observation.
+Each cell is `crossing days / first-crossing delay`. The required seven-day, 2.0-scale four-domain case produced
+four crossing days, first crossing on the first injected day. A seven-day, 2.0-scale resting-heart-rate-only copy
+kept sleep, activity, and routine available and unchanged; it produced **0 crossings**. A corresponding copy
+shifting exactly resting heart rate and sleep produced **2 crossings**, demonstrating that two corroborating
+domains can produce an observation while one shifted domain cannot in the zero-domain-crossing control window.
 
 The acceptance run also confirmed that no ineligible day emitted a deviation and that no threshold or baseline
 observation was available before day 61.

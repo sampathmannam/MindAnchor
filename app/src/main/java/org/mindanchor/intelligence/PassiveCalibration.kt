@@ -12,6 +12,8 @@ data class CalibrationResult(
 )
 
 object PassiveScorer {
+    const val MIN_CORROBORATING_DOMAINS = 2
+
     fun score(day: PassiveDay, baseline: PassiveBaseline): DayScore? {
         if (!day.dataStatus.canEstimate || day.baselineSegment != baseline.segment) return null
         val evidence = baseline.features.values.mapNotNull { reference ->
@@ -30,8 +32,9 @@ object PassiveScorer {
         val domains = evidence.groupBy { requireNotNull(it.feature.domain) }.map { (domain, features) ->
             DomainEvidence(domain, features.maxOf { abs(it.zScore) }, features.sortedBy { it.feature.name })
         }.sortedBy { it.domain.name }
-        if (domains.size < 2) return null
-        return DayScore(domains.maxOf { it.score }, domains)
+        if (domains.size < MIN_CORROBORATING_DOMAINS) return null
+        val corroboratedScore = domains.map { it.score }.sortedDescending()[MIN_CORROBORATING_DOMAINS - 1]
+        return DayScore(corroboratedScore, domains)
     }
 }
 
@@ -46,13 +49,23 @@ object BlockThresholdCalibrator {
         if (scores.size < CALIBRATION_DAYS || scores.any { !it.isFinite() }) return null
         val random = Random(seed)
         val samples = List(SIMULATIONS) { circularBlockSample(scores, random) }
-        val candidates = scores.distinct().sortedDescending()
+        val expectedEpisodes = scores.distinct().associateWith { candidate ->
+            expectedEpisodeCount(samples, candidate)
+        }
+        val threshold = selectConnectedSafeThreshold(expectedEpisodes)
+        return CalibrationResult(threshold, expectedEpisodes.getValue(threshold), SIMULATIONS)
+    }
+
+    internal fun selectConnectedSafeThreshold(expectedEpisodes: Map<Double, Double>): Double {
+        require(expectedEpisodes.isNotEmpty())
+        val candidates = expectedEpisodes.keys.sortedDescending()
         var threshold = candidates.first()
+        require(expectedEpisodes.getValue(threshold) <= TARGET_EPISODES_PER_30)
         for (candidate in candidates.drop(1)) {
-            if (expectedEpisodeCount(samples, candidate) > TARGET_EPISODES_PER_30) break
+            if (expectedEpisodes.getValue(candidate) > TARGET_EPISODES_PER_30) break
             threshold = candidate
         }
-        return CalibrationResult(threshold, expectedEpisodeCount(samples, threshold), SIMULATIONS)
+        return threshold
     }
 
     fun episodeCount(scores: List<Double>, threshold: Double): Int {

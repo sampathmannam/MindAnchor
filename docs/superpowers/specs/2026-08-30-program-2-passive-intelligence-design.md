@@ -85,11 +85,11 @@ The first observation baseline requires at least 60 valid, final, non-exercise d
 
 For each feature, the center is the median. Dispersion is scaled MAD (`1.4826 * MAD`). When MAD is zero, the implementation may use a predeclared IQR scale (`IQR / 1.349`); if that is also zero, that feature has no score. No arbitrary epsilon is inserted.
 
-Features are grouped into physiology, sleep, activity, and routine domains. A domain score is computed only from eligible constituent features and retains the signed feature evidence. The observation detector uses the maximum eligible domain magnitude, so the explanation can name exactly what crossed its calibrated boundary.
+Features are grouped into physiology, sleep, activity, and routine domains. A domain score is computed only from eligible constituent features and retains the signed feature evidence. At least two eligible domains are required. The observation detector uses the second-largest eligible domain magnitude, so a crossing requires corroboration from two domains while the explanation can name every domain that crossed its calibrated boundary.
 
 ## 6. Threshold calibration and episodes
 
-There is no universal “anxiety threshold.” The initial detector calibrates its observation boundary from contiguous blocks of the person's own historical domain scores. Seven-day circular block resampling preserves weekly rhythm and short-term autocorrelation. The declared engineering budget is no more than one observation episode per 30 valid days in the calibration sample; it is not a clinical constant.
+There is no universal “anxiety threshold.” The initial detector calibrates its observation boundary from contiguous blocks of the person's own historical corroborated day scores. Seven-day circular block resampling preserves weekly rhythm and short-term autocorrelation. Candidate thresholds are traversed downward from the maximum, which is guaranteed safe under strict crossings, and calibration selects the last budget-compliant candidate before the first violation. Refractory grouping makes episode count non-monotonic, so disconnected lower-threshold safe islands created by dense crossings are rejected rather than mistaken for low burden. The declared engineering budget is no more than one observation episode per 30 valid days in the calibration sample; it is not a clinical constant.
 
 A first crossing is `TRANSIENT_DEVIATION`. Two crossings among three eligible days are `SUSTAINED_DEVIATION`. Adjacent crossings within 48 hours belong to the same episode. Return to `WITHIN_PERSON_RANGE` requires two consecutive eligible in-range days.
 

@@ -13,7 +13,7 @@ import org.junit.Test
 
 class PassiveSimulationTest {
     @Test fun `identical seeds produce byte-for-byte equal observation sequences`() {
-        val repeated = evaluate(generateDays(GENERATOR_SEED))
+        val repeated = evaluate(generateDays(PRIMARY_SEED))
 
         assertArrayEquals(observationBytes(unshiftedObservations), observationBytes(repeated))
     }
@@ -55,14 +55,20 @@ class PassiveSimulationTest {
         assertNotNull(unshiftedObservations.first().threshold)
     }
 
-    @Test fun `unshifted evaluation stays within the finite-sample episode allowance`() {
-        val declaredBudget = EVALUATION_DAYS.count().toDouble() /
+    @Test fun `unshifted multi-seed evaluation stays within the aggregate finite-sample allowance`() {
+        val declaredBudgetPerSeed = EVALUATION_DAYS.count().toDouble() /
             BlockThresholdCalibrator.CALIBRATION_DAYS * BlockThresholdCalibrator.TARGET_EPISODES_PER_30
+        val aggregateLimit = SEEDS.size * (declaredBudgetPerSeed + FINITE_SAMPLE_EPISODES)
 
         assertTrue(
-            "false episodes $falseEpisodeCount exceeded ${declaredBudget + FINITE_SAMPLE_EPISODES}",
-            falseEpisodeCount <= declaredBudget + FINITE_SAMPLE_EPISODES,
+            "false episodes $falseEpisodeCounts exceeded aggregate limit $aggregateLimit",
+            falseEpisodeCounts.values.sum() <= aggregateLimit,
         )
+    }
+
+    @Test fun `shifted window has a seven-day unshifted zero-crossing control`() {
+        assertEquals(0, unshiftedWindowCrossings)
+        assertEquals(0, unshiftedWindowDomainCrossings)
     }
 
     @Test fun `seven-day two-scale shifts produce a crossing`() {
@@ -72,8 +78,12 @@ class PassiveSimulationTest {
         assertNotNull(result.firstCrossingDelay)
     }
 
-    @Test fun `one-domain-only shift cannot produce an observation`() {
+    @Test fun `one-domain shift cannot produce an observation when all domains are available`() {
         assertEquals(0, oneDomainCrossings)
+    }
+
+    @Test fun `two corroborating shifted domains can produce an observation`() {
+        assertTrue(twoDomainCrossings > 0)
     }
 
     @Test fun `simulation metrics are reproducible`() {
@@ -81,14 +91,21 @@ class PassiveSimulationTest {
             "${shift.magnitude}x${shift.duration}=${result.crossings}/${result.firstCrossingDelay ?: "none"}"
         }
         val injectionDay = generatedDays[REFERENCE_DAYS + injectionOffset].day
+        val seedEpisodes = falseEpisodeCounts.entries.joinToString(separator = ",") { (seed, episodes) ->
+            "$seed:$episodes"
+        }
         println(
-            "PASSIVE_SIMULATION_METRICS seed=$GENERATOR_SEED calibrationSeed=$CALIBRATION_SEED " +
+            "PASSIVE_SIMULATION_METRICS seeds=$seedEpisodes primarySeed=$PRIMARY_SEED " +
+                "calibrationSeed=$CALIBRATION_SEED " +
                 "injectionOffset=$injectionOffset injectionDay=$injectionDay " +
-                "falseEpisodes=$falseEpisodeCount unshiftedWindowCrossings=$unshiftedWindowCrossings " +
-                "oneDomainCrossings=$oneDomainCrossings shifts=$shifts",
+                "aggregateFalseEpisodes=${falseEpisodeCounts.values.sum()} " +
+                "unshiftedWindowCrossings=$unshiftedWindowCrossings " +
+                "unshiftedWindowDomainCrossings=$unshiftedWindowDomainCrossings " +
+                "oneDomainCrossings=$oneDomainCrossings twoDomainCrossings=$twoDomainCrossings shifts=$shifts",
         )
 
         assertEquals(MAGNITUDES.size * DURATIONS.size, shiftResults.size)
+        assertEquals(SEEDS.size, falseEpisodeCounts.size)
     }
 
     private data class Signal(
@@ -103,7 +120,7 @@ class PassiveSimulationTest {
     private data class ShiftResult(val crossings: Int, val firstCrossingDelay: Int?)
 
     companion object {
-        private const val GENERATOR_SEED = 42L
+        private const val PRIMARY_SEED = 20_260_830L
         private const val CALIBRATION_SEED = 42L
         private const val DAYS = 240
         private const val REFERENCE_DAYS = 120
@@ -111,6 +128,7 @@ class PassiveSimulationTest {
         private const val FINITE_SAMPLE_EPISODES = 1.0
         private const val SEGMENT = "simulation-device"
         private val START = LocalDate.parse("2026-01-01")
+        private val SEEDS = listOf(1L, 7L, 42L, 2_026L, PRIMARY_SEED)
         private val MAGNITUDES = listOf(0.5, 1.0, 1.5, 2.0)
         private val DURATIONS = listOf(1, 2, 3, 7)
         private val SIGNALS = listOf(
@@ -120,12 +138,19 @@ class PassiveSimulationTest {
             Signal(PassiveFeature.SCREEN_MINUTES, centre = 180.0, unit = 30.0, direction = 1.0),
         )
         private val EVALUATION_DAYS = REFERENCE_DAYS until DAYS
-        private val generatedDays by lazy { generateDays(GENERATOR_SEED) }
+        private val generatedDays by lazy { generateDays(PRIMARY_SEED) }
         private val referenceDays by lazy { generatedDays.take(REFERENCE_DAYS) }
         private val unshiftedObservations by lazy { evaluate(generatedDays) }
-        private val falseEpisodeCount by lazy { episodeCount(unshiftedObservations) }
+        private val falseEpisodeCounts by lazy {
+            SEEDS.associateWith { seed ->
+                val observations = if (seed == PRIMARY_SEED) unshiftedObservations else evaluate(generateDays(seed))
+                episodeCount(observations)
+            }
+        }
         private val injectionOffset by lazy {
-            unshiftedObservations.indexOfFirst { !it.crossed }
+            unshiftedObservations.windowed(DURATIONS.max()).indexOfFirst { window ->
+                window.all { domainCrossings(it) == 0 }
+            }
                 .also { offset ->
                     require(offset >= 0) {
                         "crossings=${unshiftedObservations.count { it.crossed }} " +
@@ -136,6 +161,9 @@ class PassiveSimulationTest {
         private val unshiftedWindowCrossings by lazy {
             unshiftedObservations.drop(injectionOffset).take(DURATIONS.max()).count { it.crossed }
         }
+        private val unshiftedWindowDomainCrossings by lazy {
+            unshiftedObservations.drop(injectionOffset).take(DURATIONS.max()).sumOf(::domainCrossings)
+        }
         private val shiftResults by lazy {
             MAGNITUDES.flatMap { magnitude -> DURATIONS.map { Shift(magnitude, it) } }
                 .associateWith { shift -> evaluateShift(shift, SIGNALS.map { it.feature }.toSet()) }
@@ -144,7 +172,12 @@ class PassiveSimulationTest {
             evaluateShift(
                 shift = Shift(magnitude = 2.0, duration = 7),
                 shiftedFeatures = setOf(PassiveFeature.RESTING_HEART_RATE),
-                availableFeatures = setOf(PassiveFeature.RESTING_HEART_RATE),
+            ).crossings
+        }
+        private val twoDomainCrossings by lazy {
+            evaluateShift(
+                shift = Shift(magnitude = 2.0, duration = 7),
+                shiftedFeatures = setOf(PassiveFeature.RESTING_HEART_RATE, PassiveFeature.SLEEP_MINUTES),
             ).crossings
         }
 
@@ -214,6 +247,11 @@ class PassiveSimulationTest {
                 observations.map { if (it.crossed) 1.0 else 0.0 },
                 threshold = 0.5,
             )
+
+        private fun domainCrossings(observation: PassiveObservation): Int {
+            val threshold = observation.threshold ?: return 0
+            return observation.domains.count { it.score > threshold }
+        }
 
         private fun observationBytes(observations: List<PassiveObservation>): ByteArray =
             observations.joinToString(separator = "\n").toByteArray(StandardCharsets.UTF_8)

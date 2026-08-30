@@ -1,7 +1,7 @@
 package org.mindanchor.intelligence
 
 object PassiveEstimator {
-    const val RULE_VERSION = "passive-observation-rules-v1"
+    const val RULE_VERSION = "passive-observation-rules-v2"
 
     @Suppress("ReturnCount")
     fun observe(
@@ -32,7 +32,9 @@ object PassiveEstimator {
                 asOfTime,
                 baseline.referenceDays,
             )
-        val crossed = current.score > calibration.threshold
+        val crossingDomains = current.domains.count { it.score > calibration.threshold }
+        val crossed = current.score > calibration.threshold &&
+            crossingDomains >= PassiveScorer.MIN_CORROBORATING_DOMAINS
         val previousEligible = prior.filter { it.dataStatus.canEstimate }
             .sortedByDescending { it.day }
             .take(2)

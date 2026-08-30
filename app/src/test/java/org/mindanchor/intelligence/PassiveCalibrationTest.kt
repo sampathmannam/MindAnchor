@@ -27,12 +27,57 @@ class PassiveCalibrationTest {
         assertNull(PassiveScorer.score(day, baseline))
     }
 
+    @Test fun `day score is the second strongest domain magnitude`() {
+        val baseline = PassiveBaseline(
+            "a",
+            60,
+            mapOf(
+                PassiveFeature.RESTING_HEART_RATE to FeatureBaseline(
+                    PassiveFeature.RESTING_HEART_RATE, 60.0, 5.0, 60, false,
+                ),
+                PassiveFeature.SLEEP_MINUTES to FeatureBaseline(
+                    PassiveFeature.SLEEP_MINUTES, 420.0, 20.0, 60, false,
+                ),
+                PassiveFeature.STEPS to FeatureBaseline(PassiveFeature.STEPS, 5_000.0, 500.0, 60, false),
+            ),
+        )
+        val day = PassiveDay(
+            LocalDate.parse("2026-08-30"),
+            PassiveDataStatus.AVAILABLE_FINAL,
+            mapOf(
+                PassiveFeature.RESTING_HEART_RATE to 100.0,
+                PassiveFeature.SLEEP_MINUTES to 480.0,
+                PassiveFeature.STEPS to 5_500.0,
+            ),
+            baselineSegment = "a",
+        )
+
+        val score = PassiveScorer.score(day, baseline)!!
+
+        assertEquals(3.0, score.score, 0.0)
+        assertEquals(3, score.domains.size)
+    }
+
     @Test fun `calibration is deterministic and respects the episode budget`() {
         val scores = List(60) { i -> 0.5 + (i % 10) * 0.1 }
         val first = BlockThresholdCalibrator.calibrate(scores, seed = 42L)!!
         val second = BlockThresholdCalibrator.calibrate(scores, seed = 42L)!!
         assertEquals(first, second)
         assertTrue(first.expectedEpisodesPer30 <= 1.0)
+    }
+
+    @Test fun `connected safe threshold stops before a violation and rejects a lower safe island`() {
+        val expectedEpisodes = mapOf(
+            5.0 to 0.0,
+            4.0 to 0.75,
+            3.0 to 1.25,
+            2.0 to 0.8,
+            1.0 to 0.2,
+        )
+
+        val threshold = BlockThresholdCalibrator.selectConnectedSafeThreshold(expectedEpisodes)
+
+        assertEquals(4.0, threshold, 0.0)
     }
 
     @Test fun `nearby crossings form one episode`() {
