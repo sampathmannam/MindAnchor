@@ -14,12 +14,13 @@ import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mindanchor.data.db.AnchorDatabase
+import org.mindanchor.data.db.PassiveBaselineSegmentEntity
 import org.mindanchor.data.db.withResearchImmutability
+import org.mindanchor.research.TransformationRegistry
 
 @RunWith(AndroidJUnit4::class)
 @Suppress("LargeClass", "LongMethod")
@@ -71,32 +72,239 @@ class PassivePipelineAcceptanceTest {
             val revisions = dao.dailyRevisionsNow().groupBy { it.localDate }.values.maxBy { it.size }
             assertTrue(revisions.any { it.revisionReason == "BACKFILL" })
             assertTrue(revisions.any { it.dataStatus == "AVAILABLE_FINAL" })
-            assertTrue(dao.observationDecisionsNow().groupBy { it.localDate }.values.any { it.size >= 2 })
+            val decisions = dao.observationDecisionsNow()
+            val backfillDecisions = decisions.filter { it.localDate == "2026-08-27" }
+            assertEquals(listOf("INITIAL", "BACKFILL"), backfillDecisions.map { it.revisionReason })
+            assertEquals(
+                listOf(firstNow, firstNow + 54L * HOUR_MILLIS),
+                backfillDecisions.map { it.asOfTime },
+            )
+            assertEquals(
+                listOf("BASELINE_BUILDING", "BASELINE_BUILDING"),
+                backfillDecisions.map { it.dataStatus },
+            )
+            val finalityDecisions = decisions.filter { it.localDate == "2026-08-29" }
+            assertEquals(listOf("INITIAL", "FINALITY"), finalityDecisions.map { it.revisionReason })
+            assertEquals(
+                listOf(firstNow, firstNow + 54L * HOUR_MILLIS),
+                finalityDecisions.map { it.asOfTime },
+            )
+            assertEquals(
+                listOf("AVAILABLE_PROVISIONAL", "BASELINE_BUILDING"),
+                finalityDecisions.map { it.dataStatus },
+            )
 
             val beforeNoOp = dao.dailyRevisionsNow().size
             repository.run(firstNow + 60L * HOUR_MILLIS, zone)
             assertEquals(beforeNoOp, dao.dailyRevisionsNow().size)
 
-            val windowCount = dao.windowRevisionsNow().size
-            val dailyCount = dao.dailyRevisionsNow().size
-            val decisionCount = dao.observationDecisionsNow().size
-            val runCount = dao.pipelineRunsNow().size
+            val provenanceBeforePrune = dao.rawProvenanceNow()
+            val readsBeforePrune = dao.sourceReadsNow()
+            val lagsBeforePrune = dao.sourceLagsNow()
+            val segmentsBeforePrune = dao.baselineSegmentsNow()
+            val runsBeforePrune = dao.pipelineRunsNow()
+            val windowsBeforePrune = dao.windowRevisionsNow()
+            val daysBeforePrune = dao.dailyRevisionsNow()
+            val decisionsBeforePrune = dao.observationDecisionsNow()
             dao.pruneRawSamples(firstNow + 60L * HOUR_MILLIS - PassivePipelineWorker.RAW_RETENTION_MILLIS)
             assertTrue(dao.rawRecords(0L, firstNow).isEmpty())
-            assertTrue(dao.rawProvenanceNow().isNotEmpty())
-            assertEquals(windowCount, dao.windowRevisionsNow().size)
-            assertEquals(dailyCount, dao.dailyRevisionsNow().size)
-            assertEquals(decisionCount, dao.observationDecisionsNow().size)
-            assertEquals(runCount, dao.pipelineRunsNow().size)
-            assertTrue(dao.dailyRevisionsNow().any { it.revisionReason == "INITIAL" })
-            assertTrue(dao.dailyRevisionsNow().any { it.revisionReason == "FINALITY" })
-            assertTrue(dao.dailyRevisionsNow().any { it.revisionReason == "BACKFILL" })
+            assertEquals(provenanceBeforePrune, dao.rawProvenanceNow())
+            assertEquals(readsBeforePrune, dao.sourceReadsNow())
+            assertEquals(lagsBeforePrune, dao.sourceLagsNow())
+            assertEquals(segmentsBeforePrune, dao.baselineSegmentsNow())
+            assertEquals(runsBeforePrune, dao.pipelineRunsNow())
+            assertEquals(windowsBeforePrune, dao.windowRevisionsNow())
+            assertEquals(daysBeforePrune, dao.dailyRevisionsNow())
+            assertEquals(decisionsBeforePrune, dao.observationDecisionsNow())
+            assertEquals(listOf("INITIAL", "BACKFILL"),
+                dao.observationDecisionsNow().filter { it.localDate == "2026-08-27" }.map { it.revisionReason })
+            assertEquals(listOf("INITIAL", "FINALITY"),
+                dao.observationDecisionsNow().filter { it.localDate == "2026-08-29" }.map { it.revisionReason })
             assertEquals(3, phaseChecks)
             assertEquals(3, refreshes)
 
             assertPureAggregationAndFinalitySemantics()
-            assertStableSegmentsAndSignedSeed()
-            assertNoInterventionDependencies()
+        } finally {
+            database.close()
+        }
+    }
+
+    @Test
+    fun sourceOutcomesArePersistedThroughRepositoryRuns() = runBlocking {
+        val database = inMemoryDatabase()
+        try {
+            val deniedUsage = OutcomeSource { range ->
+                listOf(outcome(PassiveSourceFamily.USAGE_STATS, PassiveReadState.PERMISSION_DENIED, range))
+            }
+            val successfulEmpty = OutcomeSource { range ->
+                listOf(outcome(PassiveSourceFamily.SLEEP, PassiveReadState.SUCCESS, range))
+            }
+            assertTrue(
+                repository(database, successfulEmpty, deniedUsage).run(firstNow, zone) is PassivePipelineResult.Completed,
+            )
+
+            val deniedAndUnavailable = OutcomeSource { range ->
+                listOf(
+                    outcome(PassiveSourceFamily.HRV_RMSSD, PassiveReadState.PERMISSION_DENIED, range),
+                    outcome(PassiveSourceFamily.OXYGEN_SATURATION, PassiveReadState.UNAVAILABLE, range),
+                )
+            }
+            assertTrue(
+                repository(database, deniedAndUnavailable, deniedUsage)
+                    .run(firstNow + HOUR_MILLIS, zone) is PassivePipelineResult.Completed,
+            )
+
+            val permanent = OutcomeSource { range ->
+                listOf(outcome(PassiveSourceFamily.EXERCISE, PassiveReadState.READ_FAILURE_PERMANENT, range))
+            }
+            assertTrue(
+                repository(database, permanent, deniedUsage)
+                    .run(firstNow + 2L * HOUR_MILLIS, zone) is PassivePipelineResult.Completed,
+            )
+
+            val transientSource = OutcomeSource { range ->
+                listOf(outcome(PassiveSourceFamily.HEART_RATE, PassiveReadState.READ_FAILURE_TRANSIENT, range))
+            }
+            assertTrue(
+                repository(database, transientSource, deniedUsage)
+                    .run(firstNow + 3L * HOUR_MILLIS, zone) is PassivePipelineResult.Retry,
+            )
+
+            val runs = database.passive().pipelineRunsNow()
+            assertEquals(
+                listOf("SUCCESS_PERMISSIONED", "SUCCESS_NO_PERMISSION", "SUCCESS_WITH_FAILURES", "RETRY_TRANSIENT"),
+                runs.map { it.result },
+            )
+            val reads = database.passive().sourceReadsNow()
+            val successfulRead = reads.single { it.sourceFamily == "SLEEP" }
+            assertEquals("SUCCESS", successfulRead.state)
+            assertEquals(0, successfulRead.recordCount)
+            val deniedRead = reads.first { it.sourceFamily == "HRV_RMSSD" }
+            assertEquals("PERMISSION_DENIED", deniedRead.state)
+            assertEquals("PERMISSION_DENIED", deniedRead.errorCode)
+            assertEquals("UNAVAILABLE", reads.single { it.sourceFamily == "OXYGEN_SATURATION" }.state)
+            assertEquals("READ_FAILURE_PERMANENT", reads.single { it.sourceFamily == "EXERCISE" }.state)
+            val transientRead = reads.single {
+                it.sourceFamily == "HEART_RATE"
+            }
+            assertEquals("READ_FAILURE_TRANSIENT", transientRead.state)
+            assertEquals("READ_FAILURE_TRANSIENT", transientRead.errorCode)
+            assertTrue(runs[2].sourceStatesJson.contains("READ_FAILURE_PERMANENT"))
+            assertTrue(runs.last().sourceStatesJson.contains("READ_FAILURE_TRANSIENT"))
+        } finally {
+            database.close()
+        }
+    }
+
+    @Test
+    fun repositoryPreservesAndChangesStoredSegmentsWithDeviceFingerprint() = runBlocking {
+        val database = inMemoryDatabase()
+        try {
+            val source = MutableRecordSource(
+                record(
+                    PassiveSourceFamily.STEPS,
+                    PassiveRecordKind.STEPS_INTERVAL,
+                    firstNow - 2L * HOUR_MILLIS,
+                    firstNow - HOUR_MILLIS,
+                    500.0,
+                    "band-steps",
+                ),
+            )
+            val repository = repository(database, source, EmptySuccessSource(PassiveSourceFamily.USAGE_STATS))
+
+            repository.run(firstNow, zone)
+            val original = database.passive().baselineSegmentsNow().single()
+
+            source.records = emptyList()
+            repository.run(firstNow + 6L * HOUR_MILLIS, zone)
+            assertEquals(listOf(original), database.passive().baselineSegmentsNow())
+
+            source.records = listOf(
+                record(
+                    PassiveSourceFamily.STEPS,
+                    PassiveRecordKind.STEPS_INTERVAL,
+                    firstNow + 7L * HOUR_MILLIS,
+                    firstNow + 8L * HOUR_MILLIS,
+                    750.0,
+                    "band-2-steps",
+                    deviceModel = "Band 2",
+                ),
+            )
+            repository.run(firstNow + 12L * HOUR_MILLIS, zone)
+
+            val segments = database.passive().baselineSegmentsNow()
+            assertEquals(2, segments.size)
+            assertEquals(original, segments.first())
+            assertFalse(original.id == segments.last().id)
+            val fingerprints = PassivePipelineCodec.decodeFingerprints(segments.last().fingerprintsJson)
+            assertEquals(setOf("Band", "Band 2"), fingerprints.mapNotNull { it.deviceModel }.toSet())
+        } finally {
+            database.close()
+        }
+    }
+
+    @Test
+    fun repositoryPersistsTheIndependentlyDerivedSignedCalibrationSeed() = runBlocking {
+        val database = inMemoryDatabase()
+        val utc = ZoneId.of("UTC")
+        try {
+            val target = LocalDate.parse("2026-08-27")
+            val fingerprints = setOf(PassiveSourceFamily.STEPS, PassiveSourceFamily.SLEEP).map { family ->
+                PassiveSourceFingerprint(family, "fake.health", "Maker", "Band", "WATCH")
+            }.toSet()
+            val segmentId = PassiveBaselineSegment.id(
+                fingerprints,
+                PassiveWindowAggregator.TRANSFORMATION_VERSION,
+                PassiveDailyAggregator.TRANSFORMATION_VERSION,
+            )
+            database.passive().insertBaselineSegment(
+                PassiveBaselineSegmentEntity(
+                    segmentId,
+                    target.minusDays(61L).atStartOfDay(utc).toInstant().toEpochMilli(),
+                    PassivePipelineCodec.sortedFingerprintJson(fingerprints),
+                    PassiveWindowAggregator.TRANSFORMATION_VERSION,
+                    PassiveDailyAggregator.TRANSFORMATION_VERSION,
+                ),
+            )
+            val history = (60 downTo 1).mapIndexed { index, daysBefore ->
+                val date = target.minusDays(daysBefore.toLong())
+                val ingestedAt = date.plusDays(1L).atStartOfDay(utc).toInstant().toEpochMilli() + HOUR_MILLIS
+                PassivePipelineCodec.dailyEntity(
+                    baselineAggregate(date, segmentId, ingestedAt, index),
+                    emptySet(),
+                    RevisionReason.INITIAL,
+                    ingestedAt,
+                )
+            }
+            database.passive().insertDailyRevisions(history)
+            val dayStart = target.atStartOfDay(utc).toInstant().toEpochMilli()
+            val targetRecords = listOf(
+                record(PassiveSourceFamily.STEPS, PassiveRecordKind.STEPS_INTERVAL,
+                    dayStart + 8L * HOUR_MILLIS, dayStart + 9L * HOUR_MILLIS,
+                    8_000.0, "seed-steps", zoneOverride = utc),
+                record(PassiveSourceFamily.SLEEP, PassiveRecordKind.SLEEP_SESSION,
+                    dayStart - 8L * HOUR_MILLIS, dayStart + 7L * HOUR_MILLIS,
+                    null, "seed-sleep", zoneOverride = utc),
+            )
+            val source = OutcomeSource { range ->
+                targetRecords.groupBy { it.sourceFamily }.map { (family, records) ->
+                    PassiveSourceRead(family, PassiveReadState.SUCCESS, range, range.endExclusive, records)
+                }
+            }
+
+            repository(database, source, EmptySuccessSource(PassiveSourceFamily.USAGE_STATS))
+                .run(firstNow, utc)
+
+            val decision = database.passive().observationDecisionsNow().single { it.localDate == target.toString() }
+            val frozenAsOf = history.maxOf { it.ingestedAt }
+            val calibrationVersion = requireNotNull(TransformationRegistry.versionOf("passive-block-calibration"))
+            val expected = ByteBuffer.wrap(
+                MessageDigest.getInstance("SHA-256")
+                    .digest("$segmentId|$frozenAsOf|$calibrationVersion".encodeToByteArray()),
+            ).long
+            assertEquals(expected, decision.calibrationSeed)
+            assertEquals(expected, PassivePipelineCodec.decisionToDomain(decision).calibration?.seed)
+            assertEquals(60, PassivePipelineCodec.decisionToDomain(decision).baselineDays)
         } finally {
             database.close()
         }
@@ -136,20 +344,6 @@ class PassivePipelineAcceptanceTest {
     }
 
     private fun assertPureAggregationAndFinalitySemantics() {
-        val range = PassiveReadRange(1L, 2L, "UTC")
-        val empty = PassiveSourceRead(PassiveSourceFamily.SLEEP, PassiveReadState.SUCCESS, range, 2L)
-        assertTrue(empty.records.isEmpty())
-        listOf(
-            PassiveReadState.PERMISSION_DENIED,
-            PassiveReadState.UNAVAILABLE,
-            PassiveReadState.READ_FAILURE_TRANSIENT,
-            PassiveReadState.READ_FAILURE_PERMANENT,
-        ).forEach { state ->
-            val outcome = PassiveSourceRead(PassiveSourceFamily.SLEEP, state, range, 2L, errorCode = state.name)
-            assertEquals(state, outcome.state)
-            assertTrue(outcome.records.isEmpty())
-        }
-
         val target = LocalDate.parse("2026-08-29")
         val sleep = initialHealthRecords().single { it.recordId == "target-sleep" }
         val wrongDay = PassiveDailyAggregator.aggregate(
@@ -211,12 +405,6 @@ class PassivePipelineAcceptanceTest {
         assertEquals(120.0, clipped.passiveDay.features[PassiveFeature.STEPS]!!, 0.0)
         assertEquals(60.0, clipped.passiveDay.features[PassiveFeature.ACTIVE_MINUTES]!!, 0.0)
 
-        val usage = usageRecords()
-        val successfulRoutine = dailyWithUsage(target, usage, PassiveReadState.SUCCESS)
-        val deniedRoutine = dailyWithUsage(target, usage, PassiveReadState.PERMISSION_DENIED)
-        assertTrue(successfulRoutine.passiveDay.features.keys.any { it.domain == PassiveDomain.ROUTINE })
-        assertFalse(deniedRoutine.passiveDay.features.keys.any { it.domain == PassiveDomain.ROUTINE })
-
         val stepOnly = PassiveDailyAggregator.aggregate(
             target,
             zone,
@@ -254,88 +442,6 @@ class PassivePipelineAcceptanceTest {
         )
         assertEquals(PassiveFinality.MIN_LAG_MILLIS, clamped.perSourceLagMillis[PassiveSourceFamily.STEPS])
         assertEquals(PassiveFinality.MAX_LAG_MILLIS, clamped.perSourceLagMillis[PassiveSourceFamily.EXERCISE])
-    }
-
-    private fun assertStableSegmentsAndSignedSeed() {
-        val original = PassiveSourceFingerprint(
-            PassiveSourceFamily.SLEEP,
-            "fake.health",
-            "Maker",
-            "Band",
-            "WATCH",
-        )
-        val configured = setOf(original)
-        val existingId = PassiveBaselineSegment.id(
-            configured,
-            PassiveWindowAggregator.TRANSFORMATION_VERSION,
-            PassiveDailyAggregator.TRANSFORMATION_VERSION,
-        )
-        assertEquals(
-            existingId,
-            PassiveBaselineSegment.id(
-                configured + emptySet(),
-                PassiveWindowAggregator.TRANSFORMATION_VERSION,
-                PassiveDailyAggregator.TRANSFORMATION_VERSION,
-            ),
-        )
-        assertNotEquals(
-            existingId,
-            PassiveBaselineSegment.id(
-                configured + original.copy(deviceModel = "Band 2"),
-                PassiveWindowAggregator.TRANSFORMATION_VERSION,
-                PassiveDailyAggregator.TRANSFORMATION_VERSION,
-            ),
-        )
-
-        val material = "$existingId|1234|block-calibration-v3"
-        val expected = ByteBuffer.wrap(MessageDigest.getInstance("SHA-256").digest(material.encodeToByteArray())).long
-        assertEquals(expected, PassivePipelineCodec.calibrationSeed(existingId, 1234L, "block-calibration-v3"))
-    }
-
-    private fun assertNoInterventionDependencies() {
-        val exposedTypes = listOf(
-            PassivePipelineRepository::class.java,
-            PassivePipelineWorker::class.java,
-            PassivePipelineScheduler::class.java,
-        ).flatMap { type ->
-            type.declaredFields.map { it.type.name } +
-                type.declaredMethods.flatMap { method ->
-                    method.parameterTypes.map { it.name } + method.returnType.name
-                } + type.declaredConstructors.flatMap { constructor ->
-                    constructor.parameterTypes.map { it.name }
-                }
-        }
-        listOf("notification", "launcher", "appblock", "anchorcore", "intervention").forEach { forbidden ->
-            assertTrue("passive pipeline exposes forbidden dependency $forbidden: $exposedTypes", exposedTypes.none {
-                it.contains(forbidden, ignoreCase = true)
-            })
-        }
-    }
-
-    private fun dailyWithUsage(
-        day: LocalDate,
-        records: List<PassiveSourceRecord>,
-        state: PassiveReadState,
-    ): PassiveDailyAggregate {
-        val dayStart = day.atStartOfDay(zone).toInstant().toEpochMilli()
-        val read = PassiveSourceRead(
-            PassiveSourceFamily.USAGE_STATS,
-            state,
-            PassiveReadRange(dayStart - DAY_MILLIS, firstNow, zone.id),
-            firstNow,
-            records = records.takeIf { state == PassiveReadState.SUCCESS }.orEmpty(),
-            errorCode = state.name.takeUnless { state == PassiveReadState.SUCCESS },
-        )
-        return PassiveDailyAggregator.aggregate(
-            day,
-            zone,
-            emptyList(),
-            records,
-            listOf(read),
-            "segment",
-            firstNow,
-            PassiveFinalityDecision(firstNow, true, emptyMap()),
-        )
     }
 
     private fun initialHealthRecords(): List<PassiveSourceRecord> {
@@ -436,6 +542,94 @@ class PassivePipelineAcceptanceTest {
     private fun at(day: LocalDate, hour: Int, minute: Int): Long =
         day.atTime(LocalTime.of(hour, minute)).atZone(zone).toInstant().toEpochMilli()
 
+    private fun baselineAggregate(
+        date: LocalDate,
+        segment: String,
+        ingestedAt: Long,
+        index: Int,
+    ) = PassiveDailyAggregate(
+        passiveDay = PassiveDay(
+            date,
+            PassiveDataStatus.AVAILABLE_FINAL,
+            mapOf(
+                PassiveFeature.STEPS to 5_000.0 + index * 25.0,
+                PassiveFeature.SLEEP_MINUTES to 420.0 + (index % 7) * 5.0,
+            ),
+            baselineSegment = segment,
+            sourceUpdatedTime = ingestedAt,
+            ingestedAt = ingestedAt,
+        ),
+        windows = emptyList(),
+        readStates = mapOf(
+            PassiveSourceFamily.STEPS to PassiveReadState.SUCCESS,
+            PassiveSourceFamily.SLEEP to PassiveReadState.SUCCESS,
+        ),
+        coverageByFeature = mapOf(PassiveFeature.STEPS to 1.0, PassiveFeature.SLEEP_MINUTES to 1.0),
+        missingFeatures = PassiveFeature.entries.filter {
+            it != PassiveFeature.STEPS && it != PassiveFeature.SLEEP_MINUTES
+        }.toSet(),
+        exclusions = emptyMap(),
+        finality = PassiveFinalityDecision(ingestedAt, true, emptyMap()),
+        sourceLags = emptyList(),
+    )
+
+    private fun inMemoryDatabase(): AnchorDatabase = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java)
+        .withResearchImmutability()
+        .build()
+
+    private fun repository(
+        database: AnchorDatabase,
+        health: PassiveRecordSource,
+        usage: PassiveRecordSource,
+    ) = PassivePipelineRepository(
+        database = database,
+        healthSource = health,
+        usageSource = usage,
+        historyPermissionGranted = { true },
+        ensureCurrentPhase = {},
+        refreshProvenanceAfterCommit = {},
+    )
+
+    private fun outcome(
+        family: PassiveSourceFamily,
+        state: PassiveReadState,
+        range: PassiveReadRange,
+    ) = PassiveSourceRead(
+        sourceFamily = family,
+        state = state,
+        range = range,
+        attemptedAt = range.endExclusive,
+        errorCode = state.name.takeUnless { state == PassiveReadState.SUCCESS },
+    )
+
+    private class OutcomeSource(
+        private val reads: (PassiveReadRange) -> List<PassiveSourceRead>,
+    ) : PassiveRecordSource {
+        override suspend fun read(range: PassiveReadRange): List<PassiveSourceRead> = reads(range)
+    }
+
+    private class EmptySuccessSource(
+        private val family: PassiveSourceFamily,
+    ) : PassiveRecordSource {
+        override suspend fun read(range: PassiveReadRange): List<PassiveSourceRead> = listOf(
+            PassiveSourceRead(family, PassiveReadState.SUCCESS, range, range.endExclusive),
+        )
+    }
+
+    private class MutableRecordSource(vararg initial: PassiveSourceRecord) : PassiveRecordSource {
+        var records: List<PassiveSourceRecord> = initial.toList()
+
+        override suspend fun read(range: PassiveReadRange): List<PassiveSourceRead> = listOf(
+            PassiveSourceRead(
+                PassiveSourceFamily.STEPS,
+                PassiveReadState.SUCCESS,
+                range,
+                range.endExclusive,
+                records.filter { it.eventStart < range.endExclusive && it.eventEnd > range.startInclusive },
+            ),
+        )
+    }
+
     private inner class FakeHealthSource(initial: List<PassiveSourceRecord>) : PassiveRecordSource {
         private val records = initial.toMutableList()
         val requestedLocalDayCounts = mutableListOf<Int>()
@@ -485,6 +679,5 @@ class PassivePipelineAcceptanceTest {
 
     private companion object {
         const val HOUR_MILLIS = 60L * 60L * 1_000L
-        const val DAY_MILLIS = 24L * HOUR_MILLIS
     }
 }

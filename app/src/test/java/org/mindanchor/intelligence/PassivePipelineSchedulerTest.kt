@@ -70,6 +70,64 @@ class PassivePipelineSchedulerTest {
         assertFalse(home.contains(".run(System.currentTimeMillis()"))
     }
 
+    @Test
+    fun `passive pipeline source has no intervention or restriction dependencies`() {
+        val source = listOf(
+            "PassivePipelineRepository.kt",
+            "PassivePipelineWorker.kt",
+            "PassivePipelineScheduler.kt",
+        ).joinToString("\n") { name ->
+            moduleFile("src/main/java/org/mindanchor/intelligence/$name").readText()
+        }
+
+        assertPassiveOnlyBoundary(source)
+    }
+
+    @Test
+    fun `passive boundary detector catches forbidden method body calls`() {
+        val forbiddenMethodBody = """
+            fun run(context: Context) {
+                AnchorCoreSource(context).state()
+                NotificationManager.from(context).notify(7, notification)
+                LauncherViewModel(context).restrictLaunches()
+                AppWatchService.start(context)
+                GoingLightVpnService.start(context)
+            }
+        """.trimIndent()
+
+        var rejected = false
+        try {
+            assertPassiveOnlyBoundary(forbiddenMethodBody)
+        } catch (_: AssertionError) {
+            rejected = true
+        }
+        assertTrue("detector accepted forbidden method-body dependencies", rejected)
+    }
+
+    private fun assertPassiveOnlyBoundary(source: String) {
+        val forbidden = listOf(
+            "org.mindanchor.notifications",
+            "org.mindanchor.launcher",
+            "org.mindanchor.anchorcore",
+            "AnchorCoreSource",
+            "NotificationManager",
+            "NotificationCompat",
+            "cancelNotification(",
+            "LauncherViewModel",
+            "AppWatchService",
+            "GoingLightVpnService",
+            "FrictionPrefs",
+            "blockApp(",
+            "heldNotifications(",
+        )
+        forbidden.forEach { dependency ->
+            assertFalse(
+                "passive pipeline source must not reference $dependency",
+                source.contains(dependency, ignoreCase = true),
+            )
+        }
+    }
+
     private fun moduleFile(relativePath: String): File = File(relativePath).takeIf(File::exists)
         ?: File("app/$relativePath")
 }
