@@ -11,6 +11,7 @@ import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+@Suppress("LargeClass")
 class PassiveAggregationTest {
     @Test fun `windows are UTC quarter hours and exercise removes only physiology`() {
         val zone = ZoneId.of("Asia/Kolkata")
@@ -378,6 +379,93 @@ class PassiveAggregationTest {
             daily(day, zone, listOf(steps), emptyList(), asOf).passiveDay.dataStatus)
     }
 
+    @Test fun `adjacent day windows cannot contaminate a target local day`() {
+        val zone = ZoneId.of("Asia/Kolkata")
+        val day = LocalDate.parse("2026-08-30")
+        val dayEnd = day.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val steps = record(
+            PassiveSourceFamily.STEPS,
+            PassiveRecordKind.STEPS_INTERVAL,
+            dayEnd - PassiveWindowAggregator.WINDOW_MILLIS,
+            10.0,
+            "steps",
+            dayEnd,
+        )
+        val adjacentWindows = listOf(
+            featureWindow(
+                start = dayEnd,
+                features = listOf(
+                    PassiveWindowFeature(
+                        PassiveFeature.RESTING_HEART_RATE, 60.0, "bpm", 1.0, true, null,
+                    ),
+                ),
+            ),
+            featureWindow(
+                start = dayEnd + PassiveWindowAggregator.WINDOW_MILLIS,
+                exerciseMillis = 60_000L,
+                features = listOf(
+                    PassiveWindowFeature(
+                        PassiveFeature.HRV_RMSSD,
+                        40.0,
+                        "ms",
+                        1.0,
+                        false,
+                        "EXERCISE_OVERLAP",
+                    ),
+                ),
+            ),
+        )
+
+        val aggregate = daily(day, zone, listOf(steps), emptyList(), dayEnd, adjacentWindows)
+
+        assertTrue(aggregate.windows.isEmpty())
+        assertFalse(aggregate.passiveDay.features.containsKey(PassiveFeature.RESTING_HEART_RATE))
+        assertFalse(aggregate.coverageByFeature.containsKey(PassiveFeature.RESTING_HEART_RATE))
+        assertFalse(aggregate.coverageByFeature.containsKey(PassiveFeature.HRV_RMSSD))
+        assertFalse(aggregate.exclusions.containsKey(PassiveFeature.HRV_RMSSD))
+        assertTrue(PassiveFeature.RESTING_HEART_RATE in aggregate.missingFeatures)
+        assertTrue(PassiveFeature.HRV_RMSSD in aggregate.missingFeatures)
+        assertEquals(PassiveDataStatus.INSUFFICIENT_DATA, aggregate.passiveDay.dataStatus)
+    }
+
+    @Test fun `exercise suppression requires restoring a second scoreable domain`() {
+        val zone = ZoneId.of("UTC")
+        val day = LocalDate.parse("2026-08-30")
+        val dayEnd = day.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val suppressedPhysiology = featureWindow(
+            start = dayEnd - PassiveWindowAggregator.WINDOW_MILLIS,
+            exerciseMillis = 60_000L,
+            features = listOf(
+                PassiveWindowFeature(
+                    PassiveFeature.RESTING_HEART_RATE,
+                    60.0,
+                    "bpm",
+                    1.0,
+                    false,
+                    "EXERCISE_OVERLAP",
+                ),
+            ),
+        )
+        val steps = record(
+            PassiveSourceFamily.STEPS,
+            PassiveRecordKind.STEPS_INTERVAL,
+            dayEnd - PassiveWindowAggregator.WINDOW_MILLIS,
+            10.0,
+            "steps",
+            dayEnd,
+        )
+
+        val oneCounterfactualDomain = daily(
+            day, zone, emptyList(), emptyList(), dayEnd, listOf(suppressedPhysiology),
+        )
+        val restoredSecondDomain = daily(
+            day, zone, listOf(steps), emptyList(), dayEnd, listOf(suppressedPhysiology),
+        )
+
+        assertEquals(PassiveDataStatus.INSUFFICIENT_DATA, oneCounterfactualDomain.passiveDay.dataStatus)
+        assertEquals(PassiveDataStatus.SUPPRESSED_EXERCISE, restoredSecondDomain.passiveDay.dataStatus)
+    }
+
     @Test fun `daily aggregate records coverage missingness and exercise exclusions`() {
         val zone = ZoneId.of("UTC")
         val day = LocalDate.parse("2026-08-30")
@@ -403,6 +491,46 @@ class PassiveAggregationTest {
         assertTrue(PassiveFeature.HRV_RMSSD in aggregate.missingFeatures)
         assertEquals("EXERCISE_OVERLAP", aggregate.exclusions[PassiveFeature.HRV_RMSSD])
         assertTrue(PassiveFeature.HRV_RMSSD in aggregate.passiveDay.excludedFeatures)
+    }
+
+    @Test fun `daily timestamps use per-record fallback and expose lag evidence`() {
+        val zone = ZoneId.of("UTC")
+        val day = LocalDate.parse("2026-08-30")
+        val dayStart = day.atStartOfDay(zone).toInstant().toEpochMilli()
+        val steps = record(
+            PassiveSourceFamily.STEPS,
+            PassiveRecordKind.STEPS_INTERVAL,
+            dayStart + 1L * 3_600_000L,
+            100.0,
+            "steps",
+            dayStart + 2L * 3_600_000L,
+        ).copy(
+            sourceUpdatedTime = dayStart + 3L * 3_600_000L,
+            ingestedAt = dayStart + 4L * 3_600_000L,
+        )
+        val exercise = record(
+            PassiveSourceFamily.EXERCISE,
+            PassiveRecordKind.EXERCISE_SESSION,
+            dayStart + 5L * 3_600_000L,
+            null,
+            "exercise",
+            dayStart + 6L * 3_600_000L,
+        ).copy(
+            sourceUpdatedTime = null,
+            ingestedAt = dayStart + 10L * 3_600_000L,
+        )
+
+        val aggregate = daily(day, zone, listOf(steps, exercise), emptyList(), exercise.ingestedAt)
+
+        assertEquals(dayStart + 10L * 3_600_000L, aggregate.passiveDay.sourceUpdatedTime)
+        assertEquals(
+            SourceLag(PassiveSourceFamily.STEPS, 3_600_000L, usedIngestedAtFallback = false),
+            aggregate.sourceLags.single { it.sourceFamily == PassiveSourceFamily.STEPS },
+        )
+        assertEquals(
+            SourceLag(PassiveSourceFamily.EXERCISE, 4L * 3_600_000L, usedIngestedAtFallback = true),
+            aggregate.sourceLags.single { it.sourceFamily == PassiveSourceFamily.EXERCISE },
+        )
     }
 
     @Test fun `nearest rank lag uses bootstrap at 29 and clamps p99 at 30`() {
@@ -433,7 +561,6 @@ class PassiveAggregationTest {
         )
         assertEquals(dayEnd + 30L * 3_600_000L, finality.watermark)
         assertFalse(finality.final)
-        assertTrue(thirty.last().usedIngestedAtFallback)
 
         val low = List(30) { SourceLag(PassiveSourceFamily.STEPS, 1L, false) }
         val high = List(30) { SourceLag(PassiveSourceFamily.EXERCISE, Long.MAX_VALUE, false) }
@@ -456,7 +583,7 @@ class PassiveAggregationTest {
             "WATCH",
         )
         val steps = PassiveSourceFingerprint(PassiveSourceFamily.STEPS, "other.app", null, null, "PHONE")
-        assertEquals("SLEEP|source.app|Maker|Model|WATCH", sleep.canonical())
+        assertEquals("5:SLEEP10:source.app5:Maker5:Model5:WATCH", sleep.canonical())
         assertEquals(
             PassiveBaselineSegment.id(setOf(sleep, steps), "passive-window-v1", "passive-daily-v1"),
             PassiveBaselineSegment.id(setOf(steps, sleep), "passive-window-v1", "passive-daily-v1"),
@@ -464,6 +591,23 @@ class PassiveAggregationTest {
         assertNotEquals(
             PassiveBaselineSegment.id(setOf(sleep), "passive-window-v1", "passive-daily-v1"),
             PassiveBaselineSegment.id(setOf(sleep.copy(deviceModel = "New")), "passive-window-v1", "passive-daily-v1"),
+        )
+        val delimiterCollisionA = sleep.copy(
+            dataOriginPackage = "source|app\nwear",
+            deviceManufacturer = "Maker",
+        )
+        val delimiterCollisionB = sleep.copy(
+            dataOriginPackage = "source",
+            deviceManufacturer = "app\nwear|Maker",
+        )
+        assertNotEquals(delimiterCollisionA.canonical(), delimiterCollisionB.canonical())
+        assertNotEquals(
+            PassiveBaselineSegment.id(
+                setOf(delimiterCollisionA), "passive-window-v1", "passive-daily-v1",
+            ),
+            PassiveBaselineSegment.id(
+                setOf(delimiterCollisionB), "passive-window-v1", "passive-daily-v1",
+            ),
         )
         assertEquals(
             -3_426_751_757_403_841_055L,
@@ -512,6 +656,73 @@ class PassiveAggregationTest {
                 attemptedAt = 2L,
                 records = listOf(record(PassiveSourceFamily.SLEEP, PassiveRecordKind.SLEEP_SESSION, 1L, null, "x")),
                 errorCode = "unavailable",
+            )
+        }
+    }
+
+    @Test fun `every source family accepts exactly its legal record kinds`() {
+        val legalKinds = mapOf(
+            PassiveSourceFamily.HEART_RATE to setOf(PassiveRecordKind.HEART_RATE_SAMPLE),
+            PassiveSourceFamily.RESTING_HEART_RATE to setOf(PassiveRecordKind.RESTING_HEART_RATE),
+            PassiveSourceFamily.HRV_RMSSD to setOf(PassiveRecordKind.HRV_RMSSD),
+            PassiveSourceFamily.SLEEP to setOf(PassiveRecordKind.SLEEP_SESSION),
+            PassiveSourceFamily.STEPS to setOf(PassiveRecordKind.STEPS_INTERVAL),
+            PassiveSourceFamily.EXERCISE to setOf(PassiveRecordKind.EXERCISE_SESSION),
+            PassiveSourceFamily.OXYGEN_SATURATION to setOf(PassiveRecordKind.SPO2),
+            PassiveSourceFamily.USAGE_STATS to setOf(
+                PassiveRecordKind.SCREEN_INTERACTIVE,
+                PassiveRecordKind.SCREEN_NON_INTERACTIVE,
+                PassiveRecordKind.SCREEN_UNLOCKED,
+            ),
+        )
+        assertEquals(PassiveSourceFamily.entries.toSet(), legalKinds.keys)
+
+        legalKinds.forEach { (family, kinds) ->
+            val records = kinds.map { kind ->
+                record(
+                    family,
+                    kind,
+                    1L,
+                    if (kind == PassiveRecordKind.STEPS_INTERVAL) 1.0 else null,
+                    kind.name,
+                    if (kind in setOf(
+                            PassiveRecordKind.SLEEP_SESSION,
+                            PassiveRecordKind.STEPS_INTERVAL,
+                            PassiveRecordKind.EXERCISE_SESSION,
+                        )
+                    ) {
+                        2L
+                    } else {
+                        1L
+                    },
+                )
+            }
+            PassiveSourceRead(
+                family,
+                PassiveReadState.SUCCESS,
+                PassiveReadRange(0L, 3L, "UTC"),
+                attemptedAt = 3L,
+                records = records,
+            )
+        }
+    }
+
+    @Test fun `source records reject a kind owned by another family`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            val mismatched = record(
+                PassiveSourceFamily.SLEEP,
+                PassiveRecordKind.STEPS_INTERVAL,
+                1L,
+                10.0,
+                "mismatch",
+                2L,
+            )
+            PassiveSourceRead(
+                PassiveSourceFamily.SLEEP,
+                PassiveReadState.SUCCESS,
+                PassiveReadRange(0L, 3L, "UTC"),
+                attemptedAt = 3L,
+                records = listOf(mismatched),
             )
         }
     }

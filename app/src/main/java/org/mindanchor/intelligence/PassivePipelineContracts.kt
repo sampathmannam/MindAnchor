@@ -3,6 +3,8 @@ package org.mindanchor.intelligence
 import java.nio.ByteBuffer
 import java.security.MessageDigest
 
+private fun canonicalPart(value: String?): String = value?.let { "${it.length}:$it" } ?: "null:"
+
 enum class PassiveSourceFamily {
     HEART_RATE,
     RESTING_HEART_RATE,
@@ -12,6 +14,23 @@ enum class PassiveSourceFamily {
     EXERCISE,
     OXYGEN_SATURATION,
     USAGE_STATS,
+
+    ;
+
+    internal fun accepts(kind: PassiveRecordKind): Boolean = when (this) {
+        HEART_RATE -> kind == PassiveRecordKind.HEART_RATE_SAMPLE
+        RESTING_HEART_RATE -> kind == PassiveRecordKind.RESTING_HEART_RATE
+        HRV_RMSSD -> kind == PassiveRecordKind.HRV_RMSSD
+        SLEEP -> kind == PassiveRecordKind.SLEEP_SESSION
+        STEPS -> kind == PassiveRecordKind.STEPS_INTERVAL
+        EXERCISE -> kind == PassiveRecordKind.EXERCISE_SESSION
+        OXYGEN_SATURATION -> kind == PassiveRecordKind.SPO2
+        USAGE_STATS -> kind in setOf(
+            PassiveRecordKind.SCREEN_INTERACTIVE,
+            PassiveRecordKind.SCREEN_NON_INTERACTIVE,
+            PassiveRecordKind.SCREEN_UNLOCKED,
+        )
+    }
 }
 
 enum class PassiveRecordKind {
@@ -64,6 +83,7 @@ data class PassiveSourceRecord(
     val recordVersion: Long,
 ) {
     init {
+        require(sourceFamily.accepts(kind))
         require(eventStart <= eventEnd)
         require(value == null || value.isFinite())
         require(unit.isNotBlank())
@@ -103,10 +123,10 @@ data class PassiveSourceFingerprint(
     fun canonical(): String = listOf(
         sourceFamily.name,
         dataOriginPackage,
-        deviceManufacturer.orEmpty(),
-        deviceModel.orEmpty(),
-        deviceType.orEmpty(),
-    ).joinToString("|")
+        deviceManufacturer,
+        deviceModel,
+        deviceType,
+    ).joinToString("") { canonicalPart(it) }
 }
 
 data class PassiveWindowQuality(
@@ -149,6 +169,7 @@ data class PassiveDailyAggregate(
     val missingFeatures: Set<PassiveFeature>,
     val exclusions: Map<PassiveFeature, String>,
     val finality: PassiveFinalityDecision,
+    val sourceLags: List<SourceLag>,
 )
 
 data class SourceLag(
@@ -173,8 +194,13 @@ object PassiveBaselineSegment {
         windowTransformationVersion: String,
         dailyTransformationVersion: String,
     ): String {
-        val canonical = configuredFingerprints.map { it.canonical() }.sorted() +
-            listOf(windowTransformationVersion, dailyTransformationVersion)
-        return PassiveSeed.sha256(canonical.joinToString("\n"))
+        val fingerprints = configuredFingerprints.map { it.canonical() }.sorted()
+        val material = buildList {
+            add(fingerprints.size.toString())
+            addAll(fingerprints)
+            add(windowTransformationVersion)
+            add(dailyTransformationVersion)
+        }.joinToString("") { canonicalPart(it) }
+        return PassiveSeed.sha256(material)
     }
 }

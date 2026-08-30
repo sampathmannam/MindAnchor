@@ -223,23 +223,15 @@ object PassiveDailyAggregator {
         finality: PassiveFinalityDecision,
     ): PassiveDailyAggregate {
         val readStates = reads.associate { it.sourceFamily to it.state }
-        val features = dailyFeatures(date, zone, windows, records, readStates, asOfTime)
-        val excluded = dailyExclusions(windows)
-        val domainCount = features.keys.filter { it.scored && it !in excluded }
-            .mapNotNull { it.domain }
-            .distinct()
-            .size
-        val exercisePreventedSecondDomain = domainCount < 2 && windows.any {
-            it.quality.exerciseOverlapMillis > 0L &&
-                it.features.any { row -> row.feature.domain == PassiveDomain.PHYSIOLOGY }
+        val dayWindows = windows.filter {
+            Instant.ofEpochMilli(it.startInclusive).atZone(zone).toLocalDate() == date
         }
-        val status = when {
-            !finality.final -> PassiveDataStatus.AVAILABLE_PROVISIONAL
-            domainCount >= 2 -> PassiveDataStatus.AVAILABLE_FINAL
-            exercisePreventedSecondDomain -> PassiveDataStatus.SUPPRESSED_EXERCISE
-            else -> PassiveDataStatus.INSUFFICIENT_DATA
-        }
-        val updateTimes = records.mapNotNull { it.sourceUpdatedTime }
+        val relevantRecords = relevantRecords(date, zone, records)
+        val sourceLags = sourceLags(relevantRecords)
+        val features = dailyFeatures(date, zone, dayWindows, records, readStates, asOfTime)
+        val excluded = dailyExclusions(dayWindows)
+        val status = dailyStatus(features, excluded, dayWindows, finality.final)
+        val updateTimes = relevantRecords.map { it.sourceUpdatedTime ?: it.ingestedAt }
         return PassiveDailyAggregate(
             passiveDay = PassiveDay(
                 date,
@@ -247,16 +239,74 @@ object PassiveDailyAggregator {
                 features,
                 excluded,
                 baselineSegment,
-                sourceUpdatedTime = updateTimes.maxOrNull() ?: records.maxOfOrNull { it.ingestedAt } ?: asOfTime,
-                ingestedAt = records.maxOfOrNull { it.ingestedAt } ?: asOfTime,
+                sourceUpdatedTime = updateTimes.maxOrNull() ?: asOfTime,
+                ingestedAt = relevantRecords.maxOfOrNull { it.ingestedAt } ?: asOfTime,
             ),
-            windows = windows,
+            windows = dayWindows,
             readStates = readStates,
-            coverageByFeature = coverageByFeature(windows),
+            coverageByFeature = coverageByFeature(dayWindows),
             missingFeatures = PassiveFeature.entries.filter { it !in features }.toSet(),
             exclusions = excluded.associateWith { "EXERCISE_OVERLAP" },
             finality = finality,
+            sourceLags = sourceLags,
         )
+    }
+
+    private fun sourceLags(records: List<PassiveSourceRecord>): List<SourceLag> = records.map { record ->
+        val observedUpdatedAt = record.sourceUpdatedTime ?: record.ingestedAt
+        SourceLag(
+            record.sourceFamily,
+            (observedUpdatedAt - record.eventEnd).coerceAtLeast(0L),
+            usedIngestedAtFallback = record.sourceUpdatedTime == null,
+        )
+    }
+
+    private fun dailyStatus(
+        features: Map<PassiveFeature, Double>,
+        excluded: Set<PassiveFeature>,
+        windows: List<PassiveFeatureWindow>,
+        final: Boolean,
+    ): PassiveDataStatus {
+        val actualDomains = features.keys.filter { it.scored && it !in excluded }
+            .mapNotNull { it.domain }
+            .toSet()
+        val restoredDomains = actualDomains + windows.flatMap { it.features }
+            .filter { row ->
+                !row.eligible && row.exclusion == "EXERCISE_OVERLAP" &&
+                    row.feature.scored && row.feature.domain == PassiveDomain.PHYSIOLOGY &&
+                    row.value?.isFinite() == true
+            }
+            .mapNotNull { it.feature.domain }
+        val exercisePreventedSecondDomain = actualDomains.size < 2 && restoredDomains.size >= 2
+        return when {
+            !final -> PassiveDataStatus.AVAILABLE_PROVISIONAL
+            actualDomains.size >= 2 -> PassiveDataStatus.AVAILABLE_FINAL
+            exercisePreventedSecondDomain -> PassiveDataStatus.SUPPRESSED_EXERCISE
+            else -> PassiveDataStatus.INSUFFICIENT_DATA
+        }
+    }
+
+    private fun relevantRecords(
+        date: LocalDate,
+        zone: ZoneId,
+        records: List<PassiveSourceRecord>,
+    ): List<PassiveSourceRecord> {
+        val dayStart = date.atStartOfDay(zone).toInstant().toEpochMilli()
+        val dayEnd = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        return records.filter { record ->
+            when (record.kind) {
+                PassiveRecordKind.SLEEP_SESSION ->
+                    Instant.ofEpochMilli(record.eventEnd).atZone(zone).toLocalDate() == date
+                PassiveRecordKind.STEPS_INTERVAL, PassiveRecordKind.EXERCISE_SESSION ->
+                    PassiveWindowAggregator.overlapMillis(
+                        record.eventStart,
+                        record.eventEnd,
+                        dayStart,
+                        dayEnd,
+                    ) > 0L
+                else -> record.eventStart >= dayStart && record.eventStart < dayEnd
+            }
+        }
     }
 
     private fun dailyFeatures(
