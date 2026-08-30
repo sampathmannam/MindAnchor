@@ -353,8 +353,8 @@ abstract class AnchorDatabase : RoomDatabase() {
         // not validate triggers, so they do not affect the schema identity
         // hash; they also are not part of Room's generated
         // createAllTables, which is why installResearchImmutability is
-        // called both here and from the onCreate callback that a fresh
-        // install takes.
+        // called here, again after the v8 tables are created, and from the
+        // callback used by fresh installs.
         private val MIGRATION_6_7 = object : Migration(6, 7) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
@@ -447,13 +447,18 @@ abstract class AnchorDatabase : RoomDatabase() {
 
         /**
          * Installs the BEFORE UPDATE / BEFORE DELETE triggers that make the
-         * two research tables append-only at the database level.
+         * two research tables and eight long-lived passive-history tables
+         * append-only at the database level.
          *
-         * Idempotent (IF NOT EXISTS), and called from both paths a
-         * database can reach version 7 by: MIGRATION_6_7 for an upgrade,
-         * and the onCreate callback for a fresh install, whose schema Room
-         * generates from the entities and which therefore contains no
-         * triggers of its own.
+         * Idempotent (`IF NOT EXISTS`) and table-aware: `MIGRATION_6_7`
+         * installs the four triggers for the two tables that exist at v7;
+         * `MIGRATION_7_8` reruns it after creating the passive tables and
+         * installs all 20. Fresh v8 installs use the Room callback because
+         * generated `createAllTables` SQL contains no triggers.
+         *
+         * `passive_raw_samples` is deliberately excluded. It is the only
+         * operational table whose raw values may be deleted by retention;
+         * the matching `passive_raw_provenance` rows remain immutable.
          */
         internal fun installResearchImmutability(db: SupportSQLiteDatabase) {
             val immutable = listOf(
@@ -504,15 +509,16 @@ abstract class AnchorDatabase : RoomDatabase() {
          *
          * Two hooks, for two different holes:
          *
-         *  - `onCreate`: a fresh install never runs MIGRATION_6_7, and
+         *  - `onCreate`: a fresh install never runs MIGRATION_6_7 or
+         *    MIGRATION_7_8, and
          *    Room's generated `createAllTables` carries no triggers, so
-         *    without this a brand-new database would have the research
-         *    tables and none of their immutability.
+         *    without this a brand-new database would have all ten history
+         *    tables and none of their immutability triggers.
          *  - `onOpen`: self-healing. A database created by a build that
          *    lacked this callback would otherwise stay mutable forever,
-         *    because `onCreate` never runs twice and MIGRATION_6_7 never
-         *    runs on a database already at version 7. The statements are
-         *    `IF NOT EXISTS`, so re-running them costs nothing.
+         *    because `onCreate` never runs twice and completed migrations
+         *    never rerun. The statements are `IF NOT EXISTS`, so re-running
+         *    them costs nothing. Raw samples remain excluded and prunable.
          *
          * `onOpen` also turns on recursive triggers. Without it, SQLite
          * performs `INSERT OR REPLACE`'s implicit delete *without* firing
@@ -559,9 +565,11 @@ abstract class AnchorDatabase : RoomDatabase() {
  * Adds the research-immutability callback. **Every** [AnchorDatabase]
  * builder in this repository must call it — production and test alike.
  *
- * A test database without it has `research_ledger_events` and
- * `study_phases` that are not append-only, which would let a restore or
- * merge path quietly rewrite the ledger and let every test still pass.
+ * A fresh test database without it has all ten immutable history tables
+ * but none of their triggers, which would let a restore or merge path
+ * quietly rewrite research or passive history and let every test still
+ * pass. `passive_raw_samples` is intentionally outside this guarantee so
+ * raw values can be pruned while their provenance remains.
  * `ResearchBuilderCallbackTest` reads this repository's own source and
  * fails if a builder forgets.
  */

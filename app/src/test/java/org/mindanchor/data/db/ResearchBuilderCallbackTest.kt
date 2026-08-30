@@ -88,7 +88,17 @@ class ResearchBuilderCallbackTest {
         assertTrue(source.contains("version = 8"))
         assertTrue(source.contains("Migration(7, 8)"))
         assertTrue(source.contains("abstract fun passive(): PassiveDao"))
-        assertTrue(source.substringAfter("MIGRATION_7_8").contains("installResearchImmutability(db)"))
+        val migrationStart = "private val MIGRATION_7_8"
+        val migrationEnd = "internal fun installResearchImmutability"
+        assertTrue("the v8 migration declaration must exist", source.contains(migrationStart))
+        assertTrue("the trigger installer must remain after the migration", source.contains(migrationEnd))
+        val migrationBody = source.substringAfter(migrationStart).substringBefore(migrationEnd)
+        assertTrue("the isolated text must be the 7 to 8 migrate body", migrationBody.contains("Migration(7, 8)"))
+        assertEquals(
+            "MIGRATION_7_8 itself must install triggers; a later callback call cannot satisfy this guard",
+            1,
+            Regex("installResearchImmutability\\(db\\)").findAll(migrationBody).count(),
+        )
         assertFalse(source.contains("fallbackToDestructiveMigration"))
     }
 

@@ -315,6 +315,46 @@ class MigrationTest {
             .withResearchImmutability()
             .build()
 
+    private fun runDirectMigrations(
+        expectedOldVersion: Int,
+        afterStep: (Int, androidx.sqlite.db.SupportSQLiteDatabase) -> Unit,
+    ) {
+        val migrations = AnchorDatabase.migrations().associateBy { it.startVersion }
+        val config = SupportSQLiteOpenHelper.Configuration.builder(context)
+            .name(dbName)
+            .callback(object : SupportSQLiteOpenHelper.Callback(8) {
+                override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) = Unit
+
+                override fun onUpgrade(
+                    db: androidx.sqlite.db.SupportSQLiteDatabase,
+                    oldVersion: Int,
+                    newVersion: Int,
+                ) {
+                    assertEquals(expectedOldVersion, oldVersion)
+                    var version = oldVersion
+                    while (version < newVersion) {
+                        val migration = requireNotNull(migrations[version]) {
+                            "missing direct migration from version $version"
+                        }
+                        migration.migrate(db)
+                        version = migration.endVersion
+                        afterStep(version, db)
+                    }
+                }
+            })
+            .build()
+        FrameworkSQLiteOpenHelperFactory().create(config).use { helper ->
+            helper.writableDatabase
+        }
+    }
+
+    private fun triggerNames(db: androidx.sqlite.db.SupportSQLiteDatabase): List<String> =
+        db.query("SELECT name FROM sqlite_master WHERE type = 'trigger' ORDER BY name").use { cursor ->
+            buildList {
+                while (cursor.moveToNext()) add(cursor.getString(0))
+            }
+        }
+
     @Test
     fun aVersion1DatabaseUpgradesWithoutLosingNotifications() = runBlocking {
         createVersion1()
@@ -480,6 +520,26 @@ class MigrationTest {
     }
 
     @Test
+    fun directVersion7To8MigrationInstallsAllTriggersWithoutRoomCallback() {
+        createVersion7WithLedgerRow()
+        runDirectMigrations(expectedOldVersion = 7) { version, db ->
+            assertEquals(8, version)
+            assertEquals(ALL_IMMUTABILITY_TRIGGERS, triggerNames(db))
+        }
+    }
+
+    @Test
+    fun directVersion6To7To8MigrationInstallsOnlyExistingThenAllTriggers() {
+        createVersion6WithProgramZeroData()
+        runDirectMigrations(expectedOldVersion = 6) { version, db ->
+            when (version) {
+                7 -> assertEquals(RESEARCH_IMMUTABILITY_TRIGGERS, triggerNames(db))
+                8 -> assertEquals(ALL_IMMUTABILITY_TRIGGERS, triggerNames(db))
+            }
+        }
+    }
+
+    @Test
     fun anUpgradedDatabaseAlsoRefusesToRewriteTheLedger() = runBlocking {
         createVersion6WithProgramZeroData()
         val db = openCurrent()
@@ -578,6 +638,36 @@ class MigrationTest {
             "CREATE TABLE IF NOT EXISTS study_phases (id TEXT NOT NULL, ordinal INTEGER NOT NULL, startedAt INTEGER NOT NULL, reason TEXT NOT NULL, appVersionCode INTEGER NOT NULL, appVersionName TEXT NOT NULL, protocolCatalogSha256 TEXT NOT NULL, ruleSetVersion TEXT NOT NULL, modelSetVersion TEXT NOT NULL, transformationSetVersion TEXT NOT NULL, missingDataPolicyVersion TEXT NOT NULL, instrumentVersion TEXT NOT NULL, dictionaryVersion TEXT NOT NULL, sourceDeviceId TEXT NOT NULL, PRIMARY KEY(id))",
             "CREATE UNIQUE INDEX IF NOT EXISTS index_study_phases_ordinal ON study_phases(ordinal)",
             "CREATE INDEX IF NOT EXISTS index_study_phases_startedAt ON study_phases(startedAt)",
+        )
+
+        private val RESEARCH_IMMUTABILITY_TRIGGERS = listOf(
+            "research_ledger_events_no_delete",
+            "research_ledger_events_no_update",
+            "study_phases_no_delete",
+            "study_phases_no_update",
+        )
+
+        private val ALL_IMMUTABILITY_TRIGGERS = listOf(
+            "passive_baseline_segments_no_delete",
+            "passive_baseline_segments_no_update",
+            "passive_daily_revisions_no_delete",
+            "passive_daily_revisions_no_update",
+            "passive_observation_decisions_no_delete",
+            "passive_observation_decisions_no_update",
+            "passive_pipeline_runs_no_delete",
+            "passive_pipeline_runs_no_update",
+            "passive_raw_provenance_no_delete",
+            "passive_raw_provenance_no_update",
+            "passive_source_lags_no_delete",
+            "passive_source_lags_no_update",
+            "passive_source_reads_no_delete",
+            "passive_source_reads_no_update",
+            "passive_window_revisions_no_delete",
+            "passive_window_revisions_no_update",
+            "research_ledger_events_no_delete",
+            "research_ledger_events_no_update",
+            "study_phases_no_delete",
+            "study_phases_no_update",
         )
     }
 }
