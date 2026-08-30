@@ -95,25 +95,80 @@ class PassiveRoomTest {
         }
     }
 
+    @Test
+    fun equalContentRevisionsAppendAndSameMillisecondHistoryUsesInsertionOrder() = runBlocking {
+        val db = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java)
+            .withResearchImmutability()
+            .build()
+        try {
+            val dao = db.passive()
+            val firstWindow = windowRevision(id = "z-window-first", reason = "INITIAL")
+            val secondWindow = windowRevision(id = "a-window-second", reason = "BACKFILL")
+            val firstDaily = dailyRevision(id = "z-daily-first", reason = "INITIAL")
+            val secondDaily = dailyRevision(id = "a-daily-second", reason = "BACKFILL")
+            val firstDecision = observationDecision(id = "z-decision-first", reason = "INITIAL")
+            val secondDecision = observationDecision(id = "a-decision-second", reason = "BACKFILL")
+            val firstSegment = PassiveBaselineSegmentEntity("z-segment-first", 1_000L, "{}", "window-v1", "daily-v1")
+            val secondSegment = PassiveBaselineSegmentEntity("a-segment-second", 1_000L, "{}", "window-v2", "daily-v2")
+
+            assertTrue(dao.insertWindowRevisions(listOf(firstWindow, secondWindow)).all { it > 0L })
+            assertTrue(dao.insertDailyRevisions(listOf(firstDaily, secondDaily)).all { it > 0L })
+            assertTrue(dao.insertObservationDecisions(listOf(firstDecision, secondDecision)).all { it > 0L })
+            assertTrue(dao.insertBaselineSegment(firstSegment) > 0L)
+            assertTrue(dao.insertBaselineSegment(secondSegment) > 0L)
+
+            assertEquals(listOf("z-window-first", "a-window-second"), dao.windowRevisionsNow().map { it.id })
+            assertEquals("a-window-second", dao.latestWindowRevision(0L)?.id)
+            assertEquals(listOf("z-daily-first", "a-daily-second"), dao.dailyRevisionsNow().map { it.id })
+            assertEquals("a-daily-second", dao.latestDailyRevision("2026-08-30")?.id)
+            assertEquals(
+                listOf("z-daily-first", "a-daily-second"),
+                dao.dailyHistory("2026-08-31", 2_000L).map { it.id },
+            )
+            assertEquals(
+                listOf("z-decision-first", "a-decision-second"),
+                dao.observationDecisionsNow().map { it.id },
+            )
+            assertEquals("a-decision-second", dao.latestObservationDecision("2026-08-30")?.id)
+            assertEquals(
+                listOf("z-decision-first", "a-decision-second"),
+                dao.priorDecisions("2026-08-31", 2_000L).map { it.id },
+            )
+            assertEquals(listOf("z-segment-first", "a-segment-second"), dao.baselineSegmentsNow().map { it.id })
+            assertEquals("a-segment-second", dao.latestBaselineSegment()?.id)
+        } finally {
+            db.close()
+        }
+    }
+
     private fun rawProvenance() = PassiveRawProvenanceEntity(
         "raw-1", "PHYSIOLOGY", "HEART_RATE", 1_000L, 1_000L, "bpm", "watch",
         "COROS", "Pace", "WATCH", 1_100L, 1_200L, "UTC", 0, "record-1", 1L,
     )
 
-    private fun windowRevision() = PassiveWindowRevisionEntity(
-        "window-1", 0L, 900_000L, 2_000L, "UTC", 0, null, "segment-1", "[]",
+    private fun windowRevision(
+        id: String = "window-1",
+        reason: String = "INITIAL",
+    ) = PassiveWindowRevisionEntity(
+        id, 0L, 900_000L, 2_000L, "UTC", 0, null, "segment-1", "[]",
         1.0, true, 0L, "[]", "[]", "[]", "window-v1", 1_100L, 1_200L,
-        false, "INITIAL", "window-hash",
+        false, reason, "window-hash",
     )
 
-    private fun dailyRevision() = PassiveDailyRevisionEntity(
-        "daily-1", "2026-08-30", 2_000L, "OBSERVED", "{}", "{}", "segment-1",
+    private fun dailyRevision(
+        id: String = "daily-1",
+        reason: String = "INITIAL",
+    ) = PassiveDailyRevisionEntity(
+        id, "2026-08-30", 2_000L, "OBSERVED", "{}", "{}", "segment-1",
         1_100L, 1_200L, "{}", "{}", "{}", "{}", "{}", "window-v1", "daily-v1",
-        1_100L, "INITIAL", "daily-hash",
+        1_100L, reason, "daily-hash",
     )
 
-    private fun observationDecision() = PassiveObservationDecisionEntity(
-        "decision-1", "2026-08-30", 2_000L, "OBSERVED", "NO_SIGNAL", "segment-1",
-        42L, 1_500L, "2026-08-29", "{}", "INITIAL", "decision-hash",
+    private fun observationDecision(
+        id: String = "decision-1",
+        reason: String = "INITIAL",
+    ) = PassiveObservationDecisionEntity(
+        id, "2026-08-30", 2_000L, "OBSERVED", "NO_SIGNAL", "segment-1",
+        42L, 1_500L, "2026-08-29", "{}", reason, "decision-hash",
     )
 }

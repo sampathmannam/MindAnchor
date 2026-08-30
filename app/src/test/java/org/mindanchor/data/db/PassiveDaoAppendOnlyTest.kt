@@ -10,6 +10,8 @@ class PassiveDaoAppendOnlyTest {
 
     private val daoSource = File("src/main/java/org/mindanchor/data/db/PassiveDao.kt")
     private val entitySource = File("src/main/java/org/mindanchor/data/db/PassiveEntities.kt")
+    private val databaseSource = File("src/main/java/org/mindanchor/data/db/AnchorDatabase.kt")
+    private val schema = File("schemas/org.mindanchor.data.db.AnchorDatabase/8.json")
 
     @Test
     fun `operational history DAO is insert-only except raw value pruning`() {
@@ -31,6 +33,28 @@ class PassiveDaoAppendOnlyTest {
         assertEquals(EXACT_TABLES, tables)
         assertEquals(1, Regex("onDelete = ForeignKey.CASCADE").findAll(source).count())
         assertTrue(source.contains("childColumns = [\"provenanceId\"]"))
+    }
+
+    @Test
+    fun `revision content indexes preserve append history and DAO ties follow rowid`() {
+        val entities = entitySource.readText()
+        val migration = databaseSource.readText()
+        val generatedSchema = schema.readText()
+        val compoundIndexNames = listOf(
+            "index_passive_window_revisions_windowStart_contentHash",
+            "index_passive_daily_revisions_localDate_contentHash",
+            "index_passive_observation_decisions_localDate_contentHash",
+        )
+
+        assertEquals(0, Regex("Index\\(value = \\[.*contentHash.*unique = true").findAll(entities).count())
+        compoundIndexNames.forEach { name ->
+            assertFalse(migration.contains("CREATE UNIQUE INDEX IF NOT EXISTS $name"))
+            assertTrue(migration.contains("CREATE INDEX IF NOT EXISTS $name"))
+            val indexJson = generatedSchema.substringAfter("\"name\": \"$name\"").substringBefore("}")
+            assertTrue(indexJson.contains("\"unique\": false"))
+        }
+        assertFalse(daoSource.readText().contains("asOfTime DESC, id DESC"))
+        assertTrue(daoSource.readText().contains("asOfTime DESC, rowid DESC"))
     }
 
     private companion object {

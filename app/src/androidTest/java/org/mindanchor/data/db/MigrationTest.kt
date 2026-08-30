@@ -511,9 +511,24 @@ class MigrationTest {
             assertTrue(dao.insertSourceLags(listOf(PassiveSourceLagEntity("lag-1", "PHYSIOLOGY", 1_000L, 1_100L, 1_200L, 100L, false, 1_200L))).single() > 0L)
             assertTrue(dao.insertBaselineSegment(PassiveBaselineSegmentEntity("segment-1", 1_000L, "{}", "window-v1", "daily-v1")) > 0L)
             assertTrue(dao.insertPipelineRun(PassivePipelineRunEntity("run-1", 1_000L, 2_000L, 0L, 2_000L, "UTC", true, true, "SUCCESS_PERMISSIONED", "{}")) > 0L)
-            assertTrue(dao.insertWindowRevisions(listOf(PassiveWindowRevisionEntity("window-1", 0L, 900_000L, 2_000L, "UTC", 0, null, "segment-1", "[]", 1.0, true, 0L, "[]", "[]", "[]", "window-v1", 1_100L, 1_200L, false, "INITIAL", "window-hash"))).single() > 0L)
-            assertTrue(dao.insertDailyRevisions(listOf(PassiveDailyRevisionEntity("daily-1", "2026-08-30", 2_000L, "OBSERVED", "{}", "{}", "segment-1", 1_100L, 1_200L, "{}", "{}", "{}", "{}", "{}", "window-v1", "daily-v1", 1_100L, "INITIAL", "daily-hash"))).single() > 0L)
-            assertTrue(dao.insertObservationDecisions(listOf(PassiveObservationDecisionEntity("decision-1", "2026-08-30", 2_000L, "OBSERVED", "NO_SIGNAL", "segment-1", null, null, null, "{}", "INITIAL", "decision-hash"))).single() > 0L)
+            val windows = listOf(
+                PassiveWindowRevisionEntity("window-1", 0L, 900_000L, 2_000L, "UTC", 0, null, "segment-1", "[]", 1.0, true, 0L, "[]", "[]", "[]", "window-v1", 1_100L, 1_200L, false, "INITIAL", "window-hash"),
+                PassiveWindowRevisionEntity("window-2", 0L, 900_000L, 2_000L, "UTC", 0, null, "segment-1", "[]", 1.0, true, 0L, "[]", "[]", "[]", "window-v1", 1_100L, 1_200L, false, "BACKFILL", "window-hash"),
+            )
+            val days = listOf(
+                PassiveDailyRevisionEntity("daily-1", "2026-08-30", 2_000L, "OBSERVED", "{}", "{}", "segment-1", 1_100L, 1_200L, "{}", "{}", "{}", "{}", "{}", "window-v1", "daily-v1", 1_100L, "INITIAL", "daily-hash"),
+                PassiveDailyRevisionEntity("daily-2", "2026-08-30", 2_000L, "OBSERVED", "{}", "{}", "segment-1", 1_100L, 1_200L, "{}", "{}", "{}", "{}", "{}", "window-v1", "daily-v1", 1_100L, "BACKFILL", "daily-hash"),
+            )
+            val decisions = listOf(
+                PassiveObservationDecisionEntity("decision-1", "2026-08-30", 2_000L, "OBSERVED", "NO_SIGNAL", "segment-1", null, null, null, "{}", "INITIAL", "decision-hash"),
+                PassiveObservationDecisionEntity("decision-2", "2026-08-30", 2_000L, "OBSERVED", "NO_SIGNAL", "segment-1", null, null, null, "{}", "BACKFILL", "decision-hash"),
+            )
+            assertTrue(dao.insertWindowRevisions(windows).all { it > 0L })
+            assertTrue(dao.insertDailyRevisions(days).all { it > 0L })
+            assertTrue(dao.insertObservationDecisions(decisions).all { it > 0L })
+            assertEquals(listOf("INITIAL", "BACKFILL"), dao.windowRevisionsNow().map { it.revisionReason })
+            assertEquals(listOf("INITIAL", "BACKFILL"), dao.dailyRevisionsNow().map { it.revisionReason })
+            assertEquals(listOf("INITIAL", "BACKFILL"), dao.observationDecisionsNow().map { it.revisionReason })
         } finally {
             db.close()
         }

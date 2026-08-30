@@ -7,6 +7,8 @@ import androidx.room.withTransaction
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.TreeMap
+import kotlinx.coroutines.CancellationException
 import org.mindanchor.data.db.AnchorDatabase
 import org.mindanchor.data.db.PassiveBaselineSegmentEntity
 import org.mindanchor.data.db.PassivePipelineRunEntity
@@ -36,14 +38,16 @@ class PassivePipelineRepository internal constructor(
     private val historyPermissionGranted: suspend () -> Boolean,
     private val ensureCurrentPhase: suspend (Long) -> Unit,
     private val refreshProvenanceAfterCommit: suspend () -> Unit,
+    private val recordCandidatesObserved: (Int) -> Unit = {},
 ) {
     suspend fun run(now: Long, zone: ZoneId): PassivePipelineResult {
         val dao = database.passive()
         val firstSuccessfulPermissionedRun = dao.successfulPermissionedRunCount() == 0
-        val historyGranted = historyPermissionGranted()
+        val historyGranted = historyPermissionGrantedSafely()
         val scanStart = scanStart(now, zone, firstSuccessfulPermissionedRun, historyGranted)
         val range = PassiveReadRange(scanStart, now, zone.id)
-        val reads = healthSource.read(range) + usageSource.read(range)
+        val usageRange = PassiveReadRange(priorLocalDayStart(scanStart, zone), now, zone.id)
+        val reads = healthSource.read(range) + usageSource.read(usageRange)
         val sourceStatesJson = sourceStatesJson(reads)
         val runId = PassivePipelineCodec.contentHash(
             listOf(now.toString(), scanStart.toString(), zone.id, sourceStatesJson, sourceRevisionMaterial(reads))
@@ -64,7 +68,7 @@ class PassivePipelineRepository internal constructor(
             }.toSet()
 
             val segment = configuredSegment(records, now)
-            val stored = dao.rawRecords(scanStart, now).map { it.toDomain() }
+            val stored = dao.rawRecords(usageRange.startInclusive, now).map { it.toDomain() }
             val derivationRecords = stored.map { record ->
                 record.copy(recordId = PassivePipelineCodec.rawIdentity(record))
             }
@@ -120,7 +124,14 @@ class PassivePipelineRepository internal constructor(
             .map { it.fingerprint() }
             .toSet()
         val next = configured + observed
-        if (latest != null && observed.all { it in configured }) return latest
+        if (
+            latest != null &&
+            observed.all { it in configured } &&
+            latest.windowTransformationVersion == PassiveWindowAggregator.TRANSFORMATION_VERSION &&
+            latest.dailyTransformationVersion == PassiveDailyAggregator.TRANSFORMATION_VERSION
+        ) {
+            return latest
+        }
         val id = PassiveBaselineSegment.id(
             next,
             PassiveWindowAggregator.TRANSFORMATION_VERSION,
@@ -154,8 +165,9 @@ class PassivePipelineRepository internal constructor(
         val lagObservations = configuredFamilies.flatMap { family ->
             dao.sourceLags(family.name).map { SourceLag(family, it.lagMillis, it.usedIngestedAtFallback) }
         }
+        val recordIndex = DerivationRecordIndex(records, dates, now, zone, recordCandidatesObserved)
         val context = DerivationContext(
-            records,
+            recordIndex,
             reads,
             segment.id,
             newlyInsertedProvenanceIds,
@@ -177,17 +189,9 @@ class PassivePipelineRepository internal constructor(
     private suspend fun deriveDate(date: LocalDate, context: DerivationContext): InsertCounts {
         val dayStart = date.atStartOfDay(context.zone).toInstant().toEpochMilli()
         val dayEnd = date.plusDays(1L).atStartOfDay(context.zone).toInstant().toEpochMilli()
-        val dateRecords = recordsForDate(context.records, date, context.zone)
-        val wakeTime = context.records.filter { record ->
-            record.kind == PassiveRecordKind.SLEEP_SESSION &&
-                Instant.ofEpochMilli(record.eventEnd).atZone(context.zone).toLocalDate() == date
-        }.maxOfOrNull { it.eventEnd }
-        val windows = PassiveWindowAggregator.aggregate(
-            context.records,
-            PassiveReadRange(dayStart, minOf(dayEnd, context.now), context.zone.id),
-            context.zone,
-            wakeTime,
-        )
+        val dateRecords = context.recordIndex.recordsForDate(date)
+        val wakeTime = dateRecords.filter { it.kind == PassiveRecordKind.SLEEP_SESSION }.maxOfOrNull { it.eventEnd }
+        val windows = aggregateWindows(dayStart, minOf(dayEnd, context.now), wakeTime, context)
         val finality = PassiveFinality.watermark(
             dayEnd,
             context.configuredFamilies,
@@ -195,11 +199,17 @@ class PassivePipelineRepository internal constructor(
             context.now,
         )
         val insertedWindows = appendWindowRevisions(windows, dateRecords, finality, context)
+        val dailyRecords = context.recordIndex.dailyRecords(
+            date,
+            context.reads.any {
+                it.sourceFamily == PassiveSourceFamily.USAGE_STATS && it.state == PassiveReadState.SUCCESS
+            },
+        )
         val aggregate = PassiveDailyAggregator.aggregate(
             date,
             context.zone,
             windows,
-            context.records,
+            dailyRecords,
             context.reads,
             context.segmentId,
             context.now,
@@ -207,10 +217,33 @@ class PassivePipelineRepository internal constructor(
         )
         return InsertCounts(windows = insertedWindows) + appendDailyAndDecision(
             aggregate,
-            dailyProvenanceRecords(context, date).map { it.recordId }.toSet(),
+            dailyRecords.map { it.recordId }.toSet(),
             finality,
             context,
         )
+    }
+
+    private fun aggregateWindows(
+        dayStart: Long,
+        endExclusive: Long,
+        wakeTime: Long?,
+        context: DerivationContext,
+    ): List<PassiveFeatureWindow> {
+        val first = Math.floorDiv(dayStart, PassiveWindowAggregator.WINDOW_MILLIS) *
+            PassiveWindowAggregator.WINDOW_MILLIS
+        val last = Math.floorDiv(endExclusive - 1L, PassiveWindowAggregator.WINDOW_MILLIS) *
+            PassiveWindowAggregator.WINDOW_MILLIS
+        return generateSequence(first) { it + PassiveWindowAggregator.WINDOW_MILLIS }
+            .takeWhile { it <= last }
+            .map { start ->
+                PassiveWindowAggregator.aggregate(
+                    context.recordIndex.recordsForWindow(start),
+                    PassiveReadRange(start, start + 1L, context.zone.id),
+                    context.zone,
+                    wakeTime,
+                ).single()
+            }
+            .toList()
     }
 
     private suspend fun appendWindowRevisions(
@@ -223,7 +256,7 @@ class PassivePipelineRepository internal constructor(
         val daySourceUpdated = dateRecords.maxOf { it.sourceUpdatedTime ?: it.ingestedAt }
         val dayIngestedAt = dateRecords.maxOf { it.ingestedAt }
         val candidates = windows.mapNotNull { window ->
-            val contributing = context.records.filter { it.overlaps(window.startInclusive, window.endExclusive) }
+            val contributing = context.recordIndex.recordsForWindow(window.startInclusive)
             val sourceUpdated = contributing.maxOfOrNull { it.sourceUpdatedTime ?: it.ingestedAt }
                 ?: daySourceUpdated
             val ingestedAt = contributing.maxOfOrNull { it.ingestedAt } ?: dayIngestedAt
@@ -332,6 +365,10 @@ class PassivePipelineRepository internal constructor(
             .toEpochMilli()
     }
 
+    private fun priorLocalDayStart(scanStart: Long, zone: ZoneId): Long =
+        Instant.ofEpochMilli(scanStart).atZone(zone).toLocalDate().minusDays(1L)
+            .atStartOfDay(zone).toInstant().toEpochMilli()
+
     private fun touchedDates(
         records: List<PassiveSourceRecord>,
         range: PassiveReadRange,
@@ -365,47 +402,6 @@ class PassivePipelineRepository internal constructor(
         }
     }
 
-    private fun recordsForDate(
-        records: List<PassiveSourceRecord>,
-        date: LocalDate,
-        zone: ZoneId,
-    ): List<PassiveSourceRecord> {
-        val start = date.atStartOfDay(zone).toInstant().toEpochMilli()
-        val end = date.plusDays(1L).atStartOfDay(zone).toInstant().toEpochMilli()
-        return records.filter { record ->
-            when (record.kind) {
-                PassiveRecordKind.SLEEP_SESSION ->
-                    Instant.ofEpochMilli(record.eventEnd).atZone(zone).toLocalDate() == date
-                PassiveRecordKind.STEPS_INTERVAL, PassiveRecordKind.EXERCISE_SESSION ->
-                    record.overlaps(start, end)
-                else -> record.eventStart >= start && record.eventStart < end
-            }
-        }
-    }
-
-    private fun dailyProvenanceRecords(
-        context: DerivationContext,
-        date: LocalDate,
-    ): List<PassiveSourceRecord> {
-        val start = date.atStartOfDay(context.zone).toInstant().toEpochMilli()
-        val end = date.plusDays(1L).atStartOfDay(context.zone).toInstant().toEpochMilli()
-        val usageSucceeded = context.reads.any {
-            it.sourceFamily == PassiveSourceFamily.USAGE_STATS && it.state == PassiveReadState.SUCCESS
-        }
-        val usage = if (usageSucceeded) {
-            val records = context.records.filter { it.sourceFamily == PassiveSourceFamily.USAGE_STATS }
-                .sortedBy { it.eventStart }
-            listOfNotNull(records.lastOrNull { it.eventStart < start }) + records.filter {
-                it.eventStart >= start && it.eventStart < end && it.eventStart <= minOf(context.now, end)
-            }
-        } else {
-            emptyList()
-        }
-        return recordsForDate(context.records, date, context.zone).filter {
-            it.sourceFamily != PassiveSourceFamily.USAGE_STATS
-        } + usage
-    }
-
     private fun revisionReason(
         previousHash: String?,
         previousFinal: Boolean?,
@@ -423,9 +419,18 @@ class PassivePipelineRepository internal constructor(
 
     private fun resultOf(reads: List<PassiveSourceRead>): String = when {
         reads.any { it.state == PassiveReadState.READ_FAILURE_TRANSIENT } -> RETRY_TRANSIENT
-        reads.any { it.state == PassiveReadState.READ_FAILURE_PERMANENT } -> SUCCESS_WITH_FAILURES
         reads.any { it.state == PassiveReadState.SUCCESS } -> SUCCESS_PERMISSIONED
+        reads.any { it.state == PassiveReadState.READ_FAILURE_PERMANENT } -> SUCCESS_WITH_FAILURES
         else -> SUCCESS_NO_PERMISSION
+    }
+
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun historyPermissionGrantedSafely(): Boolean = try {
+        historyPermissionGranted()
+    } catch (cancellation: CancellationException) {
+        throw cancellation
+    } catch (_: Exception) {
+        false
     }
 
     private fun sourceStatesJson(reads: List<PassiveSourceRead>): String = reads
@@ -503,9 +508,6 @@ class PassivePipelineRepository internal constructor(
         deviceType,
     )
 
-    private fun PassiveSourceRecord.overlaps(start: Long, end: Long): Boolean =
-        eventStart < end && eventEnd.coerceAtLeast(eventStart + 1L) > start
-
     private data class InsertCounts(
         val windows: Int = 0,
         val days: Int = 0,
@@ -520,7 +522,7 @@ class PassivePipelineRepository internal constructor(
 
     @Suppress("LongParameterList")
     private data class DerivationContext(
-        val records: List<PassiveSourceRecord>,
+        val recordIndex: DerivationRecordIndex,
         val reads: List<PassiveSourceRead>,
         val segmentId: String,
         val newlyInsertedProvenanceIds: Set<String>,
@@ -529,6 +531,102 @@ class PassivePipelineRepository internal constructor(
         val now: Long,
         val zone: ZoneId,
     )
+
+    private class DerivationRecordIndex(
+        records: List<PassiveSourceRecord>,
+        dates: List<LocalDate>,
+        private val now: Long,
+        private val zone: ZoneId,
+        private val candidatesObserved: (Int) -> Unit,
+    ) {
+        private val requestedDates = dates.toSet()
+        private val byDate = mutableMapOf<LocalDate, MutableList<PassiveSourceRecord>>()
+        private val byWindow = mutableMapOf<Long, MutableList<PassiveSourceRecord>>()
+        private val usageByDate = mutableMapOf<LocalDate, MutableList<PassiveSourceRecord>>()
+        private val usageByStart = TreeMap<Long, PassiveSourceRecord>()
+        private val firstWindow = Math.floorDiv(
+            dates.first().atStartOfDay(zone).toInstant().toEpochMilli(),
+            PassiveWindowAggregator.WINDOW_MILLIS,
+        ) * PassiveWindowAggregator.WINDOW_MILLIS
+        private val windowEnd = run {
+            val rangeEnd = minOf(dates.last().plusDays(1L).atStartOfDay(zone).toInstant().toEpochMilli(), now)
+            (Math.floorDiv(rangeEnd - 1L, PassiveWindowAggregator.WINDOW_MILLIS) + 1L) *
+                PassiveWindowAggregator.WINDOW_MILLIS
+        }
+
+        init {
+            records.forEach { record ->
+                recordDates(record).forEach { date -> byDate.getOrPut(date) { mutableListOf() } += record }
+                indexWindows(record)
+                if (record.sourceFamily == PassiveSourceFamily.USAGE_STATS) {
+                    val date = Instant.ofEpochMilli(record.eventStart).atZone(zone).toLocalDate()
+                    usageByDate.getOrPut(date) { mutableListOf() } += record
+                    usageByStart[record.eventStart] = record
+                }
+            }
+        }
+
+        fun recordsForDate(date: LocalDate): List<PassiveSourceRecord> =
+            byDate[date].orEmpty().also { candidatesObserved(it.size) }
+
+        fun recordsForWindow(start: Long): List<PassiveSourceRecord> =
+            byWindow[start].orEmpty().also { candidatesObserved(it.size) }
+
+        fun dailyRecords(date: LocalDate, usageSucceeded: Boolean): List<PassiveSourceRecord> {
+            val dayStart = date.atStartOfDay(zone).toInstant().toEpochMilli()
+            val nonUsage = byDate[date].orEmpty().filter { it.sourceFamily != PassiveSourceFamily.USAGE_STATS }
+            val usage = if (usageSucceeded) {
+                listOfNotNull(usageByStart.lowerEntry(dayStart)?.value) + usageByDate[date].orEmpty().filter {
+                    it.eventStart <= now
+                }
+            } else {
+                emptyList()
+            }
+            return (nonUsage + usage).also { candidatesObserved(it.size) }
+        }
+
+        private fun recordDates(record: PassiveSourceRecord): List<LocalDate> = when (record.kind) {
+            PassiveRecordKind.SLEEP_SESSION -> listOf(
+                Instant.ofEpochMilli(record.eventEnd).atZone(zone).toLocalDate(),
+            )
+            PassiveRecordKind.STEPS_INTERVAL, PassiveRecordKind.EXERCISE_SESSION -> {
+                val effectiveEnd = record.eventEnd.coerceAtLeast(record.eventStart + 1L)
+                datesBetween(
+                    Instant.ofEpochMilli(record.eventStart).atZone(zone).toLocalDate(),
+                    Instant.ofEpochMilli(effectiveEnd - 1L).atZone(zone).toLocalDate(),
+                )
+            }
+            else -> listOf(Instant.ofEpochMilli(record.eventStart).atZone(zone).toLocalDate())
+        }.filter { it in requestedDates }
+
+        private fun datesBetween(first: LocalDate, last: LocalDate): List<LocalDate> = buildList {
+            var date = maxOf(first, requestedDates.minOrNull() ?: first)
+            val end = minOf(last, requestedDates.maxOrNull() ?: last)
+            while (!date.isAfter(end)) {
+                if (date in requestedDates) add(date)
+                date = date.plusDays(1L)
+            }
+        }
+
+        private fun indexWindows(record: PassiveSourceRecord) {
+            val effectiveEnd = record.eventEnd.coerceAtLeast(record.eventStart + 1L)
+            var start = maxOf(
+                Math.floorDiv(record.eventStart, PassiveWindowAggregator.WINDOW_MILLIS) *
+                    PassiveWindowAggregator.WINDOW_MILLIS,
+                firstWindow,
+            )
+            val end = minOf(effectiveEnd, windowEnd)
+            while (start < end) {
+                if (
+                    record.eventStart < start + PassiveWindowAggregator.WINDOW_MILLIS &&
+                    effectiveEnd > start
+                ) {
+                    byWindow.getOrPut(start) { mutableListOf() } += record
+                }
+                start += PassiveWindowAggregator.WINDOW_MILLIS
+            }
+        }
+    }
 
     companion object {
         const val HISTORY_DAYS = 120L

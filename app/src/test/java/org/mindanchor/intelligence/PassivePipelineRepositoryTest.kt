@@ -1,6 +1,7 @@
 package org.mindanchor.intelligence
 
 import android.content.Context
+import android.os.DeadObjectException
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import java.time.Instant
@@ -8,6 +9,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CancellationException
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -20,6 +22,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mindanchor.data.db.AnchorDatabase
 import org.mindanchor.data.db.PassiveBaselineSegmentEntity
+import org.mindanchor.data.db.withResearchImmutability
 import org.mindanchor.research.TransformationRegistry
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -34,6 +37,7 @@ class PassivePipelineRepositoryTest {
     fun setUp() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         database = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java)
+            .withResearchImmutability()
             .allowMainThreadQueries()
             .build()
     }
@@ -90,6 +94,19 @@ class PassivePipelineRepositoryTest {
                     1_000L,
                     errorCode = "DeadObjectException",
                 ),
+                PassiveSourceRead(
+                    PassiveSourceFamily.STEPS,
+                    PassiveReadState.SUCCESS,
+                    range,
+                    1_000L,
+                ),
+                PassiveSourceRead(
+                    PassiveSourceFamily.EXERCISE,
+                    PassiveReadState.READ_FAILURE_PERMANENT,
+                    range,
+                    1_000L,
+                    errorCode = "SecurityException",
+                ),
             ),
         )
 
@@ -97,7 +114,13 @@ class PassivePipelineRepositoryTest {
 
         assertTrue(result is PassivePipelineResult.Retry)
         assertEquals(
-            setOf("PERMISSION_DENIED", "UNAVAILABLE", "READ_FAILURE_TRANSIENT"),
+            setOf(
+                "PERMISSION_DENIED",
+                "UNAVAILABLE",
+                "READ_FAILURE_TRANSIENT",
+                "SUCCESS",
+                "READ_FAILURE_PERMANENT",
+            ),
             database.passive().sourceReadsNow().map { it.state }.toSet(),
         )
     }
@@ -125,6 +148,65 @@ class PassivePipelineRepositoryTest {
             source.ranges.single().startInclusive,
         )
         assertEquals("SUCCESS_WITH_FAILURES", database.passive().pipelineRunsNow().single().result)
+    }
+
+    @Test
+    fun `success outranks permanent failure and makes the next scan seven days`() = runBlocking {
+        val now = Instant.parse("2026-08-30T12:00:00Z").toEpochMilli()
+        val source = RangeSource { range ->
+            listOf(
+                successRead(PassiveSourceFamily.STEPS, range, now, emptyList()),
+                PassiveSourceRead(
+                    PassiveSourceFamily.SLEEP,
+                    PassiveReadState.READ_FAILURE_PERMANENT,
+                    range,
+                    now,
+                    errorCode = "SecurityException",
+                ),
+            )
+        }
+        val repository = repository(source, FakeSource(reads = emptyList()), historyGranted = { true })
+
+        repository.run(now, ZoneOffset.UTC)
+        repository.run(now + 3_600_000L, ZoneOffset.UTC)
+
+        assertEquals(
+            listOf("SUCCESS_PERMISSIONED", "SUCCESS_PERMISSIONED"),
+            database.passive().pipelineRunsNow().map { it.result },
+        )
+        assertEquals(2, database.passive().successfulPermissionedRunCount())
+        assertEquals(
+            LocalDate.parse("2026-08-24").atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli(),
+            source.ranges.last().startInclusive,
+        )
+    }
+
+    @Test
+    fun `security permission probe failure falls back and still records retry evidence`() = runBlocking {
+        assertPermissionProbeFallback(SecurityException("history denied"))
+    }
+
+    @Test
+    fun `binder permission probe failure falls back and still records retry evidence`() = runBlocking {
+        assertPermissionProbeFallback(DeadObjectException())
+    }
+
+    @Test
+    fun `runtime permission probe failure falls back and still records retry evidence`() = runBlocking {
+        assertPermissionProbeFallback(IllegalStateException("provider unavailable"))
+    }
+
+    @Test
+    fun `permission probe cancellation and errors still propagate without source reads`() {
+        listOf(CancellationException("cancelled"), AssertionError("fatal")).forEach { failure ->
+            val source = FakeSource(PassiveSourceFamily.STEPS)
+            val repository = repository(source, FakeSource(reads = emptyList()), historyGranted = { throw failure })
+
+            assertThrows(failure::class.java) {
+                runBlocking { repository.run(2_000L, ZoneOffset.UTC) }
+            }
+            assertTrue(source.ranges.isEmpty())
+        }
     }
 
     @Test
@@ -225,6 +307,44 @@ class PassivePipelineRepositoryTest {
     }
 
     @Test
+    fun `configured segment opens when only a stored transformation version is stale`() = runBlocking {
+        val now = Instant.parse("2026-08-30T12:00:00Z").toEpochMilli()
+        val value = record(
+            PassiveSourceFamily.STEPS,
+            PassiveRecordKind.STEPS_INTERVAL,
+            now - 120_000L,
+            now - 60_000L,
+            "steps-a",
+            value = 10.0,
+        )
+        val fingerprints = setOf(fingerprint(value))
+        database.passive().insertBaselineSegment(
+            PassiveBaselineSegmentEntity(
+                id = "stale-transformations",
+                openedAt = now - 1L,
+                fingerprintsJson = PassivePipelineCodec.sortedFingerprintJson(fingerprints),
+                windowTransformationVersion = "passive-window-v0",
+                dailyTransformationVersion = "passive-daily-v0",
+            ),
+        )
+
+        repository(
+            RangeSource { range -> listOf(successRead(PassiveSourceFamily.STEPS, range, now, listOf(value))) },
+            FakeSource(reads = emptyList()),
+        ).run(now, ZoneOffset.UTC)
+
+        val segments = database.passive().baselineSegmentsNow()
+        assertEquals(2, segments.size)
+        assertEquals(PassiveWindowAggregator.TRANSFORMATION_VERSION, segments.last().windowTransformationVersion)
+        assertEquals(PassiveDailyAggregator.TRANSFORMATION_VERSION, segments.last().dailyTransformationVersion)
+        assertEquals(PassiveBaselineSegment.id(
+            fingerprints,
+            PassiveWindowAggregator.TRANSFORMATION_VERSION,
+            PassiveDailyAggregator.TRANSFORMATION_VERSION,
+        ), segments.last().id)
+    }
+
+    @Test
     fun `same-millisecond source revisions retain distinct runs and the newly opened segment`() = runBlocking {
         val now = Instant.parse("2026-08-30T12:00:00Z").toEpochMilli()
         val first = record(
@@ -311,6 +431,92 @@ class PassivePipelineRepositoryTest {
         assertTrue(provenance.contains(PassivePipelineCodec.rawIdentity(unlock)))
         assertTrue(provenance.contains(PassivePipelineCodec.rawIdentity(off)))
         assertFalse(provenance.contains(PassivePipelineCodec.rawIdentity(unrelated)))
+    }
+
+    @Test
+    fun `usage read and persisted load include the prior-day anchor without widening touched dates`() = runBlocking {
+        val now = Instant.parse("2026-08-30T12:00:00Z").toEpochMilli()
+        val firstDate = LocalDate.parse("2026-08-01")
+        val firstStart = firstDate.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+        val anchor = record(
+            PassiveSourceFamily.USAGE_STATS,
+            PassiveRecordKind.SCREEN_INTERACTIVE,
+            firstStart - 10L * 60_000L,
+            firstStart - 10L * 60_000L,
+            "first-day-anchor",
+            value = null,
+        )
+        val unlock = record(
+            PassiveSourceFamily.USAGE_STATS,
+            PassiveRecordKind.SCREEN_UNLOCKED,
+            firstStart + 7L * 3_600_000L,
+            firstStart + 7L * 3_600_000L,
+            "first-day-unlock",
+            value = null,
+        )
+        val off = record(
+            PassiveSourceFamily.USAGE_STATS,
+            PassiveRecordKind.SCREEN_NON_INTERACTIVE,
+            firstStart + 8L * 3_600_000L,
+            firstStart + 8L * 3_600_000L,
+            "first-day-off",
+            value = null,
+        )
+        val available = listOf(anchor, unlock, off)
+        val usage = RangeSource { range ->
+            val inRange = available.filter {
+                it.eventStart >= range.startInclusive && it.eventStart < range.endExclusive
+            }
+            listOf(successRead(PassiveSourceFamily.USAGE_STATS, range, now, inRange))
+        }
+
+        repository(FakeSource(reads = emptyList()), usage).run(now, ZoneOffset.UTC)
+
+        assertEquals(firstStart - 86_400_000L, usage.ranges.single().startInclusive)
+        assertEquals(firstStart, database.passive().pipelineRunsNow().single().scanStart)
+        assertEquals(
+            listOf(firstDate.toString()),
+            database.passive().dailyRevisionsNow().map { it.localDate }.distinct(),
+        )
+        val daily = database.passive().dailyRevisionsNow().single()
+        assertTrue(daily.provenanceJson.contains(PassivePipelineCodec.rawIdentity(anchor)))
+        assertTrue(database.passive().rawProvenanceNow().any { it.id == PassivePipelineCodec.rawIdentity(anchor) })
+    }
+
+    @Test
+    fun `derivation bounds every window and day to indexed candidates`() = runBlocking {
+        val now = Instant.parse("2026-08-30T12:00:00Z").toEpochMilli()
+        val records = (0L until 8L).map { daysAgo ->
+            val start = LocalDate.parse("2026-08-30").minusDays(daysAgo)
+                .atTime(11, 0).toInstant(ZoneOffset.UTC).toEpochMilli()
+            record(
+                PassiveSourceFamily.STEPS,
+                PassiveRecordKind.STEPS_INTERVAL,
+                start,
+                start + 60_000L,
+                "steps-$daysAgo",
+                value = 10.0,
+            )
+        }
+        val candidateCounts = mutableListOf<Int>()
+        val source = RangeSource { range ->
+            listOf(successRead(PassiveSourceFamily.STEPS, range, now, records))
+        }
+        val repository = PassivePipelineRepository(
+            database = database,
+            healthSource = source,
+            usageSource = FakeSource(reads = emptyList()),
+            historyPermissionGranted = { true },
+            ensureCurrentPhase = {},
+            refreshProvenanceAfterCommit = {},
+            recordCandidatesObserved = { candidateCounts += it },
+        )
+
+        repository.run(now, ZoneOffset.UTC)
+
+        assertTrue(candidateCounts.size > records.size)
+        assertTrue(candidateCounts.all { it <= 1 })
+        assertEquals(8, database.passive().dailyRevisionsNow().size)
     }
 
     @Test
@@ -619,6 +825,34 @@ class PassivePipelineRepositoryTest {
         ensureCurrentPhase = {},
         refreshProvenanceAfterCommit = {},
     )
+
+    private suspend fun assertPermissionProbeFallback(failure: Exception) {
+        val now = Instant.parse("2026-08-30T12:00:00Z").toEpochMilli()
+        val source = RangeSource { range ->
+            listOf(
+                PassiveSourceRead(
+                    PassiveSourceFamily.STEPS,
+                    PassiveReadState.READ_FAILURE_TRANSIENT,
+                    range,
+                    now,
+                    errorCode = "RETRY",
+                ),
+            )
+        }
+
+        val result = repository(source, FakeSource(reads = emptyList()), historyGranted = { throw failure })
+            .run(now, ZoneOffset.UTC)
+
+        assertTrue(result is PassivePipelineResult.Retry)
+        assertEquals(
+            LocalDate.parse("2026-08-01").atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli(),
+            source.ranges.single().startInclusive,
+        )
+        assertEquals("READ_FAILURE_TRANSIENT", database.passive().sourceReadsNow().single().state)
+        val run = database.passive().pipelineRunsNow().single()
+        assertFalse(run.historyPermissionGranted)
+        assertEquals("RETRY_TRANSIENT", run.result)
+    }
 
     private class FakeSource(
         private val successFamily: PassiveSourceFamily? = null,

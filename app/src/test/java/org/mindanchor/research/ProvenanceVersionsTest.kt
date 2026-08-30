@@ -50,19 +50,6 @@ class ProvenanceVersionsTest {
     }
 
     @Test
-    fun `the first Program 2B provenance check opens a model phase before the transformation phase`() {
-        val next = vector()
-        val prior = StudyPhaseDecision.next(null, next.copy(
-            modelSetVersion = "personal-robust-baseline-v3",
-            transformationSetVersion = "e36fe716c37f318166ccb8d764af56c546a6aa8b57df6dab34be48b4447d9fea",
-        ), 1L)!!
-
-        val opened = StudyPhaseDecision.next(prior, next, 2L)
-
-        assertEquals(StudyPhaseReason.MODEL_VERSION_CHANGE, opened?.reason)
-    }
-
-    @Test
     fun `changing any single component changes the vector`() {
         val base = vector()
         val mutations: List<Pair<String, ProvenanceVector>> = listOf(

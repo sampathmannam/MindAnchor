@@ -100,7 +100,7 @@ data class PassivePipelineRunEntity(
 @Entity(tableName = "passive_window_revisions", indices = [
     Index("windowStart"),
     Index("baselineSegment"),
-    Index(value = ["windowStart", "contentHash"], unique = true),
+    Index(value = ["windowStart", "contentHash"]),
 ])
 data class PassiveWindowRevisionEntity(
     @PrimaryKey val id: String,
@@ -129,7 +129,7 @@ data class PassiveWindowRevisionEntity(
 @Entity(tableName = "passive_daily_revisions", indices = [
     Index("localDate"),
     Index("baselineSegment"),
-    Index(value = ["localDate", "contentHash"], unique = true),
+    Index(value = ["localDate", "contentHash"]),
 ])
 data class PassiveDailyRevisionEntity(
     @PrimaryKey val id: String,
@@ -156,7 +156,7 @@ data class PassiveDailyRevisionEntity(
 @Entity(tableName = "passive_observation_decisions", indices = [
     Index("localDate"),
     Index("baselineSegment"),
-    Index(value = ["localDate", "contentHash"], unique = true),
+    Index(value = ["localDate", "contentHash"]),
 ])
 data class PassiveObservationDecisionEntity(
     @PrimaryKey val id: String,

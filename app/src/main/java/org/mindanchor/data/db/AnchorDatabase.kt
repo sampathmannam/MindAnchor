@@ -433,13 +433,13 @@ abstract class AnchorDatabase : RoomDatabase() {
                     "CREATE INDEX IF NOT EXISTS index_passive_pipeline_runs_completedAt ON passive_pipeline_runs(completedAt)",
                     "CREATE INDEX IF NOT EXISTS index_passive_window_revisions_windowStart ON passive_window_revisions(windowStart)",
                     "CREATE INDEX IF NOT EXISTS index_passive_window_revisions_baselineSegment ON passive_window_revisions(baselineSegment)",
-                    "CREATE UNIQUE INDEX IF NOT EXISTS index_passive_window_revisions_windowStart_contentHash ON passive_window_revisions(windowStart, contentHash)",
+                    "CREATE INDEX IF NOT EXISTS index_passive_window_revisions_windowStart_contentHash ON passive_window_revisions(windowStart, contentHash)",
                     "CREATE INDEX IF NOT EXISTS index_passive_daily_revisions_localDate ON passive_daily_revisions(localDate)",
                     "CREATE INDEX IF NOT EXISTS index_passive_daily_revisions_baselineSegment ON passive_daily_revisions(baselineSegment)",
-                    "CREATE UNIQUE INDEX IF NOT EXISTS index_passive_daily_revisions_localDate_contentHash ON passive_daily_revisions(localDate, contentHash)",
+                    "CREATE INDEX IF NOT EXISTS index_passive_daily_revisions_localDate_contentHash ON passive_daily_revisions(localDate, contentHash)",
                     "CREATE INDEX IF NOT EXISTS index_passive_observation_decisions_localDate ON passive_observation_decisions(localDate)",
                     "CREATE INDEX IF NOT EXISTS index_passive_observation_decisions_baselineSegment ON passive_observation_decisions(baselineSegment)",
-                    "CREATE UNIQUE INDEX IF NOT EXISTS index_passive_observation_decisions_localDate_contentHash ON passive_observation_decisions(localDate, contentHash)",
+                    "CREATE INDEX IF NOT EXISTS index_passive_observation_decisions_localDate_contentHash ON passive_observation_decisions(localDate, contentHash)",
                 ).forEach(db::execSQL)
                 installResearchImmutability(db)
             }

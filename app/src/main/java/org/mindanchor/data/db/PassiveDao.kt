@@ -37,57 +37,57 @@ interface PassiveDao {
 
     @Query("SELECT p.*, s.value AS rawValue FROM passive_raw_provenance p " +
         "JOIN passive_raw_samples s ON s.provenanceId = p.id " +
-        "WHERE p.eventStart < :endExclusive AND p.eventEnd >= :startInclusive ORDER BY p.eventStart, p.id")
+        "WHERE p.eventStart < :endExclusive AND p.eventEnd >= :startInclusive ORDER BY p.eventStart, p.rowid")
     suspend fun rawRecords(startInclusive: Long, endExclusive: Long): List<PassiveStoredRecord>
 
     @Query("DELETE FROM passive_raw_samples WHERE ingestedAt < :cutoff")
     suspend fun pruneRawSamples(cutoff: Long): Int
 
-    @Query("SELECT * FROM passive_raw_provenance ORDER BY eventStart, id")
+    @Query("SELECT * FROM passive_raw_provenance ORDER BY eventStart, rowid")
     suspend fun rawProvenanceNow(): List<PassiveRawProvenanceEntity>
 
-    @Query("SELECT * FROM passive_source_reads ORDER BY attemptedAt, sourceFamily, id")
+    @Query("SELECT * FROM passive_source_reads ORDER BY attemptedAt, sourceFamily, rowid")
     suspend fun sourceReadsNow(): List<PassiveSourceReadEntity>
 
-    @Query("SELECT * FROM passive_source_lags ORDER BY observedAt, sourceFamily, id")
+    @Query("SELECT * FROM passive_source_lags ORDER BY observedAt, sourceFamily, rowid")
     suspend fun sourceLagsNow(): List<PassiveSourceLagEntity>
 
-    @Query("SELECT * FROM passive_source_lags WHERE sourceFamily = :family ORDER BY observedAt, id")
+    @Query("SELECT * FROM passive_source_lags WHERE sourceFamily = :family ORDER BY observedAt, rowid")
     suspend fun sourceLags(family: String): List<PassiveSourceLagEntity>
 
-    @Query("SELECT * FROM passive_baseline_segments ORDER BY openedAt, id")
+    @Query("SELECT * FROM passive_baseline_segments ORDER BY openedAt, rowid")
     suspend fun baselineSegmentsNow(): List<PassiveBaselineSegmentEntity>
 
-    @Query("SELECT * FROM passive_baseline_segments ORDER BY openedAt DESC, id DESC LIMIT 1")
+    @Query("SELECT * FROM passive_baseline_segments ORDER BY openedAt DESC, rowid DESC LIMIT 1")
     suspend fun latestBaselineSegment(): PassiveBaselineSegmentEntity?
 
-    @Query("SELECT * FROM passive_pipeline_runs ORDER BY completedAt, id")
+    @Query("SELECT * FROM passive_pipeline_runs ORDER BY completedAt, rowid")
     suspend fun pipelineRunsNow(): List<PassivePipelineRunEntity>
 
     @Query("SELECT COUNT(*) FROM passive_pipeline_runs WHERE result = 'SUCCESS_PERMISSIONED'")
     suspend fun successfulPermissionedRunCount(): Int
 
-    @Query("SELECT * FROM passive_window_revisions ORDER BY windowStart, asOfTime, id")
+    @Query("SELECT * FROM passive_window_revisions ORDER BY windowStart, asOfTime, rowid")
     suspend fun windowRevisionsNow(): List<PassiveWindowRevisionEntity>
 
-    @Query("SELECT * FROM passive_window_revisions WHERE windowStart = :windowStart ORDER BY asOfTime DESC, id DESC LIMIT 1")
+    @Query("SELECT * FROM passive_window_revisions WHERE windowStart = :windowStart ORDER BY asOfTime DESC, rowid DESC LIMIT 1")
     suspend fun latestWindowRevision(windowStart: Long): PassiveWindowRevisionEntity?
 
-    @Query("SELECT * FROM passive_daily_revisions ORDER BY localDate, asOfTime, id")
+    @Query("SELECT * FROM passive_daily_revisions ORDER BY localDate, asOfTime, rowid")
     suspend fun dailyRevisionsNow(): List<PassiveDailyRevisionEntity>
 
-    @Query("SELECT * FROM passive_daily_revisions WHERE localDate = :localDate ORDER BY asOfTime DESC, id DESC LIMIT 1")
+    @Query("SELECT * FROM passive_daily_revisions WHERE localDate = :localDate ORDER BY asOfTime DESC, rowid DESC LIMIT 1")
     suspend fun latestDailyRevision(localDate: String): PassiveDailyRevisionEntity?
 
-    @Query("SELECT * FROM passive_daily_revisions WHERE localDate < :targetDate AND asOfTime <= :asOfTime ORDER BY localDate, asOfTime, id")
+    @Query("SELECT * FROM passive_daily_revisions WHERE localDate < :targetDate AND asOfTime <= :asOfTime ORDER BY localDate, asOfTime, rowid")
     suspend fun dailyHistory(targetDate: String, asOfTime: Long): List<PassiveDailyRevisionEntity>
 
-    @Query("SELECT * FROM passive_observation_decisions ORDER BY localDate, asOfTime, id")
+    @Query("SELECT * FROM passive_observation_decisions ORDER BY localDate, asOfTime, rowid")
     suspend fun observationDecisionsNow(): List<PassiveObservationDecisionEntity>
 
-    @Query("SELECT * FROM passive_observation_decisions WHERE localDate = :localDate ORDER BY asOfTime DESC, id DESC LIMIT 1")
+    @Query("SELECT * FROM passive_observation_decisions WHERE localDate = :localDate ORDER BY asOfTime DESC, rowid DESC LIMIT 1")
     suspend fun latestObservationDecision(localDate: String): PassiveObservationDecisionEntity?
 
-    @Query("SELECT * FROM passive_observation_decisions WHERE localDate < :targetDate AND asOfTime <= :asOfTime ORDER BY localDate, asOfTime, id")
+    @Query("SELECT * FROM passive_observation_decisions WHERE localDate < :targetDate AND asOfTime <= :asOfTime ORDER BY localDate, asOfTime, rowid")
     suspend fun priorDecisions(targetDate: String, asOfTime: Long): List<PassiveObservationDecisionEntity>
 }

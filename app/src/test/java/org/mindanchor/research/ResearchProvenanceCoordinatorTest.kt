@@ -1,5 +1,8 @@
 package org.mindanchor.research
 
+import android.content.Context
+import androidx.room.Room
+import androidx.test.core.app.ApplicationProvider
 import java.time.Instant
 import java.time.ZoneOffset
 import kotlinx.coroutines.runBlocking
@@ -7,13 +10,29 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.mindanchor.data.db.AnchorDatabase
+import org.mindanchor.data.db.withResearchImmutability
+import org.mindanchor.intelligence.PassivePipelineRepository
+import org.mindanchor.intelligence.PassivePipelineResult
+import org.mindanchor.intelligence.PassiveReadRange
+import org.mindanchor.intelligence.PassiveReadState
+import org.mindanchor.intelligence.PassiveRecordKind
+import org.mindanchor.intelligence.PassiveRecordSource
+import org.mindanchor.intelligence.PassiveSourceFamily
+import org.mindanchor.intelligence.PassiveSourceRead
+import org.mindanchor.intelligence.PassiveSourceRecord
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /**
  * Program 1 Task 6 — the coordinator opens a study phase when the
  * provenance vector changes and records the change in the ledger, with no
- * Room, no Context and no Robolectric: storage is one narrow interface,
- * faked in memory.
+ * storage is one narrow interface, faked in memory. The pipeline integration
+ * test additionally uses real Room transaction boundaries.
  */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class ResearchProvenanceCoordinatorTest {
 
     /**
@@ -21,13 +40,18 @@ class ResearchProvenanceCoordinatorTest {
      * prevent. [inTransaction] genuinely rolls back on failure — a fake
      * that swallowed the exception and kept the phase would prove nothing.
      */
-    private class FakeStore(private val failOnAppend: Boolean = false) : ResearchProvenanceStore {
+    private class FakeStore(
+        private val failOnAppend: Boolean = false,
+        private val beforeTransaction: suspend () -> Unit = {},
+        private val afterRefresh: suspend () -> Unit = {},
+    ) : ResearchProvenanceStore {
         val phases = mutableListOf<StudyPhase>()
         val events = mutableListOf<ResearchLedgerEvent>()
         var vector: ProvenanceVector = ProvenanceVersions.vector(95, "0.71.0", "device-a")
         var transactions = 0
 
         override suspend fun inTransaction(block: suspend () -> StudyPhase): StudyPhase {
+            beforeTransaction()
             transactions += 1
             val phasesBefore = phases.toList()
             val eventsBefore = events.toList()
@@ -59,6 +83,7 @@ class ResearchProvenanceCoordinatorTest {
 
         /** Records both that it fired and what the ledger held at the time. */
         override suspend fun afterLedgerGrew() {
+            afterRefresh()
             refreshes += events.size
         }
 
@@ -92,6 +117,83 @@ class ResearchProvenanceCoordinatorTest {
                 },
             kinds(store),
         )
+    }
+
+    @Test
+    @Suppress("LongMethod")
+    fun `first passive derived write opens pinned phase and refreshes only after commit`() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val database = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java)
+            .withResearchImmutability()
+            .allowMainThreadQueries()
+            .build()
+        try {
+            val now = Instant.parse("2026-08-30T12:00:00Z").toEpochMilli()
+            val record = PassiveSourceRecord(
+                sourceFamily = PassiveSourceFamily.STEPS,
+                kind = PassiveRecordKind.STEPS_INTERVAL,
+                eventStart = now - 120_000L,
+                eventEnd = now - 60_000L,
+                value = 10.0,
+                unit = "count",
+                dataOriginPackage = "source.steps",
+                deviceManufacturer = "Maker",
+                deviceModel = "Model",
+                deviceType = "WATCH",
+                sourceUpdatedTime = now - 30_000L,
+                ingestedAt = now,
+                zoneId = "UTC",
+                zoneOffsetSeconds = 0,
+                recordId = "pipeline-steps",
+                recordVersion = 1L,
+            )
+            val store = FakeStore(
+                beforeTransaction = {
+                    assertEquals(1, database.passive().rawProvenanceNow().size)
+                    assertEquals(0, database.passive().windowRevisionsNow().size)
+                    assertEquals(0, database.passive().dailyRevisionsNow().size)
+                },
+                afterRefresh = {
+                    assertEquals(1, database.passive().pipelineRunsNow().size)
+                    assertTrue(database.passive().windowRevisionsNow().isNotEmpty())
+                    assertEquals(1, database.passive().dailyRevisionsNow().size)
+                },
+            )
+            val coordinator = coordinator(store)
+            val health = object : PassiveRecordSource {
+                override suspend fun read(range: PassiveReadRange) = listOf(
+                    PassiveSourceRead(
+                        PassiveSourceFamily.STEPS,
+                        PassiveReadState.SUCCESS,
+                        range,
+                        now,
+                        listOf(record),
+                    ),
+                )
+            }
+            val usage = object : PassiveRecordSource {
+                override suspend fun read(range: PassiveReadRange) = emptyList<PassiveSourceRead>()
+            }
+            val pipeline = PassivePipelineRepository(
+                database = database,
+                healthSource = health,
+                usageSource = usage,
+                historyPermissionGranted = { false },
+                ensureCurrentPhase = { coordinator.ensureCurrentPhase(it); Unit },
+                refreshProvenanceAfterCommit = coordinator::refreshAfterCommit,
+            )
+
+            assertTrue(pipeline.run(now, ZoneOffset.UTC) is PassivePipelineResult.Completed)
+
+            val phase = store.phases.single()
+            assertEquals(StudyPhaseReason.INITIAL, phase.reason)
+            assertEquals(ProvenanceVersions.MODEL_SET_VERSION, phase.vector.modelSetVersion)
+            assertEquals(TransformationRegistry.setVersion, phase.vector.transformationSetVersion)
+            assertEquals(1, store.transactions)
+            assertEquals(listOf(store.events.size), store.refreshes)
+        } finally {
+            database.close()
+        }
     }
 
     @Test

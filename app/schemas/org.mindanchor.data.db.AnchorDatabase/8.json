@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 8,
-    "identityHash": "2b5f045ea895cb3d9580204c6717ca36",
+    "identityHash": "9ef4811635629230f3a82e63aee7c52d",
     "entities": [
       {
         "tableName": "held_notifications",
@@ -1457,13 +1457,13 @@
           },
           {
             "name": "index_passive_window_revisions_windowStart_contentHash",
-            "unique": true,
+            "unique": false,
             "columnNames": [
               "windowStart",
               "contentHash"
             ],
             "orders": [],
-            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_passive_window_revisions_windowStart_contentHash` ON `${TABLE_NAME}` (`windowStart`, `contentHash`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_passive_window_revisions_windowStart_contentHash` ON `${TABLE_NAME}` (`windowStart`, `contentHash`)"
           }
         ],
         "foreignKeys": []
@@ -1614,13 +1614,13 @@
           },
           {
             "name": "index_passive_daily_revisions_localDate_contentHash",
-            "unique": true,
+            "unique": false,
             "columnNames": [
               "localDate",
               "contentHash"
             ],
             "orders": [],
-            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_passive_daily_revisions_localDate_contentHash` ON `${TABLE_NAME}` (`localDate`, `contentHash`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_passive_daily_revisions_localDate_contentHash` ON `${TABLE_NAME}` (`localDate`, `contentHash`)"
           }
         ],
         "foreignKeys": []
@@ -1729,13 +1729,13 @@
           },
           {
             "name": "index_passive_observation_decisions_localDate_contentHash",
-            "unique": true,
+            "unique": false,
             "columnNames": [
               "localDate",
               "contentHash"
             ],
             "orders": [],
-            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_passive_observation_decisions_localDate_contentHash` ON `${TABLE_NAME}` (`localDate`, `contentHash`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_passive_observation_decisions_localDate_contentHash` ON `${TABLE_NAME}` (`localDate`, `contentHash`)"
           }
         ],
         "foreignKeys": []
@@ -1744,7 +1744,7 @@
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '2b5f045ea895cb3d9580204c6717ca36')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '9ef4811635629230f3a82e63aee7c52d')"
     ]
   }
 }
