@@ -51,15 +51,20 @@ import java.time.ZoneId
 object HealthConnectSource {
 
     /**
-     * Read-only permissions this app asks for. Every type here is
-     * something a given watch may simply never write; asking for all of
-     * them costs nothing, since each is reduced independently and an
-     * ungranted or empty type just leaves its [DailyVitals] field null.
+     * The eleven read-only permissions this app may ask for: nine record
+     * types plus health-data history and background access. Eight record
+     * types are always eligible; [MindfulnessSessionRecord] is included
+     * only when the provider advertises its feature through
+     * [effectivePermissions]. An ungranted or empty record type is reduced
+     * independently and leaves its [DailyVitals] field null.
      *
      * [TotalCaloriesBurnedRecord] is asked for as a general activity
      * signal even though no [DailyVitals] field consumes it yet — it is
      * here so the permission grant does not need revisiting the day a
      * calories field is added.
+     * [OxygenSaturationRecord] is retained as unscored context. History
+     * allows baseline building from older records, while background access
+     * allows the later periodic local reader to run with the screen closed.
      *
      * [MindfulnessSessionRecord] is the mental-health signal. The
      * meditation apps that already write to Health Connect (Calm,
@@ -86,8 +91,8 @@ object HealthConnectSource {
 
     /**
      * The subset of [PERMISSIONS] the current provider can actually
-     * supply. Always at least the seven types that do not depend on
-     * a feature flag; the eighth — [MindfulnessSessionRecord] — is
+     * supply. The ten base permissions are eight record reads plus history
+     * and background access. The eleventh — [MindfulnessSessionRecord] — is
      * included only when [HealthConnectFeatures.FEATURE_MINDFULNESS_SESSION]
      * is reported as [HealthConnectFeatures.FEATURE_STATUS_AVAILABLE].
      *

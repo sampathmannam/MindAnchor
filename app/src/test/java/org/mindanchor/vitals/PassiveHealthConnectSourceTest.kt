@@ -25,6 +25,7 @@ import kotlin.reflect.KClass
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -284,6 +285,38 @@ class PassiveHealthConnectSourceTest {
     }
 
     @Test
+    fun `length-prefixed health identity separates delimiter-ambiguous device fields`() = runBlocking {
+        val records = listOf(
+            stepsWithBlankIds(Device(Device.TYPE_WATCH, "A|B", "C")),
+            stepsWithBlankIds(Device(Device.TYPE_WATCH, "A", "B|C")),
+        )
+
+        val ids = PassiveHealthConnectSource(FakeGateway.withRecords(records), clock = { 5_000L })
+            .read(PassiveReadRange(1L, 3_000L, "UTC"))
+            .single { it.sourceFamily == PassiveSourceFamily.STEPS }
+            .records
+            .map { it.recordId }
+
+        assertNotEquals(ids[0], ids[1])
+    }
+
+    @Test
+    fun `length-prefixed health identity separates null from literal null`() = runBlocking {
+        val records = listOf(
+            stepsWithBlankIds(Device(Device.TYPE_WATCH, null, "M")),
+            stepsWithBlankIds(Device(Device.TYPE_WATCH, "null", "M")),
+        )
+
+        val ids = PassiveHealthConnectSource(FakeGateway.withRecords(records), clock = { 5_000L })
+            .read(PassiveReadRange(1L, 3_000L, "UTC"))
+            .single { it.sourceFamily == PassiveSourceFamily.STEPS }
+            .records
+            .map { it.recordId }
+
+        assertNotEquals(ids[0], ids[1])
+    }
+
+    @Test
     fun `history permission helper reports only an explicit grant`() = runBlocking {
         assertTrue(
             PassiveHealthConnectSource(
@@ -325,6 +358,15 @@ class PassiveHealthConnectSourceTest {
             device,
         ) as Metadata
     }
+
+    private fun stepsWithBlankIds(device: Device): StepsRecord = StepsRecord(
+        Instant.ofEpochMilli(1_000L),
+        ZoneOffset.UTC,
+        Instant.ofEpochMilli(2_000L),
+        ZoneOffset.UTC,
+        4L,
+        Metadata.manualEntry(device = device),
+    )
 
     private class FakeGateway(
         private val granted: Set<String> = emptySet(),

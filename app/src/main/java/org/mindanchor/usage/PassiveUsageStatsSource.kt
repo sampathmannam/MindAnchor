@@ -6,6 +6,7 @@ import android.content.Context
 import android.os.Build
 import java.time.Instant
 import java.time.ZoneId
+import java.util.concurrent.CancellationException
 import org.mindanchor.intelligence.PassiveReadRange
 import org.mindanchor.intelligence.PassiveReadState
 import org.mindanchor.intelligence.PassiveRecordKind
@@ -92,7 +93,14 @@ class PassiveUsageStatsSource internal constructor(
                     zoneId = zone.id,
                     zoneOffsetSeconds = zone.rules
                         .getOffset(Instant.ofEpochMilli(raw.timeStamp)).totalSeconds,
-                    recordId = PassiveSeed.sha256("${kind.name}|${raw.timeStamp}|$manufacturer|$model"),
+                    recordId = PassiveSeed.sha256(
+                        listOf(
+                            kind.name,
+                            raw.timeStamp.toString(),
+                            manufacturer,
+                            model,
+                        ).joinToString(separator = "") { canonicalPart(it) },
+                    ),
                     recordVersion = 0L,
                 )
             }
@@ -115,6 +123,8 @@ class PassiveUsageStatsSource internal constructor(
                     errorCode = "PACKAGE_USAGE_STATS_DENIED",
                 ),
             )
+        } catch (failure: CancellationException) {
+            throw failure
         } catch (failure: RuntimeException) {
             listOf(
                 PassiveSourceRead(
@@ -128,3 +138,6 @@ class PassiveUsageStatsSource internal constructor(
         }
     }
 }
+
+private fun canonicalPart(value: String?): String =
+    value?.let { "${it.length}:$it" } ?: "null:"

@@ -360,16 +360,16 @@ private fun normalizedRecord(
     val resolvedRecordId = recordId ?: PassiveSeed.sha256(
         listOf(
             family.name,
-            eventStart,
-            eventEnd,
+            eventStart.toString(),
+            eventEnd.toString(),
             origin,
-            value,
+            value?.toString(),
             unit,
             device?.manufacturer,
             device?.model,
             deviceType,
-            metadata.clientRecordVersion,
-        ).joinToString("|"),
+            metadata.clientRecordVersion.toString(),
+        ).joinToString(separator = "") { canonicalPart(it) },
     )
     return PassiveSourceRecord(
         sourceFamily = family,
@@ -397,6 +397,9 @@ private fun normalizedRecord(
 private fun preferredMetadataId(metadata: Metadata): String? =
     metadata.id.takeIf { it.isNotBlank() }
         ?: metadata.clientRecordId?.takeIf { it.isNotBlank() }
+
+private fun canonicalPart(value: String?): String =
+    value?.let { "${it.length}:$it" } ?: "null:"
 
 private fun deviceTypeName(type: Int): String = when (type) {
     Device.TYPE_WATCH -> "WATCH"

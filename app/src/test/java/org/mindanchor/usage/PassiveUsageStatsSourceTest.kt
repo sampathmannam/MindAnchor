@@ -3,9 +3,12 @@ package org.mindanchor.usage
 import android.app.usage.UsageEvents
 import java.time.Instant
 import java.time.ZoneId
+import java.util.concurrent.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mindanchor.intelligence.PassiveReadRange
@@ -39,7 +42,7 @@ class PassiveUsageStatsSourceTest {
     }
 
     @Test
-    fun `successful query copies supported screen events with stable provenance`() = runBlocking {
+    fun `successful query maps supported screen events with stable provenance`() = runBlocking {
         val events = listOf(
             RawUsageEvent(UsageEvents.Event.SCREEN_INTERACTIVE, 1_000L),
             RawUsageEvent(UsageEvents.Event.SCREEN_NON_INTERACTIVE, 2_000L),
@@ -80,10 +83,37 @@ class PassiveUsageStatsSourceTest {
             first.zoneOffsetSeconds,
         )
         assertEquals(
-            PassiveSeed.sha256("SCREEN_INTERACTIVE|1000|Acme|P1"),
+            PassiveSeed.sha256("18:SCREEN_INTERACTIVE4:10004:Acme2:P1"),
             first.recordId,
         )
         assertEquals(0L, first.recordVersion)
+    }
+
+    @Test
+    fun `cancellation from usage query is rethrown`() {
+        assertThrows(CancellationException::class.java) {
+            runBlocking {
+                PassiveUsageStatsSource(
+                    FakeGateway(hasAccess = true, failure = CancellationException("cancelled")),
+                    "Acme",
+                    "P1",
+                ).read(PassiveReadRange(1L, 2L, "UTC"))
+            }
+        }
+    }
+
+    @Test
+    fun `length-prefixed usage identity separates delimiter-ambiguous device fields`() = runBlocking {
+        val event = RawUsageEvent(UsageEvents.Event.SCREEN_INTERACTIVE, 1_000L)
+        suspend fun recordId(manufacturer: String, model: String): String =
+            PassiveUsageStatsSource(
+                FakeGateway(hasAccess = true, events = listOf(event)),
+                manufacturer,
+                model,
+                clock = { 2_000L },
+            ).read(PassiveReadRange(1L, 2_000L, "UTC")).single().records.single().recordId
+
+        assertNotEquals(recordId("A|B", "C"), recordId("A", "B|C"))
     }
 
     @Test
