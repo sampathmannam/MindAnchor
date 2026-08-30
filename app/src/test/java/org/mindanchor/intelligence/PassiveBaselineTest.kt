@@ -201,6 +201,56 @@ class PassiveBaselineTest {
         assertEquals(listOf(20.0, 30.0), effective.map { it.features.getValue(PassiveFeature.STEPS) })
     }
 
+    @Test fun `effective final days use the last append when revision timestamps tie`() {
+        val day = LocalDate.parse("2026-01-01")
+        val older = revision(day, 99_999.0, sourceUpdatedTime = 20L, ingestedAt = 30L)
+        val newer = revision(day, 1.0, sourceUpdatedTime = 20L, ingestedAt = 30L)
+
+        val effective = PassiveHistory.effectiveFinalDays(
+            history = listOf(older, newer),
+            targetDay = day.plusDays(1L),
+            asOfTime = 30L,
+            segment = "a",
+        )
+
+        assertEquals(newer, effective.single())
+    }
+
+    @Test fun `effective observations use the last append when as-of timestamps tie`() {
+        val day = LocalDate.parse("2026-01-01")
+        val older = observation(day, 30L, PassiveObservationState.SUSTAINED_DEVIATION, "older append")
+        val newer = observation(day, 30L, PassiveObservationState.WITHIN_PERSON_RANGE, "newer append")
+
+        val effective = PassiveHistory.effectiveObservations(
+            prior = listOf(older, newer),
+            targetDay = day.plusDays(1L),
+            asOfTime = 30L,
+            segment = "a",
+        )
+
+        assertEquals(newer, effective.single())
+    }
+
+    @Test fun `effective observations preserve as-of precedence over append order`() {
+        val day = LocalDate.parse("2026-01-01")
+        val newestAsOf = observation(day, 30L, PassiveObservationState.SUSTAINED_DEVIATION, "newest as-of")
+        val appendedLaterWithOlderAsOf = observation(
+            day,
+            20L,
+            PassiveObservationState.WITHIN_PERSON_RANGE,
+            "older as-of",
+        )
+
+        val effective = PassiveHistory.effectiveObservations(
+            prior = listOf(newestAsOf, appendedLaterWithOlderAsOf),
+            targetDay = day.plusDays(1L),
+            asOfTime = 30L,
+            segment = "a",
+        )
+
+        assertEquals(newestAsOf, effective.single())
+    }
+
     @Test fun `duplicate revisions do not inflate the sixty distinct day floor`() {
         val history = days(59)
         val duplicate = history.last().copy(
@@ -454,6 +504,28 @@ class PassiveBaselineTest {
         baselineSegment = segment,
         sourceUpdatedTime = sourceUpdatedTime,
         ingestedAt = ingestedAt,
+    )
+
+    private fun observation(
+        day: LocalDate,
+        asOfTime: Long,
+        state: PassiveObservationState,
+        explanation: String,
+    ) = PassiveObservation(
+        day = day,
+        asOfTime = asOfTime,
+        dataStatus = PassiveDataStatus.AVAILABLE_FINAL,
+        state = state,
+        threshold = 1.0,
+        crossed = state != PassiveObservationState.WITHIN_PERSON_RANGE,
+        baselineDays = 60,
+        frozenBaselineAsOfTime = null,
+        frozenBaselineThroughDay = null,
+        baselineSegment = "a",
+        domains = emptyList(),
+        calibration = null,
+        baselineShift = null,
+        explanation = explanation,
     )
 
     private fun calendarRhythmDays(count: Int, start: LocalDate = LocalDate.parse("2026-01-01")) =

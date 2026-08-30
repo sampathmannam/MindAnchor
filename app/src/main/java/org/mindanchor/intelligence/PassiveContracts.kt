@@ -60,10 +60,11 @@ object PassiveHistory {
         .groupBy { it.day }
         .values
         .map { revisions ->
-            revisions.maxWith(
-                compareBy<PassiveDay> { it.sourceUpdatedTime }
-                    .thenBy { it.ingestedAt },
-            )
+            revisions.withIndex().maxWith(
+                compareBy<IndexedValue<PassiveDay>> { it.value.sourceUpdatedTime }
+                    .thenBy { it.value.ingestedAt }
+                    .thenBy { it.index },
+            ).value
         }
         .sortedBy { it.day }
 
@@ -77,7 +78,12 @@ object PassiveHistory {
         .filter { it.asOfTime <= asOfTime && it.baselineSegment == segment }
         .groupBy { it.day }
         .values
-        .map { revisions -> revisions.maxBy { it.asOfTime } }
+        .map { revisions ->
+            revisions.withIndex().maxWith(
+                compareBy<IndexedValue<PassiveObservation>> { it.value.asOfTime }
+                    .thenBy { it.index },
+            ).value
+        }
         .sortedBy { it.day }
 }
 
