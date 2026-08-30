@@ -22,6 +22,7 @@ import org.mindanchor.continuity.ContinuityWorkScheduler
 import org.mindanchor.continuity.RestoreCoordinator
 import org.mindanchor.data.SunsetPrefs
 import org.mindanchor.friction.SessionManager
+import org.mindanchor.intelligence.PassivePipelineScheduler
 import org.mindanchor.launcher.LauncherRoot
 import org.mindanchor.letters.LetterScheduler
 import org.mindanchor.onboarding.OnboardingPrefs
@@ -132,6 +133,7 @@ class HomeActivity : ComponentActivity() {
         // This is also the self-repair path for a process death between
         // a successful nightly upload and it rescheduling itself.
         ContinuityWorkScheduler.ensureNightlyScheduled(applicationContext)
+        PassivePipelineScheduler.ensureScheduled(applicationContext)
         // Task 11: resume a staged-but-interrupted restore, local phase
         // only. Fire-and-forget, its own coroutine — see
         // RestoreCoordinator.resumeIfPending's KDoc: it makes zero
