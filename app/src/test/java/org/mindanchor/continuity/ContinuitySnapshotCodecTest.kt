@@ -3,6 +3,7 @@ package org.mindanchor.continuity
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
@@ -222,6 +223,16 @@ class ContinuitySnapshotCodecTest {
         return JsonObject(document + ("payload" to JsonObject(payload + (field to value)))).toString()
     }
 
+    private fun assertCorruptFormatVersion(value: JsonElement) {
+        val document = JsonObject(
+            encodedDocument(ContinuitySnapshot.CURRENT_FORMAT_VERSION) + ("formatVersion" to value),
+        ).toString()
+        val decoded = runCatching { ContinuitySnapshotCodec.decode(document) }
+
+        assertTrue("decode must not throw: ${decoded.exceptionOrNull()}", decoded.isSuccess)
+        assertEquals(ContinuitySnapshotCodec.DecodeResult.Corrupt, decoded.getOrNull())
+    }
+
     @Test
     fun `capture encode decode preserves every field`() {
         val snapshot = sampleSnapshot()
@@ -302,6 +313,31 @@ class ContinuitySnapshotCodecTest {
         val decoded = ContinuitySnapshotCodec.decode("{ this is not valid json at all")
 
         assertTrue(decoded is ContinuitySnapshotCodec.DecodeResult.Corrupt)
+    }
+
+    @Test
+    fun `object format version is corrupt without throwing`() {
+        assertCorruptFormatVersion(buildJsonObject { put("nested", JsonPrimitive(3)) })
+    }
+
+    @Test
+    fun `array format version is corrupt without throwing`() {
+        assertCorruptFormatVersion(buildJsonArray { add(JsonPrimitive(3)) })
+    }
+
+    @Test
+    fun `null format version is corrupt without throwing`() {
+        assertCorruptFormatVersion(JsonNull)
+    }
+
+    @Test
+    fun `Boolean format version is corrupt without throwing`() {
+        assertCorruptFormatVersion(JsonPrimitive(true))
+    }
+
+    @Test
+    fun `nonnumeric string format version is corrupt without throwing`() {
+        assertCorruptFormatVersion(JsonPrimitive("three"))
     }
 
     @Test

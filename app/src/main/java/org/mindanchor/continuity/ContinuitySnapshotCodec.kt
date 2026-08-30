@@ -5,9 +5,9 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Reading and writing a [ContinuitySnapshot] as JSON.
@@ -70,7 +70,7 @@ object ContinuitySnapshotCodec {
     fun decode(text: String): DecodeResult {
         val raw = runCatching { Json.parseToJsonElement(text).jsonObject }
             .getOrElse { return DecodeResult.Corrupt }
-        val formatVersion = raw["formatVersion"]?.jsonPrimitive?.intOrNull
+        val formatVersion = (raw["formatVersion"] as? JsonPrimitive)?.intOrNull
             ?: return DecodeResult.Corrupt
         if (formatVersion !in ContinuityContract.SUPPORTED_SNAPSHOT_FORMAT_VERSIONS) {
             return DecodeResult.UnsupportedVersion(formatVersion)
