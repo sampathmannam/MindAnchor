@@ -6,9 +6,19 @@ import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.mindanchor.data.db.AnchorDatabase
 import org.mindanchor.data.db.SafetyDao
 import org.mindanchor.data.db.withResearchImmutability
+
+internal data class TransactionGate(
+    val started: CountDownLatch,
+    val release: CountDownLatch,
+)
 
 internal class SafetyPlanRoomHarness(context: Context) : AutoCloseable {
     private val databaseName = "support-plan-${UUID.randomUUID()}.db"
@@ -52,10 +62,52 @@ internal class SafetyPlanRoomHarness(context: Context) : AutoCloseable {
         check(drained.await(10, TimeUnit.SECONDS)) { "transaction executor did not drain" }
     }
 
+    fun gateTransactionExecutor(): TransactionGate {
+        val gate = TransactionGate(CountDownLatch(1), CountDownLatch(1))
+        transactionExecutor.execute {
+            gate.started.countDown()
+            check(gate.release.await(15, TimeUnit.SECONDS)) { "transaction gate timed out" }
+        }
+        check(gate.started.await(10, TimeUnit.SECONDS)) { "transaction gate never started" }
+        return gate
+    }
+
     override fun close() {
         database.close()
         transactionExecutor.shutdownNow()
         queryExecutor.shutdownNow()
         appContext.deleteDatabase(databaseName)
     }
+}
+
+internal class AfterCommitResultGate(
+    private val delegate: SafetyPlanStore,
+) : SafetyPlanStore {
+    override val plans = delegate.plans
+    val calls = AtomicInteger(0)
+    private val armed = AtomicBoolean(false)
+    private var committed = CompletableDeferred<SafetyPlanSaveResult.Committed>()
+    private var release = CountDownLatch(0)
+
+    fun arm() {
+        check(armed.compareAndSet(false, true)) { "result gate already armed" }
+        committed = CompletableDeferred()
+        release = CountDownLatch(1)
+    }
+
+    override suspend fun save(command: SaveSafetyPlan): SafetyPlanSaveResult {
+        calls.incrementAndGet()
+        val result = delegate.save(command)
+        if (result is SafetyPlanSaveResult.Committed && armed.compareAndSet(true, false)) {
+            committed.complete(result)
+            withContext(Dispatchers.IO) {
+                check(release.await(15, TimeUnit.SECONDS)) { "result gate timed out" }
+            }
+        }
+        return result
+    }
+
+    suspend fun awaitCommitted(): SafetyPlanSaveResult.Committed = committed.await()
+
+    fun releaseResult() = release.countDown()
 }
