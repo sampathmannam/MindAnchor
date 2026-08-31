@@ -32,7 +32,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -83,43 +83,18 @@ fun SupportScreen(
     viewModel: SupportViewModel = viewModel(),
 ) {
     val context = LocalContext.current
-    val plan by viewModel.plan.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
     val contacts by viewModel.contacts.collectAsState()
-    val saveState by viewModel.saveState.collectAsState()
-    var planDraftState by rememberSaveable(stateSaver = SafetyPlanDraftState.Saver) {
-        mutableStateOf(SafetyPlanDraftState())
-    }
-    var closeAfterSave by rememberSaveable { mutableStateOf(false) }
     var dialFailure by remember { mutableStateOf<String?>(null) }
-    val persistedPlan = plan ?: SafetyPlan()
-    val saveBlocked = !saveState.canStartSave
+    val currentOnClose by rememberUpdatedState(onClose)
 
-    fun requestClose() {
-        if (viewModel.saveBlocksNavigation) {
-            closeAfterSave = true
-        } else {
-            onClose()
+    LaunchedEffect(viewModel) {
+        viewModel.effects.collect { effect ->
+            if (effect == SupportEffect.Close) currentOnClose()
         }
     }
 
-    BackHandler { requestClose() }
-
-    LaunchedEffect(saveState) {
-        when (saveState) {
-            SafetyPlanSaveState.Saved -> {
-                planDraftState = planDraftState.saveSucceeded()
-                viewModel.consumeSaveSuccess()
-                if (closeAfterSave) {
-                    closeAfterSave = false
-                    onClose()
-                }
-            }
-            SafetyPlanSaveState.Failed -> closeAfterSave = false
-            SafetyPlanSaveState.Idle,
-            SafetyPlanSaveState.Saving,
-            -> Unit
-        }
-    }
+    BackHandler { viewModel.onEvent(SupportEvent.Back) }
 
     // A crisis button must never fail silently. Swallowing the exception
     // leaves someone staring at a screen that did nothing while believing
@@ -153,7 +128,9 @@ fun SupportScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(24.dp),
         ) {
-            TextButton(onClick = ::requestClose) { Text(stringResource(R.string.action_back)) }
+            TextButton(onClick = { viewModel.onEvent(SupportEvent.Back) }) {
+                Text(stringResource(R.string.action_back))
+            }
 
             Text(
                 text = stringResource(R.string.support_title),
@@ -276,21 +253,25 @@ fun SupportScreen(
                         .weight(1f)
                         .semantics { heading() },
                 )
+                val saving = uiState as? SafetyPlanUiState.Saving
                 TextButton(
                     onClick = {
-                        if (planDraftState.isEditing) {
-                            viewModel.savePlan(planDraftState.visiblePlan(persistedPlan))
-                        } else {
-                            planDraftState = planDraftState.startEditing(persistedPlan)
-                        }
+                        viewModel.onEvent(
+                            if (uiState is SafetyPlanUiState.Viewing) {
+                                SupportEvent.Edit
+                            } else {
+                                SupportEvent.Done
+                            },
+                        )
                     },
-                    enabled = !saveBlocked,
+                    enabled = saving == null,
                 ) {
                     Text(
                         stringResource(
                             when {
-                                saveBlocked -> R.string.plan_saving
-                                planDraftState.isEditing -> R.string.action_done
+                                saving?.isSlow == true -> R.string.plan_still_saving
+                                saving != null -> R.string.plan_saving
+                                uiState is SafetyPlanUiState.Editing -> R.string.action_done
                                 else -> R.string.action_edit
                             },
                         ),
@@ -298,7 +279,8 @@ fun SupportScreen(
                 }
             }
 
-            if (saveState == SafetyPlanSaveState.Failed) {
+            val editing = uiState as? SafetyPlanUiState.Editing
+            if (editing?.error == SafetyPlanUiError.SaveFailed) {
                 Text(
                     text = stringResource(R.string.plan_save_failed),
                     style = MaterialTheme.typography.bodyMedium,
@@ -307,18 +289,18 @@ fun SupportScreen(
                 )
             }
 
-            val current = planDraftState.visiblePlan(persistedPlan)
-            if (planDraftState.isEditing) {
-                SafetyPlanEditor(
-                    plan = current,
-                    onChange = { planDraftState = planDraftState.updateDraft(it) },
-                    planFieldsEnabled = !saveBlocked,
+            when (uiState) {
+                is SafetyPlanUiState.Viewing -> SafetyPlanReader(uiState.visiblePlan)
+                is SafetyPlanUiState.Editing,
+                is SafetyPlanUiState.Saving,
+                -> SafetyPlanEditor(
+                    plan = uiState.visiblePlan,
+                    onChange = { viewModel.onEvent(SupportEvent.DraftChanged(it)) },
+                    planFieldsEnabled = uiState is SafetyPlanUiState.Editing,
                     contacts = contacts,
                     onAddContact = viewModel::addContact,
                     onRemoveContact = viewModel::removeContact,
                 )
-            } else {
-                SafetyPlanReader(current)
             }
 
             Text(

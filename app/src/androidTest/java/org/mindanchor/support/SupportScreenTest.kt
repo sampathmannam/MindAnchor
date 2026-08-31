@@ -94,7 +94,9 @@ class SupportScreenTest {
             .performScrollTo()
             .performTextInput("cannot sleep")
         rule.onNodeWithText("done").performScrollTo().performClick()
-        rule.waitForIdle()
+        rule.waitUntil(timeoutMillis = 10_000L) {
+            rule.onAllNodes(hasText("edit")).fetchSemanticsNodes().isNotEmpty()
+        }
         rule.onAllNodes(hasText("cannot sleep", substring = true)).onFirst().assertExists()
     }
 }

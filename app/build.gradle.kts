@@ -311,6 +311,7 @@ dependencies {
     implementation(libs.compose.ui.tooling.preview)
 
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
     // OkHttp's MockWebServer: a localhost-bound HTTP server that
     // records requests and returns scripted responses. v0.20.7's
     // CorosApiTest exercises the four Training Hub endpoints

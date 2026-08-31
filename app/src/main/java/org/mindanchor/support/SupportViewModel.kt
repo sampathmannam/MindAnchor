@@ -3,79 +3,186 @@ package org.mindanchor.support
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import org.mindanchor.data.db.AnchorDatabase
 import org.mindanchor.data.db.CrisisContact
+import org.mindanchor.data.db.SafetyDao
 import org.mindanchor.data.db.SafetyPlan
 
-internal sealed interface SafetyPlanSaveState {
-    data object Idle : SafetyPlanSaveState
-    data object Saving : SafetyPlanSaveState
-    data object Saved : SafetyPlanSaveState
-    data object Failed : SafetyPlanSaveState
+internal enum class SafetyPlanUiError { SaveFailed }
+
+internal sealed interface SafetyPlanUiState {
+    val persisted: SafetyPlan
+
+    data class Viewing(override val persisted: SafetyPlan) : SafetyPlanUiState
+
+    data class Editing(
+        override val persisted: SafetyPlan,
+        val draft: SafetyPlan,
+        val error: SafetyPlanUiError? = null,
+    ) : SafetyPlanUiState
+
+    data class Saving(
+        override val persisted: SafetyPlan,
+        val command: SaveSafetyPlan,
+        val closeRequested: Boolean = false,
+        val isSlow: Boolean = false,
+    ) : SafetyPlanUiState
 }
 
-internal val SafetyPlanSaveState.canStartSave: Boolean
-    get() = this == SafetyPlanSaveState.Idle || this == SafetyPlanSaveState.Failed
+internal sealed interface SupportEvent {
+    data object Edit : SupportEvent
+    data class DraftChanged(val draft: SafetyPlan) : SupportEvent
+    data object Done : SupportEvent
+    data object Back : SupportEvent
+}
 
-internal suspend fun saveAndVerifySafetyPlan(
-    plan: SafetyPlan,
-    timeoutMillis: Long,
-    save: suspend (SafetyPlan) -> Unit,
-    readback: suspend () -> SafetyPlan?,
-): Boolean = runCatching {
-    withContext(NonCancellable) {
-        withTimeout(timeoutMillis) {
-            save(plan)
-            readback() == plan
+internal sealed interface SupportEffect {
+    data object Close : SupportEffect
+}
+
+internal val SafetyPlanUiState.visiblePlan: SafetyPlan
+    get() = when (this) {
+        is SafetyPlanUiState.Viewing -> persisted
+        is SafetyPlanUiState.Editing -> draft
+        is SafetyPlanUiState.Saving -> {
+            if (persisted.updatedAt > command.draft.updatedAt) persisted else command.draft
         }
     }
-}.getOrDefault(false)
 
-class SupportViewModel(application: Application) : AndroidViewModel(application) {
+class SupportViewModel internal constructor(
+    application: Application,
+    private val store: SafetyPlanStore,
+    private val dao: SafetyDao,
+    private val slowThresholdMillis: Long,
+) : AndroidViewModel(application) {
+    constructor(application: Application) : this(
+        application = application,
+        store = RoomSafetyPlanStore(AnchorDatabase.get(application).safety()),
+        dao = AnchorDatabase.get(application).safety(),
+        slowThresholdMillis = SLOW_THRESHOLD_MILLIS,
+    )
 
-    private val dao = AnchorDatabase.get(application).safety()
+    private val _uiState = MutableStateFlow<SafetyPlanUiState>(
+        SafetyPlanUiState.Viewing(SafetyPlan(updatedAt = UNLOADED_UPDATED_AT)),
+    )
+    internal val uiState = _uiState.asStateFlow()
 
-    val plan = dao.plan()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    private val effectChannel = Channel<SupportEffect>(Channel.BUFFERED)
+    internal val effects = effectChannel.receiveAsFlow()
 
-    private val _saveState = MutableStateFlow<SafetyPlanSaveState>(SafetyPlanSaveState.Idle)
-    internal val saveState = _saveState.asStateFlow()
+    private var lastOperationId = 0L
+    private var slowJob: Job? = null
 
     val contacts = dao.contacts()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    internal val saveBlocksNavigation: Boolean
-        get() = !_saveState.value.canStartSave
-
-    fun savePlan(plan: SafetyPlan): Boolean {
-        val current = _saveState.value
-        if (!current.canStartSave || !_saveState.compareAndSet(current, SafetyPlanSaveState.Saving)) {
-            return false
+    init {
+        viewModelScope.launch {
+            store.plans.collect(::acceptPublishedPlan)
         }
-        val planToSave = plan.copy(updatedAt = System.currentTimeMillis())
-        viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
-            val verified = saveAndVerifySafetyPlan(
-                plan = planToSave,
-                timeoutMillis = SAVE_TIMEOUT_MILLIS,
-                save = dao::savePlan,
-                readback = dao::planNow,
-            )
-            _saveState.value = if (verified) SafetyPlanSaveState.Saved else SafetyPlanSaveState.Failed
-        }
-        return true
     }
 
-    internal fun consumeSaveSuccess() {
-        _saveState.compareAndSet(SafetyPlanSaveState.Saved, SafetyPlanSaveState.Idle)
+    internal fun onEvent(event: SupportEvent) {
+        when (event) {
+            SupportEvent.Edit -> startEditing()
+            is SupportEvent.DraftChanged -> changeDraft(event.draft)
+            SupportEvent.Done -> startSave()
+            SupportEvent.Back -> requestClose()
+        }
+    }
+
+    private fun startEditing() {
+        val state = _uiState.value as? SafetyPlanUiState.Viewing ?: return
+        val draft = if (state.persisted.updatedAt == UNLOADED_UPDATED_AT) {
+            SafetyPlan()
+        } else {
+            state.persisted
+        }
+        _uiState.value = SafetyPlanUiState.Editing(state.persisted, draft)
+    }
+
+    private fun changeDraft(draft: SafetyPlan) {
+        val state = _uiState.value as? SafetyPlanUiState.Editing ?: return
+        _uiState.value = state.copy(draft = draft, error = null)
+    }
+
+    private fun startSave() {
+        val state = _uiState.value as? SafetyPlanUiState.Editing ?: return
+        val command = SaveSafetyPlan(Math.addExact(lastOperationId, 1L), state.draft)
+        lastOperationId = command.operationId
+        _uiState.value = SafetyPlanUiState.Saving(state.persisted, command)
+        slowJob?.cancel()
+        slowJob = viewModelScope.launch {
+            delay(slowThresholdMillis)
+            val current = _uiState.value as? SafetyPlanUiState.Saving ?: return@launch
+            if (current.command.operationId == command.operationId) {
+                _uiState.value = current.copy(isSlow = true)
+            }
+        }
+        viewModelScope.launch {
+            acceptSaveResult(store.save(command))
+        }
+    }
+
+    private fun requestClose() {
+        when (val state = _uiState.value) {
+            is SafetyPlanUiState.Viewing -> effectChannel.trySend(SupportEffect.Close)
+            is SafetyPlanUiState.Editing -> {
+                _uiState.value = SafetyPlanUiState.Viewing(state.persisted)
+                effectChannel.trySend(SupportEffect.Close)
+            }
+            is SafetyPlanUiState.Saving -> _uiState.value = state.copy(closeRequested = true)
+        }
+    }
+
+    private fun acceptPublishedPlan(candidate: SafetyPlan) {
+        val state = _uiState.value
+        if (candidate.updatedAt <= state.persisted.updatedAt) return
+        _uiState.value = when (state) {
+            is SafetyPlanUiState.Viewing -> state.copy(persisted = candidate)
+            is SafetyPlanUiState.Editing -> state.copy(persisted = candidate)
+            is SafetyPlanUiState.Saving -> state.copy(persisted = candidate)
+        }
+    }
+
+    internal fun acceptSaveResult(result: SafetyPlanSaveResult) {
+        val saving = _uiState.value as? SafetyPlanUiState.Saving ?: return
+        val resultOperationId = when (result) {
+            is SafetyPlanSaveResult.Committed -> result.operationId
+            is SafetyPlanSaveResult.Failed -> result.operationId
+        }
+        if (resultOperationId != saving.command.operationId) return
+
+        slowJob?.cancel()
+        slowJob = null
+        when (result) {
+            is SafetyPlanSaveResult.Committed -> {
+                val newest = if (result.stored.updatedAt > saving.persisted.updatedAt) {
+                    result.stored
+                } else {
+                    saving.persisted
+                }
+                _uiState.value = SafetyPlanUiState.Viewing(newest)
+                if (saving.closeRequested) effectChannel.trySend(SupportEffect.Close)
+            }
+            is SafetyPlanSaveResult.Failed -> {
+                _uiState.value = SafetyPlanUiState.Editing(
+                    persisted = saving.persisted,
+                    draft = saving.command.draft,
+                    error = SafetyPlanUiError.SaveFailed,
+                )
+            }
+        }
     }
 
     /**
@@ -102,7 +209,8 @@ class SupportViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch { dao.removeContact(contact) }
     }
 
-    private companion object {
-        const val SAVE_TIMEOUT_MILLIS = 3_000L
+    internal companion object {
+        const val SLOW_THRESHOLD_MILLIS = 3_000L
+        private const val UNLOADED_UPDATED_AT = Long.MIN_VALUE
     }
 }
