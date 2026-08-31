@@ -182,11 +182,16 @@ class SupportSafetyPlanPersistenceTest {
             val writerB = RoomSafetyPlanStore(harness.dao) { 200L }.save(
                 SaveSafetyPlan(99L, SafetyPlan(warningSigns = "writer B")),
             ) as SafetyPlanSaveResult.Committed
+            val savingViewModel = currentViewModel()
             waitForText("writer B")
             resultGate.releaseResult()
+            waitUntil {
+                (savingViewModel.uiState.value as? SafetyPlanUiState.Viewing)?.persisted ==
+                    writerB.stored
+            }
             waitForText("writer B")
             assertEquals(writerB.stored, harness.dao.planNow())
-            assertEquals("writer B", currentViewModel().uiState.value.visiblePlan.warningSigns)
+            assertEquals("writer B", savingViewModel.uiState.value.visiblePlan.warningSigns)
         } finally {
             resultGate.releaseResult()
         }
@@ -206,8 +211,13 @@ class SupportSafetyPlanPersistenceTest {
             val writerB = RoomSafetyPlanStore(harness.dao) { 200L }.save(
                 SaveSafetyPlan(99L, SafetyPlan(warningSigns = "writer B")),
             ) as SafetyPlanSaveResult.Committed
+            val savingViewModel = currentViewModel()
             waitForText("writer B")
             resultGate.releaseResult()
+            waitUntil {
+                (savingViewModel.uiState.value as? SafetyPlanUiState.Viewing)?.persisted ==
+                    writerB.stored
+            }
             waitForOriginalActivityToClose()
             harness.drainTransactions()
             assertEquals(writerB.stored, harness.dao.planNow())
@@ -273,6 +283,7 @@ class SupportSafetyPlanPersistenceTest {
     fun destroyAndFreshLaunchShowsRoomOnlyAndDoesNotRestoreDraft_notProcessDeathSimulation(): Unit =
         runBlocking {
             awaitInitialPlan()
+            harness.installWriteCounter()
             val roomPlan = (RoomSafetyPlanStore(harness.dao) { 100L }.save(
                 SaveSafetyPlan(1L, SafetyPlan(warningSigns = "Room-only plan")),
             ) as SafetyPlanSaveResult.Committed).stored
@@ -282,6 +293,9 @@ class SupportSafetyPlanPersistenceTest {
             assertWarningSignsFieldContains("unsaved draft")
             val originalViewModel = currentViewModel()
             finishOriginalActivity()
+            harness.drainTransactions()
+            assertEquals(roomPlan, harness.dao.planNow())
+            assertEquals(1, harness.writeCount())
 
             // This is a destroy-and-fresh-launch contract. It intentionally does not
             // claim to simulate an operating-system process death.
@@ -291,7 +305,9 @@ class SupportSafetyPlanPersistenceTest {
                 waitForText("Room-only plan")
                 assertNoText("unsaved draft")
                 assertNotSame(originalViewModel, currentViewModel())
+                harness.drainTransactions()
                 assertEquals(roomPlan, harness.dao.planNow())
+                assertEquals(1, harness.writeCount())
                 freshScenario.onActivity { it.finish() }
             }
         }
