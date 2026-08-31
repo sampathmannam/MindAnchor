@@ -25,6 +25,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -79,8 +80,13 @@ fun SupportScreen(
     val context = LocalContext.current
     val plan by viewModel.plan.collectAsState()
     val contacts by viewModel.contacts.collectAsState()
-    var editing by remember { mutableStateOf(false) }
+    var planDraftState by remember { mutableStateOf(SafetyPlanDraftState()) }
     var dialFailure by remember { mutableStateOf<String?>(null) }
+    val persistedPlan = plan ?: SafetyPlan()
+
+    LaunchedEffect(persistedPlan) {
+        planDraftState = planDraftState.persistedPlanObserved(persistedPlan)
+    }
 
     // A crisis button must never fail silently. Swallowing the exception
     // leaves someone staring at a screen that did nothing while believing
@@ -237,20 +243,30 @@ fun SupportScreen(
                         .weight(1f)
                         .semantics { heading() },
                 )
-                TextButton(onClick = { editing = !editing }) {
+                TextButton(
+                    onClick = {
+                        if (planDraftState.isEditing) {
+                            val committed = planDraftState.finishEditing()
+                            planDraftState = committed.state
+                            viewModel.savePlan(committed.planToSave)
+                        } else {
+                            planDraftState = planDraftState.startEditing(persistedPlan)
+                        }
+                    },
+                ) {
                     Text(
                         stringResource(
-                            if (editing) R.string.action_done else R.string.action_edit,
+                            if (planDraftState.isEditing) R.string.action_done else R.string.action_edit,
                         ),
                     )
                 }
             }
 
-            val current = plan ?: SafetyPlan()
-            if (editing) {
+            val current = planDraftState.visiblePlan(persistedPlan)
+            if (planDraftState.isEditing) {
                 SafetyPlanEditor(
                     plan = current,
-                    onChange = viewModel::savePlan,
+                    onChange = { planDraftState = planDraftState.updateDraft(it) },
                     contacts = contacts,
                     onAddContact = viewModel::addContact,
                     onRemoveContact = viewModel::removeContact,
