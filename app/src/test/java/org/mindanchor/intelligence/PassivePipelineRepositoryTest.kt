@@ -535,6 +535,63 @@ class PassivePipelineRepositoryTest {
     }
 
     @Test
+    fun `third correction invalidates only previous and current effective locations`() = runBlocking {
+        val now = Instant.parse("2026-08-30T12:00:00Z").toEpochMilli()
+        val dates = listOf("2026-08-27", "2026-08-28", "2026-08-29").map(LocalDate::parse)
+        val starts = dates.map { it.atTime(0, 5).toInstant(ZoneOffset.UTC).toEpochMilli() }
+        var current = record(
+            PassiveSourceFamily.STEPS,
+            PassiveRecordKind.STEPS_INTERVAL,
+            starts[0],
+            starts[0] + 5L * 60_000L,
+            "steps-three-corrections",
+            value = 10.0,
+        )
+        val source = RangeSource { range ->
+            listOf(successRead(PassiveSourceFamily.STEPS, range, range.endExclusive, listOf(current)))
+        }
+        val repository = repository(source, FakeSource(reads = emptyList()))
+
+        repository.run(now, ZoneOffset.UTC)
+        current = current.copy(
+            eventStart = starts[1],
+            eventEnd = starts[1] + 5L * 60_000L,
+            recordVersion = 2L,
+            sourceUpdatedTime = starts[1] + 10L * 60_000L,
+            ingestedAt = starts[1] + 11L * 60_000L,
+        )
+        repository.run(now, ZoneOffset.UTC)
+        val aDailyCount = dailyRevisionCount(dates[0])
+        val aWindowCount = windowRevisionCount(starts[0])
+        val beforeC = derivedRevisionCounts()
+
+        current = current.copy(
+            eventStart = starts[2],
+            eventEnd = starts[2] + 5L * 60_000L,
+            recordVersion = 3L,
+            sourceUpdatedTime = starts[2] + 10L * 60_000L,
+            ingestedAt = starts[2] + 11L * 60_000L,
+        )
+        repository.run(now, ZoneOffset.UTC)
+
+        assertEquals(aDailyCount, dailyRevisionCount(dates[0]))
+        assertEquals(aWindowCount, windowRevisionCount(starts[0]))
+        assertEquals(null, latestDailyFeatures(dates[1])[PassiveFeature.STEPS])
+        assertEquals(10.0, latestDailyFeatures(dates[2])[PassiveFeature.STEPS])
+        assertEquals("BACKFILL", latestDailyAt(dates[1]).revisionReason)
+        assertEquals("BACKFILL", latestDailyAt(dates[2]).revisionReason)
+        assertEquals("[]", latestWindowAt(starts[1]).provenanceRecordIdsJson)
+        assertTrue(
+            latestWindowAt(starts[2]).provenanceRecordIdsJson
+                .contains(PassivePipelineCodec.rawIdentity(current)),
+        )
+        val afterC = derivedRevisionCounts()
+        assertEquals(97, afterC.first - beforeC.first)
+        assertEquals(2, afterC.second - beforeC.second)
+        assertEquals(2, afterC.third - beforeC.third)
+    }
+
+    @Test
     fun `identical stable record ids from different origins remain independent`() = runBlocking {
         val now = Instant.parse("2026-08-30T12:00:00Z").toEpochMilli()
         val dayStart = LocalDate.parse("2026-08-30").atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
@@ -1297,6 +1354,21 @@ class PassivePipelineRepositoryTest {
     private suspend fun latestWindowAt(eventTime: Long) = database.passive().windowRevisionsNow()
         .last { it.windowStart == Math.floorDiv(eventTime, PassiveWindowAggregator.WINDOW_MILLIS) *
             PassiveWindowAggregator.WINDOW_MILLIS }
+
+    private suspend fun windowRevisionCount(eventTime: Long): Int {
+        val start = Math.floorDiv(eventTime, PassiveWindowAggregator.WINDOW_MILLIS) *
+            PassiveWindowAggregator.WINDOW_MILLIS
+        return database.passive().windowRevisionsNow().count { it.windowStart == start }
+    }
+
+    private suspend fun dailyRevisionCount(date: LocalDate) = database.passive().dailyRevisionsNow()
+        .count { it.localDate == date.toString() }
+
+    private suspend fun latestDailyAt(date: LocalDate) = database.passive().dailyRevisionsNow()
+        .last { it.localDate == date.toString() }
+
+    private suspend fun latestDailyFeatures(date: LocalDate) =
+        PassivePipelineCodec.dailyToDomain(latestDailyAt(date)).features
 
     private suspend fun derivedRevisionCounts() = Triple(
         database.passive().windowRevisionsNow().size,

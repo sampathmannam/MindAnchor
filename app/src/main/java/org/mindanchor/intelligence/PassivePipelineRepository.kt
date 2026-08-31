@@ -438,16 +438,16 @@ class PassivePipelineRepository internal constructor(
         .withIndex()
         .groupBy { SourceRecordKey.from(it.value) }
         .values
-        .map { revisions ->
-            revisions.maxWith(
-                compareBy<IndexedValue<PassiveSourceRecord>> {
-                    it.value.sourceUpdatedTime ?: Long.MIN_VALUE
-                }.thenBy { it.value.ingestedAt }
-                    .thenBy { it.index },
-            )
-        }
+        .map(::latestCorrection)
         .sortedBy { it.index }
         .map { it.value }
+
+    private fun latestCorrection(revisions: List<IndexedValue<PassiveSourceRecord>>) = revisions.maxWith(
+        compareBy<IndexedValue<PassiveSourceRecord>> {
+            it.value.sourceUpdatedTime ?: Long.MIN_VALUE
+        }.thenBy { it.value.ingestedAt }
+            .thenBy { it.index },
+    )
 
     private fun correctionImpact(
         stored: List<PassiveSourceRecord>,
@@ -457,22 +457,29 @@ class PassivePipelineRepository internal constructor(
         zone: ZoneId,
     ): CorrectionImpact {
         if (newlyInsertedProvenanceIds.isEmpty()) return CorrectionImpact.EMPTY
-        val revisionsByKey = stored.groupBy(SourceRecordKey::from)
-        val corrected = revisionsByKey.values.filter { revisions ->
+        val revisionsByKey = stored.withIndex().groupBy { SourceRecordKey.from(it.value) }
+        val corrected = revisionsByKey.values.mapNotNull { revisions ->
             val prior = revisions.filter {
-                PassivePipelineCodec.rawIdentity(it) !in newlyInsertedProvenanceIds
+                PassivePipelineCodec.rawIdentity(it.value) !in newlyInsertedProvenanceIds
             }
-            prior.isNotEmpty() && PassivePipelineCodec.rawIdentity(
-                latestCorrections(revisions).single(),
-            ) in newlyInsertedProvenanceIds
+            val previous = prior.takeIf { it.isNotEmpty() }?.let(::latestCorrection) ?: return@mapNotNull null
+            val current = latestCorrection(revisions)
+            val previousId = PassivePipelineCodec.rawIdentity(previous.value)
+            val currentId = PassivePipelineCodec.rawIdentity(current.value)
+            listOf(previous.value, current.value).takeIf {
+                currentId in newlyInsertedProvenanceIds && currentId != previousId
+            }
         }
         if (corrected.isEmpty()) return CorrectionImpact.EMPTY
 
         val evidenceByDate = mutableMapOf<LocalDate, MutableList<PassiveSourceRecord>>()
         val windowStarts = mutableSetOf<Long>()
         corrected.forEach { revisions ->
-            val dates = revisions.flatMap { recordDates(it, range, zone) }.toSet()
-            dates.forEach { date -> evidenceByDate.getOrPut(date) { mutableListOf() } += revisions }
+            val dates = revisions.flatMap { revision ->
+                recordDates(revision, range, zone).onEach { date ->
+                    evidenceByDate.getOrPut(date) { mutableListOf() } += revision
+                }
+            }.toSet()
             windowStarts += correctionWindowStarts(revisions, dates, range, now, zone)
         }
         return CorrectionImpact(evidenceByDate, windowStarts)
