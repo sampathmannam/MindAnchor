@@ -10,6 +10,10 @@ import org.mindanchor.corpus.CorpusStore
 import org.mindanchor.data.LauncherPrefs
 import org.mindanchor.data.db.AnchorDatabase
 import org.mindanchor.model.MomentStore
+import org.mindanchor.support.RoomSafetyPlanStore
+import org.mindanchor.support.SafetyPlanSaveResult
+import org.mindanchor.support.SafetyPlanStore
+import org.mindanchor.support.SaveSafetyPlan
 import org.mindanchor.usage.InferredStore
 import org.mindanchor.vitals.MeasuredStore
 
@@ -22,9 +26,19 @@ import org.mindanchor.vitals.MeasuredStore
  * deleting either because a person restored an old file would be its own
  * kind of data loss.
  */
-class BackupRepository(private val context: Context) {
+class BackupRepository internal constructor(
+    private val context: Context,
+    private val db: AnchorDatabase,
+    private val safetyPlanStore: SafetyPlanStore,
+) {
+    constructor(context: Context) : this(
+        context = context.applicationContext,
+        db = AnchorDatabase.get(context.applicationContext),
+        safetyPlanStore = RoomSafetyPlanStore(
+            AnchorDatabase.get(context.applicationContext).safety(),
+        ),
+    )
 
-    private val db = AnchorDatabase.get(context)
     private val prefs = LauncherPrefs(context)
 
     suspend fun export(now: Long): String = withContext(Dispatchers.IO) {
@@ -55,7 +69,13 @@ class BackupRepository(private val context: Context) {
     suspend fun import(text: String, now: Long): Boolean = withContext(Dispatchers.IO) {
         val backup = BackupCodec.decode(text) ?: return@withContext false
 
-        db.safety().savePlan(BackupCodec.toSafetyPlan(backup.plan, now))
+        val planResult = safetyPlanStore.save(
+            SaveSafetyPlan(
+                operationId = BACKUP_IMPORT_OPERATION_ID,
+                draft = BackupCodec.toSafetyPlan(backup.plan, now),
+            ),
+        )
+        if (planResult is SafetyPlanSaveResult.Failed) throw planResult.cause
 
         // Additive, and de-duplicated by number so restoring the same file
         // twice does not fill the crisis card with copies of one person.
@@ -127,6 +147,8 @@ class BackupRepository(private val context: Context) {
     }
 
     companion object {
+        private const val BACKUP_IMPORT_OPERATION_ID = 0L
+
         /** A name someone can recognise in a file picker a year from now. */
         fun fileName(stamp: String) = "mindanchor-backup-$stamp.json"
 
