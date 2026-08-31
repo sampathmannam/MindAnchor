@@ -8,10 +8,10 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import org.mindanchor.data.db.AnchorDatabase
 import org.mindanchor.data.db.CrisisContact
 import org.mindanchor.data.db.SafetyPlan
@@ -23,12 +23,29 @@ internal sealed interface SafetyPlanSaveState {
     data object Failed : SafetyPlanSaveState
 }
 
+internal val SafetyPlanSaveState.canStartSave: Boolean
+    get() = this == SafetyPlanSaveState.Idle || this == SafetyPlanSaveState.Failed
+
+internal suspend fun saveAndVerifySafetyPlan(
+    plan: SafetyPlan,
+    timeoutMillis: Long,
+    save: suspend (SafetyPlan) -> Unit,
+    readback: suspend () -> SafetyPlan?,
+): Boolean = runCatching {
+    withContext(NonCancellable) {
+        withTimeout(timeoutMillis) {
+            save(plan)
+            readback() == plan
+        }
+    }
+}.getOrDefault(false)
+
 class SupportViewModel(application: Application) : AndroidViewModel(application) {
 
     private val dao = AnchorDatabase.get(application).safety()
 
-    private val _plan = MutableStateFlow<SafetyPlan?>(null)
-    val plan = _plan.asStateFlow()
+    val plan = dao.plan()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _saveState = MutableStateFlow<SafetyPlanSaveState>(SafetyPlanSaveState.Idle)
     internal val saveState = _saveState.asStateFlow()
@@ -36,38 +53,29 @@ class SupportViewModel(application: Application) : AndroidViewModel(application)
     val contacts = dao.contacts()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    init {
-        viewModelScope.launch {
-            dao.plan().collect { _plan.value = it }
-        }
-    }
+    internal val saveBlocksNavigation: Boolean
+        get() = !_saveState.value.canStartSave
 
-    fun savePlan(plan: SafetyPlan) {
-        if (_saveState.value == SafetyPlanSaveState.Saving) return
-        _saveState.value = SafetyPlanSaveState.Saving
+    fun savePlan(plan: SafetyPlan): Boolean {
+        val current = _saveState.value
+        if (!current.canStartSave || !_saveState.compareAndSet(current, SafetyPlanSaveState.Saving)) {
+            return false
+        }
         val planToSave = plan.copy(updatedAt = System.currentTimeMillis())
         viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
-            val verified = runCatching {
-                withContext(NonCancellable) {
-                    dao.savePlan(planToSave)
-                    dao.planNow().takeIf { it == planToSave }
-                        ?: error("Safety plan write did not match its readback")
-                }
-            }
-            verified.fold(
-                onSuccess = {
-                    _plan.value = it
-                    _saveState.value = SafetyPlanSaveState.Saved
-                },
-                onFailure = { _saveState.value = SafetyPlanSaveState.Failed },
+            val verified = saveAndVerifySafetyPlan(
+                plan = planToSave,
+                timeoutMillis = SAVE_TIMEOUT_MILLIS,
+                save = dao::savePlan,
+                readback = dao::planNow,
             )
+            _saveState.value = if (verified) SafetyPlanSaveState.Saved else SafetyPlanSaveState.Failed
         }
+        return true
     }
 
     internal fun consumeSaveSuccess() {
-        if (_saveState.value == SafetyPlanSaveState.Saved) {
-            _saveState.value = SafetyPlanSaveState.Idle
-        }
+        _saveState.compareAndSet(SafetyPlanSaveState.Saved, SafetyPlanSaveState.Idle)
     }
 
     /**
@@ -92,5 +100,9 @@ class SupportViewModel(application: Application) : AndroidViewModel(application)
 
     fun removeContact(contact: CrisisContact) {
         viewModelScope.launch { dao.removeContact(contact) }
+    }
+
+    private companion object {
+        const val SAVE_TIMEOUT_MILLIS = 3_000L
     }
 }

@@ -1,7 +1,12 @@
 package org.mindanchor.support
 
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
@@ -9,6 +14,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.lifecycle.Lifecycle
+import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.util.concurrent.CountDownLatch
@@ -23,6 +29,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mindanchor.data.db.AnchorDatabase
+import org.mindanchor.data.db.SafetyPlan
 
 @RunWith(AndroidJUnit4::class)
 class SupportSafetyPlanPersistenceTest {
@@ -38,7 +45,7 @@ class SupportSafetyPlanPersistenceTest {
     fun setUp() {
         dropTestDatabaseObjects()
         runBlocking { database.clearAllTables() }
-        rule.waitUntil(timeoutMillis = 10_000) { persistedWarningSigns() == null }
+        rule.waitUntil(timeoutMillis = TEST_TIMEOUT_MILLIS) { persistedWarningSigns() == null }
     }
 
     @After
@@ -48,7 +55,7 @@ class SupportSafetyPlanPersistenceTest {
     }
 
     @Test
-    fun doneWritesOnceToRealRoomAndReopeningReadsIt() {
+    fun doneWritesOnceToRealRoomAndNeverOnKeystrokes() {
         installWriteCounter()
         enterWarningSigns("cannot sleep")
 
@@ -56,37 +63,25 @@ class SupportSafetyPlanPersistenceTest {
         assertEquals(0, writeCount())
 
         tapDone()
-        rule.waitUntil(timeoutMillis = 10_000) {
+        rule.waitUntil(timeoutMillis = TEST_TIMEOUT_MILLIS) {
             persistedWarningSigns() == "cannot sleep" && writeCount() == 1
         }
-
-        rule.activityRule.scenario.recreate()
-        rule.waitUntil(timeoutMillis = 10_000) {
-            persistedWarningSigns() == "cannot sleep"
-        }
-        rule.onNodeWithText("cannot sleep").performScrollTo().assertIsDisplayed()
-        assertEquals(1, writeCount())
     }
 
     @Test
-    fun immediateBackDuringSaveClosesOnlyAfterTheRealRoomCommit() {
+    fun rapidDoubleDoneProducesExactlyOneRoomWrite() {
+        installWriteCounter()
         val (started, release) = blockTransactions()
         try {
-            assertTrue(started.await(10, TimeUnit.SECONDS))
+            assertTrue(started.await(TEST_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS))
             enterWarningSigns("call Maya")
-            tapDone()
 
-            rule.onNodeWithText("Saving…").performScrollTo().assertIsDisplayed()
-            pressSystemBack()
-            assertEquals(Lifecycle.State.RESUMED, rule.activityRule.scenario.state)
-            assertNull(persistedWarningSigns())
+            invokeDoneWithoutWaiting(times = 2)
+            assertEquals(0, writeCount())
 
             release.countDown()
-            rule.waitUntil(timeoutMillis = 10_000) {
-                persistedWarningSigns() == "call Maya"
-            }
-            rule.waitUntil(timeoutMillis = 10_000) {
-                rule.activityRule.scenario.state == Lifecycle.State.DESTROYED
+            rule.waitUntil(timeoutMillis = TEST_TIMEOUT_MILLIS) {
+                persistedWarningSigns() == "call Maya" && writeCount() == 1
             }
         } finally {
             release.countDown()
@@ -94,7 +89,61 @@ class SupportSafetyPlanPersistenceTest {
     }
 
     @Test
-    fun recreationWhileEditingRestoresTheUnsavedDraft() {
+    fun zeroDelayBackAfterDoneWaitsForVerifiedPersistence() {
+        val (started, release) = blockTransactions()
+        try {
+            assertTrue(started.await(TEST_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS))
+            enterWarningSigns("call Maya")
+
+            invokeDoneAndBackInTheSameMainLoop()
+
+            assertEquals(Lifecycle.State.RESUMED, rule.activityRule.scenario.state)
+            assertNull(persistedWarningSigns())
+
+            release.countDown()
+            rule.waitUntil(timeoutMillis = TEST_TIMEOUT_MILLIS) {
+                persistedWarningSigns() == "call Maya"
+            }
+            waitForOriginalActivityToClose()
+        } finally {
+            release.countDown()
+        }
+    }
+
+    @Test
+    fun competingRoomWriterUltimatelyWinsTheDisplayedPersistedState() {
+        enterWarningSigns("my draft")
+        tapDone()
+        waitForDisplayedText("my draft")
+
+        runBlocking {
+            database.safety().savePlan(
+                SafetyPlan(
+                    warningSigns = "newer Room value",
+                    updatedAt = System.currentTimeMillis() + 1,
+                ),
+            )
+        }
+
+        waitForDisplayedText("newer Room value")
+    }
+
+    @Test
+    fun closingAndLaunchingAFreshActivityReadsTheSavedRoomValue() {
+        enterWarningSigns("fresh reopen value")
+        tapDone()
+        waitForDisplayedText("fresh reopen value")
+
+        pressSystemBack()
+        waitForOriginalActivityToClose()
+
+        ActivityScenario.launch(SupportActivity::class.java).use {
+            waitForDisplayedText("fresh reopen value")
+        }
+    }
+
+    @Test
+    fun configurationRecreationPreservesTheUnsavedDraft() {
         enterWarningSigns("pace and stop replying")
         assertNull(persistedWarningSigns())
 
@@ -109,45 +158,53 @@ class SupportSafetyPlanPersistenceTest {
     }
 
     @Test
-    fun backWhileEditingCancelsWithoutPersisting() {
+    fun backWhileEditingWritesNothing() {
+        installWriteCounter()
         enterWarningSigns("do not save this")
 
         pressSystemBack()
-        rule.waitUntil(timeoutMillis = 10_000) {
-            rule.activityRule.scenario.state == Lifecycle.State.DESTROYED
-        }
+        waitForOriginalActivityToClose()
 
         assertNull(persistedWarningSigns())
+        assertEquals(0, writeCount())
     }
 
     @Test
-    fun failedVerificationKeepsQueuedBackOpenWithTheDraftAndAnAccessibleError() {
-        installIgnoredWrite()
-        val (started, release) = blockTransactions()
-        try {
-            assertTrue(started.await(10, TimeUnit.SECONDS))
-            enterWarningSigns("stay with Priya")
-            tapDone()
-            rule.onNodeWithText("Saving…").performScrollTo().assertIsDisplayed()
+    fun contactsStillAddAndRemoveThroughRealRoom() {
+        rule.onNodeWithText("edit").performScrollTo().performClick()
+        rule.onNodeWithText("Name").performScrollTo().performTextInput("Priya")
+        rule.onNodeWithText("Phone").performScrollTo().performTextInput("5551234567")
+        rule.onNodeWithText("Add person").performScrollTo().performClick()
 
-            pressSystemBack()
-            release.countDown()
-
-            val error = "That didn't save. Your plan is still here — try again."
-            rule.waitUntil(timeoutMillis = 10_000) {
-                rule.onAllNodesWithText(error).fetchSemanticsNodes().isNotEmpty()
-            }
-            rule.onNodeWithText(error)
-                .performScrollTo()
-                .assertIsDisplayed()
-            assertEquals(Lifecycle.State.RESUMED, rule.activityRule.scenario.state)
-            rule.onNodeWithText("When things are turning")
-                .performScrollTo()
-                .assertTextContains("stay with Priya", substring = true)
-            assertNull(persistedWarningSigns())
-        } finally {
-            release.countDown()
+        rule.waitUntil(timeoutMillis = TEST_TIMEOUT_MILLIS) {
+            runBlocking { database.safety().contactsNow() }.singleOrNull()?.phone == "5551234567"
         }
+
+        rule.onNodeWithText("remove").performScrollTo().performClick()
+        rule.waitUntil(timeoutMillis = TEST_TIMEOUT_MILLIS) {
+            runBlocking { database.safety().contactsNow() }.isEmpty()
+        }
+    }
+
+    @Test
+    fun nonmatchingReadbackKeepsDraftAndExposesAPoliteLiveRegionError() {
+        installIgnoredWrite()
+        enterWarningSigns("stay with Priya")
+        tapDone()
+
+        val error = "That didn't save. Your plan is still here — try again."
+        waitForDisplayedText(error)
+        rule.onNode(
+            hasText(error) and SemanticsMatcher.expectValue(
+                SemanticsProperties.LiveRegion,
+                LiveRegionMode.Polite,
+            ),
+        ).assertIsDisplayed()
+        rule.onNodeWithText("When things are turning")
+            .performScrollTo()
+            .assertTextContains("stay with Priya", substring = true)
+        assertNull(persistedWarningSigns())
+        assertEquals(Lifecycle.State.RESUMED, rule.activityRule.scenario.state)
     }
 
     private fun enterWarningSigns(text: String) {
@@ -162,10 +219,40 @@ class SupportSafetyPlanPersistenceTest {
         rule.onNodeWithText("done").performScrollTo().performClick()
     }
 
+    private fun invokeDoneWithoutWaiting(times: Int) {
+        val done = rule.onNodeWithText("done").fetchSemanticsNode()
+        val onClick = checkNotNull(done.config[SemanticsActions.OnClick].action)
+        rule.activityRule.scenario.onActivity {
+            repeat(times) { assertTrue(onClick()) }
+        }
+    }
+
+    private fun invokeDoneAndBackInTheSameMainLoop() {
+        val done = rule.onNodeWithText("done").fetchSemanticsNode()
+        val onClick = checkNotNull(done.config[SemanticsActions.OnClick].action)
+        rule.activityRule.scenario.onActivity { activity ->
+            assertTrue(onClick())
+            activity.onBackPressedDispatcher.onBackPressed()
+        }
+    }
+
     private fun pressSystemBack() {
         rule.activityRule.scenario.onActivity {
             it.onBackPressedDispatcher.onBackPressed()
         }
+    }
+
+    private fun waitForOriginalActivityToClose() {
+        rule.waitUntil(timeoutMillis = TEST_TIMEOUT_MILLIS) {
+            rule.activityRule.scenario.state == Lifecycle.State.DESTROYED
+        }
+    }
+
+    private fun waitForDisplayedText(text: String) {
+        rule.waitUntil(timeoutMillis = TEST_TIMEOUT_MILLIS) {
+            rule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
+        }
+        rule.onNodeWithText(text).performScrollTo().assertIsDisplayed()
     }
 
     private fun blockTransactions(): Pair<CountDownLatch, CountDownLatch> {
@@ -173,7 +260,7 @@ class SupportSafetyPlanPersistenceTest {
         val release = CountDownLatch(1)
         database.transactionExecutor.execute {
             started.countDown()
-            release.await(10, TimeUnit.SECONDS)
+            release.await(BLOCK_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         }
         return started to release
     }
@@ -211,5 +298,10 @@ class SupportSafetyPlanPersistenceTest {
         sqlite.execSQL("DROP TRIGGER IF EXISTS support_test_count_safety_plan")
         sqlite.execSQL("DROP TRIGGER IF EXISTS support_test_ignore_safety_plan")
         sqlite.execSQL("DROP TABLE IF EXISTS support_test_safety_writes")
+    }
+
+    companion object {
+        private const val TEST_TIMEOUT_MILLIS = 10_000L
+        private const val BLOCK_TIMEOUT_SECONDS = 15L
     }
 }

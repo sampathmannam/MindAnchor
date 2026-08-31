@@ -92,10 +92,10 @@ fun SupportScreen(
     var closeAfterSave by rememberSaveable { mutableStateOf(false) }
     var dialFailure by remember { mutableStateOf<String?>(null) }
     val persistedPlan = plan ?: SafetyPlan()
-    val saving = saveState == SafetyPlanSaveState.Saving
+    val saveBlocked = !saveState.canStartSave
 
     fun requestClose() {
-        if (saving) {
+        if (viewModel.saveBlocksNavigation) {
             closeAfterSave = true
         } else {
             onClose()
@@ -284,12 +284,12 @@ fun SupportScreen(
                             planDraftState = planDraftState.startEditing(persistedPlan)
                         }
                     },
-                    enabled = !saving,
+                    enabled = !saveBlocked,
                 ) {
                     Text(
                         stringResource(
                             when {
-                                saving -> R.string.plan_saving
+                                saveBlocked -> R.string.plan_saving
                                 planDraftState.isEditing -> R.string.action_done
                                 else -> R.string.action_edit
                             },
@@ -312,7 +312,7 @@ fun SupportScreen(
                 SafetyPlanEditor(
                     plan = current,
                     onChange = { planDraftState = planDraftState.updateDraft(it) },
-                    planFieldsEnabled = !saving,
+                    planFieldsEnabled = !saveBlocked,
                     contacts = contacts,
                     onAddContact = viewModel::addContact,
                     onRemoveContact = viewModel::removeContact,
