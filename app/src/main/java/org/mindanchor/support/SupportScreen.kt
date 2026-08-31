@@ -1,6 +1,7 @@
 package org.mindanchor.support
 
 import android.content.Intent
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Column
 import androidx.core.net.toUri
@@ -31,6 +32,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,7 +41,9 @@ import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -72,6 +76,7 @@ import org.mindanchor.data.db.SafetyPlan
  * support surface, in line with R1 and the strengthened
  * decision recorded 2026-08-08.
  */
+@Suppress("CyclomaticComplexMethod", "LongMethod", "FunctionNaming")
 @Composable
 fun SupportScreen(
     onClose: () -> Unit,
@@ -80,12 +85,40 @@ fun SupportScreen(
     val context = LocalContext.current
     val plan by viewModel.plan.collectAsState()
     val contacts by viewModel.contacts.collectAsState()
-    var planDraftState by remember { mutableStateOf(SafetyPlanDraftState()) }
+    val saveState by viewModel.saveState.collectAsState()
+    var planDraftState by rememberSaveable(stateSaver = SafetyPlanDraftState.Saver) {
+        mutableStateOf(SafetyPlanDraftState())
+    }
+    var closeAfterSave by rememberSaveable { mutableStateOf(false) }
     var dialFailure by remember { mutableStateOf<String?>(null) }
     val persistedPlan = plan ?: SafetyPlan()
+    val saving = saveState == SafetyPlanSaveState.Saving
 
-    LaunchedEffect(persistedPlan) {
-        planDraftState = planDraftState.persistedPlanObserved(persistedPlan)
+    fun requestClose() {
+        if (saving) {
+            closeAfterSave = true
+        } else {
+            onClose()
+        }
+    }
+
+    BackHandler { requestClose() }
+
+    LaunchedEffect(saveState) {
+        when (saveState) {
+            SafetyPlanSaveState.Saved -> {
+                planDraftState = planDraftState.saveSucceeded()
+                viewModel.consumeSaveSuccess()
+                if (closeAfterSave) {
+                    closeAfterSave = false
+                    onClose()
+                }
+            }
+            SafetyPlanSaveState.Failed -> closeAfterSave = false
+            SafetyPlanSaveState.Idle,
+            SafetyPlanSaveState.Saving,
+            -> Unit
+        }
     }
 
     // A crisis button must never fail silently. Swallowing the exception
@@ -120,7 +153,7 @@ fun SupportScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(24.dp),
         ) {
-            TextButton(onClick = onClose) { Text(stringResource(R.string.action_back)) }
+            TextButton(onClick = ::requestClose) { Text(stringResource(R.string.action_back)) }
 
             Text(
                 text = stringResource(R.string.support_title),
@@ -246,20 +279,32 @@ fun SupportScreen(
                 TextButton(
                     onClick = {
                         if (planDraftState.isEditing) {
-                            val committed = planDraftState.finishEditing()
-                            planDraftState = committed.state
-                            viewModel.savePlan(committed.planToSave)
+                            viewModel.savePlan(planDraftState.visiblePlan(persistedPlan))
                         } else {
                             planDraftState = planDraftState.startEditing(persistedPlan)
                         }
                     },
+                    enabled = !saving,
                 ) {
                     Text(
                         stringResource(
-                            if (planDraftState.isEditing) R.string.action_done else R.string.action_edit,
+                            when {
+                                saving -> R.string.plan_saving
+                                planDraftState.isEditing -> R.string.action_done
+                                else -> R.string.action_edit
+                            },
                         ),
                     )
                 }
+            }
+
+            if (saveState == SafetyPlanSaveState.Failed) {
+                Text(
+                    text = stringResource(R.string.plan_save_failed),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                )
             }
 
             val current = planDraftState.visiblePlan(persistedPlan)
@@ -267,6 +312,7 @@ fun SupportScreen(
                 SafetyPlanEditor(
                     plan = current,
                     onChange = { planDraftState = planDraftState.updateDraft(it) },
+                    planFieldsEnabled = !saving,
                     contacts = contacts,
                     onAddContact = viewModel::addContact,
                     onRemoveContact = viewModel::removeContact,
@@ -313,27 +359,44 @@ private fun SafetyPlanReader(plan: SafetyPlan) {
     }
 }
 
+@Suppress("LongMethod", "FunctionNaming")
 @Composable
 private fun SafetyPlanEditor(
     plan: SafetyPlan,
     onChange: (SafetyPlan) -> Unit,
+    planFieldsEnabled: Boolean,
     contacts: List<CrisisContact>,
     onAddContact: (String, String, Boolean) -> Unit,
     onRemoveContact: (CrisisContact) -> Unit,
 ) {
-    PlanField(R.string.plan_warning_signs, R.string.plan_warning_hint, plan.warningSigns) {
+    PlanField(
+        R.string.plan_warning_signs,
+        R.string.plan_warning_hint,
+        plan.warningSigns,
+        planFieldsEnabled,
+    ) {
         onChange(plan.copy(warningSigns = it))
     }
-    PlanField(R.string.plan_coping, R.string.plan_coping_hint, plan.copingSteps) {
+    PlanField(R.string.plan_coping, R.string.plan_coping_hint, plan.copingSteps, planFieldsEnabled) {
         onChange(plan.copy(copingSteps = it))
     }
-    PlanField(R.string.plan_distractions, R.string.plan_distractions_hint, plan.distractions) {
+    PlanField(
+        R.string.plan_distractions,
+        R.string.plan_distractions_hint,
+        plan.distractions,
+        planFieldsEnabled,
+    ) {
         onChange(plan.copy(distractions = it))
     }
-    PlanField(R.string.plan_reasons, R.string.plan_reasons_hint, plan.reasonsForLiving) {
+    PlanField(R.string.plan_reasons, R.string.plan_reasons_hint, plan.reasonsForLiving, planFieldsEnabled) {
         onChange(plan.copy(reasonsForLiving = it))
     }
-    PlanField(R.string.plan_environment, R.string.plan_environment_hint, plan.environmentSafety) {
+    PlanField(
+        R.string.plan_environment,
+        R.string.plan_environment_hint,
+        plan.environmentSafety,
+        planFieldsEnabled,
+    ) {
         onChange(plan.copy(environmentSafety = it))
     }
 
@@ -433,11 +496,13 @@ private fun SafetyPlanEditor(
     )
 }
 
+@Suppress("FunctionNaming")
 @Composable
 private fun PlanField(
     labelRes: Int,
     hintRes: Int,
     value: String,
+    enabled: Boolean,
     onValueChange: (String) -> Unit,
 ) {
     // v0.20.9: bringIntoViewOnFocus on the safety-plan
@@ -447,6 +512,7 @@ private fun PlanField(
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
+        enabled = enabled,
         label = { Text(stringResource(labelRes)) },
         placeholder = { Text(stringResource(hintRes)) },
         modifier = Modifier

@@ -2,37 +2,35 @@ package org.mindanchor.support
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mindanchor.data.db.SafetyPlan
 
 class SafetyPlanDraftStateTest {
 
     @Test
-    fun doneShowsTheDraftBeforePersistencePublishesIt() {
+    fun draftRemainsEditableUntilTheSaveIsVerified() {
         val persisted = SafetyPlan()
         val draft = persisted.copy(warningSigns = "cannot sleep")
         val editing = SafetyPlanDraftState()
             .startEditing(persisted)
             .updateDraft(draft)
 
-        val committed = editing.finishEditing()
-
-        assertFalse(committed.state.isEditing)
-        assertEquals(draft, committed.planToSave)
-        assertEquals(draft, committed.state.visiblePlan(persisted))
+        assertTrue(editing.isEditing)
+        assertEquals(draft, editing.visiblePlan(persisted))
     }
 
     @Test
-    fun publishedPlanReleasesTheOptimisticDraft() {
+    fun verifiedSaveReturnsToThePersistedReader() {
         val draft = SafetyPlan(warningSigns = "cannot sleep")
-        val committed = SafetyPlanDraftState()
+        val editing = SafetyPlanDraftState()
             .startEditing(SafetyPlan())
             .updateDraft(draft)
-            .finishEditing()
         val published = draft.copy(updatedAt = 123L)
 
-        val caughtUp = committed.state.persistedPlanObserved(published)
+        val saved = editing.saveSucceeded()
 
-        assertEquals(published, caughtUp.visiblePlan(published))
+        assertFalse(saved.isEditing)
+        assertEquals(published, saved.visiblePlan(published))
     }
 }

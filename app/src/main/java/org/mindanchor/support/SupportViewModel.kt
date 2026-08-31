@@ -3,26 +3,70 @@ package org.mindanchor.support
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.mindanchor.data.db.AnchorDatabase
 import org.mindanchor.data.db.CrisisContact
 import org.mindanchor.data.db.SafetyPlan
+
+internal sealed interface SafetyPlanSaveState {
+    data object Idle : SafetyPlanSaveState
+    data object Saving : SafetyPlanSaveState
+    data object Saved : SafetyPlanSaveState
+    data object Failed : SafetyPlanSaveState
+}
 
 class SupportViewModel(application: Application) : AndroidViewModel(application) {
 
     private val dao = AnchorDatabase.get(application).safety()
 
-    val plan = dao.plan()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    private val _plan = MutableStateFlow<SafetyPlan?>(null)
+    val plan = _plan.asStateFlow()
+
+    private val _saveState = MutableStateFlow<SafetyPlanSaveState>(SafetyPlanSaveState.Idle)
+    internal val saveState = _saveState.asStateFlow()
 
     val contacts = dao.contacts()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    fun savePlan(plan: SafetyPlan) {
+    init {
         viewModelScope.launch {
-            dao.savePlan(plan.copy(updatedAt = System.currentTimeMillis()))
+            dao.plan().collect { _plan.value = it }
+        }
+    }
+
+    fun savePlan(plan: SafetyPlan) {
+        if (_saveState.value == SafetyPlanSaveState.Saving) return
+        _saveState.value = SafetyPlanSaveState.Saving
+        val planToSave = plan.copy(updatedAt = System.currentTimeMillis())
+        viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            val verified = runCatching {
+                withContext(NonCancellable) {
+                    dao.savePlan(planToSave)
+                    dao.planNow().takeIf { it == planToSave }
+                        ?: error("Safety plan write did not match its readback")
+                }
+            }
+            verified.fold(
+                onSuccess = {
+                    _plan.value = it
+                    _saveState.value = SafetyPlanSaveState.Saved
+                },
+                onFailure = { _saveState.value = SafetyPlanSaveState.Failed },
+            )
+        }
+    }
+
+    internal fun consumeSaveSuccess() {
+        if (_saveState.value == SafetyPlanSaveState.Saved) {
+            _saveState.value = SafetyPlanSaveState.Idle
         }
     }
 

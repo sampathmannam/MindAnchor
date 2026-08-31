@@ -1,45 +1,50 @@
 package org.mindanchor.support
 
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.listSaver
 import org.mindanchor.data.db.SafetyPlan
 
 internal data class SafetyPlanDraftState(
-    private val draft: SafetyPlan? = null,
-    private val committedPlan: SafetyPlan? = null,
+    val isEditing: Boolean = false,
+    private val draft: SafetyPlan = SafetyPlan(),
 ) {
-    val isEditing: Boolean
-        get() = draft != null
-
     fun visiblePlan(persistedPlan: SafetyPlan): SafetyPlan =
-        draft ?: committedPlan ?: persistedPlan
+        if (isEditing) draft else persistedPlan
 
     fun startEditing(persistedPlan: SafetyPlan): SafetyPlanDraftState =
-        copy(draft = visiblePlan(persistedPlan))
+        copy(isEditing = true, draft = persistedPlan)
 
     fun updateDraft(plan: SafetyPlan): SafetyPlanDraftState {
         check(isEditing)
         return copy(draft = plan)
     }
 
-    fun finishEditing(): SafetyPlanDraftCommit {
-        val planToSave = checkNotNull(draft)
-        return SafetyPlanDraftCommit(
-            state = copy(draft = null, committedPlan = planToSave),
-            planToSave = planToSave,
+    fun saveSucceeded(): SafetyPlanDraftState = copy(isEditing = false)
+
+    companion object {
+        val Saver: Saver<SafetyPlanDraftState, Any> = listSaver(
+            save = { state ->
+                listOf(
+                    state.isEditing,
+                    state.draft.warningSigns,
+                    state.draft.copingSteps,
+                    state.draft.distractions,
+                    state.draft.reasonsForLiving,
+                    state.draft.environmentSafety,
+                )
+            },
+            restore = { saved ->
+                SafetyPlanDraftState(
+                    isEditing = saved[0] as Boolean,
+                    draft = SafetyPlan(
+                        warningSigns = saved[1] as String,
+                        copingSteps = saved[2] as String,
+                        distractions = saved[3] as String,
+                        reasonsForLiving = saved[4] as String,
+                        environmentSafety = saved[5] as String,
+                    ),
+                )
+            },
         )
     }
-
-    fun persistedPlanObserved(persistedPlan: SafetyPlan): SafetyPlanDraftState =
-        if (committedPlan?.sameContentAs(persistedPlan) == true) {
-            copy(committedPlan = null)
-        } else {
-            this
-        }
 }
-
-internal data class SafetyPlanDraftCommit(
-    val state: SafetyPlanDraftState,
-    val planToSave: SafetyPlan,
-)
-
-private fun SafetyPlan.sameContentAs(other: SafetyPlan): Boolean =
-    copy(updatedAt = other.updatedAt) == other

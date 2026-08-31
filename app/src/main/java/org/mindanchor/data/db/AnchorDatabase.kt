@@ -153,6 +153,9 @@ interface SafetyDao {
     @Query("SELECT * FROM safety_plan WHERE id = ${SafetyPlan.SINGLETON_ID}")
     fun plan(): Flow<SafetyPlan?>
 
+    @Query("SELECT * FROM safety_plan WHERE id = ${SafetyPlan.SINGLETON_ID}")
+    suspend fun planNow(): SafetyPlan?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun savePlan(plan: SafetyPlan)
 

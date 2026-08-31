@@ -702,6 +702,8 @@
     <string name="skill_grounding_body">Name five things you can see, four you can touch, three you can hear, two you can smell, one you can taste. Slowly, out loud if you can.</string>
 
     <string name="plan_section">My plan</string>
+    <string name="plan_saving">Saving…</string>
+    <string name="plan_save_failed">That didn\'t save. Your plan is still here — try again.</string>
     <string name="plan_empty">Nothing written yet. A plan is easiest to write on a calm day, for a day that is not — that is the whole idea.</string>
     <string name="plan_warning_signs">When things are turning</string>
     <string name="plan_warning_hint">Thoughts, feelings or situations I notice first</string>
