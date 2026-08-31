@@ -70,10 +70,12 @@ class PassivePipelineRepository internal constructor(
 
             val segment = configuredSegment(records, now)
             val stored = dao.rawRecords(usageRange.startInclusive, now).map { it.toDomain() }
-            val derivationRecords = latestCorrections(stored).map { record ->
+            val corrections = correctionImpact(stored, newlyInsertedProvenanceIds, range, now, zone)
+            val effectiveRecords = latestCorrections(stored)
+            val derivationRecords = effectiveRecords.map { record ->
                 record.copy(recordId = PassivePipelineCodec.rawIdentity(record))
             }
-            val dates = touchedDates(derivationRecords, range, zone)
+            val dates = (touchedDates(effectiveRecords, range, zone) + corrections.dates).distinct().sorted()
             val inserted = if (dates.isEmpty()) {
                 InsertCounts()
             } else {
@@ -86,6 +88,7 @@ class PassivePipelineRepository internal constructor(
                     newlyInsertedProvenanceIds = newlyInsertedProvenanceIds,
                     now = now,
                     zone = zone,
+                    correctionImpact = corrections,
                 )
             }
 
@@ -158,6 +161,7 @@ class PassivePipelineRepository internal constructor(
         newlyInsertedProvenanceIds: Set<String>,
         now: Long,
         zone: ZoneId,
+        correctionImpact: CorrectionImpact,
     ): InsertCounts {
         val dao = database.passive()
         val configuredFamilies = PassivePipelineCodec.decodeFingerprints(segment.fingerprintsJson)
@@ -187,6 +191,7 @@ class PassivePipelineRepository internal constructor(
             now,
             zone,
             latestWindowRevisions,
+            correctionImpact,
         )
         var counts = InsertCounts()
         dates.forEach { date ->
@@ -202,6 +207,7 @@ class PassivePipelineRepository internal constructor(
         val dayStart = date.atStartOfDay(context.zone).toInstant().toEpochMilli()
         val dayEnd = date.plusDays(1L).atStartOfDay(context.zone).toInstant().toEpochMilli()
         val dateRecords = context.recordIndex.recordsForDate(date)
+        val correctionEvidence = context.correctionImpact.evidenceByDate[date].orEmpty()
         val wakeTime = dateRecords.filter { it.kind == PassiveRecordKind.SLEEP_SESSION }.maxOfOrNull { it.eventEnd }
         val windows = aggregateWindows(dayStart, minOf(dayEnd, context.now), wakeTime, context)
         val finality = PassiveFinality.watermark(
@@ -210,7 +216,7 @@ class PassivePipelineRepository internal constructor(
             context.lagObservations,
             context.now,
         )
-        val insertedWindows = appendWindowRevisions(windows, dateRecords, finality, context)
+        val insertedWindows = appendWindowRevisions(windows, dateRecords, correctionEvidence, finality, context)
         val dailyRecords = context.recordIndex.dailyRecords(
             date,
             context.reads.any {
@@ -231,6 +237,7 @@ class PassivePipelineRepository internal constructor(
             aggregate,
             dailyRecords.map { it.recordId }.toSet(),
             finality,
+            date in context.correctionImpact.dates,
             context,
         )
     }
@@ -261,12 +268,14 @@ class PassivePipelineRepository internal constructor(
     private suspend fun appendWindowRevisions(
         windows: List<PassiveFeatureWindow>,
         dateRecords: List<PassiveSourceRecord>,
+        correctionEvidence: List<PassiveSourceRecord>,
         finality: PassiveFinalityDecision,
         context: DerivationContext,
     ): Int {
         val dao = database.passive()
-        val daySourceUpdated = dateRecords.maxOf { it.sourceUpdatedTime ?: it.ingestedAt }
-        val dayIngestedAt = dateRecords.maxOf { it.ingestedAt }
+        val revisionEvidence = dateRecords + correctionEvidence
+        val daySourceUpdated = revisionEvidence.maxOf { it.sourceUpdatedTime ?: it.ingestedAt }
+        val dayIngestedAt = revisionEvidence.maxOf { it.ingestedAt }
         val candidates = windows.mapNotNull { window ->
             val contributing = context.recordIndex.recordsForWindow(window.startInclusive)
             val sourceUpdated = contributing.maxOfOrNull { it.sourceUpdatedTime ?: it.ingestedAt }
@@ -289,6 +298,7 @@ class PassivePipelineRepository internal constructor(
                 finality.final,
                 context.newlyInsertedProvenanceIds,
                 window.provenanceRecordIds.toSet(),
+                window.startInclusive in context.correctionImpact.windowStarts,
             )
             PassivePipelineCodec.windowEntity(
                 window,
@@ -311,6 +321,7 @@ class PassivePipelineRepository internal constructor(
         aggregate: PassiveDailyAggregate,
         provenanceIds: Set<String>,
         finality: PassiveFinalityDecision,
+        correctionBackfill: Boolean,
         context: DerivationContext,
     ): InsertCounts {
         val dao = database.passive()
@@ -329,6 +340,7 @@ class PassivePipelineRepository internal constructor(
             finality.final,
             context.newlyInsertedProvenanceIds,
             provenanceIds,
+            correctionBackfill,
         )
         val daily = PassivePipelineCodec.dailyEntity(aggregate, provenanceIds, reason, context.now)
         if (!PassivePipelineCodec.shouldAppend(previous?.contentHash, daily.contentHash, reason)) return InsertCounts()
@@ -389,8 +401,13 @@ class PassivePipelineRepository internal constructor(
         records: List<PassiveSourceRecord>,
         range: PassiveReadRange,
         zone: ZoneId,
-    ): List<LocalDate> = records.flatMap { record ->
-        when (record.kind) {
+    ): List<LocalDate> = records.flatMap { recordDates(it, range, zone) }.distinct().sorted()
+
+    private fun recordDates(
+        record: PassiveSourceRecord,
+        range: PassiveReadRange,
+        zone: ZoneId,
+    ): List<LocalDate> = when (record.kind) {
             PassiveRecordKind.SLEEP_SESSION -> listOf(
                 Instant.ofEpochMilli(record.eventEnd).atZone(zone).toLocalDate(),
             )
@@ -403,12 +420,11 @@ class PassivePipelineRepository internal constructor(
                 )
             }
             else -> listOf(Instant.ofEpochMilli(record.eventStart).atZone(zone).toLocalDate())
-        }
-    }.filter { date ->
+        }.filter { date ->
         val start = date.atStartOfDay(zone).toInstant().toEpochMilli()
         val end = date.plusDays(1L).atStartOfDay(zone).toInstant().toEpochMilli()
         start < range.endExclusive && end > range.startInclusive
-    }.distinct().sorted()
+    }
 
     private fun datesBetween(first: LocalDate, last: LocalDate): List<LocalDate> = buildList {
         var current = first
@@ -433,6 +449,72 @@ class PassivePipelineRepository internal constructor(
         .sortedBy { it.index }
         .map { it.value }
 
+    private fun correctionImpact(
+        stored: List<PassiveSourceRecord>,
+        newlyInsertedProvenanceIds: Set<String>,
+        range: PassiveReadRange,
+        now: Long,
+        zone: ZoneId,
+    ): CorrectionImpact {
+        if (newlyInsertedProvenanceIds.isEmpty()) return CorrectionImpact.EMPTY
+        val revisionsByKey = stored.groupBy(SourceRecordKey::from)
+        val corrected = revisionsByKey.values.filter { revisions ->
+            val prior = revisions.filter {
+                PassivePipelineCodec.rawIdentity(it) !in newlyInsertedProvenanceIds
+            }
+            prior.isNotEmpty() && PassivePipelineCodec.rawIdentity(
+                latestCorrections(revisions).single(),
+            ) in newlyInsertedProvenanceIds
+        }
+        if (corrected.isEmpty()) return CorrectionImpact.EMPTY
+
+        val evidenceByDate = mutableMapOf<LocalDate, MutableList<PassiveSourceRecord>>()
+        val windowStarts = mutableSetOf<Long>()
+        corrected.forEach { revisions ->
+            val dates = revisions.flatMap { recordDates(it, range, zone) }.toSet()
+            dates.forEach { date -> evidenceByDate.getOrPut(date) { mutableListOf() } += revisions }
+            windowStarts += correctionWindowStarts(revisions, dates, range, now, zone)
+        }
+        return CorrectionImpact(evidenceByDate, windowStarts)
+    }
+
+    private fun correctionWindowStarts(
+        revisions: List<PassiveSourceRecord>,
+        dates: Set<LocalDate>,
+        range: PassiveReadRange,
+        now: Long,
+        zone: ZoneId,
+    ): Set<Long> = if (revisions.first().kind == PassiveRecordKind.SLEEP_SESSION) {
+        dates.flatMap { date -> windowsForDate(date, range, now, zone) }.toSet()
+    } else {
+        revisions.flatMap { record -> windowsForRecord(record, range) }.toSet()
+    }
+
+    private fun windowsForDate(
+        date: LocalDate,
+        range: PassiveReadRange,
+        now: Long,
+        zone: ZoneId,
+    ): List<Long> {
+        val start = maxOf(date.atStartOfDay(zone).toInstant().toEpochMilli(), range.startInclusive)
+        val end = minOf(date.plusDays(1L).atStartOfDay(zone).toInstant().toEpochMilli(), range.endExclusive, now)
+        return windowStarts(start, end)
+    }
+
+    private fun windowsForRecord(record: PassiveSourceRecord, range: PassiveReadRange): List<Long> = windowStarts(
+        maxOf(record.eventStart, range.startInclusive),
+        minOf(record.eventEnd.coerceAtLeast(record.eventStart + 1L), range.endExclusive),
+    )
+
+    private fun windowStarts(start: Long, end: Long): List<Long> {
+        if (end <= start) return emptyList()
+        val first = Math.floorDiv(start, PassiveWindowAggregator.WINDOW_MILLIS) *
+            PassiveWindowAggregator.WINDOW_MILLIS
+        return generateSequence(first) { it + PassiveWindowAggregator.WINDOW_MILLIS }
+            .takeWhile { it < end }
+            .toList()
+    }
+
     private data class SourceRecordKey(
         val sourceFamily: PassiveSourceFamily,
         val kind: PassiveRecordKind,
@@ -456,7 +538,9 @@ class PassivePipelineRepository internal constructor(
         nextFinal: Boolean,
         newlyInsertedRecordIds: Set<String>,
         provenanceIds: Set<String>,
+        correctionBackfill: Boolean = false,
     ): RevisionReason = when {
+        correctionBackfill -> RevisionReason.BACKFILL
         previousHash == null -> RevisionReason.INITIAL
         previousFinal != nextFinal -> RevisionReason.FINALITY
         newlyInsertedRecordIds.any { it in provenanceIds } -> RevisionReason.BACKFILL
@@ -578,7 +662,19 @@ class PassivePipelineRepository internal constructor(
         val now: Long,
         val zone: ZoneId,
         val latestWindowRevisions: MutableMap<Long, PassiveWindowRevisionEntity>,
+        val correctionImpact: CorrectionImpact,
     )
+
+    private data class CorrectionImpact(
+        val evidenceByDate: Map<LocalDate, List<PassiveSourceRecord>>,
+        val windowStarts: Set<Long>,
+    ) {
+        val dates: Set<LocalDate> = evidenceByDate.keys
+
+        companion object {
+            val EMPTY = CorrectionImpact(emptyMap(), emptySet())
+        }
+    }
 
     private class DerivationRecordIndex(
         records: List<PassiveSourceRecord>,

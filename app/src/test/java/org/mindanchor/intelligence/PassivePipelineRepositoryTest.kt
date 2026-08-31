@@ -448,6 +448,93 @@ class PassivePipelineRepositoryTest {
     }
 
     @Test
+    fun `cross-midnight correction removes old contribution and backfills both dates`() = runBlocking {
+        val now = Instant.parse("2026-08-30T12:00:00Z").toEpochMilli()
+        val oldDate = LocalDate.parse("2026-08-29")
+        val newDate = oldDate.plusDays(1L)
+        val oldStart = oldDate.atTime(23, 50).toInstant(ZoneOffset.UTC).toEpochMilli()
+        val newStart = newDate.atTime(0, 5).toInstant(ZoneOffset.UTC).toEpochMilli()
+        var current = record(
+            PassiveSourceFamily.STEPS,
+            PassiveRecordKind.STEPS_INTERVAL,
+            oldStart,
+            oldStart + 5L * 60_000L,
+            "steps-cross-midnight",
+            value = 10.0,
+        )
+        val source = RangeSource { range ->
+            listOf(successRead(PassiveSourceFamily.STEPS, range, range.endExclusive, listOf(current)))
+        }
+        val repository = repository(source, FakeSource(reads = emptyList()))
+
+        repository.run(now, ZoneOffset.UTC)
+        current = current.copy(
+            eventStart = newStart,
+            eventEnd = newStart + 5L * 60_000L,
+            recordVersion = current.recordVersion + 1L,
+            sourceUpdatedTime = newStart + 10L * 60_000L,
+            ingestedAt = newStart + 11L * 60_000L,
+        )
+        repository.run(now + 1_000L, ZoneOffset.UTC)
+
+        val days = database.passive().dailyRevisionsNow().groupBy { it.localDate }
+        val oldFeatures = PassivePipelineCodec.dailyToDomain(days.getValue(oldDate.toString()).last()).features
+        val newFeatures = PassivePipelineCodec.dailyToDomain(days.getValue(newDate.toString()).last()).features
+        assertEquals(null, oldFeatures[PassiveFeature.STEPS])
+        assertEquals(10.0, newFeatures[PassiveFeature.STEPS])
+        assertEquals("BACKFILL", days.getValue(oldDate.toString()).last().revisionReason)
+        assertEquals("BACKFILL", days.getValue(newDate.toString()).last().revisionReason)
+        val oldWindow = latestWindowAt(oldStart)
+        val newWindow = latestWindowAt(newStart)
+        assertEquals("[]", oldWindow.provenanceRecordIdsJson)
+        assertTrue(newWindow.provenanceRecordIdsJson.contains(PassivePipelineCodec.rawIdentity(current)))
+        assertEquals("BACKFILL", oldWindow.revisionReason)
+        assertEquals("BACKFILL", newWindow.revisionReason)
+
+        val counts = derivedRevisionCounts()
+        current = current.copy(ingestedAt = current.ingestedAt + 1_000L)
+        repository.run(now + 2_000L, ZoneOffset.UTC)
+        assertEquals(counts, derivedRevisionCounts())
+    }
+
+    @Test
+    fun `out-of-order revision appends raw evidence without changing derivation`() = runBlocking {
+        val now = Instant.parse("2026-08-30T12:00:00Z").toEpochMilli()
+        val dayStart = LocalDate.parse("2026-08-30").atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+        var current = record(
+            PassiveSourceFamily.STEPS,
+            PassiveRecordKind.STEPS_INTERVAL,
+            dayStart + 60_000L,
+            dayStart + 120_000L,
+            "steps-out-of-order",
+            value = 10.0,
+            sourceUpdatedTime = dayStart + 300_000L,
+            ingestedAt = dayStart + 360_000L,
+        )
+        val source = RangeSource { range ->
+            listOf(successRead(PassiveSourceFamily.STEPS, range, range.endExclusive, listOf(current)))
+        }
+        val repository = repository(source, FakeSource(reads = emptyList()))
+
+        repository.run(now, ZoneOffset.UTC)
+        val counts = derivedRevisionCounts()
+        current = current.copy(
+            value = 99.0,
+            recordVersion = current.recordVersion + 1L,
+            sourceUpdatedTime = requireNotNull(current.sourceUpdatedTime) - 1_000L,
+            ingestedAt = current.ingestedAt + 1_000L,
+        )
+        repository.run(now, ZoneOffset.UTC)
+
+        assertEquals(2, database.passive().rawProvenanceNow().size)
+        val latestDay = database.passive().dailyRevisionsNow().last()
+        assertEquals(10.0, PassivePipelineCodec.dailyToDomain(latestDay)
+            .features[PassiveFeature.STEPS])
+        assertEquals("INITIAL", latestDay.revisionReason)
+        assertEquals(counts, derivedRevisionCounts())
+    }
+
+    @Test
     fun `identical stable record ids from different origins remain independent`() = runBlocking {
         val now = Instant.parse("2026-08-30T12:00:00Z").toEpochMilli()
         val dayStart = LocalDate.parse("2026-08-30").atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
@@ -1206,6 +1293,16 @@ class PassivePipelineRepositoryTest {
         attemptedAt: Long,
         records: List<PassiveSourceRecord>,
     ) = PassiveSourceRead(family, PassiveReadState.SUCCESS, range, attemptedAt, records)
+
+    private suspend fun latestWindowAt(eventTime: Long) = database.passive().windowRevisionsNow()
+        .last { it.windowStart == Math.floorDiv(eventTime, PassiveWindowAggregator.WINDOW_MILLIS) *
+            PassiveWindowAggregator.WINDOW_MILLIS }
+
+    private suspend fun derivedRevisionCounts() = Triple(
+        database.passive().windowRevisionsNow().size,
+        database.passive().dailyRevisionsNow().size,
+        database.passive().observationDecisionsNow().size,
+    )
 
     private fun routineUsageEvents(dayStart: Long) = listOf(
         record(
