@@ -103,12 +103,8 @@ class SupportViewModel internal constructor(
 
     private fun startEditing() {
         val state = _uiState.value as? SafetyPlanUiState.Viewing ?: return
-        val draft = if (state.persisted.updatedAt == UNLOADED_UPDATED_AT) {
-            SafetyPlan()
-        } else {
-            state.persisted
-        }
-        _uiState.value = SafetyPlanUiState.Editing(state.persisted, draft)
+        if (state.persisted.updatedAt == UNLOADED_UPDATED_AT) return
+        _uiState.value = SafetyPlanUiState.Editing(state.persisted, state.persisted)
     }
 
     private fun changeDraft(draft: SafetyPlan) {

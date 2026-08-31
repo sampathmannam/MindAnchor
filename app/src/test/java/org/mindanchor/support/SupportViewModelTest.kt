@@ -10,6 +10,7 @@ import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.produceIn
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -59,6 +60,33 @@ class SupportViewModelTest {
             (fixture.vm.uiState.value as SafetyPlanUiState.Editing).draft.warningSigns,
         )
     }
+
+    @Test
+    fun editBeforeFirstPublicationCannotCreateBlankDraftOrOverwriteExistingPlan() =
+        runTest(dispatcher) {
+            val fixture = fixture(delayFirstEmission = true)
+
+            fixture.vm.onEvent(SupportEvent.Edit)
+
+            assertTrue(fixture.vm.uiState.value is SafetyPlanUiState.Viewing)
+            assertEquals(0, fixture.store.saveCalls)
+
+            val existing = SafetyPlan(warningSigns = "existing plan", updatedAt = 42L)
+            fixture.store.publish(existing)
+            runCurrent()
+            fixture.vm.onEvent(SupportEvent.Edit)
+
+            assertEquals(
+                existing,
+                (fixture.vm.uiState.value as SafetyPlanUiState.Editing).draft,
+            )
+
+            fixture.vm.onEvent(SupportEvent.Done)
+            runCurrent()
+
+            assertEquals(1, fixture.store.saveCalls)
+            assertEquals(existing, fixture.store.savedCommands.single().draft)
+        }
 
     @Test
     fun doneMovesToSavingSynchronouslyAndRejectsEveryDuplicate() = runTest(dispatcher) {
@@ -167,8 +195,11 @@ class SupportViewModelTest {
         assertEquals(3_000L, SupportViewModel.SLOW_THRESHOLD_MILLIS)
     }
 
-    private fun TestScope.fixture(slowThresholdMillis: Long = 3_000L): Fixture {
-        val store = FakeSafetyPlanStore()
+    private fun TestScope.fixture(
+        slowThresholdMillis: Long = 3_000L,
+        delayFirstEmission: Boolean = false,
+    ): Fixture {
+        val store = FakeSafetyPlanStore(delayFirstEmission)
         val vm = SupportViewModel(
             application = ApplicationProvider.getApplicationContext<Application>(),
             store = store,
@@ -195,15 +226,22 @@ class SupportViewModelTest {
         }
     }
 
-    private class FakeSafetyPlanStore : SafetyPlanStore {
+    private class FakeSafetyPlanStore(delayFirstEmission: Boolean) : SafetyPlanStore {
         private val published = MutableStateFlow(SafetyPlan())
+        private val firstEmissionGate = if (delayFirstEmission) {
+            CompletableDeferred<Unit>()
+        } else {
+            CompletableDeferred(Unit)
+        }
         private val pending = ArrayDeque<Pair<SaveSafetyPlan, CompletableDeferred<SafetyPlanSaveResult>>>()
-        override val plans: Flow<SafetyPlan> = published
+        override val plans: Flow<SafetyPlan> = published.onStart { firstEmissionGate.await() }
+        val savedCommands = mutableListOf<SaveSafetyPlan>()
         var saveCalls = 0
             private set
 
         override suspend fun save(command: SaveSafetyPlan): SafetyPlanSaveResult {
             saveCalls += 1
+            savedCommands += command
             val result = CompletableDeferred<SafetyPlanSaveResult>()
             pending.addLast(command to result)
             return result.await()
@@ -211,6 +249,7 @@ class SupportViewModelTest {
 
         fun publish(plan: SafetyPlan) {
             published.value = plan
+            firstEmissionGate.complete(Unit)
         }
 
         fun completeCommitted(updatedAt: Long) {
