@@ -30,14 +30,7 @@ object PassivePipelineCodec {
         .joinToString("") { "%02x".format(it) }
 
     fun rawIdentity(record: PassiveSourceRecord): String = contentHash(
-        listOf(
-            record.sourceFamily.name,
-            record.kind.name,
-            record.recordId,
-            record.recordVersion.toString(),
-            record.eventStart.toString(),
-            record.eventEnd.toString(),
-        ).joinToString("|"),
+        json.encodeToString(RawIdentity.from(record)),
     )
 
     fun calibrationSeed(segment: String, frozenAsOfTime: Long, calibrationVersion: String): Long =
@@ -75,15 +68,7 @@ object PassivePipelineCodec {
     fun sourceLagEntity(record: PassiveSourceRecord, observedAt: Long): PassiveSourceLagEntity {
         val observedUpdatedAt = record.sourceUpdatedTime ?: record.ingestedAt
         val usedFallback = record.sourceUpdatedTime == null
-        val identity = SourceLagIdentity(
-            sourceFamily = record.sourceFamily.name,
-            recordId = record.recordId,
-            recordVersion = record.recordVersion,
-            eventEnd = record.eventEnd,
-            observedUpdatedAt = observedUpdatedAt,
-            ingestedAt = record.ingestedAt,
-            usedIngestedAtFallback = usedFallback,
-        )
+        val identity = SourceLagIdentity(rawProvenanceId = rawIdentity(record))
         return PassiveSourceLagEntity(
             id = contentHash(json.encodeToString(identity)),
             sourceFamily = record.sourceFamily.name,
@@ -260,15 +245,46 @@ private data class SourceReadIdentity(
 )
 
 @Serializable
-private data class SourceLagIdentity(
+private data class RawIdentity(
     val sourceFamily: String,
+    val recordKind: String,
+    val eventStart: Long,
+    val eventEnd: Long,
+    val value: Double?,
+    val unit: String,
+    val dataOriginPackage: String,
+    val deviceManufacturer: String?,
+    val deviceModel: String?,
+    val deviceType: String?,
+    val sourceUpdatedTime: Long?,
+    val zoneId: String,
+    val zoneOffsetSeconds: Int,
     val recordId: String,
     val recordVersion: Long,
-    val eventEnd: Long,
-    val observedUpdatedAt: Long,
-    val ingestedAt: Long,
-    val usedIngestedAtFallback: Boolean,
-)
+) {
+    companion object {
+        fun from(record: PassiveSourceRecord) = RawIdentity(
+            sourceFamily = record.sourceFamily.name,
+            recordKind = record.kind.name,
+            eventStart = record.eventStart,
+            eventEnd = record.eventEnd,
+            value = record.value,
+            unit = record.unit,
+            dataOriginPackage = record.dataOriginPackage,
+            deviceManufacturer = record.deviceManufacturer,
+            deviceModel = record.deviceModel,
+            deviceType = record.deviceType,
+            sourceUpdatedTime = record.sourceUpdatedTime,
+            zoneId = record.zoneId,
+            zoneOffsetSeconds = record.zoneOffsetSeconds,
+            recordId = record.recordId,
+            recordVersion = record.recordVersion,
+        )
+    }
+}
+
+@Serializable
+private data class SourceLagIdentity(val rawProvenanceId: String)
 
 @Serializable
 private data class FingerprintDto(

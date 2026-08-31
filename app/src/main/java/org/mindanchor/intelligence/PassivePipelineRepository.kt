@@ -15,6 +15,7 @@ import org.mindanchor.data.db.PassivePipelineRunEntity
 import org.mindanchor.data.db.PassiveRawProvenanceEntity
 import org.mindanchor.data.db.PassiveRawSampleEntity
 import org.mindanchor.data.db.PassiveStoredRecord
+import org.mindanchor.data.db.PassiveWindowRevisionEntity
 import org.mindanchor.research.ResearchLedgerRepository
 import org.mindanchor.research.TransformationRegistry
 import org.mindanchor.usage.PassiveUsageStatsSource
@@ -42,7 +43,7 @@ class PassivePipelineRepository internal constructor(
 ) {
     suspend fun run(now: Long, zone: ZoneId): PassivePipelineResult {
         val dao = database.passive()
-        val firstSuccessfulPermissionedRun = dao.successfulPermissionedRunCount() == 0
+        val firstSuccessfulPermissionedRun = dao.successfulHealthConnectReadCount() == 0
         val historyGranted = historyPermissionGrantedSafely()
         val scanStart = scanStart(now, zone, firstSuccessfulPermissionedRun, historyGranted)
         val range = PassiveReadRange(scanStart, now, zone.id)
@@ -69,7 +70,7 @@ class PassivePipelineRepository internal constructor(
 
             val segment = configuredSegment(records, now)
             val stored = dao.rawRecords(usageRange.startInclusive, now).map { it.toDomain() }
-            val derivationRecords = stored.map { record ->
+            val derivationRecords = latestCorrections(stored).map { record ->
                 record.copy(recordId = PassivePipelineCodec.rawIdentity(record))
             }
             val dates = touchedDates(derivationRecords, range, zone)
@@ -166,6 +167,16 @@ class PassivePipelineRepository internal constructor(
             dao.sourceLags(family.name).map { SourceLag(family, it.lagMillis, it.usedIngestedAtFallback) }
         }
         val recordIndex = DerivationRecordIndex(records, dates, now, zone, recordCandidatesObserved)
+        val firstWindow = Math.floorDiv(
+            dates.first().atStartOfDay(zone).toInstant().toEpochMilli(),
+            PassiveWindowAggregator.WINDOW_MILLIS,
+        ) * PassiveWindowAggregator.WINDOW_MILLIS
+        val rangeEnd = minOf(dates.last().plusDays(1L).atStartOfDay(zone).toInstant().toEpochMilli(), now)
+        val windowEnd = (Math.floorDiv(rangeEnd - 1L, PassiveWindowAggregator.WINDOW_MILLIS) + 1L) *
+            PassiveWindowAggregator.WINDOW_MILLIS
+        val latestWindowRevisions = dao.windowRevisions(firstWindow, windowEnd)
+            .groupBy(PassiveWindowRevisionEntity::windowStart)
+            .mapValuesTo(mutableMapOf()) { (_, revisions) -> revisions.first() }
         val context = DerivationContext(
             recordIndex,
             reads,
@@ -175,6 +186,7 @@ class PassivePipelineRepository internal constructor(
             lagObservations,
             now,
             zone,
+            latestWindowRevisions,
         )
         var counts = InsertCounts()
         dates.forEach { date ->
@@ -260,7 +272,7 @@ class PassivePipelineRepository internal constructor(
             val sourceUpdated = contributing.maxOfOrNull { it.sourceUpdatedTime ?: it.ingestedAt }
                 ?: daySourceUpdated
             val ingestedAt = contributing.maxOfOrNull { it.ingestedAt } ?: dayIngestedAt
-            val previous = dao.latestWindowRevision(window.startInclusive)
+            val previous = context.latestWindowRevisions[window.startInclusive]
             val draft = PassivePipelineCodec.windowEntity(
                 window,
                 context.segmentId,
@@ -288,7 +300,11 @@ class PassivePipelineRepository internal constructor(
                 context.now,
             ).takeIf { PassivePipelineCodec.shouldAppend(previous?.contentHash, it.contentHash, reason) }
         }
-        return dao.insertWindowRevisions(candidates).count { it != IGNORED_ROW_ID }
+        val inserted = dao.insertWindowRevisions(candidates)
+        candidates.zip(inserted).forEach { (candidate, rowId) ->
+            if (rowId != IGNORED_ROW_ID) context.latestWindowRevisions[candidate.windowStart] = candidate
+        }
+        return inserted.count { it != IGNORED_ROW_ID }
     }
 
     private suspend fun appendDailyAndDecision(
@@ -399,6 +415,37 @@ class PassivePipelineRepository internal constructor(
         while (!current.isAfter(last)) {
             add(current)
             current = current.plusDays(1L)
+        }
+    }
+
+    private fun latestCorrections(records: List<PassiveSourceRecord>): List<PassiveSourceRecord> = records
+        .withIndex()
+        .groupBy { SourceRecordKey.from(it.value) }
+        .values
+        .map { revisions ->
+            revisions.maxWith(
+                compareBy<IndexedValue<PassiveSourceRecord>> {
+                    it.value.sourceUpdatedTime ?: Long.MIN_VALUE
+                }.thenBy { it.value.ingestedAt }
+                    .thenBy { it.index },
+            )
+        }
+        .sortedBy { it.index }
+        .map { it.value }
+
+    private data class SourceRecordKey(
+        val sourceFamily: PassiveSourceFamily,
+        val kind: PassiveRecordKind,
+        val dataOriginPackage: String,
+        val recordId: String,
+    ) {
+        companion object {
+            fun from(record: PassiveSourceRecord) = SourceRecordKey(
+                sourceFamily = record.sourceFamily,
+                kind = record.kind,
+                dataOriginPackage = record.dataOriginPackage,
+                recordId = record.recordId,
+            )
         }
     }
 
@@ -530,6 +577,7 @@ class PassivePipelineRepository internal constructor(
         val lagObservations: List<SourceLag>,
         val now: Long,
         val zone: ZoneId,
+        val latestWindowRevisions: MutableMap<Long, PassiveWindowRevisionEntity>,
     )
 
     private class DerivationRecordIndex(

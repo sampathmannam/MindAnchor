@@ -47,6 +47,7 @@ import org.mindanchor.intelligence.PassiveObservation
 import org.mindanchor.intelligence.PassiveObservationState
 import org.mindanchor.intelligence.PassivePipelineCodec
 import org.mindanchor.intelligence.PassiveReadState
+import org.mindanchor.intelligence.PassiveRecordKind
 import org.mindanchor.intelligence.PassiveSourceFamily
 import org.mindanchor.intelligence.PassiveWindowFeature
 import org.mindanchor.intelligence.PassiveWindowQuality
@@ -60,7 +61,7 @@ internal object PassiveContinuityFixture {
         PassiveRawProvenanceEntity(
             id = "raw-1",
             sourceFamily = "HEART_RATE",
-            recordKind = "HeartRateRecord",
+            recordKind = "HEART_RATE_SAMPLE",
             eventStart = 1_000L,
             eventEnd = 2_000L,
             unit = "bpm",
@@ -82,7 +83,7 @@ internal object PassiveContinuityFixture {
             id = "read-1",
             runId = "run-1",
             sourceFamily = "HEART_RATE",
-            state = "AVAILABLE",
+            state = "SUCCESS",
             rangeStart = 1_000L,
             rangeEnd = 2_000L,
             zoneId = "Asia/Calcutta",
@@ -332,6 +333,20 @@ class ContinuitySnapshotRepositoryTest {
         letterStore.setRead(LocalDate.of(2026, 8, 26), true)
         frictionPrefs.setFlagged("com.example.social", true)
         frictionPrefs.setAlwaysOpen("com.example.work", true)
+    }
+
+    @Test
+    fun passiveFixtureUsesCanonicalEnumNames() {
+        assertTrue(
+            PassiveContinuityFixture.rawProvenance.all { row ->
+                row.recordKind in PassiveRecordKind.entries.map { it.name }
+            },
+        )
+        assertTrue(
+            PassiveContinuityFixture.sourceReads.all { row ->
+                row.state in PassiveReadState.entries.map { it.name }
+            },
+        )
     }
 
     @Test

@@ -8,6 +8,8 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
+import java.util.Collections
+import java.util.concurrent.Executor
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.CancellationException
 import org.junit.After
@@ -64,6 +66,43 @@ class PassivePipelineRepositoryTest {
         assertEquals(
             LocalDate.parse("2026-08-24").atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli(),
             health.ranges.last().startInclusive,
+        )
+    }
+
+    @Test
+    fun `UsageStats success does not consume first Health Connect history bootstrap`() = runBlocking {
+        val firstNow = Instant.parse("2026-08-30T12:00:00Z").toEpochMilli()
+        var healthGranted = false
+        val health = RangeSource { range ->
+            if (healthGranted) {
+                listOf(successRead(PassiveSourceFamily.STEPS, range, range.endExclusive, emptyList()))
+            } else {
+                listOf(
+                    PassiveSourceRead(
+                        PassiveSourceFamily.STEPS,
+                        PassiveReadState.PERMISSION_DENIED,
+                        range,
+                        range.endExclusive,
+                        errorCode = "DENIED",
+                    ),
+                )
+            }
+        }
+        val usage = FakeSource(PassiveSourceFamily.USAGE_STATS)
+        val repository = repository(health, usage, historyGranted = { healthGranted })
+
+        repository.run(firstNow, ZoneOffset.UTC)
+        healthGranted = true
+        repository.run(firstNow + 6L * 3_600_000L, ZoneOffset.UTC)
+        repository.run(firstNow + 12L * 3_600_000L, ZoneOffset.UTC)
+
+        assertEquals(
+            LocalDate.parse("2026-05-03").atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli(),
+            health.ranges[1].startInclusive,
+        )
+        assertEquals(
+            LocalDate.parse("2026-08-25").atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli(),
+            health.ranges[2].startInclusive,
         )
     }
 
@@ -242,6 +281,197 @@ class PassivePipelineRepositoryTest {
         assertTrue(result.insertedWindows > 0)
         assertEquals(1, result.insertedDays)
         assertEquals(1, result.insertedDecisions)
+    }
+
+    @Test
+    fun `exact rescans preserve one lag while a correction appends one observation`() = runBlocking {
+        val original = record(
+            PassiveSourceFamily.STEPS,
+            PassiveRecordKind.STEPS_INTERVAL,
+            1_000L,
+            2_000L,
+            "steps-a",
+            value = 10.0,
+            sourceUpdatedTime = null,
+            ingestedAt = 3_000L,
+        )
+
+        repeat(PassiveFinality.MIN_OBSERVED_LAGS) { attempt ->
+            database.passive().insertSourceLags(
+                listOf(
+                    PassivePipelineCodec.sourceLagEntity(
+                        original.copy(ingestedAt = original.ingestedAt + attempt),
+                        observedAt = 10_000L + attempt,
+                    ),
+                ),
+            )
+        }
+
+        val exactRows = database.passive().sourceLagsNow()
+        assertEquals(1, exactRows.size)
+        assertEquals(original.ingestedAt, exactRows.single().ingestedAt)
+        assertEquals(original.ingestedAt - original.eventEnd, exactRows.single().lagMillis)
+        val exactFinality = PassiveFinality.watermark(
+            localDayEnd = 5_000L,
+            configuredFamilies = setOf(PassiveSourceFamily.STEPS),
+            observations = exactRows.map { SourceLag(PassiveSourceFamily.STEPS, it.lagMillis, true) },
+            asOfTime = 5_000L,
+        )
+        assertEquals(5_000L + PassiveFinality.BOOTSTRAP_LAG_MILLIS, exactFinality.watermark)
+
+        database.passive().insertSourceLags(
+            listOf(
+                PassivePipelineCodec.sourceLagEntity(
+                    original.copy(value = 11.0, ingestedAt = 4_000L),
+                    observedAt = 20_000L,
+                ),
+            ),
+        )
+        assertEquals(2, database.passive().sourceLagsNow().size)
+    }
+
+    @Test
+    fun `same source identity correction appends provenance and derives only corrected value`() = runBlocking {
+        val firstNow = Instant.parse("2026-08-30T12:00:00Z").toEpochMilli()
+        val dayStart = LocalDate.parse("2026-08-30").atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+        var current = record(
+            PassiveSourceFamily.STEPS,
+            PassiveRecordKind.STEPS_INTERVAL,
+            dayStart + 60_000L,
+            dayStart + 120_000L,
+            "steps-a",
+            value = 10.0,
+            sourceUpdatedTime = dayStart + 180_000L,
+            ingestedAt = dayStart + 240_000L,
+        )
+        val source = RangeSource { range ->
+            listOf(successRead(PassiveSourceFamily.STEPS, range, range.endExclusive, listOf(current)))
+        }
+        val repository = repository(source, FakeSource(reads = emptyList()))
+
+        repository.run(firstNow, ZoneOffset.UTC)
+        current = current.copy(
+            value = 20.0,
+            sourceUpdatedTime = requireNotNull(current.sourceUpdatedTime) + 1_000L,
+            ingestedAt = current.ingestedAt + 1_000L,
+        )
+        repository.run(firstNow + 1_000L, ZoneOffset.UTC)
+
+        assertEquals(2, database.passive().rawProvenanceNow().size)
+        assertEquals(2, database.passive().rawRecords(dayStart, firstNow + 2_000L).size)
+        val latest = database.passive().dailyRevisionsNow().last()
+        assertEquals("BACKFILL", latest.revisionReason)
+        assertEquals(20.0, PassivePipelineCodec.dailyToDomain(latest).features[PassiveFeature.STEPS])
+
+        val derivedCounts = Triple(
+            database.passive().windowRevisionsNow().size,
+            database.passive().dailyRevisionsNow().size,
+            database.passive().observationDecisionsNow().size,
+        )
+        current = current.copy(ingestedAt = current.ingestedAt + 1_000L)
+        repository.run(firstNow + 2_000L, ZoneOffset.UTC)
+
+        assertEquals(2, database.passive().rawProvenanceNow().size)
+        assertEquals(2, database.passive().sourceLagsNow().size)
+        assertEquals(derivedCounts.first, database.passive().windowRevisionsNow().size)
+        assertEquals(derivedCounts.second, database.passive().dailyRevisionsNow().size)
+        assertEquals(derivedCounts.third, database.passive().observationDecisionsNow().size)
+    }
+
+    @Test
+    fun `incremented source version supersedes the prior effective record`() = runBlocking {
+        val now = Instant.parse("2026-08-30T12:00:00Z").toEpochMilli()
+        val dayStart = LocalDate.parse("2026-08-30").atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+        var current = record(
+            PassiveSourceFamily.STEPS,
+            PassiveRecordKind.STEPS_INTERVAL,
+            dayStart + 60_000L,
+            dayStart + 120_000L,
+            "steps-stable-id",
+            value = 10.0,
+        )
+        val source = RangeSource { range ->
+            listOf(successRead(PassiveSourceFamily.STEPS, range, range.endExclusive, listOf(current)))
+        }
+        val repository = repository(source, FakeSource(reads = emptyList()))
+
+        repository.run(now, ZoneOffset.UTC)
+        current = current.copy(
+            value = 20.0,
+            recordVersion = current.recordVersion + 1L,
+            sourceUpdatedTime = requireNotNull(current.sourceUpdatedTime) + 1_000L,
+            ingestedAt = current.ingestedAt + 1_000L,
+        )
+        repository.run(now + 1_000L, ZoneOffset.UTC)
+
+        assertEquals(2, database.passive().rawProvenanceNow().size)
+        assertEquals(
+            20.0,
+            PassivePipelineCodec.dailyToDomain(database.passive().dailyRevisionsNow().last())
+                .features[PassiveFeature.STEPS],
+        )
+    }
+
+    @Test
+    fun `corrected source bounds supersede the prior effective record`() = runBlocking {
+        val now = Instant.parse("2026-08-30T12:00:00Z").toEpochMilli()
+        val dayStart = LocalDate.parse("2026-08-30").atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+        var current = record(
+            PassiveSourceFamily.STEPS,
+            PassiveRecordKind.STEPS_INTERVAL,
+            dayStart + 60_000L,
+            dayStart + 120_000L,
+            "steps-stable-id",
+            value = 10.0,
+        )
+        val source = RangeSource { range ->
+            listOf(successRead(PassiveSourceFamily.STEPS, range, range.endExclusive, listOf(current)))
+        }
+        val repository = repository(source, FakeSource(reads = emptyList()))
+
+        repository.run(now, ZoneOffset.UTC)
+        current = current.copy(
+            eventStart = current.eventStart + 60_000L,
+            eventEnd = current.eventEnd + 120_000L,
+            value = 20.0,
+            sourceUpdatedTime = requireNotNull(current.sourceUpdatedTime) + 1_000L,
+            ingestedAt = current.ingestedAt + 1_000L,
+        )
+        repository.run(now + 1_000L, ZoneOffset.UTC)
+
+        assertEquals(2, database.passive().rawProvenanceNow().size)
+        assertEquals(
+            20.0,
+            PassivePipelineCodec.dailyToDomain(database.passive().dailyRevisionsNow().last())
+                .features[PassiveFeature.STEPS],
+        )
+    }
+
+    @Test
+    fun `identical stable record ids from different origins remain independent`() = runBlocking {
+        val now = Instant.parse("2026-08-30T12:00:00Z").toEpochMilli()
+        val dayStart = LocalDate.parse("2026-08-30").atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+        val first = record(
+            PassiveSourceFamily.STEPS,
+            PassiveRecordKind.STEPS_INTERVAL,
+            dayStart + 60_000L,
+            dayStart + 120_000L,
+            "shared-id",
+            value = 10.0,
+        ).copy(dataOriginPackage = "source.first")
+        val second = first.copy(value = 20.0, dataOriginPackage = "source.second")
+        val source = RangeSource { range ->
+            listOf(successRead(PassiveSourceFamily.STEPS, range, range.endExclusive, listOf(first, second)))
+        }
+
+        repository(source, FakeSource(reads = emptyList())).run(now, ZoneOffset.UTC)
+
+        assertEquals(2, database.passive().rawProvenanceNow().size)
+        assertEquals(
+            30.0,
+            PassivePipelineCodec.dailyToDomain(database.passive().dailyRevisionsNow().single())
+                .features[PassiveFeature.STEPS],
+        )
     }
 
     @Test
@@ -520,6 +750,48 @@ class PassivePipelineRepositoryTest {
     }
 
     @Test
+    fun `window history is batch loaded once instead of queried per window`() = runBlocking {
+        database.close()
+        val queries = Collections.synchronizedList(mutableListOf<String>())
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        database = Room.inMemoryDatabaseBuilder(context, AnchorDatabase::class.java)
+            .setQueryCallback({ sqlQuery, _ -> queries += sqlQuery }, Executor { it.run() })
+            .withResearchImmutability()
+            .allowMainThreadQueries()
+            .build()
+        val now = Instant.parse("2026-08-30T12:00:00Z").toEpochMilli()
+        val lastDate = Instant.ofEpochMilli(now).atZone(ZoneOffset.UTC).toLocalDate()
+        val values = (0L until PassivePipelineRepository.HISTORY_DAYS).map { daysAgo ->
+            val start = lastDate.minusDays(daysAgo).atTime(11, 0).toInstant(ZoneOffset.UTC).toEpochMilli()
+            record(
+                PassiveSourceFamily.STEPS,
+                PassiveRecordKind.STEPS_INTERVAL,
+                start,
+                start + 60_000L,
+                "steps-$daysAgo",
+                value = 10.0,
+            )
+        }
+
+        repository(
+            RangeSource { range -> listOf(successRead(PassiveSourceFamily.STEPS, range, now, values)) },
+            FakeSource(reads = emptyList()),
+            historyGranted = { true },
+        ).run(now, ZoneOffset.UTC)
+
+        val revisionLookups = synchronized(queries) { queries.toList() }.filter {
+            it.contains("FROM passive_window_revisions", ignoreCase = true) &&
+                it.contains("WHERE windowStart", ignoreCase = true)
+        }
+        assertEquals(1, revisionLookups.size)
+        assertFalse(
+            "repository must not retain the per-window DAO call",
+            java.io.File("src/main/java/org/mindanchor/intelligence/PassivePipelineRepository.kt")
+                .readText().contains("latestWindowRevision("),
+        )
+    }
+
+    @Test
     fun `source backfill appends revisions and an ordinary equal rescan is a no-op`() = runBlocking {
         val now = Instant.parse("2026-08-30T12:00:00Z").toEpochMilli()
         val dayStart = LocalDate.parse("2026-08-30").atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
@@ -568,6 +840,55 @@ class PassivePipelineRepositoryTest {
         assertEquals(counts.first, database.passive().windowRevisionsNow().size)
         assertEquals(counts.second, database.passive().dailyRevisionsNow().size)
         assertEquals(counts.third, database.passive().observationDecisionsNow().size)
+    }
+
+    @Test
+    fun `stored UsageStats events do not create routine features after access is denied`() = runBlocking {
+        val firstNow = Instant.parse("2026-08-30T12:00:00Z").toEpochMilli()
+        val dayStart = LocalDate.parse("2026-08-30").atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+        val usageEvents = routineUsageEvents(dayStart)
+        var usageGranted = true
+        val usage = RangeSource { range ->
+            if (usageGranted) {
+                listOf(successRead(PassiveSourceFamily.USAGE_STATS, range, range.endExclusive, usageEvents))
+            } else {
+                listOf(
+                    PassiveSourceRead(
+                        PassiveSourceFamily.USAGE_STATS,
+                        PassiveReadState.PERMISSION_DENIED,
+                        range,
+                        range.endExclusive,
+                        errorCode = "DENIED",
+                    ),
+                )
+            }
+        }
+        var steps = record(
+            PassiveSourceFamily.STEPS,
+            PassiveRecordKind.STEPS_INTERVAL,
+            dayStart + 60_000L,
+            dayStart + 120_000L,
+            "steps-a",
+            value = 10.0,
+        )
+        val health = RangeSource { range ->
+            listOf(successRead(PassiveSourceFamily.STEPS, range, range.endExclusive, listOf(steps)))
+        }
+        val repository = repository(health, usage)
+
+        repository.run(firstNow, ZoneOffset.UTC)
+        val beforeDenial = database.passive().dailyRevisionsNow().last()
+        assertTrue(beforeDenial.featuresJson.contains("FIRST_UNLOCK_MINUTE"))
+        assertTrue(beforeDenial.featuresJson.contains("SCREEN_MINUTES"))
+
+        usageGranted = false
+        steps = steps.copy(value = 11.0, sourceUpdatedTime = requireNotNull(steps.sourceUpdatedTime) + 1_000L)
+        repository.run(firstNow + 1_000L, ZoneOffset.UTC)
+
+        val afterDenial = database.passive().dailyRevisionsNow().last()
+        assertFalse(afterDenial.featuresJson.contains("FIRST_UNLOCK_MINUTE"))
+        assertFalse(afterDenial.featuresJson.contains("SCREEN_MINUTES"))
+        assertTrue(database.passive().rawProvenanceNow().any { it.sourceFamily == "USAGE_STATS" })
     }
 
     @Test
@@ -885,6 +1206,33 @@ class PassivePipelineRepositoryTest {
         attemptedAt: Long,
         records: List<PassiveSourceRecord>,
     ) = PassiveSourceRead(family, PassiveReadState.SUCCESS, range, attemptedAt, records)
+
+    private fun routineUsageEvents(dayStart: Long) = listOf(
+        record(
+            PassiveSourceFamily.USAGE_STATS,
+            PassiveRecordKind.SCREEN_INTERACTIVE,
+            dayStart - 10L * 60_000L,
+            dayStart - 10L * 60_000L,
+            "anchor",
+            value = null,
+        ),
+        record(
+            PassiveSourceFamily.USAGE_STATS,
+            PassiveRecordKind.SCREEN_UNLOCKED,
+            dayStart + 7L * 3_600_000L,
+            dayStart + 7L * 3_600_000L,
+            "unlock",
+            value = null,
+        ),
+        record(
+            PassiveSourceFamily.USAGE_STATS,
+            PassiveRecordKind.SCREEN_NON_INTERACTIVE,
+            dayStart + 8L * 3_600_000L,
+            dayStart + 8L * 3_600_000L,
+            "off",
+            value = null,
+        ),
+    )
 
     @Suppress("LongParameterList")
     private fun record(

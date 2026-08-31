@@ -11,11 +11,11 @@ import org.junit.Test
 
 class PassivePipelineCodecTest {
     @Test
-    fun `raw identity includes exact revision identity and has a frozen hash`() {
+    fun `raw identity includes correction content but excludes ingestion attempt time`() {
         val record = record()
 
         assertEquals(
-            "6c152d8f0f6de0c7b3dac407db5a163fd7bc1bbd5bdaa894b380b53b21918af2",
+            "cd2f3ac5be266bb281484247612e050648f68b9cb44cadc273de6e1fff1accee",
             PassivePipelineCodec.rawIdentity(record),
         )
         assertEquals(PassivePipelineCodec.rawIdentity(record), PassivePipelineCodec.rawIdentity(record.copy()))
@@ -26,6 +26,28 @@ class PassivePipelineCodecTest {
         assertNotEquals(
             PassivePipelineCodec.rawIdentity(record),
             PassivePipelineCodec.rawIdentity(record.copy(eventEnd = record.eventEnd + 1L)),
+        )
+        listOf(
+            record.copy(value = requireNotNull(record.value) + 1.0),
+            record.copy(unit = "items"),
+            record.copy(dataOriginPackage = "corrected.source"),
+            record.copy(deviceManufacturer = "Corrected Maker"),
+            record.copy(deviceModel = "Corrected Model"),
+            record.copy(deviceType = "PHONE"),
+            record.copy(sourceUpdatedTime = requireNotNull(record.sourceUpdatedTime) + 1L),
+            record.copy(zoneId = "Asia/Kolkata"),
+            record.copy(zoneOffsetSeconds = 19_800),
+        ).forEach { correction ->
+            assertNotEquals(
+                "correction-bearing content must create distinct provenance: $correction",
+                PassivePipelineCodec.rawIdentity(record),
+                PassivePipelineCodec.rawIdentity(correction),
+            )
+        }
+        assertEquals(
+            "a repeated read attempt must not create new scientific provenance",
+            PassivePipelineCodec.rawIdentity(record),
+            PassivePipelineCodec.rawIdentity(record.copy(ingestedAt = record.ingestedAt + 86_400_000L)),
         )
     }
 
@@ -69,6 +91,22 @@ class PassivePipelineCodecTest {
         assertEquals(
             lagWithFallback.id,
             PassivePipelineCodec.sourceLagEntity(fallbackRecord, observedAt = 999L).id,
+        )
+        assertEquals(
+            "fallback lag keeps the first observation across exact rescans",
+            lagWithFallback.id,
+            PassivePipelineCodec.sourceLagEntity(
+                fallbackRecord.copy(ingestedAt = fallbackRecord.ingestedAt + 86_400_000L),
+                observedAt = 1_000L,
+            ).id,
+        )
+        assertNotEquals(
+            "a scientifically distinct correction receives distinct lag evidence",
+            lagWithFallback.id,
+            PassivePipelineCodec.sourceLagEntity(
+                fallbackRecord.copy(value = requireNotNull(fallbackRecord.value) + 1.0),
+                observedAt = 1_000L,
+            ).id,
         )
     }
 

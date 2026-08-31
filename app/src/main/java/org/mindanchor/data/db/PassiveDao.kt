@@ -67,11 +67,17 @@ interface PassiveDao {
     @Query("SELECT COUNT(*) FROM passive_pipeline_runs WHERE result = 'SUCCESS_PERMISSIONED'")
     suspend fun successfulPermissionedRunCount(): Int
 
+    @Query("SELECT COUNT(*) FROM passive_source_reads WHERE state = 'SUCCESS' AND sourceFamily != 'USAGE_STATS'")
+    suspend fun successfulHealthConnectReadCount(): Int
+
     @Query("SELECT * FROM passive_window_revisions ORDER BY windowStart, asOfTime, rowid")
     suspend fun windowRevisionsNow(): List<PassiveWindowRevisionEntity>
 
     @Query("SELECT * FROM passive_window_revisions WHERE windowStart = :windowStart ORDER BY asOfTime DESC, rowid DESC LIMIT 1")
     suspend fun latestWindowRevision(windowStart: Long): PassiveWindowRevisionEntity?
+
+    @Query("SELECT * FROM passive_window_revisions WHERE windowStart >= :startInclusive AND windowStart < :endExclusive ORDER BY windowStart, asOfTime DESC, rowid DESC")
+    suspend fun windowRevisions(startInclusive: Long, endExclusive: Long): List<PassiveWindowRevisionEntity>
 
     @Query("SELECT * FROM passive_daily_revisions ORDER BY localDate, asOfTime, rowid")
     suspend fun dailyRevisionsNow(): List<PassiveDailyRevisionEntity>
