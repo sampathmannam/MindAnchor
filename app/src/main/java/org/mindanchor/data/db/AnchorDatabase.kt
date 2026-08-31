@@ -11,6 +11,7 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.Transaction
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
@@ -148,28 +149,44 @@ data class CrisisContact(
 )
 
 @Dao
-interface SafetyDao {
+abstract class SafetyDao {
 
     @Query("SELECT * FROM safety_plan WHERE id = ${SafetyPlan.SINGLETON_ID}")
-    fun plan(): Flow<SafetyPlan?>
+    abstract fun plan(): Flow<SafetyPlan?>
 
     @Query("SELECT * FROM safety_plan WHERE id = ${SafetyPlan.SINGLETON_ID}")
-    suspend fun planNow(): SafetyPlan?
+    abstract suspend fun planNow(): SafetyPlan?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun savePlan(plan: SafetyPlan)
+    abstract suspend fun savePlan(plan: SafetyPlan)
+
+    @Transaction
+    open suspend fun savePlanTransaction(draft: SafetyPlan, clockMillis: Long): SafetyPlan {
+        val current = planNow()
+        val nextUpdatedAt = current?.let {
+            maxOf(clockMillis, Math.addExact(it.updatedAt, 1L))
+        } ?: clockMillis
+        val written = draft.copy(
+            id = SafetyPlan.SINGLETON_ID,
+            updatedAt = nextUpdatedAt,
+        )
+        savePlan(written)
+        val stored = checkNotNull(planNow()) { "safety plan row missing after insert" }
+        check(stored == written) { "safety plan readback did not match the written row" }
+        return stored
+    }
 
     @Query("SELECT * FROM crisis_contacts ORDER BY isProfessional, name")
-    fun contacts(): Flow<List<CrisisContact>>
+    abstract fun contacts(): Flow<List<CrisisContact>>
 
     @Query("SELECT * FROM crisis_contacts")
-    suspend fun contactsNow(): List<CrisisContact>
+    abstract suspend fun contactsNow(): List<CrisisContact>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun addContact(contact: CrisisContact)
+    abstract suspend fun addContact(contact: CrisisContact)
 
     @Delete
-    suspend fun removeContact(contact: CrisisContact)
+    abstract suspend fun removeContact(contact: CrisisContact)
 }
 
 @Database(
