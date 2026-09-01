@@ -53,7 +53,8 @@ What DefectDojo gets
 import io
 import zipfile
 import re
-from xml.etree import ElementTree as ET
+
+from defusedxml import ElementTree as ET
 
 
 def _ratio_to_severity(failures: int, total: int) -> str:
