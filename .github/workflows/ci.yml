@@ -59,7 +59,7 @@ jobs:
         run: ./gradlew :app:koverXmlReportDebug :app:koverHtmlReportDebug
 
       - name: Allure report
-        uses: simple-elf/allure-report-action@main
+        uses: simple-elf/allure-report-action@385367cde61ac68c2568a117f7579f7f148dc459 # v1.15
         if: always()
         with:
           allure_results: app/build/test-results/testDebugUnitTest
