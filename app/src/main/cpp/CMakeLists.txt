@@ -44,15 +44,32 @@ target_link_options(mindanchor_llama PRIVATE
 # llama.cpp's ggml — the two ggml trees have
 # diverged upstream and are not shareable, see
 # third_party/whisper.cpp/VENDORED.md.
-add_subdirectory(
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../../../third_party/whisper.cpp
-    ${CMAKE_CURRENT_BINARY_DIR}/whisper
-)
-
-add_library(mindanchor_whisper SHARED mindanchor_whisper.cpp)
-target_link_libraries(mindanchor_whisper PRIVATE whisper)
-# v0.70.x (16 KB page-size fix): see the mindanchor_llama
-# block above. whisper.cpp's ggml needs the same flags.
-target_link_options(mindanchor_whisper PRIVATE
-    "-Wl,-z,max-page-size=16384"
-    "-Wl,-z,common-page-size=16384")
+#
+# v0.70.1: whisper targets disabled. The comment above is
+# the intent, but not what CMake does: upstream whisper's
+# CMakeLists only adds its own ggml `if (NOT TARGET ggml)`,
+# and llama's add_subdirectory above has already defined
+# that target — so whisper.cpp (b4938-era, expects
+# GGML_BACKEND_DEVICE_TYPE_IGPU and the 6-arg
+# ggml_backend_sched_new) compiles against llama's older
+# b4658-era ggml headers and fails with five compile
+# errors on any clean checkout. A stale .cxx cache can
+# mask this locally; a fresh worktree cannot. The voice
+# journal is a scaffold whose loadLibrary call is a
+# guarded runCatching (WhisperEngine.kt), so shipping
+# without libmindanchor_whisper.so degrades cleanly to
+# "unavailable" rather than crashing. Re-enable by giving
+# whisper its own ggml target name (or vendoring matching
+# trees), not by reordering the add_subdirectory calls —
+# llama against whisper's newer ggml breaks the same way.
+#
+# add_subdirectory(
+#     ${CMAKE_CURRENT_SOURCE_DIR}/../../../../third_party/whisper.cpp
+#     ${CMAKE_CURRENT_BINARY_DIR}/whisper
+# )
+#
+# add_library(mindanchor_whisper SHARED mindanchor_whisper.cpp)
+# target_link_libraries(mindanchor_whisper PRIVATE whisper)
+# target_link_options(mindanchor_whisper PRIVATE
+#     "-Wl,-z,max-page-size=16384"
+#     "-Wl,-z,common-page-size=16384")
