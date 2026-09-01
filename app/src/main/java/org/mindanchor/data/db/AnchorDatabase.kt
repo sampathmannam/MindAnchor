@@ -206,6 +206,8 @@ abstract class AnchorDatabase : RoomDatabase() {
     companion object {
         private const val SQLITE_DROP_COLUMN_MAJOR = 3
         private const val SQLITE_DROP_COLUMN_MINOR = 35
+        private const val TIER_COLUMN_ADD_FROM_VERSION = 3
+        private const val TIER_COLUMN_ADD_TO_VERSION = 4
         private const val TIER_MIGRATION_FROM_VERSION = 4
         private const val TIER_MIGRATION_TO_VERSION = 5
 
@@ -239,6 +241,23 @@ abstract class AnchorDatabase : RoomDatabase() {
                         "name TEXT NOT NULL, " +
                         "phone TEXT NOT NULL, " +
                         "isProfessional INTEGER NOT NULL)",
+                )
+            }
+        }
+
+        // v0.70.x (MigrationTest audit): a fresh v1 database
+        // walking every registered migration up to the current
+        // version failed because the chain had a gap at 3→4.
+        // Real v0.69.x databases reached version 4 with this
+        // column present, and MIGRATION_4_5 removes it. This is
+        // the add half of that historical add-then-drop sequence.
+        private val MIGRATION_3_4 = object : Migration(
+            TIER_COLUMN_ADD_FROM_VERSION,
+            TIER_COLUMN_ADD_TO_VERSION,
+        ) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE held_notifications ADD COLUMN tier TEXT NOT NULL DEFAULT ''",
                 )
             }
         }
@@ -292,7 +311,8 @@ abstract class AnchorDatabase : RoomDatabase() {
         }
 
         /** Exposed so instrumented tests can walk an old database forward. */
-        fun migrations(): Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_4_5)
+        fun migrations(): Array<Migration> =
+            arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
 
         @Volatile
         private var instance: AnchorDatabase? = null
