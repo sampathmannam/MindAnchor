@@ -56,9 +56,68 @@ android {
         //   versionCode 92→93.
         versionCode = 94
         versionName = "0.70.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Fixtures write months of history into the app under test, which
+        // would leak into whatever ran next. They are excluded from every
+        // Gradle run, CI included, and invoked deliberately instead:
+        //   adb shell am instrument -w -e class org.mindanchor.SeedThirtyDays \
+        //     org.mindanchor.test/androidx.test.runner.AndroidJUnitRunner
+        // am instrument does not read these arguments, so that still works.
+        testInstrumentationRunnerArguments["notAnnotation"] = "org.mindanchor.Fixture"
+
+        externalNativeBuild {
+            cmake {
+                // The off-list is load-bearing, not tidiness. LLAMA_CURL
+                // must be OFF because this app's privacy promise is that
+                // no path to the network exists anywhere in it, native
+                // code included. GGML_NATIVE must be OFF because
+                // -march=native on a build machine produces code the
+                // phone may not run. The rest keeps the vendored tree to
+                // exactly the library — no tools, no tests, no server.
+                arguments += listOf(
+                    "-DLLAMA_CURL=OFF",
+                    "-DLLAMA_BUILD_COMMON=OFF",
+                    "-DLLAMA_BUILD_TESTS=OFF",
+                    "-DLLAMA_BUILD_EXAMPLES=OFF",
+                    "-DLLAMA_BUILD_SERVER=OFF",
+                    "-DGGML_NATIVE=OFF",
+                    "-DGGML_OPENMP=OFF",
+                    "-DBUILD_SHARED_LIBS=OFF",
+                )
+                cppFlags += "-std=c++17"
+            }
+        }
+
+        // arm64 is every real phone this app supports (minSdk 33);
+        // x86_64 exists so the CI emulator can load the library and
+        // prove the JNI surface on device rather than trusting it.
+        ndk {
+            abiFilters += listOf("arm64-v8a", "x86_64")
+        }
     }
 
-  // secrets are absent, as they are for every fork and every local
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            // AGP's default is to demand its own pinned CMake exactly;
+            // the trailing + accepts anything newer. 3.22.1 is what a
+            // stock Android Studio SDK ships, the CI runners carry 3.31
+            // and 4.1 (probed, like the NDK), and the vendored llama
+            // tree asks for far less than either — so this floor is the
+            // one every machine that builds this project actually clears.
+            version = "3.22.1+"
+        }
+    }
+
+    // Real signing, when and only when a key is supplied.
+    //
+    // Debug-signed builds are the reason Play Protect blocks every install
+    // and the user has to dig through "restricted settings" to get the app
+    // onto a phone — a miserable first contact for something meant to feel
+    // calm.
+    //
+    // The key lives in CI secrets and never in this repository. When the
+    // secrets are absent, as they are for every fork and every local
     // build, signingConfig stays null and Gradle falls back to the debug
     // key exactly as before. Nothing breaks for anyone who does not have
     // the key; the release simply is not the official one.
@@ -272,10 +331,5 @@ dependencies {
 // src/test/java tree and produce:
 //   app/build/reports/kover/htmlDebug/index.html
 //   app/build/reports/kover/reportDebug.xml
-// which CI dashboards ingest. To also cover the main
-// source set (production code paths), extend `kover { sources { ... } }`
-// in Kover ≥ 0.8; the Kover 0.9 DSL shape is documented at
-// https://kotlin.github.io/kotlinx-kover/gradle-plugin/.
-dependencies {
-    kover(project(":app"))
-}
+// which CI dashboards ingest. The plugin is applied directly to this
+// single application module, so no cross-project Kover dependency is needed.

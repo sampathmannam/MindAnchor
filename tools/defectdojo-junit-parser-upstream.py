@@ -9,7 +9,8 @@
 #      UI's Test type dropdown, and the import endpoint
 #      accepts JUnit XML uploads.
 import zipfile
-from xml.etree import ElementTree as ET
+
+from defusedxml import ElementTree as ET
 
 
 def _ratio_to_severity(failures, total):

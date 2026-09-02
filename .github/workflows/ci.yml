@@ -19,6 +19,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      tests: ${{ steps.test-summary.outputs.tests }}
+      failures: ${{ steps.test-summary.outputs.failures }}
     env:
       # Pre-installed on the standard `ubuntu-latest` runner.
       JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
@@ -26,11 +29,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Semgrep
+        run: |
+          image=returntocorp/semgrep@sha256:f1f7b71861c7b28b6e0f661225a2c4f58a484f5d0f182465c6d6b3b22f972ade
+          docker pull "$image"
+          docker run --rm -v "$PWD:/src" "$image" \
+            semgrep --config=p/security-audit --config=p/secrets \
+            --config=p/kotlin --exclude=third_party --exclude='**/build/**' \
+            --json --metrics=off /src \
+            > /tmp/semgrep.json 2>/dev/null
+          findings=$(python3 -c "import json; print(len(json.load(open('/tmp/semgrep.json')).get('results', [])))" 2>/dev/null || echo 0)
+          echo "Semgrep findings: $findings"
+          test "$findings" = 0
+
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
-          android-version: '36'
-          cache: gradle
+          packages: >-
+            tools platform-tools platforms;android-36 build-tools;36.0.0
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
@@ -48,19 +64,20 @@ jobs:
           failures=$(find app/build/test-results/testDebugUnitTest \
             -name 'TEST-*.xml' -exec grep -hE '<testsuite ' {} + \
             | sed -E 's/.*failures="([0-9]+)".*/\1/' | paste -sd+ - | bc)
-          echo "tests=$count failures=$failures" >> "$GITHUB_OUTPUT"
+          echo "tests=$count" >> "$GITHUB_OUTPUT"
+          echo "failures=$failures" >> "$GITHUB_OUTPUT"
           echo "MindAnchor unit tests: $count run, $failures failed"
 
       - name: Kover coverage (≥ 50% line rate)
         run: ./gradlew :app:koverXmlReportDebug :app:koverHtmlReportDebug
 
       - name: Allure report
-        uses: simple-elf/allure-report-action@main
+        uses: simple-elf/allure-report-action@385367cde61ac68c2568a117f7579f7f148dc459 # v1.15
         if: always()
         with:
           allure_results: app/build/test-results/testDebugUnitTest
           allure_report: allure-report
-          keep_history: true
+          keep_reports: 20
 
       - name: Kover XML report as artifact
         uses: actions/upload-artifact@v4
@@ -68,17 +85,6 @@ jobs:
         with:
           name: kover-coverage
           path: app/build/reports/kover/reportDebug.xml
-
-      - name: Semgrep
-        run: |
-          docker pull returntocorp/semgrep:latest
-          docker run --rm -v "$PWD:/src" returntocorp/semgrep:latest \
-            semgrep --config=p/security-audit --config=p/secrets \
-            --config=p/kotlin --json --metrics=off /src \
-            > /tmp/semgrep.json 2>/dev/null
-          findings=$(python3 -c "import json; print(len(json.load(open('/tmp/semgrep.json')).get('results', [])))" 2>/dev/null || echo 0)
-          echo "Semgrep findings: $findings"
-          test "$findures" = 0
 
       - name: OWASP dependency-check
         if: env.NVD_API_KEY != ''
@@ -92,9 +98,6 @@ jobs:
             --project "MindAnchor" --scan /src \
             --format HTML --out /tmp/depcheck
           echo "OWASP dep-check report: /tmp/depcheck/dependency-check-report.html"
-
-      - name: Run shellscript with sudo (for setcap)
-        if: false  # placeholder; noop
 
   fail:
     needs: test
