@@ -184,6 +184,13 @@ abstract class AnchorDatabase : RoomDatabase() {
     abstract fun safety(): SafetyDao
 
     companion object {
+        private const val SQLITE_DROP_COLUMN_MAJOR = 3
+        private const val SQLITE_DROP_COLUMN_MINOR = 35
+        private const val TIER_COLUMN_ADD_FROM_VERSION = 3
+        private const val TIER_COLUMN_ADD_TO_VERSION = 4
+        private const val TIER_MIGRATION_FROM_VERSION = 4
+        private const val TIER_MIGRATION_TO_VERSION = 5
+
         private val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
@@ -220,15 +227,14 @@ abstract class AnchorDatabase : RoomDatabase() {
 
         // v0.70.x (MigrationTest audit): a fresh v1 database
         // walking every registered migration up to the current
-        // version failed with "A migration from 1 to 5 was
-        // required but not found" — MIGRATION_4_5 (below) drops
-        // a `tier` column that no migration ever added, so the
-        // 1→2→3→…→5 chain had a gap at 3→4. MIGRATION_4_5's own
-        // KDoc says real v0.69.x on-device DBs reach version 4
-        // with this column present; this migration is the add
-        // half of that add-then-drop history, matching the
-        // column MIGRATION_4_5 already expects to find.
-        private val MIGRATION_3_4 = object : Migration(3, 4) {
+        // version failed because the chain had a gap at 3→4.
+        // Real v0.69.x databases reached version 4 with this
+        // column present, and MIGRATION_4_5 removes it. This is
+        // the add half of that historical add-then-drop sequence.
+        private val MIGRATION_3_4 = object : Migration(
+            TIER_COLUMN_ADD_FROM_VERSION,
+            TIER_COLUMN_ADD_TO_VERSION,
+        ) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     "ALTER TABLE held_notifications ADD COLUMN tier TEXT NOT NULL DEFAULT ''",
@@ -245,24 +251,18 @@ abstract class AnchorDatabase : RoomDatabase() {
         // migration in a way that tolerates older engines
         // (the 12-step re-create dance) so the upgrade
         // works on Android 11 too.
-        // SQLite ≥ 3.35 supports DROP COLUMN.
-        private const val MIN_SQLITE_MAJOR_FOR_DROP_COLUMN = 3
-        private const val MIN_SQLITE_MINOR_FOR_DROP_COLUMN = 35
-
-        private val MIGRATION_4_5 = object : Migration(4, 5) {
+        private val MIGRATION_4_5 = object : Migration(
+            TIER_MIGRATION_FROM_VERSION,
+            TIER_MIGRATION_TO_VERSION,
+        ) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 val cursor = db.query("SELECT sqlite_version()")
                 val version = cursor.use { if (it.moveToFirst()) it.getString(0) else "0" }
                 cursor.close()
                 val parts = version.split(".").mapNotNull { it.toIntOrNull() }
                 val has = parts.size >= 2 &&
-                    (
-                        parts[0] > MIN_SQLITE_MAJOR_FOR_DROP_COLUMN ||
-                            (
-                                parts[0] == MIN_SQLITE_MAJOR_FOR_DROP_COLUMN &&
-                                    parts[1] >= MIN_SQLITE_MINOR_FOR_DROP_COLUMN
-                                )
-                        )
+                    (parts[0] > SQLITE_DROP_COLUMN_MAJOR ||
+                        (parts[0] == SQLITE_DROP_COLUMN_MAJOR && parts[1] >= SQLITE_DROP_COLUMN_MINOR))
                 if (has) {
                     db.execSQL("ALTER TABLE held_notifications DROP COLUMN tier")
                 } else {

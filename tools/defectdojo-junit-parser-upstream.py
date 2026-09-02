@@ -9,7 +9,8 @@
 #      UI's Test type dropdown, and the import endpoint
 #      accepts JUnit XML uploads.
 import zipfile
-from xml.etree import ElementTree as ET  # nosemgrep: python.lang.security.use-defused-xml.use-defused-xml -- must mirror DefectDojo's upstream import verbatim; see header
+
+from defusedxml import ElementTree as ET
 
 
 def _ratio_to_severity(failures, total):

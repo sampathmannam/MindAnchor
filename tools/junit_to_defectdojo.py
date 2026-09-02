@@ -30,9 +30,10 @@ import json
 import os
 import re
 import sys
-import defusedxml.ElementTree as ET
 from pathlib import Path
 from typing import Iterable
+
+from defusedxml import ElementTree as ET
 
 
 def iter_junit_files(root: Path) -> Iterable[Path]:

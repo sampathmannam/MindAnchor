@@ -333,8 +333,21 @@ android {
         // animates" premise. Not verified live yet — the device was mid
         // GitHub 2FA login when this shipped.
         // versionCode 111→112.
-        versionCode = 112
-        versionName = "0.70.18"
+        //
+        // v0.70.19: merged origin/main's CI/build hardening line (Room
+        // migration-chain restore, defusedxml on the DefectDojo JUnit
+        // tools, a pinned Allure action commit SHA, and the CI gate
+        // fixes that got the workflow running again) into this
+        // branch's v0.70.x line. No app behavior changes — the
+        // migration chain and the XML/hashing tooling this pulls in
+        // were already independently fixed on this branch's own side
+        // where they overlapped (MIGRATION_3_4/4_5, CorosPasswordHasher);
+        // main's versions were kept where the two differed only in
+        // constant-naming style, since main is the branch this merges
+        // into.
+        // versionCode 112→113.
+        versionCode = 113
+        versionName = "0.70.19"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every
@@ -616,10 +629,5 @@ dependencies {
 // src/test/java tree and produce:
 //   app/build/reports/kover/htmlDebug/index.html
 //   app/build/reports/kover/reportDebug.xml
-// which CI dashboards ingest. To also cover the main
-// source set (production code paths), extend `kover { sources { ... } }`
-// in Kover ≥ 0.8; the Kover 0.9 DSL shape is documented at
-// https://kotlin.github.io/kotlinx-kover/gradle-plugin/.
-dependencies {
-    kover(project(":app"))
-}
+// which CI dashboards ingest. The plugin is applied directly to this
+// single application module, so no cross-project Kover dependency is needed.

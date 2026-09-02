@@ -53,6 +53,7 @@ What DefectDojo gets
 import io
 import zipfile
 import re
+
 from defusedxml import ElementTree as ET
 
 

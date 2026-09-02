@@ -35,9 +35,8 @@ object CorosPasswordHasher {
     @Suppress("InsecureCryptoAlgorithm", "WeakHash")
     fun md5Hex(password: CharSequence): String {
         val bytes = password.toString().toByteArray(Charsets.UTF_8)
-        // COROS Training Hub web API requires hex MD5 of UTF-8 password bytes (mobile
-        // API logs user out). Class KDoc documents the 2025-12-04 contract test.
-        val digest = MessageDigest.getInstance("MD5").digest(bytes) // nosemgrep: use-of-md5
+        // nosemgrep: use-of-md5 — required by the COROS web API; see class KDoc.
+        val digest = MessageDigest.getInstance("MD5").digest(bytes)
         val out = CharArray(digest.size * 2)
         for (i in digest.indices) {
             val b = digest[i].toInt() and BYTE_MASK

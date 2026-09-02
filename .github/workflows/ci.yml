@@ -29,11 +29,41 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Semgrep
+        run: |
+          # v0.70.x: on a branch where this step ran after the Allure
+          # report step, the finding count varied run to run on
+          # identical commits (0 locally, 12/6/8 in CI) — looked like
+          # the p/security-audit / p/secrets / p/kotlin registry
+          # aliases drifting server-side, but the finding-detail dump
+          # below showed the real cause: every instance was
+          # generic.secrets.detected-facebook-oauth firing on
+          # allure-report/ and allure-history/, the Allure step's own
+          # generated report JSON — never present in a local checkout,
+          # freshly regenerated (with run-dependent content) on every
+          # CI job. Not a registry drift, not a real secret. Scanning
+          # here, before Allure ever runs, avoids the directory
+          # existing at all; the finding-detail dump stays as a
+          # general debugging aid for whatever this step does flag.
+          image=returntocorp/semgrep@sha256:f1f7b71861c7b28b6e0f661225a2c4f58a484f5d0f182465c6d6b3b22f972ade
+          docker pull "$image"
+          docker run --rm -v "$PWD:/src" "$image" \
+            semgrep --config=p/security-audit --config=p/secrets \
+            --config=p/kotlin --exclude=third_party --exclude='**/build/**' \
+            --json --metrics=off /src \
+            > /tmp/semgrep.json 2>/dev/null
+          findings=$(python3 -c "import json; print(len(json.load(open('/tmp/semgrep.json')).get('results', [])))" 2>/dev/null || echo 0)
+          echo "Semgrep findings: $findings"
+          if [ "$findings" != 0 ]; then
+            python3 -c "import json; d = json.load(open('/tmp/semgrep.json')); [print(r['check_id'], r['path']+':'+str(r['start']['line'])+chr(10)+'  '+r['extra']['message'].splitlines()[0]) for r in d.get('results', [])]"
+          fi
+          test "$findings" = 0
+
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
-          android-version: '36'
-          cache: gradle
+          packages: >-
+            tools platform-tools platforms;android-36 build-tools;36.0.0
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
@@ -59,12 +89,12 @@ jobs:
         run: ./gradlew :app:koverXmlReportDebug :app:koverHtmlReportDebug
 
       - name: Allure report
-        uses: simple-elf/allure-report-action@v1.15
+        uses: simple-elf/allure-report-action@385367cde61ac68c2568a117f7579f7f148dc459 # v1.15
         if: always()
         with:
           allure_results: app/build/test-results/testDebugUnitTest
           allure_report: allure-report
-          keep_history: true
+          keep_reports: 20
 
       - name: Kover XML report as artifact
         uses: actions/upload-artifact@v4
@@ -72,36 +102,6 @@ jobs:
         with:
           name: kover-coverage
           path: app/build/reports/kover/reportDebug.xml
-
-      - name: Semgrep
-        run: |
-          # v0.70.x: pinned the image (was :latest) so the engine is
-          # deterministic across runs — verified fixed at 1.174.0 the day
-          # this was pinned.
-          #
-          # v0.70.x: the finding count varied run to run on identical
-          # commits (0 locally, 12/6/8 in CI) — looked like the
-          # p/security-audit / p/secrets / p/kotlin registry aliases
-          # drifting server-side, but the finding-detail dump below
-          # (added at the same time) showed the real cause: every
-          # instance was generic.secrets.detected-facebook-oauth firing
-          # on allure-report/ and allure-history/, the Allure step's own
-          # generated report JSON — never present in a local checkout,
-          # freshly regenerated (with run-dependent content) on every CI
-          # job. Not a registry drift, not a real secret; excluded like
-          # third_party.
-          docker pull returntocorp/semgrep:1.174.0
-          docker run --rm -v "$PWD:/src" returntocorp/semgrep:1.174.0 \
-            semgrep --config=p/security-audit --config=p/secrets \
-            --config=p/kotlin --exclude=third_party --exclude=allure-report \
-            --exclude=allure-history --json --metrics=off /src \
-            > /tmp/semgrep.json 2>/dev/null
-          findings=$(python3 -c "import json; print(len(json.load(open('/tmp/semgrep.json')).get('results', [])))" 2>/dev/null || echo 0)
-          echo "Semgrep findings: $findings"
-          if [ "$findings" != 0 ]; then
-            python3 -c "import json; d = json.load(open('/tmp/semgrep.json')); [print(r['check_id'], r['path']+':'+str(r['start']['line'])+chr(10)+'  '+r['extra']['message'].splitlines()[0]) for r in d.get('results', [])]"
-          fi
-          test "$findings" = 0
 
       - name: OWASP dependency-check
         if: env.NVD_API_KEY != ''
