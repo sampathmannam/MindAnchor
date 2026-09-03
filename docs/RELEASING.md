@@ -301,3 +301,64 @@ Each release bumps `versionCode` monotonically and the `versionName` in
 `app/build.gradle.kts`. The 2-week live test (G-36) is parallel to the
 release engineering; its log lives at `docs/qa/real-2-week-log.md`.
 
+---
+
+## 9. Program 3 (adaptive protocol delivery) release rules
+
+Program 3 is the disabled-by-default historical advisory feature
+(`app/src/main/java/org/mindanchor/advisory/`). It ships in every build,
+including public ones, but an ordinary build's protocol allowlist is
+empty at compile time, so it can deliver nothing regardless of any
+runtime setting. The rules below govern the two ways that could change.
+Current state is recorded, honestly, in
+`docs/qa/program-3-adaptive-delivery-evidence.md` — read that file for
+what is and is not true today, not this section.
+
+**Public release.** A public (ordinary) build may name a protocol in its
+allowlist only when all of the following hold, together, not
+individually:
+
+- the exact protocol definition named is `REVIEWED_AND_ACCEPTED`
+  (`ClinicalReviewStatus`), not `NOT_REVIEWED`, `REVIEW_REQUESTED`, or
+  `REVIEWED_WITH_CHANGES`;
+- every new user-facing copy surface the feature added (the advisory
+  card, the evidence screen, the player screen, the two settings rows,
+  and their strings) is separately `REVIEWED_AND_ACCEPTED`;
+- the ordinary allowlist itself becomes non-empty only in its own,
+  separately reviewed change — never bundled into an unrelated commit;
+- the change carries the clinical-review CI label.
+
+**Current public protocol count is zero**, because `cyclic-sighing@1` is
+`NOT_REVIEWED` and the ordinary allowlist
+(`AdvisoryBuildAuthorization.ordinaryAllowlist`) is empty. This is a hard
+gate, not a formality, exactly like the clinical-review item in §6 above.
+
+**Personal-research delivery** (the owner's own device only, never a
+public artifact) requires all of the following, together:
+
+- Program 0, Program 2, and Program 3's own physical-device evidence are
+  each complete (see `docs/qa/program-3-adaptive-delivery-evidence.md`
+  and `docs/qa/program-3-adaptive-delivery-runbook.md`);
+- explicit owner activation — a deliberate decision recorded outside
+  source control, not inferred from a build succeeding;
+- both `PROGRAM3_PERSONAL_RESEARCH=true` and
+  `PROGRAM3_OPERATIONAL_EVIDENCE_APPROVED=true` set explicitly at build
+  time;
+- the master advisory switch and the delivery switch both deliberately
+  turned on in Settings — neither defaults to true;
+- the protocol started is exactly the one named in
+  `AdvisoryBuildAuthorization.personalAllowlist`, by id, version, and
+  definition hash — no other protocol may be named there.
+
+**No evidence document and no build property may bypass** source
+finality (`AVAILABLE_FINAL` + `SUSTAINED_DEVIATION`), source provenance
+completeness, the active-episode-exists check, the cooldown timer, or the
+runtime delivery kill switch. Those gates are evaluated from live state
+at the moment of the action, every time, regardless of what any document
+says has been approved.
+
+Changing `cyclic-sighing@1`'s review status away from `NOT_REVIEWED`, or
+adding an entry to either allowlist, is a separate clinical and release
+decision — it is not something Program 3's implementation itself
+authorizes, and it must not be bundled into an implementation commit.
+
