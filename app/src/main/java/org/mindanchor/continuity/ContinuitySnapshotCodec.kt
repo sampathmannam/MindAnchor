@@ -57,6 +57,7 @@ object ContinuitySnapshotCodec {
         "passiveDailyRevisions",
         "passiveObservationDecisions",
     )
+    private val programThreeFields = setOf("advisoryOpportunities", "interventionEpisodeEvents")
 
     sealed class DecodeResult {
         data class Success(val snapshot: ContinuitySnapshot) : DecodeResult()
@@ -83,21 +84,29 @@ object ContinuitySnapshotCodec {
         return DecodeResult.Success(parsed)
     }
 
+    private fun allowedFieldsFor(formatVersion: Int): Set<String> = when (formatVersion) {
+        ContinuityContract.PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION -> programZeroFields
+        ContinuityContract.PROGRAM_ONE_SNAPSHOT_FORMAT_VERSION -> programZeroFields + programOneFields
+        ContinuityContract.PROGRAM_TWO_SNAPSHOT_FORMAT_VERSION ->
+            programZeroFields + programOneFields + programTwoFields
+        else -> programZeroFields + programOneFields + programTwoFields + programThreeFields
+    }
+
+    private fun knownLaterFieldsFor(formatVersion: Int): Set<String> = when (formatVersion) {
+        ContinuityContract.PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION ->
+            programOneFields + programTwoFields + programThreeFields
+        ContinuityContract.PROGRAM_ONE_SNAPSHOT_FORMAT_VERSION -> programTwoFields + programThreeFields
+        ContinuityContract.PROGRAM_TWO_SNAPSHOT_FORMAT_VERSION -> programThreeFields
+        else -> emptySet()
+    }
+
     private fun rawFieldsAreCompatible(root: JsonObject, formatVersion: Int): Boolean {
         if (root.keys.any { it !in snapshotFields }) return false
         val payload = root["payload"] as? JsonObject ?: return false
         if ("passiveRawSamples" in payload) return false
 
-        val allowedFields = when (formatVersion) {
-            ContinuityContract.PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION -> programZeroFields
-            ContinuityContract.PROGRAM_ONE_SNAPSHOT_FORMAT_VERSION -> programZeroFields + programOneFields
-            else -> programZeroFields + programOneFields + programTwoFields
-        }
-        val knownLaterFields = when (formatVersion) {
-            ContinuityContract.PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION -> programOneFields + programTwoFields
-            ContinuityContract.PROGRAM_ONE_SNAPSHOT_FORMAT_VERSION -> programTwoFields
-            else -> emptySet()
-        }
+        val allowedFields = allowedFieldsFor(formatVersion)
+        val knownLaterFields = knownLaterFieldsFor(formatVersion)
         return payload.all { (field, value) ->
             field in allowedFields ||
                 (field in knownLaterFields && value is JsonArray && value.isEmpty())
@@ -107,9 +116,13 @@ object ContinuitySnapshotCodec {
     private fun smugglesNewerContent(snapshot: ContinuitySnapshot): Boolean = when (snapshot.formatVersion) {
         ContinuityContract.PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION ->
             programOneSnapshotContentByField(snapshot.payload).values.any { it } ||
-                programTwoSnapshotContentByField(snapshot.payload).values.any { it }
+                programTwoSnapshotContentByField(snapshot.payload).values.any { it } ||
+                programThreeSnapshotContentByField(snapshot.payload).values.any { it }
         ContinuityContract.PROGRAM_ONE_SNAPSHOT_FORMAT_VERSION ->
-            programTwoSnapshotContentByField(snapshot.payload).values.any { it }
+            programTwoSnapshotContentByField(snapshot.payload).values.any { it } ||
+                programThreeSnapshotContentByField(snapshot.payload).values.any { it }
+        ContinuityContract.PROGRAM_TWO_SNAPSHOT_FORMAT_VERSION ->
+            programThreeSnapshotContentByField(snapshot.payload).values.any { it }
         else -> false
     }
 }
@@ -128,4 +141,9 @@ internal fun programTwoSnapshotContentByField(payload: ContinuityPayload): Map<S
     "passiveWindowRevisions" to payload.passiveWindowRevisions.isNotEmpty(),
     "passiveDailyRevisions" to payload.passiveDailyRevisions.isNotEmpty(),
     "passiveObservationDecisions" to payload.passiveObservationDecisions.isNotEmpty(),
+)
+
+internal fun programThreeSnapshotContentByField(payload: ContinuityPayload): Map<String, Boolean> = mapOf(
+    "advisoryOpportunities" to payload.advisoryOpportunities.isNotEmpty(),
+    "interventionEpisodeEvents" to payload.interventionEpisodeEvents.isNotEmpty(),
 )

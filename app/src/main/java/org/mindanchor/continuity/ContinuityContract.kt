@@ -18,12 +18,12 @@ object ContinuityContract {
     /**
      * The snapshot payload shape this build writes.
      *
-     * Raised to 3 in the same commit that appended the passive operational
-     * history lists to [ContinuityPayload], never before it: a build
-     * that stamps a version its payload does not have destroys the one
-     * discriminator a later reader needs.
+     * Raised to 4 in the same commit that appended the advisory
+     * opportunity and episode-event lists to [ContinuityPayload], never
+     * before it: a build that stamps a version its payload does not
+     * have destroys the one discriminator a later reader needs.
      */
-    const val SNAPSHOT_FORMAT_VERSION = 3
+    const val SNAPSHOT_FORMAT_VERSION = 4
 
     /**
      * Program 0's snapshot payload shape — the ten-field payload whose
@@ -37,10 +37,14 @@ object ContinuityContract {
     /** Program 1's snapshot payload shape, including research history. */
     const val PROGRAM_ONE_SNAPSHOT_FORMAT_VERSION = 2
 
+    /** Program 2's snapshot payload shape, including the passive operational history lists. */
+    const val PROGRAM_TWO_SNAPSHOT_FORMAT_VERSION = 3
+
     /** Every snapshot payload shape this build can decode and content-hash. */
     val SUPPORTED_SNAPSHOT_FORMAT_VERSIONS = setOf(
         PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION,
         PROGRAM_ONE_SNAPSHOT_FORMAT_VERSION,
+        PROGRAM_TWO_SNAPSHOT_FORMAT_VERSION,
         SNAPSHOT_FORMAT_VERSION,
     )
 

@@ -12,6 +12,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.mindanchor.advisory.AdvisoryPrefs
+import org.mindanchor.advisory.RoomAdvisoryOutcomeReconciler
 import org.mindanchor.backup.BackupRepository
 import org.mindanchor.continuity.crypto.BackupEnvelopeCodec
 import org.mindanchor.continuity.crypto.RecoveryKey
@@ -19,8 +21,10 @@ import org.mindanchor.continuity.crypto.RecoveryKeyStore
 import org.mindanchor.data.FrictionPrefs
 import org.mindanchor.data.LauncherPrefs
 import org.mindanchor.data.NotesPrefs
+import org.mindanchor.data.db.AdvisoryOpportunityEntity
 import org.mindanchor.data.db.AnchorDatabase
 import org.mindanchor.data.db.ContinuityChangeEntity
+import org.mindanchor.data.db.InterventionEpisodeEventEntity
 import org.mindanchor.data.db.JournalContextEntity
 import org.mindanchor.data.db.JournalEntryEntity
 import org.mindanchor.data.db.MorningMeasureEntity
@@ -433,6 +437,7 @@ class RestoreCoordinator(
             val continuityPrefs = ContinuityPrefs(app)
             val restoreStateStore = RestoreStateStore(app)
             val recoveryKeyStore = RecoveryKeyStore.create(app)
+            val advisoryPrefs = AdvisoryPrefs(app)
             val snapshotRepository = ContinuitySnapshotRepository(
                 context = app,
                 database = database,
@@ -441,6 +446,7 @@ class RestoreCoordinator(
                 frictionPrefs = frictionPrefs,
                 deviceIdentity = DeviceIdentityStore(app),
                 backupRepository = backupRepository,
+                advisoryOutcomeReconciler = RoomAdvisoryOutcomeReconciler.build(app),
             )
 
             val stagingDir = File(app.filesDir, "continuity")
@@ -502,7 +508,9 @@ class RestoreCoordinator(
                         passive.pipelineRunsNow().isEmpty() &&
                         passive.windowRevisionsNow().isEmpty() &&
                         passive.dailyRevisionsNow().isEmpty() &&
-                        passive.observationDecisionsNow().isEmpty()
+                        passive.observationDecisionsNow().isEmpty() &&
+                        database.advisory().opportunitiesNow().isEmpty() &&
+                        database.advisory().eventsNow().isEmpty()
                 },
                 mergeRoom = { payload ->
                     database.withTransaction {
@@ -516,6 +524,7 @@ class RestoreCoordinator(
                         // rather than by a de-duplication pass.
                         mergeResearchRows(database, payload)
                         mergePassiveRows(database, payload)
+                        mergeAdvisoryRows(database, payload)
                     }
                 },
                 mergeDataStores = { payload ->
@@ -527,8 +536,9 @@ class RestoreCoordinator(
                     )
                     frictionPrefs.replaceFlagged(payload.frictionedApps.toSet())
                     frictionPrefs.replaceAlwaysOpen(payload.alwaysOpenApps.toSet())
+                    advisoryPrefs.disableAfterRestore()
                 },
-                recapture = { snapshotRepository.capture(System.currentTimeMillis()) },
+                recapture = { snapshotRepository.capture(System.currentTimeMillis(), reconcileDueOutcomes = false) },
                 recordRestoreVerified = { at, hash -> continuityPrefs.recordRestore(at, hash) },
                 recordVerifyFailed = { continuityPrefs.recordError(ContinuityErrorCode.RESTORE_VERIFY_FAILED) },
             )
@@ -816,6 +826,63 @@ internal fun PassiveObservationDecisionDto.toEntity(): PassiveObservationDecisio
         revisionReason = revisionReason,
         contentHash = contentHash,
     )
+
+internal fun AdvisoryOpportunityDto.toEntity(): AdvisoryOpportunityEntity = AdvisoryOpportunityEntity(
+    id = id,
+    presentedAt = presentedAt,
+    localDate = localDate,
+    zoneId = zoneId,
+    sourceDecisionId = sourceDecisionId,
+    sourceDecisionContentHash = sourceDecisionContentHash,
+    sourceLocalDate = sourceLocalDate,
+    sourceAsOfTime = sourceAsOfTime,
+    sourceDataStatus = sourceDataStatus,
+    sourceObservationState = sourceObservationState,
+    sourceExplanation = sourceExplanation,
+    sourceBaselineSegment = sourceBaselineSegment,
+    sourcePassiveRuleVersion = sourcePassiveRuleVersion,
+    sourcePassiveModelVersion = sourcePassiveModelVersion,
+    sourceStudyPhaseId = sourceStudyPhaseId,
+    protocolId = protocolId,
+    protocolVersion = protocolVersion,
+    protocolDefinitionSha256 = protocolDefinitionSha256,
+    protocolCatalogSha256 = protocolCatalogSha256,
+    protocolClinicalReviewStatus = protocolClinicalReviewStatus,
+    advisoryRuleVersion = advisoryRuleVersion,
+    buildMode = buildMode,
+    operationalEvidenceApproved = operationalEvidenceApproved,
+    masterAdvisoryEnabled = masterAdvisoryEnabled,
+    deliveryAllowedAtPresentation = deliveryAllowedAtPresentation,
+    studyPhaseId = studyPhaseId,
+    sourceDeviceId = sourceDeviceId,
+    contentHash = contentHash,
+)
+
+internal fun InterventionEpisodeEventDto.toEntity(): InterventionEpisodeEventEntity = InterventionEpisodeEventEntity(
+    id = id,
+    episodeId = episodeId,
+    opportunityId = opportunityId,
+    sequence = sequence,
+    eventType = eventType,
+    occurredAt = occurredAt,
+    localDate = localDate,
+    zoneId = zoneId,
+    studyPhaseId = studyPhaseId,
+    sourceDeviceId = sourceDeviceId,
+    protocolId = protocolId,
+    protocolVersion = protocolVersion,
+    protocolDefinitionSha256 = protocolDefinitionSha256,
+    protocolCatalogSha256 = protocolCatalogSha256,
+    advisoryRuleVersion = advisoryRuleVersion,
+    buildMode = buildMode,
+    operationalEvidenceApproved = operationalEvidenceApproved,
+    masterAdvisoryEnabled = masterAdvisoryEnabled,
+    deliveryAllowed = deliveryAllowed,
+    payloadSchemaVersion = payloadSchemaVersion,
+    payloadJson = payloadJson,
+    previousEventHash = previousEventHash,
+    eventHash = eventHash,
+)
 
 internal fun ContinuityChangeDto.toEntity(): ContinuityChangeEntity = ContinuityChangeEntity(
     id = id,

@@ -95,6 +95,7 @@ class ContinuityRoundTripTest {
     private lateinit var continuityPrefs: ContinuityPrefs
     private lateinit var restoreStateStore: RestoreStateStore
     private lateinit var deviceIdentity: DeviceIdentityStore
+    private lateinit var advisoryPrefs: org.mindanchor.advisory.AdvisoryPrefs
     private lateinit var stagingFile: File
     private lateinit var stagingTmpFile: File
 
@@ -113,6 +114,7 @@ class ContinuityRoundTripTest {
         continuityPrefs = ContinuityPrefs(context)
         restoreStateStore = RestoreStateStore(context)
         deviceIdentity = DeviceIdentityStore(context)
+        advisoryPrefs = org.mindanchor.advisory.AdvisoryPrefs(context)
         val stagingDir = File(context.filesDir, "continuity")
         stagingFile = File(stagingDir, "restore-staged.mab")
         stagingTmpFile = File(stagingDir, "restore-staged.mab.tmp")
@@ -141,6 +143,7 @@ class ContinuityRoundTripTest {
         clearProductionRoom(realDb)
         RecoveryKeyStore.create(context).clear()
         continuityPrefs.reset()
+        advisoryPrefs.disableAfterRestore()
     }
 
     private fun clearProductionRoom(database: AnchorDatabase) {
@@ -155,11 +158,15 @@ class ContinuityRoundTripTest {
             "passive_window_revisions",
             "passive_daily_revisions",
             "passive_observation_decisions",
+            "advisory_opportunities",
+            "intervention_episode_events",
         )
         val sqlite = database.openHelper.writableDatabase
         try {
             immutableTables.forEach { table -> sqlite.execSQL("DROP TRIGGER IF EXISTS ${table}_no_delete") }
             listOf(
+                "intervention_episode_events",
+                "advisory_opportunities",
                 "passive_raw_samples",
                 "passive_observation_decisions",
                 "passive_daily_revisions",
@@ -198,6 +205,8 @@ class ContinuityRoundTripTest {
         assertTrue(launcherPrefs.renames.first().isEmpty())
         assertEquals(0, database.research().ledgerEventCount())
         assertEquals(0, database.research().studyPhaseCount())
+        assertTrue(database.advisory().opportunitiesNow().isEmpty())
+        assertTrue(database.advisory().eventsNow().isEmpty())
     }
 
     @Test
@@ -214,6 +223,12 @@ class ContinuityRoundTripTest {
             "daily revisions" to { passive.insertDailyRevisions(PassiveContinuityFixture.dailyRevisions.take(1)) },
             "observation decisions" to {
                 passive.insertObservationDecisions(PassiveContinuityFixture.observationDecisions.take(1))
+            },
+            "advisory opportunities" to {
+                realDb.advisory().insertOpportunity(AdvisoryContinuityFixture.opportunity)
+            },
+            "intervention episode events" to {
+                realDb.advisory().insertEvents(listOf(AdvisoryContinuityFixture.event))
             },
         )
 
@@ -347,6 +362,102 @@ class ContinuityRoundTripTest {
         assertEquals(firstIds, restoredIds())
         assertTrue(passive.rawRecords(0L, Long.MAX_VALUE).isEmpty())
         assertEquals(staged.contentSha256, (second as RestoreResult.Verified).contentHash)
+    }
+
+    @Test
+    fun productionBuildRestoresAdvisoryEvidenceExactlyOnceAndResetsRuntimeGates() = runBlocking {
+        val realDb = AnchorDatabase.get(context)
+        AdvisoryContinuityFixture.insertInto(sourceDb)
+        advisoryPrefs.setMasterAdvisoryEnabled(true)
+        advisoryPrefs.setDeliveryAllowed(true)
+        advisoryPrefs.setCurrentEpisodeId("some-episode-from-before-restore")
+
+        val sourceRepository = ContinuitySnapshotRepository(
+            context, sourceDb, notesPrefs, letterStore, frictionPrefs, deviceIdentity, backupRepository,
+        )
+        val staged = sourceRepository.capture(5_000L)
+        val envelopeBytes = BackupEnvelopeCodec.encode(
+            BackupEnvelopeCodec.encrypt(ContinuitySnapshotCodec.encode(staged), key, 5_000L),
+        ).encodeToByteArray()
+        RecoveryKeyStore.create(context).apply {
+            save(key)
+            markVerified()
+        }
+
+        val first = RestoreCoordinator.build(context).beginRestore(
+            "advisory-production.mab",
+            envelopeBytes,
+            staged.contentSha256,
+            staged.formatVersion,
+        )
+        assertTrue("first production restore must verify, got $first", first is RestoreResult.Verified)
+
+        val advisory = realDb.advisory()
+        assertEquals(listOf(AdvisoryContinuityFixture.opportunity.id), advisory.opportunitiesNow().map { it.id })
+        assertEquals(listOf(AdvisoryContinuityFixture.event.id), advisory.eventsNow().map { it.id })
+        assertEquals(
+            "a restore must never reopen the master switch, the delivery switch, or a stale episode id",
+            org.mindanchor.advisory.AdvisorySettings(),
+            advisoryPrefs.settings.first(),
+        )
+
+        // --- Idempotency: running the same restore again must not duplicate rows ---
+        restoreStateStore.reset()
+        stagingFile.parentFile?.mkdirs()
+        stagingFile.writeBytes(envelopeBytes)
+        restoreStateStore.markDownloaded(
+            "advisory-production.mab",
+            "staged-again-after-interruption",
+            staged.contentSha256,
+            staged.formatVersion,
+        )
+        restoreStateStore.markDecrypted(staged.contentSha256, staged.formatVersion)
+        val second = RestoreCoordinator.build(context).resume()
+        assertTrue("replayed production restore must verify, got $second", second is RestoreResult.Verified)
+        assertEquals(1, advisory.opportunitiesNow().size)
+        assertEquals(1, advisory.eventsNow().size)
+    }
+
+    @Test
+    fun productionBuildRejectsACorruptAdvisoryContentHashBeforeMutatingAnything() = runBlocking {
+        val realDb = AnchorDatabase.get(context)
+        val tamperedPayload = ContinuityPayload(
+            advisoryOpportunities = listOf(
+                AdvisoryContinuityFixture.opportunity.toDto().copy(contentHash = "not-the-real-hash"),
+            ),
+        )
+        val sorted = ContinuityContentHasher.sorted(tamperedPayload)
+        val snapshot = ContinuitySnapshot(
+            formatVersion = ContinuitySnapshot.CURRENT_FORMAT_VERSION,
+            snapshotId = "tampered",
+            createdAt = 5_000L,
+            appVersionCode = 1,
+            appVersionName = "test",
+            sourceDeviceId = "device-a",
+            payload = sorted,
+            contentSha256 = ContinuityContentHasher.hash(sorted),
+        )
+        val envelopeBytes = BackupEnvelopeCodec.encode(
+            BackupEnvelopeCodec.encrypt(ContinuitySnapshotCodec.encode(snapshot), key, 5_000L),
+        ).encodeToByteArray()
+        RecoveryKeyStore.create(context).apply {
+            save(key)
+            markVerified()
+        }
+
+        try {
+            RestoreCoordinator.build(context).beginRestore(
+                "tampered-advisory.mab",
+                envelopeBytes,
+                snapshot.contentSha256,
+                snapshot.formatVersion,
+            )
+            org.junit.Assert.fail("a corrupt opportunity content hash must throw rather than merge")
+        } catch (expected: IllegalStateException) {
+            // expected — mergeAdvisoryRows verifies before any insertOpportunity/insertEvents call.
+        }
+
+        assertProductionNonPassiveStoresEmpty(realDb)
     }
 
     @Test

@@ -828,4 +828,5 @@ private fun defaultSnapshotRepository(context: Context): org.mindanchor.continui
         frictionPrefs = org.mindanchor.data.FrictionPrefs(context),
         deviceIdentity = org.mindanchor.journal.DeviceIdentityStore(context),
         backupRepository = BackupRepository(context),
+        advisoryOutcomeReconciler = org.mindanchor.advisory.RoomAdvisoryOutcomeReconciler.build(context),
     )

@@ -802,4 +802,37 @@ class RestoreCoordinatorTest {
         assertFalse(source.contains("insertRawSamples"))
         assertFalse(source.contains("rawRecords("))
     }
+
+    @Test
+    fun `production restore covers the advisory tables and never restores build authorization`() {
+        val source = File("src/main/java/org/mindanchor/continuity/RestoreCoordinator.kt").readText()
+        assertTrue(
+            "preflight must require the advisory opportunity table empty",
+            source.contains("database.advisory().opportunitiesNow().isEmpty()"),
+        )
+        assertTrue(
+            "preflight must require the intervention episode event table empty",
+            source.contains("database.advisory().eventsNow().isEmpty()"),
+        )
+        val mergeRoomSource = source.substringAfter("mergeRoom =").substringBefore("mergeDataStores =")
+        assertTrue(mergeRoomSource.contains("mergeAdvisoryRows(database, payload)"))
+        val mergeDataStoresSource = source.substringAfter("mergeDataStores =").substringBefore("recapture =")
+        assertTrue(
+            "the runtime advisory switches must reset after a restore",
+            mergeDataStoresSource.contains("advisoryPrefs.disableAfterRestore()"),
+        )
+        assertFalse(
+            "restore must never write AdvisoryBuildAuthorization/BuildConfig state",
+            mergeDataStoresSource.contains("BuildAuthorization") || mergeDataStoresSource.contains("BuildConfig"),
+        )
+    }
+
+    @Test
+    fun `production restore recapture never reconciles due outcomes`() {
+        val source = File("src/main/java/org/mindanchor/continuity/RestoreCoordinator.kt").readText()
+        assertTrue(
+            "recapture must pass reconcileDueOutcomes = false so a restored due window cannot synthesize a new event",
+            source.contains("snapshotRepository.capture(System.currentTimeMillis(), reconcileDueOutcomes = false)"),
+        )
+    }
 }

@@ -458,6 +458,31 @@ class ContinuitySnapshotCodecTest {
     }
 
     @Test
+    fun `versions one two and three each reject every Program 3 list smuggled independently`() {
+        val populated = ProgramThreePayloadFixture.payload()
+        val mutations = listOf(
+            ContinuityPayload(advisoryOpportunities = populated.advisoryOpportunities),
+            ContinuityPayload(interventionEpisodeEvents = populated.interventionEpisodeEvents),
+        )
+        listOf(
+            ContinuityContract.PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION,
+            ContinuityContract.PROGRAM_ONE_SNAPSHOT_FORMAT_VERSION,
+            ContinuityContract.PROGRAM_TWO_SNAPSHOT_FORMAT_VERSION,
+        ).forEach { formatVersion ->
+            mutations.forEach { smuggled ->
+                val encoded = ContinuitySnapshotCodec.encode(
+                    sampleSnapshot(smuggled).copy(formatVersion = formatVersion),
+                )
+                assertEquals(
+                    "v$formatVersion must reject $smuggled",
+                    ContinuitySnapshotCodec.DecodeResult.Corrupt,
+                    ContinuitySnapshotCodec.decode(encoded),
+                )
+            }
+        }
+    }
+
+    @Test
     fun `raw version one and two documents reject every known later field when populated`() {
         val donorPayload = encodedDocument(ContinuityContract.SNAPSHOT_FORMAT_VERSION).getValue("payload").jsonObject
         mapOf(

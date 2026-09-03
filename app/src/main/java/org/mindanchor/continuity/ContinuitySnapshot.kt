@@ -1,7 +1,9 @@
 package org.mindanchor.continuity
 
 import kotlinx.serialization.Serializable
+import org.mindanchor.data.db.AdvisoryOpportunityEntity
 import org.mindanchor.data.db.ContinuityChangeEntity
+import org.mindanchor.data.db.InterventionEpisodeEventEntity
 import org.mindanchor.data.db.JournalContextEntity
 import org.mindanchor.data.db.JournalEntryEntity
 import org.mindanchor.data.db.MorningMeasureEntity
@@ -80,6 +82,10 @@ data class ContinuityPayload(
     val passiveWindowRevisions: List<PassiveWindowRevisionDto> = emptyList(),
     val passiveDailyRevisions: List<PassiveDailyRevisionDto> = emptyList(),
     val passiveObservationDecisions: List<PassiveObservationDecisionDto> = emptyList(),
+    // Program 3, appended never inserted: v1, v2, and v3 projections
+    // freeze the payload shapes already written by earlier builds.
+    val advisoryOpportunities: List<AdvisoryOpportunityDto> = emptyList(),
+    val interventionEpisodeEvents: List<InterventionEpisodeEventDto> = emptyList(),
 )
 
 @Serializable
@@ -298,6 +304,65 @@ data class PassiveObservationDecisionDto(
     val decisionJson: String,
     val revisionReason: String,
     val contentHash: String,
+)
+
+@Serializable
+data class AdvisoryOpportunityDto(
+    val id: String,
+    val presentedAt: Long,
+    val localDate: String,
+    val zoneId: String,
+    val sourceDecisionId: String,
+    val sourceDecisionContentHash: String,
+    val sourceLocalDate: String,
+    val sourceAsOfTime: Long,
+    val sourceDataStatus: String,
+    val sourceObservationState: String,
+    val sourceExplanation: String,
+    val sourceBaselineSegment: String,
+    val sourcePassiveRuleVersion: String,
+    val sourcePassiveModelVersion: String,
+    val sourceStudyPhaseId: String,
+    val protocolId: String,
+    val protocolVersion: Int,
+    val protocolDefinitionSha256: String,
+    val protocolCatalogSha256: String,
+    val protocolClinicalReviewStatus: String,
+    val advisoryRuleVersion: String,
+    val buildMode: String,
+    val operationalEvidenceApproved: Boolean,
+    val masterAdvisoryEnabled: Boolean,
+    val deliveryAllowedAtPresentation: Boolean,
+    val studyPhaseId: String,
+    val sourceDeviceId: String,
+    val contentHash: String,
+)
+
+@Serializable
+data class InterventionEpisodeEventDto(
+    val id: String,
+    val episodeId: String,
+    val opportunityId: String,
+    val sequence: Long,
+    val eventType: String,
+    val occurredAt: Long,
+    val localDate: String,
+    val zoneId: String,
+    val studyPhaseId: String,
+    val sourceDeviceId: String,
+    val protocolId: String,
+    val protocolVersion: Int,
+    val protocolDefinitionSha256: String,
+    val protocolCatalogSha256: String,
+    val advisoryRuleVersion: String,
+    val buildMode: String,
+    val operationalEvidenceApproved: Boolean,
+    val masterAdvisoryEnabled: Boolean,
+    val deliveryAllowed: Boolean,
+    val payloadSchemaVersion: Int,
+    val payloadJson: String,
+    val previousEventHash: String,
+    val eventHash: String,
 )
 
 @Serializable
@@ -551,6 +616,63 @@ fun PassiveObservationDecisionEntity.toDto(): PassiveObservationDecisionDto = Pa
     decisionJson = decisionJson,
     revisionReason = revisionReason,
     contentHash = contentHash,
+)
+
+fun AdvisoryOpportunityEntity.toDto(): AdvisoryOpportunityDto = AdvisoryOpportunityDto(
+    id = id,
+    presentedAt = presentedAt,
+    localDate = localDate,
+    zoneId = zoneId,
+    sourceDecisionId = sourceDecisionId,
+    sourceDecisionContentHash = sourceDecisionContentHash,
+    sourceLocalDate = sourceLocalDate,
+    sourceAsOfTime = sourceAsOfTime,
+    sourceDataStatus = sourceDataStatus,
+    sourceObservationState = sourceObservationState,
+    sourceExplanation = sourceExplanation,
+    sourceBaselineSegment = sourceBaselineSegment,
+    sourcePassiveRuleVersion = sourcePassiveRuleVersion,
+    sourcePassiveModelVersion = sourcePassiveModelVersion,
+    sourceStudyPhaseId = sourceStudyPhaseId,
+    protocolId = protocolId,
+    protocolVersion = protocolVersion,
+    protocolDefinitionSha256 = protocolDefinitionSha256,
+    protocolCatalogSha256 = protocolCatalogSha256,
+    protocolClinicalReviewStatus = protocolClinicalReviewStatus,
+    advisoryRuleVersion = advisoryRuleVersion,
+    buildMode = buildMode,
+    operationalEvidenceApproved = operationalEvidenceApproved,
+    masterAdvisoryEnabled = masterAdvisoryEnabled,
+    deliveryAllowedAtPresentation = deliveryAllowedAtPresentation,
+    studyPhaseId = studyPhaseId,
+    sourceDeviceId = sourceDeviceId,
+    contentHash = contentHash,
+)
+
+fun InterventionEpisodeEventEntity.toDto(): InterventionEpisodeEventDto = InterventionEpisodeEventDto(
+    id = id,
+    episodeId = episodeId,
+    opportunityId = opportunityId,
+    sequence = sequence,
+    eventType = eventType,
+    occurredAt = occurredAt,
+    localDate = localDate,
+    zoneId = zoneId,
+    studyPhaseId = studyPhaseId,
+    sourceDeviceId = sourceDeviceId,
+    protocolId = protocolId,
+    protocolVersion = protocolVersion,
+    protocolDefinitionSha256 = protocolDefinitionSha256,
+    protocolCatalogSha256 = protocolCatalogSha256,
+    advisoryRuleVersion = advisoryRuleVersion,
+    buildMode = buildMode,
+    operationalEvidenceApproved = operationalEvidenceApproved,
+    masterAdvisoryEnabled = masterAdvisoryEnabled,
+    deliveryAllowed = deliveryAllowed,
+    payloadSchemaVersion = payloadSchemaVersion,
+    payloadJson = payloadJson,
+    previousEventHash = previousEventHash,
+    eventHash = eventHash,
 )
 
 fun ContinuityChangeEntity.toDto(): ContinuityChangeDto = ContinuityChangeDto(

@@ -57,6 +57,11 @@ class ContinuityHashVersionTest {
         "passiveObservationDecisions",
     )
 
+    private val programThreeFields = listOf(
+        "advisoryOpportunities",
+        "interventionEpisodeEvents",
+    )
+
     @Test
     fun `the program zero hash is frozen`() {
         assertEquals(
@@ -106,11 +111,17 @@ class ContinuityHashVersionTest {
         assertEquals(
             payloadFields.drop(programZeroFields.size).toSet(),
             programOneSnapshotContentByField(ContinuityPayload()).keys +
-                programTwoSnapshotContentByField(ContinuityPayload()).keys,
+                programTwoSnapshotContentByField(ContinuityPayload()).keys +
+                programThreeSnapshotContentByField(ContinuityPayload()).keys,
         )
         assertEquals(
             payloadFields.drop(programOneFields.size).toSet(),
-            programTwoSnapshotContentByField(ContinuityPayload()).keys,
+            programTwoSnapshotContentByField(ContinuityPayload()).keys +
+                programThreeSnapshotContentByField(ContinuityPayload()).keys,
+        )
+        assertEquals(
+            payloadFields.drop(programOneFields.size + programTwoFields.size).toSet(),
+            programThreeSnapshotContentByField(ContinuityPayload()).keys,
         )
     }
 
@@ -141,6 +152,16 @@ class ContinuityHashVersionTest {
                 "only $field should be reported as populated",
                 setOf(field),
                 programTwoSnapshotContentByField(oneField).filterValues { it }.keys,
+            )
+        }
+
+        val populatedProgramThree = ProgramThreePayloadFixture.payload()
+        programThreeFields.forEach { field ->
+            val oneField = programThreePayloadWithOnly(field, populatedProgramThree)
+            assertEquals(
+                "only $field should be reported as populated",
+                setOf(field),
+                programThreeSnapshotContentByField(oneField).filterValues { it }.keys,
             )
         }
     }
@@ -176,6 +197,14 @@ class ContinuityHashVersionTest {
             payload.journalEntries.reversed(),
         )
     }
+
+    private fun programThreePayloadWithOnly(field: String, populated: ContinuityPayload): ContinuityPayload =
+        when (field) {
+            "advisoryOpportunities" -> ContinuityPayload(advisoryOpportunities = populated.advisoryOpportunities)
+            "interventionEpisodeEvents" ->
+                ContinuityPayload(interventionEpisodeEvents = populated.interventionEpisodeEvents)
+            else -> error("unexpected Program 3 field $field")
+        }
 
     private fun withResearchRows(payload: ContinuityPayload) = payload.copy(
         researchLedgerEvents = listOf(
@@ -296,6 +325,81 @@ class ContinuityHashVersionTest {
                 doubled.copy(researchLedgerEvents = doubled.researchLedgerEvents.reversed()),
                 ContinuityContract.SNAPSHOT_FORMAT_VERSION,
             ),
+        )
+    }
+
+    @Test
+    fun `the program two hash is frozen`() {
+        assertEquals(
+            "5c2d34628593c6453cb3dc1997dc362c98fa5f49ee97e15f88ecb73d3b13274d",
+            ContinuityContentHasher.hash(
+                ProgramTwoPayloadFixture.payload(),
+                formatVersion = ContinuityContract.PROGRAM_TWO_SNAPSHOT_FORMAT_VERSION,
+            ),
+        )
+    }
+
+    @Test
+    fun `advisory opportunity order is canonical by presentedAt then id`() {
+        val payload = ProgramThreePayloadFixture.payloadWithReversedRows()
+        assertEquals(2, payload.advisoryOpportunities.size)
+        assertEquals(
+            ContinuityContentHasher.hash(payload, ContinuityContract.SNAPSHOT_FORMAT_VERSION),
+            ContinuityContentHasher.hash(
+                payload.copy(advisoryOpportunities = payload.advisoryOpportunities.reversed()),
+                ContinuityContract.SNAPSHOT_FORMAT_VERSION,
+            ),
+        )
+    }
+
+    @Test
+    fun `episode event order is canonical by occurredAt then episodeId then sequence then id`() {
+        val payload = ProgramThreePayloadFixture.payloadWithReversedRows()
+        assertEquals(2, payload.interventionEpisodeEvents.size)
+        assertEquals(
+            ContinuityContentHasher.hash(payload, ContinuityContract.SNAPSHOT_FORMAT_VERSION),
+            ContinuityContentHasher.hash(
+                payload.copy(interventionEpisodeEvents = payload.interventionEpisodeEvents.reversed()),
+                ContinuityContract.SNAPSHOT_FORMAT_VERSION,
+            ),
+        )
+    }
+
+    @Test
+    fun `either new program three list changes a v4 content hash`() {
+        val base = ProgramTwoPayloadFixture.payload()
+        val programThree = ProgramThreePayloadFixture.payload()
+        val withOpportunities = base.copy(advisoryOpportunities = programThree.advisoryOpportunities)
+        val withEvents = base.copy(interventionEpisodeEvents = programThree.interventionEpisodeEvents)
+
+        assertNotEquals(
+            ContinuityContentHasher.hash(base, ContinuityContract.SNAPSHOT_FORMAT_VERSION),
+            ContinuityContentHasher.hash(withOpportunities, ContinuityContract.SNAPSHOT_FORMAT_VERSION),
+        )
+        assertNotEquals(
+            ContinuityContentHasher.hash(base, ContinuityContract.SNAPSHOT_FORMAT_VERSION),
+            ContinuityContentHasher.hash(withEvents, ContinuityContract.SNAPSHOT_FORMAT_VERSION),
+        )
+    }
+
+    @Test
+    fun `program three lists never change a v1 v2 or v3 hash`() {
+        val bare = ProgramTwoPayloadFixture.payload()
+        val withProgramThree = bare.copy(
+            advisoryOpportunities = ProgramThreePayloadFixture.payload().advisoryOpportunities,
+            interventionEpisodeEvents = ProgramThreePayloadFixture.payload().interventionEpisodeEvents,
+        )
+        assertEquals(
+            ContinuityContentHasher.hash(bare, ContinuityContract.PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION),
+            ContinuityContentHasher.hash(withProgramThree, ContinuityContract.PROGRAM_ZERO_SNAPSHOT_FORMAT_VERSION),
+        )
+        assertEquals(
+            ContinuityContentHasher.hash(bare, ContinuityContract.PROGRAM_ONE_SNAPSHOT_FORMAT_VERSION),
+            ContinuityContentHasher.hash(withProgramThree, ContinuityContract.PROGRAM_ONE_SNAPSHOT_FORMAT_VERSION),
+        )
+        assertEquals(
+            ContinuityContentHasher.hash(bare, ContinuityContract.PROGRAM_TWO_SNAPSHOT_FORMAT_VERSION),
+            ContinuityContentHasher.hash(withProgramThree, ContinuityContract.PROGRAM_TWO_SNAPSHOT_FORMAT_VERSION),
         )
     }
 }
@@ -463,6 +567,86 @@ internal object ProgramTwoPayloadFixture {
             passiveObservationDecisions = listOf(
                 payload.passiveObservationDecisions.single().copy(id = "decision-2", localDate = "2026-08-31"),
             ) + payload.passiveObservationDecisions,
+        )
+    }
+}
+
+internal object ProgramThreePayloadFixture {
+    private fun opportunity() = AdvisoryOpportunityDto(
+        id = "opportunity-1",
+        presentedAt = 5_000L,
+        localDate = "2026-09-01",
+        zoneId = "UTC",
+        sourceDecisionId = "decision-1",
+        sourceDecisionContentHash = "decision-hash",
+        sourceLocalDate = "2026-09-01",
+        sourceAsOfTime = 1_000L,
+        sourceDataStatus = "AVAILABLE_FINAL",
+        sourceObservationState = "SUSTAINED_DEVIATION",
+        sourceExplanation = "Sustained deviation across two features.",
+        sourceBaselineSegment = "segment-1",
+        sourcePassiveRuleVersion = "passive-observation-rules-v6",
+        sourcePassiveModelVersion = "personal-robust-baseline-v4",
+        sourceStudyPhaseId = "phase-1",
+        protocolId = "cyclic-sighing",
+        protocolVersion = 1,
+        protocolDefinitionSha256 = "definition-hash",
+        protocolCatalogSha256 = "catalog-hash",
+        protocolClinicalReviewStatus = "NOT_REVIEWED",
+        advisoryRuleVersion = "advisory-opportunity-v1",
+        buildMode = "PERSONAL_RESEARCH",
+        operationalEvidenceApproved = true,
+        masterAdvisoryEnabled = true,
+        deliveryAllowedAtPresentation = true,
+        studyPhaseId = "phase-1",
+        sourceDeviceId = "device-a",
+        contentHash = "content-hash-1",
+    )
+
+    private fun event() = InterventionEpisodeEventDto(
+        id = "event-1",
+        episodeId = "episode-1",
+        opportunityId = "opportunity-1",
+        sequence = 1L,
+        eventType = "ELIGIBILITY_ATTESTED",
+        occurredAt = 5_100L,
+        localDate = "2026-09-01",
+        zoneId = "UTC",
+        studyPhaseId = "phase-1",
+        sourceDeviceId = "device-a",
+        protocolId = "cyclic-sighing",
+        protocolVersion = 1,
+        protocolDefinitionSha256 = "definition-hash",
+        protocolCatalogSha256 = "catalog-hash",
+        advisoryRuleVersion = "advisory-opportunity-v1",
+        buildMode = "PERSONAL_RESEARCH",
+        operationalEvidenceApproved = true,
+        masterAdvisoryEnabled = true,
+        deliveryAllowed = true,
+        payloadSchemaVersion = 1,
+        payloadJson = "{}",
+        previousEventHash = "",
+        eventHash = "event-1",
+    )
+
+    fun payload(): ContinuityPayload = ContinuityPayload(
+        advisoryOpportunities = listOf(opportunity()),
+        interventionEpisodeEvents = listOf(event()),
+    )
+
+    fun payloadWithReversedRows(): ContinuityPayload {
+        val payload = payload()
+        return payload.copy(
+            advisoryOpportunities = listOf(
+                payload.advisoryOpportunities.single().copy(id = "opportunity-2", presentedAt = 6_000L),
+            ) + payload.advisoryOpportunities,
+            interventionEpisodeEvents = listOf(
+                payload.interventionEpisodeEvents.single().copy(
+                    id = "event-2",
+                    episodeId = "episode-2",
+                    occurredAt = 5_200L,
+                ),
+            ) + payload.interventionEpisodeEvents,
         )
     }
 }

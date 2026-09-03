@@ -81,6 +81,12 @@ object ContinuityContentHasher {
         passiveObservationDecisions = payload.passiveObservationDecisions.sortedWith(
             compareBy({ it.localDate }, { it.asOfTime }, { it.id }),
         ),
+        advisoryOpportunities = payload.advisoryOpportunities.sortedWith(
+            compareBy({ it.presentedAt }, { it.id }),
+        ),
+        interventionEpisodeEvents = payload.interventionEpisodeEvents.sortedWith(
+            compareBy({ it.occurredAt }, { it.episodeId }, { it.sequence }, { it.id }),
+        ),
     )
 
     /**
@@ -105,6 +111,8 @@ object ContinuityContentHasher {
                 json.encodeToString(projectV1(canonical))
             ContinuityContract.PROGRAM_ONE_SNAPSHOT_FORMAT_VERSION ->
                 json.encodeToString(projectV2(canonical))
+            ContinuityContract.PROGRAM_TWO_SNAPSHOT_FORMAT_VERSION ->
+                json.encodeToString(projectV3(canonical))
             ContinuityContract.SNAPSHOT_FORMAT_VERSION -> json.encodeToString(canonical)
             else -> error("no canonical projection for snapshot format version $formatVersion")
         }
@@ -180,6 +188,29 @@ object ContinuityContentHasher {
         researchLedgerEvents = payload.researchLedgerEvents,
         studyPhases = payload.studyPhases,
     )
+
+    private fun projectV3(payload: ContinuityPayload): ContinuityPayloadV3 = ContinuityPayloadV3(
+        journalEntries = payload.journalEntries,
+        contextRows = payload.contextRows,
+        morningMeasures = payload.morningMeasures,
+        notes = payload.notes,
+        letters = payload.letters,
+        readLetterDates = payload.readLetterDates,
+        frictionedApps = payload.frictionedApps,
+        alwaysOpenApps = payload.alwaysOpenApps,
+        continuityChanges = payload.continuityChanges,
+        legacyBackupJson = payload.legacyBackupJson,
+        researchLedgerEvents = payload.researchLedgerEvents,
+        studyPhases = payload.studyPhases,
+        passiveRawProvenance = payload.passiveRawProvenance,
+        passiveSourceReads = payload.passiveSourceReads,
+        passiveSourceLags = payload.passiveSourceLags,
+        passiveBaselineSegments = payload.passiveBaselineSegments,
+        passivePipelineRuns = payload.passivePipelineRuns,
+        passiveWindowRevisions = payload.passiveWindowRevisions,
+        passiveDailyRevisions = payload.passiveDailyRevisions,
+        passiveObservationDecisions = payload.passiveObservationDecisions,
+    )
 }
 
 /**
@@ -224,4 +255,37 @@ internal data class ContinuityPayloadV2(
     val legacyBackupJson: String,
     val researchLedgerEvents: List<ResearchLedgerEventDto>,
     val studyPhases: List<StudyPhaseDto>,
+)
+
+/**
+ * Program 2's payload field set, frozen in its original declaration
+ * order — the 20-field shape [ContinuityPayload] had before Program 3
+ * appended the advisory opportunity and episode-event lists. Frozen for
+ * the same reason [ContinuityPayloadV1] and [ContinuityPayloadV2] are:
+ * `ContinuityHashVersionTest` pins its element names and a fixture's
+ * digest, and every existing v3-format checkpoint depends on this exact
+ * shape and order to still verify.
+ */
+@Serializable
+internal data class ContinuityPayloadV3(
+    val journalEntries: List<JournalEntryDto>,
+    val contextRows: List<JournalContextDto>,
+    val morningMeasures: List<MorningMeasureDto>,
+    val notes: List<NoteDto>,
+    val letters: List<LetterDto>,
+    val readLetterDates: List<String>,
+    val frictionedApps: List<String>,
+    val alwaysOpenApps: List<String>,
+    val continuityChanges: List<ContinuityChangeDto>,
+    val legacyBackupJson: String,
+    val researchLedgerEvents: List<ResearchLedgerEventDto>,
+    val studyPhases: List<StudyPhaseDto>,
+    val passiveRawProvenance: List<PassiveRawProvenanceDto>,
+    val passiveSourceReads: List<PassiveSourceReadDto>,
+    val passiveSourceLags: List<PassiveSourceLagDto>,
+    val passiveBaselineSegments: List<PassiveBaselineSegmentDto>,
+    val passivePipelineRuns: List<PassivePipelineRunDto>,
+    val passiveWindowRevisions: List<PassiveWindowRevisionDto>,
+    val passiveDailyRevisions: List<PassiveDailyRevisionDto>,
+    val passiveObservationDecisions: List<PassiveObservationDecisionDto>,
 )

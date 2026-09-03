@@ -2,10 +2,12 @@ package org.mindanchor.continuity
 
 import android.content.Context
 import androidx.room.withTransaction
+import java.time.ZoneId
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import org.mindanchor.advisory.AdvisoryOutcomeReconciler
 import org.mindanchor.backup.BackupRepository
 import org.mindanchor.data.FrictionPrefs
 import org.mindanchor.data.NotesPrefs
@@ -29,6 +31,7 @@ class ContinuitySnapshotRepository(
     private val deviceIdentity: DeviceIdentityStore,
     private val backupRepository: BackupRepository,
     private val afterResearchLedgerRead: suspend () -> Unit = {},
+    private val advisoryOutcomeReconciler: AdvisoryOutcomeReconciler? = null,
 ) {
 
     private data class RoomRows(
@@ -46,13 +49,22 @@ class ContinuitySnapshotRepository(
         val passiveWindowRevisions: List<PassiveWindowRevisionDto>,
         val passiveDailyRevisions: List<PassiveDailyRevisionDto>,
         val passiveObservationDecisions: List<PassiveObservationDecisionDto>,
+        val advisoryOpportunities: List<AdvisoryOpportunityDto>,
+        val interventionEpisodeEvents: List<InterventionEpisodeEventDto>,
     )
 
     @Suppress("LongMethod")
-    suspend fun capture(now: Long): ContinuitySnapshot = withContext(Dispatchers.IO) {
+    suspend fun capture(
+        now: Long,
+        reconcileDueOutcomes: Boolean = true,
+    ): ContinuitySnapshot = withContext(Dispatchers.IO) {
+        if (reconcileDueOutcomes) {
+            advisoryOutcomeReconciler?.reconcile(now = now, zoneId = ZoneId.systemDefault(), requestCheckpoint = false)
+        }
         val dao = database.journal()
         val researchDao = database.research()
         val passive = database.passive()
+        val advisory = database.advisory()
         val roomRows = database.withTransaction {
             val journalEntries = dao.entriesNow().map { it.toDto() }
             val contextRows = dao.allContext().map { it.toDto() }
@@ -75,6 +87,8 @@ class ContinuitySnapshotRepository(
                 passiveWindowRevisions = passive.windowRevisionsNow().map { it.toDto() },
                 passiveDailyRevisions = passive.dailyRevisionsNow().map { it.toDto() },
                 passiveObservationDecisions = passive.observationDecisionsNow().map { it.toDto() },
+                advisoryOpportunities = advisory.opportunitiesNow().map { it.toDto() },
+                interventionEpisodeEvents = advisory.eventsNow().map { it.toDto() },
             )
         }
 
@@ -99,6 +113,8 @@ class ContinuitySnapshotRepository(
             passiveWindowRevisions = roomRows.passiveWindowRevisions,
             passiveDailyRevisions = roomRows.passiveDailyRevisions,
             passiveObservationDecisions = roomRows.passiveObservationDecisions,
+            advisoryOpportunities = roomRows.advisoryOpportunities,
+            interventionEpisodeEvents = roomRows.interventionEpisodeEvents,
         )
         val payload = ContinuityContentHasher.sorted(rawPayload)
         // Explicit rather than defaulted: the version stamped on the

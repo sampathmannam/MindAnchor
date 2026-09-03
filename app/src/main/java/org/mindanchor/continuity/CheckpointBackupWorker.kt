@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import kotlinx.coroutines.flow.first
+import org.mindanchor.advisory.RoomAdvisoryOutcomeReconciler
 import org.mindanchor.backup.BackupRepository
 import org.mindanchor.backup.GoogleDriveAuth
 import org.mindanchor.backup.GoogleDriveObjectStore
@@ -66,6 +67,7 @@ class CheckpointBackupWorker(
                 frictionPrefs = FrictionPrefs(ctx),
                 deviceIdentity = DeviceIdentityStore(ctx),
                 backupRepository = BackupRepository(ctx),
+                advisoryOutcomeReconciler = RoomAdvisoryOutcomeReconciler.build(ctx),
             )
             val dao = database.journal()
 

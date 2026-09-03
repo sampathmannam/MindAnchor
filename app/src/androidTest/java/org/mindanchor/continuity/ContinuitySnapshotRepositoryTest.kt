@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.time.LocalDate
+import java.time.ZoneId
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
@@ -18,10 +19,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mindanchor.advisory.AdvisoryCodec
+import org.mindanchor.advisory.AdvisoryOutcomeReconciler
 import org.mindanchor.backup.BackupRepository
 import org.mindanchor.data.FrictionPrefs
 import org.mindanchor.data.NotesPrefs
+import org.mindanchor.data.db.AdvisoryOpportunityEntity
 import org.mindanchor.data.db.AnchorDatabase
+import org.mindanchor.data.db.InterventionEpisodeEventEntity
 import org.mindanchor.data.db.PassiveBaselineSegmentEntity
 import org.mindanchor.data.db.PassiveDailyRevisionEntity
 import org.mindanchor.data.db.PassiveObservationDecisionEntity
@@ -238,6 +243,96 @@ internal object PassiveContinuityFixture {
 }
 
 /**
+ * A restorable fixture: its protocol tuple, catalog hash, id, and content
+ * hash are all real values recomputed from the live registry/codec, not
+ * placeholders — so it passes [org.mindanchor.continuity.mergeAdvisoryRows]'s
+ * restore verification, not just DTO round-tripping.
+ */
+internal object AdvisoryContinuityFixture {
+    private val protocol = org.mindanchor.research.EvidenceProtocolCatalog.registry.find("cyclic-sighing", 1)!!
+    private val protocolKey = org.mindanchor.advisory.ProtocolKey(
+        protocolId = protocol.id,
+        protocolVersion = protocol.version,
+        definitionSha256 = org.mindanchor.research.EvidenceProtocolRegistry.definitionSha256(protocol),
+    )
+    private const val SOURCE_DECISION_ID = "decision-1"
+    private const val SOURCE_DECISION_HASH = "decision-hash-1"
+    private const val ADVISORY_RULE_VERSION = "advisory-opportunity-v1"
+    private val opportunityId = AdvisoryCodec.opportunityId(
+        sourceDecisionId = SOURCE_DECISION_ID,
+        sourceDecisionHash = SOURCE_DECISION_HASH,
+        key = protocolKey,
+        advisoryRule = ADVISORY_RULE_VERSION,
+    )
+    private val opportunityWithoutHash = AdvisoryOpportunityEntity(
+        id = opportunityId,
+        presentedAt = 3_000L,
+        localDate = "2026-08-30",
+        zoneId = "Asia/Calcutta",
+        sourceDecisionId = SOURCE_DECISION_ID,
+        sourceDecisionContentHash = SOURCE_DECISION_HASH,
+        sourceLocalDate = "2026-08-30",
+        sourceAsOfTime = 2_900L,
+        sourceDataStatus = "AVAILABLE_FINAL",
+        sourceObservationState = "SUSTAINED_DEVIATION",
+        sourceExplanation = "fixture explanation",
+        sourceBaselineSegment = "segment-1",
+        sourcePassiveRuleVersion = "passive-observation-rules-v6",
+        sourcePassiveModelVersion = "personal-robust-baseline-v4",
+        sourceStudyPhaseId = "phase-1",
+        protocolId = protocolKey.protocolId,
+        protocolVersion = protocolKey.protocolVersion,
+        protocolDefinitionSha256 = protocolKey.definitionSha256,
+        protocolCatalogSha256 = org.mindanchor.advisory.AdvisoryBuildAuthorization.PROGRAM_THREE_CATALOG_SHA256,
+        protocolClinicalReviewStatus = protocol.clinicalReviewStatus.name,
+        advisoryRuleVersion = ADVISORY_RULE_VERSION,
+        buildMode = "PERSONAL_RESEARCH",
+        operationalEvidenceApproved = true,
+        masterAdvisoryEnabled = true,
+        deliveryAllowedAtPresentation = true,
+        studyPhaseId = "phase-1",
+        sourceDeviceId = "device-a",
+        contentHash = "",
+    )
+    val opportunity = opportunityWithoutHash.copy(
+        contentHash = AdvisoryCodec.opportunityContentHash(opportunityWithoutHash),
+    )
+
+    val event = AdvisoryCodec.seal(
+        InterventionEpisodeEventEntity(
+            id = "",
+            episodeId = AdvisoryCodec.dismissalStreamId(opportunity.id),
+            opportunityId = opportunity.id,
+            sequence = 1L,
+            eventType = "DISMISSED",
+            occurredAt = 3_100L,
+            localDate = "2026-08-30",
+            zoneId = "Asia/Calcutta",
+            studyPhaseId = "phase-1",
+            sourceDeviceId = "device-a",
+            protocolId = opportunity.protocolId,
+            protocolVersion = opportunity.protocolVersion,
+            protocolDefinitionSha256 = opportunity.protocolDefinitionSha256,
+            protocolCatalogSha256 = opportunity.protocolCatalogSha256,
+            advisoryRuleVersion = opportunity.advisoryRuleVersion,
+            buildMode = opportunity.buildMode,
+            operationalEvidenceApproved = opportunity.operationalEvidenceApproved,
+            masterAdvisoryEnabled = opportunity.masterAdvisoryEnabled,
+            deliveryAllowed = opportunity.deliveryAllowedAtPresentation,
+            payloadSchemaVersion = AdvisoryCodec.EVENT_PAYLOAD_SCHEMA_VERSION,
+            payloadJson = AdvisoryCodec.EMPTY_PAYLOAD,
+            previousEventHash = "",
+            eventHash = "",
+        ),
+    )
+
+    suspend fun insertInto(database: AnchorDatabase) {
+        database.advisory().insertOpportunity(opportunity)
+        database.advisory().insertEvents(listOf(event))
+    }
+}
+
+/**
  * Proves the Task 7 capture guarantee: [ContinuitySnapshotRepository.capture]
  * produces a snapshot whose [ContinuitySnapshot.contentSha256] matches an
  * independently-recomputed hash of the same seeded data, and that capturing
@@ -445,5 +540,50 @@ class ContinuitySnapshotRepositoryTest {
         assertFalse(encoded.contains("passiveRawSamples"))
         assertFalse(encoded.contains("\"value\":173.25"))
         assertFalse(encoded.contains("173.25"))
+    }
+
+    @Test
+    fun captureCarriesEveryAdvisoryOpportunityAndEpisodeEvent() = runBlocking {
+        AdvisoryContinuityFixture.insertInto(db)
+
+        val snapshot = repository.capture(now = 5_000L)
+
+        assertEquals(listOf(AdvisoryContinuityFixture.opportunity.toDto()), snapshot.payload.advisoryOpportunities)
+        assertEquals(listOf(AdvisoryContinuityFixture.event.toDto()), snapshot.payload.interventionEpisodeEvents)
+    }
+
+    @Test
+    fun captureReconcilesDueOutcomesByDefaultButNotWhenAskedNotTo() = runBlocking {
+        class CountingReconciler : AdvisoryOutcomeReconciler {
+            var calls = 0
+            var lastRequestCheckpoint: Boolean? = null
+            override suspend fun reconcile(now: Long, zoneId: ZoneId, requestCheckpoint: Boolean): Int {
+                calls++
+                lastRequestCheckpoint = requestCheckpoint
+                return 0
+            }
+        }
+        val reconciler = CountingReconciler()
+        val reconcilingRepository = ContinuitySnapshotRepository(
+            context = context,
+            database = db,
+            notesPrefs = notesPrefs,
+            letterStore = letterStore,
+            frictionPrefs = frictionPrefs,
+            deviceIdentity = deviceIdentity,
+            backupRepository = BackupRepository(context),
+            advisoryOutcomeReconciler = reconciler,
+        )
+
+        reconcilingRepository.capture(now = 5_000L)
+        assertEquals(1, reconciler.calls)
+        assertEquals(
+            "restore's own recapture must pass requestCheckpoint = false; a default capture must too",
+            false,
+            reconciler.lastRequestCheckpoint,
+        )
+
+        reconcilingRepository.capture(now = 6_000L, reconcileDueOutcomes = false)
+        assertEquals("reconcileDueOutcomes = false must skip the reconciler entirely", 1, reconciler.calls)
     }
 }
