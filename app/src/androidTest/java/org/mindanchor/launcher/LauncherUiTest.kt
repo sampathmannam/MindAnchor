@@ -156,4 +156,16 @@ class LauncherUiTest {
         rule.waitForIdle()
         rule.onNodeWithText("search").assertIsDisplayed()
     }
+
+    /**
+     * Program 3 (adaptive protocol delivery): this test build is
+     * ordinary, not personal-research, so [AdvisoryBuildAuthorization]
+     * closes before the master switch or any Program 2 decision ever
+     * enters the picture — the home surface must show no advisory card.
+     */
+    @Test
+    fun ordinaryBuildShowsNoAdvisoryCard() {
+        launchHome()
+        rule.onNodeWithText("Historical recorded-data advisory").assertDoesNotExist()
+    }
 }

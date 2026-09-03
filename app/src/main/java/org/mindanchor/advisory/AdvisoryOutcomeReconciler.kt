@@ -106,5 +106,14 @@ class RoomAdvisoryOutcomeReconciler(
 
     companion object {
         private const val IGNORED_ROW_ID = -1L
+
+        fun build(context: Context): RoomAdvisoryOutcomeReconciler {
+            val app = context.applicationContext
+            return RoomAdvisoryOutcomeReconciler(
+                context = app,
+                database = AnchorDatabase.get(app),
+                researchLedger = ResearchLedgerRepository.build(app),
+            )
+        }
     }
 }

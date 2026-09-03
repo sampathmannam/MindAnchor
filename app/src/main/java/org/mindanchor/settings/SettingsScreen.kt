@@ -3632,6 +3632,10 @@ fun SettingsScreen(
                 }
             }
         }
+
+        if (group == SettingsGroup.MEASURING) {
+            org.mindanchor.advisory.AdvisorySettingsSection(viewModel = viewModel)
+        }
     }
 }
 

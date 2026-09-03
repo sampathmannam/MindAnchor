@@ -1217,4 +1217,43 @@
         existing letter/notes/history shortcuts in the TopEnd corner.
     -->
     <string name="journal_shortcut">journal</string>
+
+    <!--
+        Program 3 (adaptive protocol delivery): the historical advisory
+        card, its evidence screen, the foreground breathing player, and
+        the two independent settings switches.
+
+        @wording-reviewed — clinical-review-required, see
+        docs/CLINICAL_REVIEW.md. Every string here reports a finalized
+        historical fact, a registry-defined duration, or a mechanical
+        local-control state (a switch, a cooldown, an active episode
+        elsewhere) — none may say "you are," "you seem," "right now,"
+        "detected," "treatment," "works," "improved," "success," or
+        "failure." The evidence screen's own target/mechanism/exclusion/
+        contraindication/step/stop-rule text comes from the protocol
+        registry object at render time, not from a string resource, and
+        is this file's single source of truth for none of it.
+
+        Wording re-review trigger: any change to a string in this block
+        is a clinical-review-surface change.
+    -->
+    <string name="advisory_historical_title">Historical recorded-data advisory</string>
+    <string name="advisory_recorded_date">Recorded date: %1$s</string>
+    <string name="advisory_finalized_as_of">Finalized as of: %1$s</string>
+    <string name="advisory_open">Open</string>
+    <string name="advisory_dismiss">Dismiss</string>
+    <string name="advisory_start_attestation">Start — I currently notice tension/arousal, choose this practice, have read the exclusions and contraindications and none applies, and I am not driving, operating machinery, or physically exerting.</string>
+    <string name="advisory_stop">Stop</string>
+    <string name="advisory_stop_discomfort">Stop — discomfort</string>
+    <string name="advisory_review_status">Clinical review status: %1$s</string>
+    <string name="advisory_max_duration">Maximum duration: %1$d seconds</string>
+    <string name="advisory_cooldown">Cooldown: %1$d seconds</string>
+    <string name="advisory_outcome_window">Outcome window: %1$d seconds</string>
+    <string name="advisory_time_remaining">Time remaining: %1$d s</string>
+    <string name="advisory_blocked_delivery_disabled">Delivery is off.</string>
+    <string name="advisory_blocked_cooldown_active">Cooldown is active.</string>
+    <string name="advisory_blocked_active_episode">An episode is already active.</string>
+    <string name="advisory_blocked_already_handled">This has already been handled.</string>
+    <string name="advisory_master_setting">Historical protocol advisories</string>
+    <string name="advisory_delivery_setting">Allow protocol delivery</string>
 </resources>

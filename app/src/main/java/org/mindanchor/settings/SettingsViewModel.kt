@@ -79,6 +79,40 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setAnchorFrictionHold(v: Boolean) = viewModelScope.launch { anchorPrefs.setFrictionHoldEnabled(v) }
     fun setAnchorSunsetProposal(v: Boolean) = viewModelScope.launch { anchorPrefs.setSunsetProposalEnabled(v) }
 
+    // Program 3: the two independent advisory switches, both default
+    // off. AdvisoryPrefs exposes one combined settings Flow rather than
+    // one Flow per flag, so each is projected out with `map` here.
+    private val advisoryPrefs = org.mindanchor.advisory.AdvisoryPrefs(application)
+
+    val advisoryMasterEnabled = advisoryPrefs.settings.map { it.masterAdvisoryEnabled }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    val advisoryDeliveryAllowed = advisoryPrefs.settings.map { it.deliveryAllowed }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setAdvisoryMasterEnabled(v: Boolean) = viewModelScope.launch { advisoryPrefs.setMasterAdvisoryEnabled(v) }
+
+    /**
+     * Turning delivery off is the reachable kill switch: if an episode
+     * is currently active, it stops immediately through
+     * [org.mindanchor.advisory.EpisodeEventType.STOPPED_KILL_SWITCH]
+     * rather than waiting for the player screen (which may not even be
+     * open right now) to next check delivery state itself.
+     */
+    fun setAdvisoryDeliveryAllowed(v: Boolean) = viewModelScope.launch {
+        advisoryPrefs.setDeliveryAllowed(v)
+        if (!v) {
+            val activeEpisodeId = advisoryPrefs.settings.first().currentEpisodeId
+            if (activeEpisodeId != null) {
+                org.mindanchor.advisory.RoomAdvisoryRepository.build(getApplication()).stop(
+                    episodeId = activeEpisodeId,
+                    kind = org.mindanchor.advisory.EpisodeEventType.STOPPED_KILL_SWITCH,
+                    now = System.currentTimeMillis(),
+                    deliveredForegroundMillis = 0L,
+                )
+            }
+        }
+    }
+
     // The Hook C override, so the accept is visible and revocable here.
     private val _sunsetOverride = MutableStateFlow<Pair<java.time.LocalTime, java.time.LocalTime>?>(null)
     val sunsetOverride: StateFlow<Pair<java.time.LocalTime, java.time.LocalTime>?> = _sunsetOverride.asStateFlow()
