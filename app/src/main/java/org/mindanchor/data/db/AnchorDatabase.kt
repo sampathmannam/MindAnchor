@@ -210,11 +210,15 @@ abstract class SafetyDao {
         PassiveWindowRevisionEntity::class,
         PassiveDailyRevisionEntity::class,
         PassiveObservationDecisionEntity::class,
+        AdvisoryOpportunityEntity::class,
+        InterventionEpisodeEventEntity::class,
     ],
     // v7 (Program 1): the append-only research ledger and
     // study phases. See MIGRATION_6_7 for what the upgrade
     // does and MIGRATION_4_5 for the v4/v5 tier history.
-    version = 8,
+    // v9 (Program 3): the append-only advisory opportunity
+    // and episode-event tables. See MIGRATION_8_9.
+    version = 9,
     exportSchema = true,
 )
 abstract class AnchorDatabase : RoomDatabase() {
@@ -230,6 +234,8 @@ abstract class AnchorDatabase : RoomDatabase() {
     abstract fun research(): ResearchDao
 
     abstract fun passive(): PassiveDao
+
+    abstract fun advisory(): AdvisoryDao
 
     companion object {
         private val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -465,15 +471,34 @@ abstract class AnchorDatabase : RoomDatabase() {
             }
         }
 
+        @Suppress("MaxLineLength", "MagicNumber")
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                listOf(
+                    "CREATE TABLE IF NOT EXISTS advisory_opportunities (id TEXT NOT NULL, presentedAt INTEGER NOT NULL, localDate TEXT NOT NULL, zoneId TEXT NOT NULL, sourceDecisionId TEXT NOT NULL, sourceDecisionContentHash TEXT NOT NULL, sourceLocalDate TEXT NOT NULL, sourceAsOfTime INTEGER NOT NULL, sourceDataStatus TEXT NOT NULL, sourceObservationState TEXT NOT NULL, sourceExplanation TEXT NOT NULL, sourceBaselineSegment TEXT NOT NULL, sourcePassiveRuleVersion TEXT NOT NULL, sourcePassiveModelVersion TEXT NOT NULL, sourceStudyPhaseId TEXT NOT NULL, protocolId TEXT NOT NULL, protocolVersion INTEGER NOT NULL, protocolDefinitionSha256 TEXT NOT NULL, protocolCatalogSha256 TEXT NOT NULL, protocolClinicalReviewStatus TEXT NOT NULL, advisoryRuleVersion TEXT NOT NULL, buildMode TEXT NOT NULL, operationalEvidenceApproved INTEGER NOT NULL, masterAdvisoryEnabled INTEGER NOT NULL, deliveryAllowedAtPresentation INTEGER NOT NULL, studyPhaseId TEXT NOT NULL, sourceDeviceId TEXT NOT NULL, contentHash TEXT NOT NULL, PRIMARY KEY(id))",
+                    "CREATE TABLE IF NOT EXISTS intervention_episode_events (id TEXT NOT NULL, episodeId TEXT NOT NULL, opportunityId TEXT NOT NULL, sequence INTEGER NOT NULL, eventType TEXT NOT NULL, occurredAt INTEGER NOT NULL, localDate TEXT NOT NULL, zoneId TEXT NOT NULL, studyPhaseId TEXT NOT NULL, sourceDeviceId TEXT NOT NULL, protocolId TEXT NOT NULL, protocolVersion INTEGER NOT NULL, protocolDefinitionSha256 TEXT NOT NULL, protocolCatalogSha256 TEXT NOT NULL, advisoryRuleVersion TEXT NOT NULL, buildMode TEXT NOT NULL, operationalEvidenceApproved INTEGER NOT NULL, masterAdvisoryEnabled INTEGER NOT NULL, deliveryAllowed INTEGER NOT NULL, payloadSchemaVersion INTEGER NOT NULL, payloadJson TEXT NOT NULL, previousEventHash TEXT NOT NULL, eventHash TEXT NOT NULL, PRIMARY KEY(id))",
+                ).forEach(db::execSQL)
+                listOf(
+                    "CREATE INDEX IF NOT EXISTS index_advisory_opportunities_presentedAt ON advisory_opportunities(presentedAt)",
+                    "CREATE INDEX IF NOT EXISTS index_advisory_opportunities_sourceDecisionId ON advisory_opportunities(sourceDecisionId)",
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_intervention_episode_events_episodeId_sequence ON intervention_episode_events(episodeId, sequence)",
+                    "CREATE INDEX IF NOT EXISTS index_intervention_episode_events_opportunityId ON intervention_episode_events(opportunityId)",
+                    "CREATE INDEX IF NOT EXISTS index_intervention_episode_events_occurredAt ON intervention_episode_events(occurredAt)",
+                ).forEach(db::execSQL)
+                installResearchImmutability(db)
+            }
+        }
+
         /**
          * Installs the BEFORE UPDATE / BEFORE DELETE triggers that make the
-         * two research tables and eight long-lived passive-history tables
-         * append-only at the database level.
+         * two research tables, eight long-lived passive-history tables, and
+         * two advisory-evidence tables append-only at the database level.
          *
          * Idempotent (`IF NOT EXISTS`) and table-aware: `MIGRATION_6_7`
          * installs the four triggers for the two tables that exist at v7;
          * `MIGRATION_7_8` reruns it after creating the passive tables and
-         * installs all 20. Fresh v8 installs use the Room callback because
+         * installs 20; `MIGRATION_8_9` reruns it again for the two advisory
+         * tables and installs all 24. Fresh installs use the Room callback because
          * generated `createAllTables` SQL contains no triggers.
          *
          * `passive_raw_samples` is deliberately excluded. It is the only
@@ -492,6 +517,8 @@ abstract class AnchorDatabase : RoomDatabase() {
                 "passive_window_revisions",
                 "passive_daily_revisions",
                 "passive_observation_decisions",
+                "advisory_opportunities",
+                "intervention_episode_events",
             )
             val existingTables = db.query("SELECT name FROM sqlite_master WHERE type = 'table'").use { cursor ->
                 buildSet {
@@ -519,6 +546,7 @@ abstract class AnchorDatabase : RoomDatabase() {
                 MIGRATION_5_6,
                 MIGRATION_6_7,
                 MIGRATION_7_8,
+                MIGRATION_8_9,
             )
 
         /**

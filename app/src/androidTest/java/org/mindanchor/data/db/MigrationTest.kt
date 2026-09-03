@@ -294,6 +294,54 @@ class MigrationTest {
         FrameworkSQLiteOpenHelperFactory().create(config).writableDatabase.use { }
     }
 
+    /**
+     * Creates the schema exactly as version 8 shipped it, with one row in
+     * each layer an upgrade could lose: a Program 0 journal entry, a
+     * Program 1 ledger event, and a Program 2 observation decision.
+     *
+     * Built by replaying the real MIGRATION_7_8 on a v7 database rather
+     * than by restating the v8 DDL, so the fixture cannot drift away from
+     * the migration it is meant to represent.
+     */
+    private fun createVersion8WithPassiveDecision() {
+        createVersion6WithProgramZeroData()
+        val migrations = AnchorDatabase.migrations().associateBy { it.startVersion }
+        val config = SupportSQLiteOpenHelper.Configuration.builder(context)
+            .name(dbName)
+            .callback(object : SupportSQLiteOpenHelper.Callback(8) {
+                override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) = Unit
+
+                override fun onUpgrade(
+                    db: androidx.sqlite.db.SupportSQLiteDatabase,
+                    oldVersion: Int,
+                    newVersion: Int,
+                ) {
+                    var version = oldVersion
+                    while (version < newVersion) {
+                        val migration = requireNotNull(migrations[version]) {
+                            "missing direct migration from version $version"
+                        }
+                        migration.migrate(db)
+                        version = migration.endVersion
+                    }
+                    db.execSQL(
+                        "INSERT INTO research_ledger_events " +
+                            "(id, sequence, kind, occurredAt, recordedAt, localDate, studyPhaseId, " +
+                            "sourceDeviceId, note, payloadJson, previousEventHash, eventHash) VALUES " +
+                            "('event-before-v9', 1, 'EXERCISE', 1000, 1000, '2026-08-29', " +
+                            "'phase-0', 'device-a', 'preserve me too', '{}', '', 'event-before-v9')",
+                    )
+                    db.execSQL(
+                        "INSERT INTO passive_observation_decisions VALUES " +
+                            "('decision-before-v9','2026-09-01',1000,'AVAILABLE_FINAL'," +
+                            "'SUSTAINED_DEVIATION','segment-1',NULL,NULL,NULL,'{}','INITIAL','decision-hash')",
+                    )
+                }
+            })
+            .build()
+        FrameworkSQLiteOpenHelperFactory().create(config).writableDatabase.use { }
+    }
+
     private fun ledgerEvent() = ResearchLedgerEventEntity(
         id = "event-1",
         sequence = 1L,
@@ -309,6 +357,63 @@ class MigrationTest {
         eventHash = "event-1",
     )
 
+    private fun opportunity(id: String, presentedAt: Long) = AdvisoryOpportunityEntity(
+        id = id,
+        presentedAt = presentedAt,
+        localDate = "2026-09-03",
+        zoneId = "Asia/Kolkata",
+        sourceDecisionId = "decision-before-v9",
+        sourceDecisionContentHash = "decision-hash",
+        sourceLocalDate = "2026-09-01",
+        sourceAsOfTime = 1_000L,
+        sourceDataStatus = "AVAILABLE_FINAL",
+        sourceObservationState = "SUSTAINED_DEVIATION",
+        sourceExplanation = "explanation",
+        sourceBaselineSegment = "segment-1",
+        sourcePassiveRuleVersion = "passive-observation-rules-v6",
+        sourcePassiveModelVersion = "personal-robust-baseline-v4",
+        sourceStudyPhaseId = "phase-1",
+        protocolId = "cyclic-sighing",
+        protocolVersion = 1,
+        protocolDefinitionSha256 = "definition-hash",
+        protocolCatalogSha256 = "catalog-hash",
+        protocolClinicalReviewStatus = "NOT_REVIEWED",
+        advisoryRuleVersion = "advisory-opportunity-v1",
+        buildMode = "PERSONAL_RESEARCH",
+        operationalEvidenceApproved = true,
+        masterAdvisoryEnabled = true,
+        deliveryAllowedAtPresentation = true,
+        studyPhaseId = "phase-1",
+        sourceDeviceId = "device-a",
+        contentHash = "content-hash-$id",
+    )
+
+    private fun episodeEvent(id: String, sequence: Long) = InterventionEpisodeEventEntity(
+        id = id,
+        episodeId = "episode-1",
+        opportunityId = "opportunity-1",
+        sequence = sequence,
+        eventType = "STARTED",
+        occurredAt = 1_000L + sequence,
+        localDate = "2026-09-03",
+        zoneId = "Asia/Kolkata",
+        studyPhaseId = "phase-1",
+        sourceDeviceId = "device-a",
+        protocolId = "cyclic-sighing",
+        protocolVersion = 1,
+        protocolDefinitionSha256 = "definition-hash",
+        protocolCatalogSha256 = "catalog-hash",
+        advisoryRuleVersion = "advisory-opportunity-v1",
+        buildMode = "PERSONAL_RESEARCH",
+        operationalEvidenceApproved = true,
+        masterAdvisoryEnabled = true,
+        deliveryAllowed = true,
+        payloadSchemaVersion = 1,
+        payloadJson = "{}",
+        previousEventHash = "",
+        eventHash = id,
+    )
+
     private fun openCurrent(): AnchorDatabase =
         Room.databaseBuilder(context, AnchorDatabase::class.java, dbName)
             .addMigrations(*AnchorDatabase.migrations())
@@ -322,7 +427,7 @@ class MigrationTest {
         val migrations = AnchorDatabase.migrations().associateBy { it.startVersion }
         val config = SupportSQLiteOpenHelper.Configuration.builder(context)
             .name(dbName)
-            .callback(object : SupportSQLiteOpenHelper.Callback(8) {
+            .callback(object : SupportSQLiteOpenHelper.Callback(9) {
                 override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) = Unit
 
                 override fun onUpgrade(
@@ -535,11 +640,98 @@ class MigrationTest {
     }
 
     @Test
+    fun aVersion8DatabaseKeepsEveryRowAndGainsTheAdvisoryTables() = runBlocking {
+        createVersion8WithPassiveDecision()
+        val db = openCurrent()
+        try {
+            // Nothing any earlier program wrote may be lost by an upgrade.
+            assertEquals("Original words", db.journal().entry("entry-1")?.body)
+            assertEquals("preserve me too", db.research().ledgerEventsNow().single().note)
+            assertEquals("decision-before-v9", db.passive().observationDecisionsNow().single().id)
+
+            // And the two new tables exist, insert, and read back in order.
+            val dao = db.advisory()
+            assertTrue(dao.opportunitiesNow().isEmpty())
+            assertTrue(dao.eventsNow().isEmpty())
+            assertTrue(dao.insertOpportunity(opportunity("opportunity-1", presentedAt = 2_000L)) > 0L)
+            assertTrue(dao.insertOpportunity(opportunity("opportunity-2", presentedAt = 1_000L)) > 0L)
+            assertEquals(
+                listOf("opportunity-2", "opportunity-1"),
+                dao.opportunitiesNow().map { it.id },
+            )
+            assertTrue(dao.insertEvents(listOf(episodeEvent("event-1", sequence = 1L))).single() > 0L)
+            assertEquals(listOf("event-1"), dao.eventsForEpisode("episode-1").map { it.id })
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun aVersion8UpgradeMakesTheAdvisoryTablesAppendOnly() = runBlocking {
+        createVersion8WithPassiveDecision()
+        val db = openCurrent()
+        try {
+            db.advisory().insertOpportunity(opportunity("opportunity-1", presentedAt = 1_000L))
+            val sql = db.openHelper.writableDatabase
+            assertThrows(android.database.sqlite.SQLiteConstraintException::class.java) {
+                sql.execSQL("UPDATE advisory_opportunities SET contentHash = 'rewritten'")
+            }
+            assertThrows(android.database.sqlite.SQLiteConstraintException::class.java) {
+                sql.execSQL("DELETE FROM advisory_opportunities")
+            }
+            assertEquals(1, db.advisory().opportunitiesNow().size)
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun anAdvisoryRescanInsertsNoDuplicateRow() = runBlocking {
+        createVersion8WithPassiveDecision()
+        val db = openCurrent()
+        try {
+            val dao = db.advisory()
+            val row = opportunity("opportunity-1", presentedAt = 1_000L)
+            val event = episodeEvent("event-1", sequence = 1L)
+            assertTrue(dao.insertOpportunity(row) > 0L)
+            assertTrue(dao.insertEvents(listOf(event)).single() > 0L)
+            // An exact rescan is a no-op, not a duplicate and not an
+            // overwrite: identifiers are content hashes and every insert
+            // is IGNORE.
+            assertEquals(-1L, dao.insertOpportunity(row))
+            assertEquals(listOf(-1L), dao.insertEvents(listOf(event)))
+            assertEquals(1, dao.opportunitiesNow().size)
+            assertEquals(1, dao.eventsNow().size)
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun oneSequenceNumberPerEpisodeIsUnique() = runBlocking {
+        createVersion8WithPassiveDecision()
+        val db = openCurrent()
+        try {
+            val dao = db.advisory()
+            assertTrue(dao.insertEvents(listOf(episodeEvent("event-1", sequence = 1L))).single() > 0L)
+            // A different event id reusing (episodeId, sequence) is
+            // refused by the unique index rather than appended, so a
+            // chain can never fork at a sequence number.
+            assertEquals(listOf(-1L), dao.insertEvents(listOf(episodeEvent("event-2", sequence = 1L))))
+            assertEquals(listOf("event-1"), dao.eventsForEpisode("episode-1").map { it.id })
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
     fun directVersion7To8MigrationInstallsAllTriggersWithoutRoomCallback() {
         createVersion7WithLedgerRow()
         runDirectMigrations(expectedOldVersion = 7) { version, db ->
-            assertEquals(8, version)
-            assertEquals(ALL_IMMUTABILITY_TRIGGERS, triggerNames(db))
+            when (version) {
+                8 -> assertEquals(PASSIVE_IMMUTABILITY_TRIGGERS, triggerNames(db))
+                9 -> assertEquals(ALL_IMMUTABILITY_TRIGGERS, triggerNames(db))
+            }
         }
     }
 
@@ -549,7 +741,8 @@ class MigrationTest {
         runDirectMigrations(expectedOldVersion = 6) { version, db ->
             when (version) {
                 7 -> assertEquals(RESEARCH_IMMUTABILITY_TRIGGERS, triggerNames(db))
-                8 -> assertEquals(ALL_IMMUTABILITY_TRIGGERS, triggerNames(db))
+                8 -> assertEquals(PASSIVE_IMMUTABILITY_TRIGGERS, triggerNames(db))
+                9 -> assertEquals(ALL_IMMUTABILITY_TRIGGERS, triggerNames(db))
             }
         }
     }
@@ -662,7 +855,7 @@ class MigrationTest {
             "study_phases_no_update",
         )
 
-        private val ALL_IMMUTABILITY_TRIGGERS = listOf(
+        private val PASSIVE_IMMUTABILITY_TRIGGERS = listOf(
             "passive_baseline_segments_no_delete",
             "passive_baseline_segments_no_update",
             "passive_daily_revisions_no_delete",
@@ -684,5 +877,14 @@ class MigrationTest {
             "study_phases_no_delete",
             "study_phases_no_update",
         )
+
+        private val ALL_IMMUTABILITY_TRIGGERS = (
+            PASSIVE_IMMUTABILITY_TRIGGERS + listOf(
+                "advisory_opportunities_no_delete",
+                "advisory_opportunities_no_update",
+                "intervention_episode_events_no_delete",
+                "intervention_episode_events_no_update",
+            )
+            ).sorted()
     }
 }

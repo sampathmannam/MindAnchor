@@ -83,22 +83,40 @@ class ResearchBuilderCallbackTest {
     }
 
     @Test
-    fun `version eight migration and callback cover passive immutable history`() {
+    fun `version eight and nine migrations and callback cover passive and advisory immutable history`() {
         val source = File("src/main/java/org/mindanchor/data/db/AnchorDatabase.kt").readText(Charsets.UTF_8)
-        assertTrue(source.contains("version = 8"))
+        assertTrue(source.contains("version = 9"))
         assertTrue(source.contains("Migration(7, 8)"))
+        assertTrue(source.contains("Migration(8, 9)"))
         assertTrue(source.contains("abstract fun passive(): PassiveDao"))
-        val migrationStart = "private val MIGRATION_7_8"
+        assertTrue(source.contains("abstract fun advisory(): AdvisoryDao"))
+
+        val migration78Start = "private val MIGRATION_7_8"
+        val migration89Start = "private val MIGRATION_8_9"
         val migrationEnd = "internal fun installResearchImmutability"
-        assertTrue("the v8 migration declaration must exist", source.contains(migrationStart))
-        assertTrue("the trigger installer must remain after the migration", source.contains(migrationEnd))
-        val migrationBody = source.substringAfter(migrationStart).substringBefore(migrationEnd)
-        assertTrue("the isolated text must be the 7 to 8 migrate body", migrationBody.contains("Migration(7, 8)"))
+        assertTrue("the v8 migration declaration must exist", source.contains(migration78Start))
+        assertTrue("the v9 migration declaration must exist", source.contains(migration89Start))
+        assertTrue("the trigger installer must remain after both migrations", source.contains(migrationEnd))
+
+        // Each migration is isolated up to where the next declaration
+        // starts, so a call belonging to one migration cannot be counted
+        // as satisfying the guard for the other.
+        val migration78Body = source.substringAfter(migration78Start).substringBefore(migration89Start)
+        assertTrue("the isolated text must be the 7 to 8 migrate body", migration78Body.contains("Migration(7, 8)"))
         assertEquals(
             "MIGRATION_7_8 itself must install triggers; a later callback call cannot satisfy this guard",
             1,
-            Regex("installResearchImmutability\\(db\\)").findAll(migrationBody).count(),
+            Regex("installResearchImmutability\\(db\\)").findAll(migration78Body).count(),
         )
+
+        val migration89Body = source.substringAfter(migration89Start).substringBefore(migrationEnd)
+        assertTrue("the isolated text must be the 8 to 9 migrate body", migration89Body.contains("Migration(8, 9)"))
+        assertEquals(
+            "MIGRATION_8_9 itself must install triggers; a later callback call cannot satisfy this guard",
+            1,
+            Regex("installResearchImmutability\\(db\\)").findAll(migration89Body).count(),
+        )
+
         assertFalse(source.contains("fallbackToDestructiveMigration"))
     }
 

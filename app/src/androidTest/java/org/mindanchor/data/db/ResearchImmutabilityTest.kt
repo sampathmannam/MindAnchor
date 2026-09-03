@@ -158,7 +158,7 @@ class ResearchImmutabilityTest {
     }
 
     @Test
-    fun allTwentyTriggersExistByName() {
+    fun allTwentyFourTriggersExistByName() {
         val cursor = database.openHelper.writableDatabase.query(
             "SELECT name FROM sqlite_master WHERE type = 'trigger' ORDER BY name",
         )
@@ -170,6 +170,10 @@ class ResearchImmutabilityTest {
         // mutable research history.
         assertEquals(
             listOf(
+                "advisory_opportunities_no_delete",
+                "advisory_opportunities_no_update",
+                "intervention_episode_events_no_delete",
+                "intervention_episode_events_no_update",
                 "passive_baseline_segments_no_delete",
                 "passive_baseline_segments_no_update",
                 "passive_daily_revisions_no_delete",
@@ -214,6 +218,36 @@ class ResearchImmutabilityTest {
             "passive_window_revisions" to "contentHash",
             "passive_daily_revisions" to "contentHash",
             "passive_observation_decisions" to "contentHash",
+        ).forEach { (table, column) ->
+            assertThrows(android.database.sqlite.SQLiteConstraintException::class.java) {
+                sql.execSQL("UPDATE $table SET $column = 'rewritten'")
+            }
+            assertThrows(android.database.sqlite.SQLiteConstraintException::class.java) {
+                sql.execSQL("DELETE FROM $table")
+            }
+        }
+    }
+
+    @Test
+    fun advisoryEvidenceRejectsDirectUpdatesAndDeletes() {
+        val sql = database.openHelper.writableDatabase
+        sql.execSQL(
+            "INSERT INTO advisory_opportunities VALUES " +
+                "('opportunity-1',1000,'2026-09-03','Asia/Kolkata','decision-1','decision-hash'," +
+                "'2026-09-02',900,'AVAILABLE_FINAL','SUSTAINED_DEVIATION','explanation','segment'," +
+                "'passive-observation-rules-v6','personal-robust-baseline-v4','phase-1','cyclic-sighing',1," +
+                "'definition-hash','catalog-hash','NOT_REVIEWED','advisory-opportunity-v1'," +
+                "'PERSONAL_RESEARCH',1,1,1,'phase-1','device-a','content-hash')",
+        )
+        sql.execSQL(
+            "INSERT INTO intervention_episode_events VALUES " +
+                "('event-1','episode-1','opportunity-1',1,'STARTED',1000,'2026-09-03','Asia/Kolkata'," +
+                "'phase-1','device-a','cyclic-sighing',1,'definition-hash','catalog-hash'," +
+                "'advisory-opportunity-v1','PERSONAL_RESEARCH',1,1,1,1,'{}','','event-1')",
+        )
+        listOf(
+            "advisory_opportunities" to "contentHash",
+            "intervention_episode_events" to "eventHash",
         ).forEach { (table, column) ->
             assertThrows(android.database.sqlite.SQLiteConstraintException::class.java) {
                 sql.execSQL("UPDATE $table SET $column = 'rewritten'")
