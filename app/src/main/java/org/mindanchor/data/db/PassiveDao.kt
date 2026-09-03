@@ -96,4 +96,14 @@ interface PassiveDao {
 
     @Query("SELECT * FROM passive_observation_decisions WHERE localDate < :targetDate AND asOfTime <= :asOfTime ORDER BY localDate, asOfTime, rowid")
     suspend fun priorDecisions(targetDate: String, asOfTime: Long): List<PassiveObservationDecisionEntity>
+
+    /**
+     * Program 3's one Program 2 read: the single most recent decision
+     * overall, without regard to eligibility. Advisory policy stops here
+     * if this row is ineligible — it must never fall back to searching
+     * [priorDecisions] for an older eligible one, because an advisory is
+     * only ever built from the latest available finding.
+     */
+    @Query("SELECT * FROM passive_observation_decisions ORDER BY localDate DESC, asOfTime DESC, rowid DESC LIMIT 1")
+    suspend fun latestObservationDecisionNow(): PassiveObservationDecisionEntity?
 }

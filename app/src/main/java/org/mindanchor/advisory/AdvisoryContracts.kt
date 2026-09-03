@@ -1,5 +1,11 @@
 package org.mindanchor.advisory
 
+import org.mindanchor.data.db.AdvisoryOpportunityEntity
+import org.mindanchor.data.db.InterventionEpisodeEventEntity
+import org.mindanchor.intelligence.PassiveDataStatus
+import org.mindanchor.intelligence.PassiveObservationState
+import org.mindanchor.research.EvidenceProtocol
+
 /**
  * Program 3 Task 1 — the frozen vocabulary of the advisory path.
  *
@@ -111,4 +117,136 @@ enum class EpisodeEventType {
  */
 enum class MissingOutcomeReason {
     NO_REGISTERED_COMPATIBLE_INSTRUMENT,
+}
+
+/**
+ * Program 3 Task 3 — the finalized historical fact an opportunity is
+ * built from, copied out of a Program 2 decision rather than joined to
+ * it live.
+ *
+ * A copy is required, not merely convenient: Program 2 may later record
+ * a corrected revision of the same local date, and an opportunity must
+ * keep saying what it actually showed — the decision content it was
+ * built from — rather than silently reflecting whatever the source table
+ * says today.
+ */
+data class AdvisorySource(
+    val decisionId: String,
+    val decisionContentHash: String,
+    val localDate: String,
+    val asOfTime: Long,
+    val dataStatus: PassiveDataStatus,
+    val observationState: PassiveObservationState,
+    val explanation: String,
+    val baselineSegment: String,
+    val passiveRuleVersion: String,
+    val passiveModelVersion: String,
+    val sourceStudyPhaseId: String,
+    val sourceDeviceId: String,
+)
+
+/** Which policy question is being asked: show an advisory, or begin its protocol. */
+enum class AdvisoryAction { PRESENT, START }
+
+/**
+ * What [AdvisoryPolicy.evaluate] decided, and why.
+ *
+ * There is no partial or advisory-with-caveats result. Either every gate
+ * held and the caller may proceed with exactly the source and protocol
+ * named here, or it may not proceed and this says which gate stopped it.
+ */
+sealed interface AdvisoryPolicyResult {
+    data class Eligible(
+        val source: AdvisorySource,
+        val protocol: EvidenceProtocol,
+        val protocolKey: ProtocolKey,
+        val advisoryRuleVersion: String,
+        val buildMode: AdvisoryBuildMode,
+    ) : AdvisoryPolicyResult
+
+    data class Ineligible(val reason: AdvisoryIneligibleReason) : AdvisoryPolicyResult
+}
+
+/**
+ * Everything [AdvisoryPolicy.evaluate] needs, already resolved.
+ *
+ * The policy itself never looks anything up — every field here is a
+ * value the caller (the repository) has already read from the build,
+ * the person's settings, Program 1/2's records, and the local clock.
+ * That is what keeps the policy pure and table-testable: a field flips,
+ * one reason changes, nothing else moves.
+ *
+ * Several fields are meaningful for one [AdvisoryAction] only.
+ * [opportunityAlreadyRecorded] gates [AdvisoryAction.PRESENT];
+ * [opportunityAlreadyHandled], [activeEpisodeExists], and
+ * [lastStartedAt] gate [AdvisoryAction.START]. Presenting a materialized
+ * opportunity is not gated by [deliveryAllowed] — that switch is the
+ * kill switch for putting anything in front of the person, which
+ * materializing evidence for later review does not do.
+ */
+data class AdvisoryPolicyInput(
+    val authorization: AdvisoryBuildAuthorization,
+    val masterAdvisoryEnabled: Boolean,
+    val deliveryAllowed: Boolean,
+    val source: AdvisorySource?,
+    val sourceDecodeSucceeded: Boolean,
+    val sourceProvenanceComplete: Boolean,
+    val sourceProducedAfterStudyStart: Boolean,
+    val protocol: EvidenceProtocol?,
+    val protocolDefinitionSha256: String?,
+    val protocolCatalogSha256: String,
+    val opportunityAlreadyRecorded: Boolean,
+    val opportunityAlreadyHandled: Boolean,
+    val activeEpisodeExists: Boolean,
+    val lastStartedAt: Long?,
+    val now: Long,
+)
+
+/** What materializing today's opportunity, if any, produced. */
+sealed interface AdvisoryRefreshResult {
+    data class Created(val opportunityId: String) : AdvisoryRefreshResult
+    data class AlreadyRecorded(val opportunityId: String) : AdvisoryRefreshResult
+    data class Ineligible(val reason: AdvisoryIneligibleReason) : AdvisoryRefreshResult
+}
+
+/** What appending one or more episode events produced. */
+sealed interface AdvisoryMutationResult {
+    data class Appended(val eventIds: List<String>) : AdvisoryMutationResult
+    data class Ignored(val reason: AdvisoryIneligibleReason) : AdvisoryMutationResult
+    data class IntegrityFailure(val episodeId: String) : AdvisoryMutationResult
+}
+
+/** What attempting to start a protocol produced. */
+sealed interface AdvisoryStartResult {
+    data class Started(val episodeId: String) : AdvisoryStartResult
+    data class NotStarted(val reason: AdvisoryIneligibleReason) : AdvisoryStartResult
+    data class IntegrityFailure(val opportunityId: String) : AdvisoryStartResult
+}
+
+/**
+ * The one thing the UI is allowed to render, derived without mutating
+ * any evidence row.
+ *
+ * At most one unhandled opportunity is ever visible, newest first, and
+ * an opportunity becomes invisible the moment it is [EpisodeEventType.DISMISSED]
+ * or [EpisodeEventType.STARTED] — never deleted or updated, only excluded
+ * from what this derives. [Hidden] also covers the case where the
+ * registry's protocol can no longer be resolved or its hash no longer
+ * matches: this never renders stale or changed instructions.
+ */
+sealed interface AdvisoryReadModel {
+    data object Hidden : AdvisoryReadModel
+
+    data class Opportunity(
+        val row: AdvisoryOpportunityEntity,
+        val protocol: EvidenceProtocol,
+        val startAvailable: Boolean,
+        val startBlockedReason: AdvisoryIneligibleReason?,
+    ) : AdvisoryReadModel
+
+    data class ActiveEpisode(
+        val opportunity: AdvisoryOpportunityEntity,
+        val events: List<InterventionEpisodeEventEntity>,
+        val protocol: EvidenceProtocol,
+    ) : AdvisoryReadModel
 }
