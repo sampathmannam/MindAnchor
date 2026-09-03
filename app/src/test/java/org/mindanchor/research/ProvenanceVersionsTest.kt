@@ -3,7 +3,9 @@ package org.mindanchor.research
 import java.lang.reflect.Modifier
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
+import org.mindanchor.advisory.AdvisoryPolicy
 import org.mindanchor.continuity.ContinuityContract
 import org.mindanchor.intelligence.PassiveEstimator
 
@@ -25,8 +27,50 @@ class ProvenanceVersionsTest {
     @Test
     fun `the passive intelligence rule and model versions are registered`() {
         assertEquals("passive-observation-rules-v6", PassiveEstimator.RULE_VERSION)
-        assertEquals(PassiveEstimator.RULE_VERSION, ProvenanceVersions.RULE_SET_VERSION)
+        assertEquals(PassiveEstimator.RULE_VERSION, ProvenanceVersions.PASSIVE_RULE_SET_VERSION)
         assertEquals("personal-robust-baseline-v4", ProvenanceVersions.MODEL_SET_VERSION)
+    }
+
+    @Test
+    fun `rule vector keeps passive and advisory versions separately`() {
+        val encoded = RuleSetVersionVector.encode(
+            passive = PassiveEstimator.RULE_VERSION,
+            advisory = AdvisoryPolicy.RULE_VERSION,
+        )
+        assertEquals(
+            "rule-version-vector-v1|passive=${PassiveEstimator.RULE_VERSION}|advisory=advisory-opportunity-v1",
+            encoded,
+        )
+        assertEquals(PassiveEstimator.RULE_VERSION, RuleSetVersionVector.passive(encoded))
+        assertEquals("advisory-opportunity-v1", RuleSetVersionVector.advisory(encoded))
+    }
+
+    @Test
+    fun `legacy phase rule value remains a passive-only value`() {
+        assertEquals("passive-observation-v4", RuleSetVersionVector.passive("passive-observation-v4"))
+        assertNull(RuleSetVersionVector.advisory("passive-observation-v4"))
+    }
+
+    @Test
+    fun `the shipped rule set version is the composite vector`() {
+        // The stored component is what a later reader has to be able to
+        // recover: a phase opened by this build must still answer "which
+        // passive rules ran?" without the reader knowing the vector shape.
+        assertEquals(
+            RuleSetVersionVector.encode(
+                passive = ProvenanceVersions.PASSIVE_RULE_SET_VERSION,
+                advisory = ProvenanceVersions.ADVISORY_RULE_SET_VERSION,
+            ),
+            ProvenanceVersions.RULE_SET_VERSION,
+        )
+        assertEquals(
+            PassiveEstimator.RULE_VERSION,
+            RuleSetVersionVector.passive(ProvenanceVersions.RULE_SET_VERSION),
+        )
+        assertEquals(
+            AdvisoryPolicy.RULE_VERSION,
+            RuleSetVersionVector.advisory(ProvenanceVersions.RULE_SET_VERSION),
+        )
     }
 
     @Test

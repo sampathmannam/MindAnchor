@@ -7,6 +7,19 @@ plugins {
     alias(libs.plugins.kover)
 }
 
+// Program 3 advisory delivery is compiled out unless a build deliberately
+// asks for it. Only the exact lower-case literal `true` counts, so a typo
+// or an empty value leaves the ordinary, zero-protocol build. Operational
+// evidence cannot authorize an ordinary build on its own, and a release
+// build forces both fields false regardless of what was passed.
+val program3PersonalResearch =
+    providers.gradleProperty("mindanchor.program3.personalResearch").orNull == "true"
+val program3OperationalEvidence =
+    providers.gradleProperty("mindanchor.program3.operationalEvidenceApproved").orNull == "true"
+require(!program3OperationalEvidence || program3PersonalResearch) {
+    "Program 3 operational evidence cannot authorize an ordinary build"
+}
+
 android {
     namespace = "org.mindanchor"
     // Health Connect 1.1.0 stable requires compileSdk 36+. Bumped
@@ -157,7 +170,17 @@ android {
     }
 
     buildTypes {
+        debug {
+            buildConfigField("boolean", "PROGRAM3_PERSONAL_RESEARCH", program3PersonalResearch.toString())
+            buildConfigField(
+                "boolean",
+                "PROGRAM3_OPERATIONAL_EVIDENCE_APPROVED",
+                program3OperationalEvidence.toString(),
+            )
+        }
         release {
+            buildConfigField("boolean", "PROGRAM3_PERSONAL_RESEARCH", "false")
+            buildConfigField("boolean", "PROGRAM3_OPERATIONAL_EVIDENCE_APPROVED", "false")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -208,6 +231,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     // Reproducible, F-Droid-friendly builds: no proprietary dependencies anywhere.
