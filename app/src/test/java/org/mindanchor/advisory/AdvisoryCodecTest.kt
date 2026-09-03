@@ -182,4 +182,47 @@ class AdvisoryCodecTest {
         assertEquals(AdvisoryCodec.eventHash(sealed), sealed.eventHash)
         assertEquals(64, sealed.eventHash.length)
     }
+
+    @Test
+    fun `a full episode chain through outcome closure verifies end to end`() {
+        // Program 3 Task 4 — the same chain a completed, reconciled
+        // episode actually produces: attested, started, completed with
+        // its terminal payload, an opened outcome window, and its
+        // missing closure. Every link is checked, not just the two
+        // Task 2 originally proved.
+        val attested = attested()
+        val started = event(2L, EpisodeEventType.STARTED, attested.eventHash)
+        val completed = event(
+            3L,
+            EpisodeEventType.COMPLETED_MAX_DURATION,
+            started.eventHash,
+            AdvisoryCodec.json.encodeToString(
+                TerminalPayloadV1(deliveredForegroundMillis = 300_000L, completedCycles = 33),
+            ),
+        )
+        val opened = event(
+            4L,
+            EpisodeEventType.OUTCOME_WINDOW_OPENED,
+            completed.eventHash,
+            AdvisoryCodec.json.encodeToString(OutcomeWindowOpenedPayloadV1(opensAt = 1_004L, closesAt = 87_400L)),
+        )
+        val closedMissing = event(
+            5L,
+            EpisodeEventType.OUTCOME_WINDOW_CLOSED_MISSING,
+            opened.eventHash,
+            AdvisoryCodec.json.encodeToString(
+                MissingOutcomePayloadV1(MissingOutcomeReason.NO_REGISTERED_COMPATIBLE_INSTRUMENT),
+            ),
+        )
+        val fullChain = listOf(attested, started, completed, opened, closedMissing)
+        assertEquals(EventChainVerdict.VALID, AdvisoryCodec.verifyEpisodeChain(fullChain))
+
+        // A window opened out of order — before its completion exists on
+        // the chain — is a hash-chain break, not merely a policy
+        // violation: the "previous" it claims does not match.
+        val outOfOrder = listOf(
+            attested, started, opened.copy(sequence = 3L, previousEventHash = started.eventHash), completed,
+        )
+        assertEquals(EventChainVerdict.BROKEN, AdvisoryCodec.verifyEpisodeChain(outOfOrder))
+    }
 }

@@ -250,3 +250,31 @@ sealed interface AdvisoryReadModel {
         val protocol: EvidenceProtocol,
     ) : AdvisoryReadModel
 }
+
+/**
+ * Program 3 Task 4 — the four facts one deliberate Start action records,
+ * all at once.
+ *
+ * The private constructor is the point: there is no public path that
+ * builds this from caller-supplied booleans, because the only source of
+ * these facts is a person's single Start tap on the evidence screen. A
+ * UI or a test cannot construct a partial or a fabricated attestation —
+ * only [fromSingleManualStartAction] exists, and it always means exactly
+ * this action just happened.
+ */
+@ConsistentCopyVisibility
+data class ManualStartAttestation private constructor(
+    val currentlySelfNoticesTensionOrArousal: Boolean,
+    val choosesProtocol: Boolean,
+    val exclusionsAndContraindicationsClear: Boolean,
+    val notDrivingOperatingMachineryOrExerting: Boolean,
+) {
+    companion object {
+        fun fromSingleManualStartAction() = ManualStartAttestation(
+            currentlySelfNoticesTensionOrArousal = true,
+            choosesProtocol = true,
+            exclusionsAndContraindicationsClear = true,
+            notDrivingOperatingMachineryOrExerting = true,
+        )
+    }
+}

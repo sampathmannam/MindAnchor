@@ -73,6 +73,7 @@ class AdvisoryOpportunityRepositoryTest {
             buildAuthorization = {
                 AdvisoryBuildAuthorization.forFlags(personalResearchBuild = true, operationalEvidenceApproved = true)
             },
+            setCurrentEpisodeId = { id -> settings = settings.copy(currentEpisodeId = id) },
         )
     }
 
@@ -221,6 +222,7 @@ class AdvisoryOpportunityRepositoryTest {
                 buildAuthorization = {
                     AdvisoryBuildAuthorization.forFlags(personalResearchBuild = true, operationalEvidenceApproved = true)
                 },
+                setCurrentEpisodeId = { id -> settings = settings.copy(currentEpisodeId = id) },
             )
             freshDb.passive().insertObservationDecisions(
                 listOf(PassivePipelineCodec.decisionEntity(observation(), RevisionReason.INITIAL)),
