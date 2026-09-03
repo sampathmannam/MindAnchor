@@ -105,6 +105,7 @@ object ResearchExportCodec {
         "passiveDailyRevisions",
         "passiveObservationDecisions",
     )
+    private val programThreeFields = setOf("advisoryOpportunities", "interventionEpisodeEvents")
 
     sealed class DecodeResult {
         data class Success(val export: ResearchExport) : DecodeResult()
@@ -128,7 +129,10 @@ object ResearchExportCodec {
         if (version !in ContinuityContract.SUPPORTED_RESEARCH_DICTIONARY_VERSIONS) {
             return DecodeResult.UnsupportedVersion(version)
         }
-        if (!rawFieldsAreCompatible(raw, version, programZeroFields, programOneFields, programTwoFields)) {
+        if (!rawFieldsAreCompatible(
+                raw, version, programZeroFields, programOneFields, programTwoFields, programThreeFields,
+            )
+        ) {
             return DecodeResult.Corrupt
         }
 
@@ -141,33 +145,6 @@ object ResearchExportCodec {
         // Program 1 content is not a v1 document.
         if (smugglesNewerContent(parsed)) return DecodeResult.Corrupt
         return DecodeResult.Success(parsed)
-    }
-
-    /**
-     * A version-1 document carrying content only Program 1 can write.
-     *
-     * A v1 document is hashed over four content lists, so any Program 1
-     * field it carries sits outside its own hash — somebody could paste a
-     * fabricated ledger into a genuine Program 0 export and the seal would
-     * still check out. A v1 document that carries Program 1 content is not
-     * a v1 document.
-     *
-     * Checked by [verify] as well as [decode]. `decode` alone was not
-     * enough: a recipient checking an already-parsed export never passes
-     * through it, and `verify` answered yes for exactly that forgery.
-     *
-     * The predicates are a list rather than a chain of `||` so that adding
-     * a field to [ResearchExport] is a one-line change here that does not
-     * push the function over a complexity threshold — the pressure to
-     * leave a new field out is the thing worth designing against.
-     */
-    private fun smugglesNewerContent(export: ResearchExport): Boolean = when (export.dataDictionaryVersion) {
-        ContinuityContract.PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION ->
-            programOneContentByField(export).values.any { it } ||
-                programTwoContentByField(export).values.any { it }
-        ContinuityContract.PROGRAM_ONE_RESEARCH_DICTIONARY_VERSION ->
-            programTwoContentByField(export).values.any { it }
-        else -> false
     }
 
     /**
@@ -234,6 +211,12 @@ object ResearchExportCodec {
         passiveObservationDecisions = export.passiveObservationDecisions.sortedWith(
             compareBy({ it.localDate }, { it.asOfTime }, { it.id }),
         ),
+        advisoryOpportunities = export.advisoryOpportunities.sortedWith(
+            compareBy({ it.presentedAt }, { it.id }),
+        ),
+        interventionEpisodeEvents = export.interventionEpisodeEvents.sortedWith(
+            compareBy({ it.occurredAt }, { it.episodeId }, { it.sequence }, { it.id }),
+        ),
     )
 
     private fun hashContent(export: ResearchExport, version: String): String {
@@ -241,7 +224,8 @@ object ResearchExportCodec {
             ContinuityContract.PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION ->
                 json.encodeToString(projectV1(export))
             ContinuityContract.PROGRAM_ONE_RESEARCH_DICTIONARY_VERSION -> json.encodeToString(projectV2(export))
-            ContinuityContract.RESEARCH_DICTIONARY_VERSION -> json.encodeToString(projectV3(export))
+            ContinuityContract.PROGRAM_TWO_RESEARCH_DICTIONARY_VERSION -> json.encodeToString(projectV3(export))
+            ContinuityContract.RESEARCH_DICTIONARY_VERSION -> json.encodeToString(projectV4(export))
             else -> error("no content projection for research export version $version")
         }
         return MessageDigest.getInstance("SHA-256")
@@ -249,14 +233,14 @@ object ResearchExportCodec {
             .joinToString(separator = "") { "%02x".format(it) }
     }
 
-    private fun projectV1(export: ResearchExport) = V1Content(
+    private fun projectV1(export: ResearchExport) = ResearchContentV1(
         journalEntries = export.journalEntries,
         contextFacts = export.contextFacts,
         contextInferences = export.contextInferences,
         morningMeasures = export.morningMeasures,
     )
 
-    private fun projectV2(export: ResearchExport) = V2Content(
+    private fun projectV2(export: ResearchExport) = ResearchContentV2(
         journalEntries = export.journalEntries,
         contextFacts = export.contextFacts,
         contextInferences = export.contextInferences,
@@ -279,7 +263,7 @@ object ResearchExportCodec {
         dataDictionarySha256 = export.dataDictionarySha256,
     )
 
-    private fun projectV3(export: ResearchExport) = V3Content(
+    private fun projectV3(export: ResearchExport) = ResearchContentV3(
         journalEntries = export.journalEntries,
         contextFacts = export.contextFacts,
         contextInferences = export.contextInferences,
@@ -310,12 +294,45 @@ object ResearchExportCodec {
         passiveObservationDecisions = export.passiveObservationDecisions,
     )
 
+    private fun projectV4(export: ResearchExport) = ResearchContentV4(
+        journalEntries = export.journalEntries,
+        contextFacts = export.contextFacts,
+        contextInferences = export.contextInferences,
+        morningMeasures = export.morningMeasures,
+        ledgerEvents = export.ledgerEvents,
+        ledgerHeadHash = export.ledgerHeadHash,
+        ledgerEventCount = export.ledgerEventCount,
+        ledgerIntegrity = export.ledgerIntegrity,
+        ledgerHighWaterCount = export.ledgerHighWaterCount,
+        studyPhases = export.studyPhases,
+        protocolRegistry = export.protocolRegistry,
+        protocolCatalogSha256 = export.protocolCatalogSha256,
+        transformations = export.transformations,
+        transformationSetVersion = export.transformationSetVersion,
+        missingData = export.missingData,
+        missingDataWindowStart = export.missingDataWindowStart,
+        missingDataWindowThrough = export.missingDataWindowThrough,
+        missingDataPolicyVersion = export.missingDataPolicyVersion,
+        missingDataStatement = export.missingDataStatement,
+        dataDictionarySha256 = export.dataDictionarySha256,
+        passiveRawProvenance = export.passiveRawProvenance,
+        passiveSourceReads = export.passiveSourceReads,
+        passiveSourceLags = export.passiveSourceLags,
+        passiveBaselineSegments = export.passiveBaselineSegments,
+        passivePipelineRuns = export.passivePipelineRuns,
+        passiveWindowRevisions = export.passiveWindowRevisions,
+        passiveDailyRevisions = export.passiveDailyRevisions,
+        passiveObservationDecisions = export.passiveObservationDecisions,
+        advisoryOpportunities = export.advisoryOpportunities,
+        interventionEpisodeEvents = export.interventionEpisodeEvents,
+    )
+
     /**
      * Program 0's export content, in Program 0's declaration order. Field
      * order is wire format; nothing here may change.
      */
     @Serializable
-    private data class V1Content(
+    private data class ResearchContentV1(
         val journalEntries: List<JournalEntryDto>,
         val contextFacts: List<JournalContextDto>,
         val contextInferences: List<JournalContextDto>,
@@ -350,7 +367,7 @@ object ResearchExportCodec {
      * bump look like edited data.
      */
     @Serializable
-    private data class V2Content(
+    private data class ResearchContentV2(
         val journalEntries: List<JournalEntryDto>,
         val contextFacts: List<JournalContextDto>,
         val contextInferences: List<JournalContextDto>,
@@ -375,7 +392,7 @@ object ResearchExportCodec {
 
     /** Program 2's complete content projection: frozen v2 followed by eight operational datasets. */
     @Serializable
-    private data class V3Content(
+    private data class ResearchContentV3(
         val journalEntries: List<JournalEntryDto>,
         val contextFacts: List<JournalContextDto>,
         val contextInferences: List<JournalContextDto>,
@@ -405,6 +422,77 @@ object ResearchExportCodec {
         val passiveDailyRevisions: List<PassiveDailyRevisionDto>,
         val passiveObservationDecisions: List<PassiveObservationDecisionDto>,
     )
+
+    /** Program 3's complete content projection: frozen v3 followed by the two advisory datasets. */
+    @Serializable
+    private data class ResearchContentV4(
+        val journalEntries: List<JournalEntryDto>,
+        val contextFacts: List<JournalContextDto>,
+        val contextInferences: List<JournalContextDto>,
+        val morningMeasures: List<MorningMeasureDto>,
+        val ledgerEvents: List<ResearchLedgerEventDto>,
+        val ledgerHeadHash: String,
+        val ledgerEventCount: Int,
+        val ledgerIntegrity: LedgerIntegrity,
+        val ledgerHighWaterCount: Int,
+        val studyPhases: List<StudyPhaseDto>,
+        val protocolRegistry: List<EvidenceProtocol>,
+        val protocolCatalogSha256: String,
+        val transformations: List<Transformation>,
+        val transformationSetVersion: String,
+        val missingData: List<MissingDataRecord>,
+        val missingDataWindowStart: String?,
+        val missingDataWindowThrough: String?,
+        val missingDataPolicyVersion: String,
+        val missingDataStatement: String,
+        val dataDictionarySha256: String,
+        val passiveRawProvenance: List<PassiveRawProvenanceDto>,
+        val passiveSourceReads: List<PassiveSourceReadDto>,
+        val passiveSourceLags: List<PassiveSourceLagDto>,
+        val passiveBaselineSegments: List<PassiveBaselineSegmentDto>,
+        val passivePipelineRuns: List<PassivePipelineRunDto>,
+        val passiveWindowRevisions: List<PassiveWindowRevisionDto>,
+        val passiveDailyRevisions: List<PassiveDailyRevisionDto>,
+        val passiveObservationDecisions: List<PassiveObservationDecisionDto>,
+        val advisoryOpportunities: List<AdvisoryOpportunityDto>,
+        val interventionEpisodeEvents: List<InterventionEpisodeEventDto>,
+    )
+}
+
+/**
+ * A version-1 document carrying content only Program 1 can write.
+ *
+ * A v1 document is hashed over four content lists, so any Program 1
+ * field it carries sits outside its own hash — somebody could paste a
+ * fabricated ledger into a genuine Program 0 export and the seal would
+ * still check out. A v1 document that carries Program 1 content is not
+ * a v1 document.
+ *
+ * Checked by [ResearchExportCodec.verify] as well as [ResearchExportCodec.decode].
+ * `decode` alone was not enough: a recipient checking an already-parsed
+ * export never passes through it, and `verify` answered yes for exactly
+ * that forgery.
+ *
+ * At file scope rather than inside [ResearchExportCodec] for the same
+ * reason [rawFieldsAreCompatible] is: detekt's `TooManyFunctions`
+ * threshold inside objects is 11, and the object is already at ten.
+ *
+ * The predicates are a list rather than a chain of `||` so that adding
+ * a field to [ResearchExport] is a one-line change here that does not
+ * push the function over a complexity threshold — the pressure to
+ * leave a new field out is the thing worth designing against.
+ */
+private fun smugglesNewerContent(export: ResearchExport): Boolean = when (export.dataDictionaryVersion) {
+    ContinuityContract.PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION ->
+        programOneContentByField(export).values.any { it } ||
+            programTwoContentByField(export).values.any { it } ||
+            programThreeContentByField(export).values.any { it }
+    ContinuityContract.PROGRAM_ONE_RESEARCH_DICTIONARY_VERSION ->
+        programTwoContentByField(export).values.any { it } ||
+            programThreeContentByField(export).values.any { it }
+    ContinuityContract.PROGRAM_TWO_RESEARCH_DICTIONARY_VERSION ->
+        programThreeContentByField(export).values.any { it }
+    else -> false
 }
 
 private fun carriedDictionaryMatchesItsHash(export: ResearchExport): Boolean {
@@ -418,23 +506,45 @@ private fun carriedDictionaryMatchesItsHash(export: ResearchExport): Boolean {
     return ResearchDataDictionary.sha256Of(carried) == export.dataDictionarySha256
 }
 
+private fun allowedResearchFieldsFor(
+    version: String,
+    programZeroFields: Set<String>,
+    programOneFields: Set<String>,
+    programTwoFields: Set<String>,
+    programThreeFields: Set<String>,
+): Set<String> = when (version) {
+    ContinuityContract.PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION -> programZeroFields
+    ContinuityContract.PROGRAM_ONE_RESEARCH_DICTIONARY_VERSION -> programZeroFields + programOneFields
+    ContinuityContract.PROGRAM_TWO_RESEARCH_DICTIONARY_VERSION ->
+        programZeroFields + programOneFields + programTwoFields
+    else -> programZeroFields + programOneFields + programTwoFields + programThreeFields
+}
+
+private fun knownLaterResearchFieldsFor(
+    version: String,
+    programOneFields: Set<String>,
+    programTwoFields: Set<String>,
+    programThreeFields: Set<String>,
+): Set<String> = when (version) {
+    ContinuityContract.PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION ->
+        programOneFields + programTwoFields + programThreeFields
+    ContinuityContract.PROGRAM_ONE_RESEARCH_DICTIONARY_VERSION -> programTwoFields + programThreeFields
+    ContinuityContract.PROGRAM_TWO_RESEARCH_DICTIONARY_VERSION -> programThreeFields
+    else -> emptySet()
+}
+
 private fun rawFieldsAreCompatible(
     root: JsonObject,
     version: String,
     programZeroFields: Set<String>,
     programOneFields: Set<String>,
     programTwoFields: Set<String>,
+    programThreeFields: Set<String>,
 ): Boolean {
-    val allowedFields = when (version) {
-        ContinuityContract.PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION -> programZeroFields
-        ContinuityContract.PROGRAM_ONE_RESEARCH_DICTIONARY_VERSION -> programZeroFields + programOneFields
-        else -> programZeroFields + programOneFields + programTwoFields
-    }
-    val knownLaterFields = when (version) {
-        ContinuityContract.PROGRAM_ZERO_RESEARCH_DICTIONARY_VERSION -> programOneFields + programTwoFields
-        ContinuityContract.PROGRAM_ONE_RESEARCH_DICTIONARY_VERSION -> programTwoFields
-        else -> emptySet()
-    }
+    val allowedFields = allowedResearchFieldsFor(
+        version, programZeroFields, programOneFields, programTwoFields, programThreeFields,
+    )
+    val knownLaterFields = knownLaterResearchFieldsFor(version, programOneFields, programTwoFields, programThreeFields)
     if (root.any { (field, value) ->
             field !in allowedFields && (field !in knownLaterFields || !isEmptyLaterField(field, value))
         }
@@ -515,4 +625,9 @@ internal fun programTwoContentByField(export: ResearchExport): Map<String, Boole
     "passiveWindowRevisions" to export.passiveWindowRevisions.isNotEmpty(),
     "passiveDailyRevisions" to export.passiveDailyRevisions.isNotEmpty(),
     "passiveObservationDecisions" to export.passiveObservationDecisions.isNotEmpty(),
+)
+
+internal fun programThreeContentByField(export: ResearchExport): Map<String, Boolean> = mapOf(
+    "advisoryOpportunities" to export.advisoryOpportunities.isNotEmpty(),
+    "interventionEpisodeEvents" to export.interventionEpisodeEvents.isNotEmpty(),
 )

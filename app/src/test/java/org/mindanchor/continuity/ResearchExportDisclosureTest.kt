@@ -79,6 +79,8 @@ class ResearchExportDisclosureTest {
         "passiveWindowRevisions" to "window revisions with coverage, missingness and exclusions",
         "passiveDailyRevisions" to "day revisions with coverage, missingness and exclusions",
         "passiveObservationDecisions" to "observation decisions",
+        "advisoryOpportunities" to "advisory opportunities based on a finalized historical decision",
+        "interventionEpisodeEvents" to "breathing-protocol episode events you self-reported starting",
     )
 
     /**
@@ -166,6 +168,39 @@ class ResearchExportDisclosureTest {
     @Test
     fun `the disclosure explicitly excludes raw sensor and sample values`() {
         assertTrue(disclosure().contains("Raw sensor and sample values are not included"))
+    }
+
+    @Test
+    fun `the disclosure covers every Program 3 advisory-evidence requirement`() {
+        val body = disclosure()
+        val requiredPhrases = listOf(
+            "advisory opportunities based on a finalized historical decision",
+            "local date and finalization time",
+            "self-reported by your own one deliberate action and never inferred from a sensor, " +
+                "your Journal, or an AI model",
+            "not a diagnosis or a claim about how you are right now",
+            "not a success, failure, or treatment effect",
+            "no compatible outcome measure is registered, a due outcome window closes as missing",
+            "append-only and hash-verifiable",
+            "public version could not deliver any protocol at all",
+        )
+        requiredPhrases.forEach { phrase ->
+            assertTrue("the disclosure must state: \"$phrase\"", body.contains(phrase, ignoreCase = true))
+        }
+    }
+
+    @Test
+    fun `the disclosure never uses diagnostic or outcome-claiming language`() {
+        val body = disclosure().lowercase()
+        listOf(
+            "diagnosed", "you are anxious", "panic detected", "treatment worked",
+            "successful intervention", "failed intervention",
+        ).forEach { forbidden ->
+            assertTrue(
+                "the disclosure must never claim: '$forbidden'",
+                !body.contains(forbidden.lowercase()),
+            )
+        }
     }
 
     @Test

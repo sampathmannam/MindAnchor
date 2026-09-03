@@ -795,7 +795,11 @@ internal class ContinuitySettingsViewModel(
 
     fun exportResearch(uri: Uri) {
         scope.launch {
-            _message.value = when (val outcome = ResearchExportBuilder.export(context, database, uri)) {
+            val outcome = ResearchExportBuilder.export(
+                context, database, uri,
+                advisoryOutcomeReconciler = org.mindanchor.advisory.RoomAdvisoryOutcomeReconciler.build(context),
+            )
+            _message.value = when (outcome) {
                 is ResearchExportBuilder.ExportOutcome.Success ->
                     ContinuityMessage.ExportSucceeded(ResearchExportBuilder.truncatedHash(outcome.contentSha256))
                 is ResearchExportBuilder.ExportOutcome.WriteFailed -> ContinuityMessage.ExportFailed

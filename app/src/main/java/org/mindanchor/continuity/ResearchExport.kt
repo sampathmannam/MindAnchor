@@ -145,6 +145,11 @@ data class ResearchExport(
     val passiveWindowRevisions: List<PassiveWindowRevisionDto> = emptyList(),
     val passiveDailyRevisions: List<PassiveDailyRevisionDto> = emptyList(),
     val passiveObservationDecisions: List<PassiveObservationDecisionDto> = emptyList(),
+
+    // --- Program 3. Appended so frozen v1/v2/v3 projections do not move. ---
+
+    val advisoryOpportunities: List<AdvisoryOpportunityDto> = emptyList(),
+    val interventionEpisodeEvents: List<InterventionEpisodeEventDto> = emptyList(),
 ) {
     companion object {
         const val DATA_DICTIONARY_VERSION = ContinuityContract.RESEARCH_DICTIONARY_VERSION

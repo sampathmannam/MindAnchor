@@ -7,7 +7,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.mindanchor.advisory.AdvisoryBuildMode
+import org.mindanchor.advisory.EligibilityAttestedPayloadV1
+import org.mindanchor.continuity.AdvisoryOpportunityDto
 import org.mindanchor.continuity.ContinuityContract
+import org.mindanchor.continuity.InterventionEpisodeEventDto
 import org.mindanchor.continuity.JournalContextDto
 import org.mindanchor.continuity.JournalEntryDto
 import org.mindanchor.continuity.MorningMeasureDto
@@ -21,6 +25,8 @@ import org.mindanchor.continuity.PassiveSourceReadDto
 import org.mindanchor.continuity.PassiveWindowRevisionDto
 import org.mindanchor.data.db.ResearchLedgerEventEntity
 import org.mindanchor.data.db.StudyPhaseEntity
+import org.mindanchor.intelligence.PassiveDataStatus
+import org.mindanchor.intelligence.PassiveObservationState
 import org.mindanchor.journal.JournalEntry
 import org.mindanchor.journal.StructuralContextExtractor
 
@@ -68,6 +74,7 @@ class ResearchDataDictionaryTest {
         val frozen = mapOf(
             "mindanchor-research-v2" to "1cbfa2cf7552b675500583959511b8df069bf2aa932beeade1196ca6302393a9",
             "mindanchor-research-v3" to "4713050fc555021556d3f4fcb269dc4c03ded712bbc24cf7a9d3caa55901aaba",
+            "mindanchor-research-v4" to "ffd008984df316e765ac97f38db489b4c176445170c5e798b35272f32364688f",
         )
         assertEquals(
             "the current dictionary version needs a frozen hash",
@@ -131,6 +138,8 @@ class ResearchDataDictionaryTest {
             DictionaryDataset.PASSIVE_WINDOW_REVISIONS to PassiveWindowRevisionDto::class.java,
             DictionaryDataset.PASSIVE_DAILY_REVISIONS to PassiveDailyRevisionDto::class.java,
             DictionaryDataset.PASSIVE_OBSERVATION_DECISIONS to PassiveObservationDecisionDto::class.java,
+            DictionaryDataset.ADVISORY_OPPORTUNITIES to AdvisoryOpportunityDto::class.java,
+            DictionaryDataset.INTERVENTION_EPISODE_EVENTS to InterventionEpisodeEventDto::class.java,
         )
         assertEquals(
             "every dataset must be covered",
@@ -283,6 +292,56 @@ class ResearchDataDictionaryTest {
         }.allowedValues
 
         assertEquals(emitted, declared)
+    }
+
+    @Test
+    fun `advisory opportunity and episode event variables never claim a current or diagnostic state`() {
+        val advisory = ResearchDataDictionary.dictionary.variables.filter {
+            it.dataset == DictionaryDataset.ADVISORY_OPPORTUNITIES ||
+                it.dataset == DictionaryDataset.INTERVENTION_EPISODE_EVENTS
+        }
+        assertTrue(advisory.isNotEmpty())
+        val sourceDataStatus = advisory.single { it.name == "sourceDataStatus" }
+        assertEquals(listOf(PassiveDataStatus.AVAILABLE_FINAL.name), sourceDataStatus.allowedValues)
+        val sourceObservationState = advisory.single { it.name == "sourceObservationState" }
+        assertEquals(listOf(PassiveObservationState.SUSTAINED_DEVIATION.name), sourceObservationState.allowedValues)
+        val buildModes = listOf(
+            advisory.single { it.dataset == DictionaryDataset.ADVISORY_OPPORTUNITIES && it.name == "buildMode" },
+            advisory.single { it.dataset == DictionaryDataset.INTERVENTION_EPISODE_EVENTS && it.name == "buildMode" },
+        )
+        buildModes.forEach { variable ->
+            assertEquals(AdvisoryBuildMode.entries.map { it.name }, variable.allowedValues)
+        }
+    }
+
+    /**
+     * The plan's "four attestation Booleans" -- [EligibilityAttestedPayloadV1]'s
+     * fields -- live inside `payloadJson`, a JSON blob whose shape depends
+     * on `eventType`. This dictionary describes one variable per DTO
+     * field (the same convention every other JSON-blob field here follows:
+     * `decisionJson`, the research ledger's own `payloadJson`), so there is
+     * no separate per-subfield `DictionaryVariable` to give
+     * `VariableProvenance.SELF_REPORTED` to directly. Instead this asserts
+     * the documented claim itself: every one of those four facts is named
+     * by `payloadJson`'s description and stated there as self-reported.
+     */
+    @Test
+    fun `the four eligibility-attestation facts are documented as self-reported in payloadJson`() {
+        val payloadJson = ResearchDataDictionary.dictionary.variables.single {
+            it.dataset == DictionaryDataset.INTERVENTION_EPISODE_EVENTS && it.name == "payloadJson"
+        }
+        assertEquals(VariableProvenance.MIXED, payloadJson.provenance)
+        assertTrue(payloadJson.description.contains("self-reported", ignoreCase = true))
+        val attestationFields = EligibilityAttestedPayloadV1::class.java.declaredFields
+            .filter { !it.isSynthetic && !Modifier.isStatic(it.modifiers) }
+            .map { it.name }
+        assertEquals(4, attestationFields.size)
+        attestationFields.forEach { name ->
+            assertTrue(
+                "payloadJson's description must name the self-reported fact `$name`",
+                payloadJson.description.contains(name),
+            )
+        }
     }
 
     @Test

@@ -11,7 +11,7 @@ class ContinuityContractTest {
         assertEquals(4, ContinuityContract.SNAPSHOT_FORMAT_VERSION)
         assertEquals(1, ContinuityContract.ENVELOPE_FORMAT_VERSION)
         assertEquals("MindAnchor-Continuity-Latest.mab", ContinuityContract.LATEST_FILE_NAME)
-        assertEquals("mindanchor-research-v3", ContinuityContract.RESEARCH_DICTIONARY_VERSION)
+        assertEquals("mindanchor-research-v4", ContinuityContract.RESEARCH_DICTIONARY_VERSION)
     }
 
     @Test
@@ -22,7 +22,10 @@ class ContinuityContractTest {
         assertEquals("mindanchor-research-v2", ContinuityContract.PROGRAM_ONE_RESEARCH_DICTIONARY_VERSION)
         assertEquals(setOf(1, 2, 3, 4), ContinuityContract.SUPPORTED_SNAPSHOT_FORMAT_VERSIONS)
         assertEquals(
-            setOf("mindanchor-research-v1", "mindanchor-research-v2", "mindanchor-research-v3"),
+            setOf(
+                "mindanchor-research-v1", "mindanchor-research-v2",
+                "mindanchor-research-v3", "mindanchor-research-v4",
+            ),
             ContinuityContract.SUPPORTED_RESEARCH_DICTIONARY_VERSIONS,
         )
     }
@@ -32,6 +35,19 @@ class ContinuityContractTest {
         assertEquals(3, ContinuityContract.PROGRAM_TWO_SNAPSHOT_FORMAT_VERSION)
         assertEquals(4, ContinuityContract.SNAPSHOT_FORMAT_VERSION)
         assertEquals(setOf(1, 2, 3, 4), ContinuityContract.SUPPORTED_SNAPSHOT_FORMAT_VERSIONS)
+    }
+
+    @Test
+    fun `research versions one through four remain supported`() {
+        assertEquals("mindanchor-research-v3", ContinuityContract.PROGRAM_TWO_RESEARCH_DICTIONARY_VERSION)
+        assertEquals("mindanchor-research-v4", ContinuityContract.RESEARCH_DICTIONARY_VERSION)
+        assertEquals(
+            setOf(
+                "mindanchor-research-v1", "mindanchor-research-v2",
+                "mindanchor-research-v3", "mindanchor-research-v4",
+            ),
+            ContinuityContract.SUPPORTED_RESEARCH_DICTIONARY_VERSIONS,
+        )
     }
 
     @Test

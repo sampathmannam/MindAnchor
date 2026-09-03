@@ -11,6 +11,7 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.serialization.encodeToString
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -19,7 +20,16 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mindanchor.advisory.AdvisoryCodec
+import org.mindanchor.advisory.AdvisoryPolicy
+import org.mindanchor.advisory.EpisodeEventType
+import org.mindanchor.advisory.EventChainVerdict
+import org.mindanchor.advisory.OutcomeWindowOpenedPayloadV1
+import org.mindanchor.advisory.RoomAdvisoryOutcomeReconciler
+import org.mindanchor.advisory.TerminalPayloadV1
+import org.mindanchor.data.db.AdvisoryOpportunityEntity
 import org.mindanchor.data.db.AnchorDatabase
+import org.mindanchor.data.db.InterventionEpisodeEventEntity
 import org.mindanchor.data.db.withResearchImmutability
 import org.mindanchor.journal.DeviceIdentityStore
 import org.mindanchor.journal.JournalContext
@@ -502,6 +512,164 @@ class ResearchExportBuilderTest {
         )
         assertFalse(encoded.contains("passiveRawSamples"))
         assertFalse(encoded.contains("173.25"))
+        assertTrue(ResearchExportCodec.verify(export))
+    }
+
+    private fun advisoryOpportunity(id: String): AdvisoryOpportunityEntity {
+        val unsealed = AdvisoryOpportunityEntity(
+            id = id,
+            presentedAt = 1_000L,
+            localDate = "2026-09-03",
+            zoneId = "UTC",
+            sourceDecisionId = "decision-$id",
+            sourceDecisionContentHash = "decision-hash",
+            sourceLocalDate = "2026-09-02",
+            sourceAsOfTime = 900L,
+            sourceDataStatus = "AVAILABLE_FINAL",
+            sourceObservationState = "SUSTAINED_DEVIATION",
+            sourceExplanation = "fixture explanation",
+            sourceBaselineSegment = "segment-1",
+            sourcePassiveRuleVersion = "passive-observation-rules-v6",
+            sourcePassiveModelVersion = "personal-robust-baseline-v4",
+            sourceStudyPhaseId = "phase-1",
+            protocolId = "cyclic-sighing",
+            protocolVersion = 1,
+            protocolDefinitionSha256 = "definition-hash",
+            protocolCatalogSha256 = "catalog-hash",
+            protocolClinicalReviewStatus = "NOT_REVIEWED",
+            advisoryRuleVersion = AdvisoryPolicy.RULE_VERSION,
+            buildMode = "PERSONAL_RESEARCH",
+            operationalEvidenceApproved = true,
+            masterAdvisoryEnabled = true,
+            deliveryAllowedAtPresentation = true,
+            studyPhaseId = "phase-1",
+            sourceDeviceId = "device-a",
+            contentHash = "",
+        )
+        return unsealed.copy(contentHash = AdvisoryCodec.opportunityContentHash(unsealed))
+    }
+
+    private fun episodeEvent(
+        episodeId: String,
+        sequence: Long,
+        type: EpisodeEventType,
+        occurredAt: Long,
+        previous: String,
+        payload: String = AdvisoryCodec.EMPTY_PAYLOAD,
+    ) = AdvisoryCodec.seal(
+        InterventionEpisodeEventEntity(
+            id = "",
+            episodeId = episodeId,
+            opportunityId = "opportunity-$episodeId",
+            sequence = sequence,
+            eventType = type.name,
+            occurredAt = occurredAt,
+            localDate = "2026-09-03",
+            zoneId = "UTC",
+            studyPhaseId = "phase-1",
+            sourceDeviceId = "device-a",
+            protocolId = "cyclic-sighing",
+            protocolVersion = 1,
+            protocolDefinitionSha256 = "definition-hash",
+            protocolCatalogSha256 = "catalog-hash",
+            advisoryRuleVersion = AdvisoryPolicy.RULE_VERSION,
+            buildMode = "PERSONAL_RESEARCH",
+            operationalEvidenceApproved = true,
+            masterAdvisoryEnabled = true,
+            deliveryAllowed = true,
+            payloadSchemaVersion = AdvisoryCodec.EVENT_PAYLOAD_SCHEMA_VERSION,
+            payloadJson = payload,
+            previousEventHash = previous,
+            eventHash = "",
+        ),
+    )
+
+    /** A completed episode with an open outcome window, chained correctly — mirrors AdvisoryOutcomeReconcilerTest's fixture. */
+    private fun completedChain(episodeId: String, startedAt: Long, outcomeWindowSeconds: Long): List<InterventionEpisodeEventEntity> {
+        val attested = episodeEvent(episodeId, 1L, EpisodeEventType.ELIGIBILITY_ATTESTED, startedAt, "")
+        val started = episodeEvent(episodeId, 2L, EpisodeEventType.STARTED, startedAt, attested.eventHash)
+        val terminalPayload = AdvisoryCodec.json.encodeToString(TerminalPayloadV1(300_000L, 33))
+        val completed = episodeEvent(
+            episodeId, 3L, EpisodeEventType.COMPLETED_MAX_DURATION,
+            startedAt + 300_000L, started.eventHash, terminalPayload,
+        )
+        val windowPayload = AdvisoryCodec.json.encodeToString(
+            OutcomeWindowOpenedPayloadV1(
+                opensAt = startedAt + 300_000L,
+                closesAt = startedAt + 300_000L + outcomeWindowSeconds * 1_000L,
+            ),
+        )
+        val opened = episodeEvent(
+            episodeId, 4L, EpisodeEventType.OUTCOME_WINDOW_OPENED,
+            startedAt + 300_000L, completed.eventHash, windowPayload,
+        )
+        return listOf(attested, started, completed, opened)
+    }
+
+    /** A user-stopped episode: no COMPLETED_MAX_DURATION, so no outcome window is ever opened. */
+    private fun stoppedChain(episodeId: String, startedAt: Long): List<InterventionEpisodeEventEntity> {
+        val attested = episodeEvent(episodeId, 1L, EpisodeEventType.ELIGIBILITY_ATTESTED, startedAt, "")
+        val started = episodeEvent(episodeId, 2L, EpisodeEventType.STARTED, startedAt, attested.eventHash)
+        val terminalPayload = AdvisoryCodec.json.encodeToString(TerminalPayloadV1(60_000L, 6))
+        val stopped = episodeEvent(
+            episodeId, 3L, EpisodeEventType.STOPPED_BY_USER,
+            startedAt + 60_000L, started.eventHash, terminalPayload,
+        )
+        return listOf(attested, started, stopped)
+    }
+
+    @Test
+    fun productionExportIncludesAReconciledCompletedEpisodeWithMissingOutcomeClosure() = runBlocking {
+        val opportunity = advisoryOpportunity("opportunity-episode-1")
+        database.advisory().insertOpportunity(opportunity)
+        database.advisory().insertEvents(completedChain("episode-1", startedAt = 1_000L, outcomeWindowSeconds = 86_400L))
+        val dueAt = 1_000L + 300_000L + 86_400_000L
+        val reconciler = RoomAdvisoryOutcomeReconciler(context, database, testLedgerRepository(context, database))
+
+        val export = ResearchExportBuilder.build(
+            database = database,
+            highWater = null,
+            now = dueAt,
+            zone = ZoneOffset.UTC,
+            appVersionCode = 95,
+            appVersionName = "0.71.0",
+            advisoryOutcomeReconciler = reconciler,
+        )
+
+        assertEquals(listOf(opportunity.id), export.advisoryOpportunities.map { it.id })
+        val events = export.interventionEpisodeEvents
+        assertEquals(5, events.size)
+        assertTrue(events.any { it.eventType == EpisodeEventType.OUTCOME_WINDOW_CLOSED_MISSING.name })
+        assertEquals(
+            EventChainVerdict.VALID,
+            AdvisoryCodec.verifyEpisodeChain(database.advisory().eventsForEpisode("episode-1")),
+        )
+        assertEquals(events.sortedBy { it.sequence }.map { it.sequence }, events.map { it.sequence })
+        assertTrue(ResearchExportCodec.verify(export))
+    }
+
+    @Test
+    fun productionExportOfStoppedOnlyHistoryHasNoOutcomeWindowRows() = runBlocking {
+        val opportunity = advisoryOpportunity("opportunity-episode-2")
+        database.advisory().insertOpportunity(opportunity)
+        database.advisory().insertEvents(stoppedChain("episode-2", startedAt = 2_000L))
+
+        val export = ResearchExportBuilder.build(
+            database = database,
+            highWater = null,
+            now = 2_000L + 60_000L,
+            zone = ZoneOffset.UTC,
+            appVersionCode = 95,
+            appVersionName = "0.71.0",
+        )
+
+        assertEquals(3, export.interventionEpisodeEvents.size)
+        assertTrue(
+            export.interventionEpisodeEvents.none {
+                it.eventType == EpisodeEventType.OUTCOME_WINDOW_OPENED.name ||
+                    it.eventType == EpisodeEventType.OUTCOME_WINDOW_CLOSED_MISSING.name
+            },
+        )
         assertTrue(ResearchExportCodec.verify(export))
     }
 }

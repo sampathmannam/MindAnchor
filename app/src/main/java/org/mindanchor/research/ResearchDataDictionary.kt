@@ -5,6 +5,8 @@ import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import org.mindanchor.advisory.AdvisoryBuildMode
+import org.mindanchor.advisory.EpisodeEventType
 import org.mindanchor.continuity.ContinuityContract
 import org.mindanchor.intelligence.PassiveDataStatus
 import org.mindanchor.intelligence.PassiveObservationState
@@ -32,6 +34,8 @@ enum class DictionaryDataset {
     PASSIVE_WINDOW_REVISIONS,
     PASSIVE_DAILY_REVISIONS,
     PASSIVE_OBSERVATION_DECISIONS,
+    ADVISORY_OPPORTUNITIES,
+    INTERVENTION_EPISODE_EVENTS,
 }
 
 /**
@@ -46,6 +50,9 @@ enum class VariableProvenance {
 
     /** The person's own answer on a scale or a chip they chose. */
     USER_REPORTED,
+
+    /** A fact the person attested to in one deliberate action, recorded exactly as attested. */
+    SELF_REPORTED,
 
     /** Derived from the person's text by a versioned structural transformation. Never interpreted. */
     DERIVED_STRUCTURAL,
@@ -104,7 +111,7 @@ data class DataDictionary(
  * clinical-interpretation vocabulary.
  */
 @OptIn(ExperimentalSerializationApi::class)
-@Suppress("TooManyFunctions")
+@Suppress("TooManyFunctions", "LargeClass")
 object ResearchDataDictionary {
 
     /** Pinned: this configuration is part of [sha256], which the export carries. */
@@ -141,6 +148,8 @@ object ResearchDataDictionary {
     private const val UNITLESS_COUNT = "unitless count"
     private const val BOOLEAN_UNIT = "boolean"
     private const val LOCAL_DATE = "localDate"
+    private const val ZONE_ID = "zoneId"
+    private const val SOURCE_DEVICE_ID = "sourceDeviceId"
 
     private val RATING_1_TO_5 = listOf("1", "2", "3", "4", "5")
     private val BOOLEAN_VALUES = listOf("false", "true")
@@ -156,7 +165,7 @@ object ResearchDataDictionary {
                 ledgerEvents() + studyPhases() + missingData() + passiveRawProvenance() +
                 passiveSourceReads() + passiveSourceLags() + passiveBaselineSegments() +
                 passivePipelineRuns() + passiveWindowRevisions() + passiveDailyRevisions() +
-                passiveObservationDecisions(),
+                passiveObservationDecisions() + advisoryOpportunities() + interventionEpisodeEvents(),
         )
     }
 
@@ -246,7 +255,7 @@ object ResearchDataDictionary {
             "kind", ENUM, "Which writing surface produced the entry.", VariableProvenance.USER_REPORTED,
             allowedValues = JournalKind.entries.map { it.name },
         )
-        add("sourceDeviceId", TEXT, "${RECORDING_PHONE}entry.", VariableProvenance.SYSTEM_RECORDED)
+        add(SOURCE_DEVICE_ID, TEXT, "${RECORDING_PHONE}entry.", VariableProvenance.SYSTEM_RECORDED)
         add(
             "deletedAt", TIMESTAMP,
             "When the person removed the entry, or null. The row is kept; content is never destroyed.",
@@ -331,7 +340,7 @@ object ResearchDataDictionary {
             "instrumentVersion", TEXT, "The version of the five-item measure that was answered.",
             VariableProvenance.SYSTEM_RECORDED,
         )
-        add("sourceDeviceId", TEXT, "${RECORDING_PHONE}measure.", VariableProvenance.SYSTEM_RECORDED)
+        add(SOURCE_DEVICE_ID, TEXT, "${RECORDING_PHONE}measure.", VariableProvenance.SYSTEM_RECORDED)
     }
 
     private fun ledgerEvents() = dataset(DictionaryDataset.RESEARCH_LEDGER_EVENTS) {
@@ -369,7 +378,7 @@ object ResearchDataDictionary {
             "studyPhaseId", SHA256, "The study phase in effect when the row was written.",
             VariableProvenance.SYSTEM_RECORDED,
         )
-        add("sourceDeviceId", TEXT, "The phone that wrote the row.", VariableProvenance.SYSTEM_RECORDED)
+        add(SOURCE_DEVICE_ID, TEXT, "The phone that wrote the row.", VariableProvenance.SYSTEM_RECORDED)
         add(
             "note", TEXT,
             "Text whose origin depends on event kind: the person's exact words for a self-reported event, " +
@@ -423,7 +432,7 @@ object ResearchDataDictionary {
         version("missingDataPolicyVersion", "The missing-data policy in effect.")
         version("instrumentVersion", "The morning-measure instrument in effect.")
         version("dictionaryVersion", "The data dictionary in effect.")
-        version("sourceDeviceId", "The phone the phase opened on.")
+        version(SOURCE_DEVICE_ID, "The phone the phase opened on.")
     }
 
     private fun missingData() = dataset(DictionaryDataset.MISSING_DATA) {
@@ -477,7 +486,7 @@ object ResearchDataDictionary {
             EPOCH_MILLIS,
         )
         recorded("ingestedAt", TIMESTAMP, "When MindAnchor read the source record.", EPOCH_MILLIS)
-        recorded("zoneId", TEXT, "IANA zone identifier recorded with the source event.")
+        recorded(ZONE_ID, TEXT, "IANA zone identifier recorded with the source event.")
         recorded("zoneOffsetSeconds", INTEGER, "UTC offset recorded with the source event.", SECONDS_OFFSET)
         recorded("recordId", TEXT, "Identifier supplied by the source, or a deterministic fallback identifier.")
         recorded("recordVersion", INTEGER, "Version number supplied for the source record.", UNITLESS_COUNT)
@@ -502,7 +511,7 @@ object ResearchDataDictionary {
             "rangeEnd", TIMESTAMP, "Exclusive requested range end.",
             VariableProvenance.SYSTEM_RECORDED, EPOCH_MILLIS,
         )
-        add("zoneId", TEXT, "IANA zone identifier used for the requested range.", VariableProvenance.SYSTEM_RECORDED)
+        add(ZONE_ID, TEXT, "IANA zone identifier used for the requested range.", VariableProvenance.SYSTEM_RECORDED)
         add("attemptedAt", TIMESTAMP, "When the read was attempted.", VariableProvenance.SYSTEM_RECORDED, EPOCH_MILLIS)
         add(
             "recordCount", INTEGER, "Number of normalized records returned by a successful read.",
@@ -588,7 +597,7 @@ object ResearchDataDictionary {
             "scanEnd", TIMESTAMP, "Exclusive end of the scanned interval.",
             VariableProvenance.SYSTEM_RECORDED, EPOCH_MILLIS,
         )
-        add("zoneId", TEXT, "IANA zone identifier used for local-day alignment.", VariableProvenance.SYSTEM_RECORDED)
+        add(ZONE_ID, TEXT, "IANA zone identifier used for local-day alignment.", VariableProvenance.SYSTEM_RECORDED)
         add(
             "historyPermissionGranted", BOOLEAN, "Whether extended Health Connect history permission was available.",
             VariableProvenance.SYSTEM_RECORDED, BOOLEAN_UNIT, BOOLEAN_VALUES,
@@ -623,7 +632,7 @@ object ResearchDataDictionary {
         derived("windowStart", TIMESTAMP, "Inclusive start of the absolute UTC window.", EPOCH_MILLIS)
         derived("windowEnd", TIMESTAMP, "Exclusive end of the absolute UTC window.", EPOCH_MILLIS)
         derived("asOfTime", TIMESTAMP, "Point-in-time cutoff used for this revision.", EPOCH_MILLIS)
-        derived("zoneId", TEXT, "IANA zone identifier retained for presentation and alignment.")
+        derived(ZONE_ID, TEXT, "IANA zone identifier retained for presentation and alignment.")
         derived("zoneOffsetSeconds", INTEGER, "UTC offset retained for presentation and alignment.", SECONDS_OFFSET)
         derived("wakeRelativeMinute", INTEGER, "Minute relative to wake time, or null when unavailable.", "minutes")
         derived("baselineSegment", SHA256, "Configured source/device segment used for this revision.")
@@ -741,5 +750,221 @@ object ResearchDataDictionary {
             allowedValues = RevisionReason.entries.map { it.name },
         )
         decision("contentHash", SHA256, "Hash of the canonical observation-decision content.")
+    }
+
+    private fun advisoryOpportunities() = dataset(DictionaryDataset.ADVISORY_OPPORTUNITIES) {
+        advisoryOpportunitySourceFields()
+        advisoryOpportunityProtocolAndGateFields()
+    }
+
+    private fun Dataset.advisoryOpportunitySourceFields() {
+        val sourceStatuses = listOf(PassiveDataStatus.AVAILABLE_FINAL.name)
+        val sourceStates = listOf(PassiveObservationState.SUSTAINED_DEVIATION.name)
+        fun recorded(
+            name: String,
+            type: String,
+            description: String,
+            unit: String = "",
+            allowedValues: List<String> = emptyList(),
+        ) = add(name, type, description, VariableProvenance.SYSTEM_RECORDED, unit = unit, allowedValues = allowedValues)
+
+        recorded("id", SHA256, "Content-derived stable identifier for this materialized advisory opportunity.")
+        recorded("presentedAt", TIMESTAMP, "When this opportunity was materialized for review.", EPOCH_MILLIS)
+        recorded(LOCAL_DATE, ISO_DATE, "Local calendar date the opportunity was presented on.")
+        recorded(ZONE_ID, TEXT, "IANA zone identifier recorded with presentation.")
+        recorded(
+            "sourceDecisionId", SHA256,
+            "The finalized historical Program 2 observation decision this opportunity was built from.",
+        )
+        recorded(
+            "sourceDecisionContentHash", SHA256,
+            "Content hash of the source decision at the moment this opportunity was built, so a later " +
+                "corrected revision cannot be silently substituted for the one actually shown.",
+        )
+        recorded("sourceLocalDate", ISO_DATE, "Local calendar date the source decision assessed.")
+        recorded("sourceAsOfTime", TIMESTAMP, "Point-in-time cutoff of the source decision.", EPOCH_MILLIS)
+        recorded(
+            "sourceDataStatus", ENUM,
+            "Availability state of the source decision; this build only materializes an opportunity " +
+                "from a decision already finalized.",
+            allowedValues = sourceStatuses,
+        )
+        recorded(
+            "sourceObservationState", ENUM,
+            "Observation-only state of the source decision; this build only materializes an opportunity " +
+                "from a sustained deviation. Not a statement about the person's condition now.",
+            allowedValues = sourceStates,
+        )
+        recorded(
+            "sourceExplanation", TEXT,
+            "The frozen mechanical explanation stored by the finalized Program 2 decision; not a " +
+                "statement about the person's condition now.",
+        )
+        recorded(
+            "sourceBaselineSegment", SHA256, "Configured source/device segment the source decision compared against.",
+        )
+        recorded("sourcePassiveRuleVersion", TEXT, "Passive decision-rule version in effect for the source decision.")
+        recorded("sourcePassiveModelVersion", TEXT, "Passive model-set version in effect for the source decision.")
+        recorded("sourceStudyPhaseId", SHA256, "Study phase in effect when the source decision was recorded.")
+    }
+
+    private fun Dataset.advisoryOpportunityProtocolAndGateFields() {
+        val buildModes = AdvisoryBuildMode.entries.map { it.name }
+        val reviewStatuses = ClinicalReviewStatus.entries.map { it.name }
+        fun recorded(
+            name: String,
+            type: String,
+            description: String,
+            unit: String = "",
+            allowedValues: List<String> = emptyList(),
+        ) = add(name, type, description, VariableProvenance.SYSTEM_RECORDED, unit = unit, allowedValues = allowedValues)
+
+        recorded("protocolId", TEXT, "Identifier of the named protocol.")
+        recorded("protocolVersion", INTEGER, "Version of the named protocol.", UNITLESS_COUNT)
+        recorded(
+            "protocolDefinitionSha256", SHA256,
+            "Content hash of the exact protocol definition named by protocolId and protocolVersion.",
+        )
+        recorded(
+            "protocolCatalogSha256", SHA256,
+            "Content hash of the evidence protocol catalogue this build's advisory allowlist was approved against.",
+        )
+        recorded(
+            "protocolClinicalReviewStatus", ENUM, "Clinical review status of the named protocol at presentation.",
+            allowedValues = reviewStatuses,
+        )
+        recorded(
+            "advisoryRuleVersion", TEXT, "The advisory eligibility rule version that materialized this opportunity.",
+        )
+        recorded(
+            "buildMode", ENUM,
+            "Which kind of build materialized this opportunity. Ordinary is every public build, and an " +
+                "ordinary build's protocol allowlist was empty at this version.",
+            allowedValues = buildModes,
+        )
+        recorded(
+            "operationalEvidenceApproved", BOOLEAN,
+            "Whether operational evidence was approved on this build at presentation.",
+            BOOLEAN_UNIT, BOOLEAN_VALUES,
+        )
+        recorded(
+            "masterAdvisoryEnabled", BOOLEAN, "Whether the person's master advisory opt-in was open at presentation.",
+            BOOLEAN_UNIT, BOOLEAN_VALUES,
+        )
+        recorded(
+            "deliveryAllowedAtPresentation", BOOLEAN,
+            "Whether the person's delivery switch was open at presentation. Presenting a materialized " +
+                "opportunity is not itself gated by this switch.",
+            BOOLEAN_UNIT, BOOLEAN_VALUES,
+        )
+        recorded("studyPhaseId", SHA256, "Study phase in effect when this opportunity was presented.")
+        recorded(SOURCE_DEVICE_ID, TEXT, "The phone that presented the opportunity.")
+        recorded("contentHash", SHA256, "Hash of the canonical opportunity content.")
+    }
+
+    private fun interventionEpisodeEvents() = dataset(DictionaryDataset.INTERVENTION_EPISODE_EVENTS) {
+        episodeEventIdentityFields()
+        episodeEventProtocolGateAndPayloadFields()
+    }
+
+    private fun Dataset.episodeEventIdentityFields() {
+        val eventTypes = EpisodeEventType.entries.map { it.name }
+        fun recorded(
+            name: String,
+            type: String,
+            description: String,
+            unit: String = "",
+            allowedValues: List<String> = emptyList(),
+        ) = add(name, type, description, VariableProvenance.SYSTEM_RECORDED, unit = unit, allowedValues = allowedValues)
+
+        recorded(
+            "id", SHA256,
+            "This event's own hash, over its content and the previous event's hash. Append-only and hash-verifiable.",
+        )
+        recorded(
+            "episodeId", SHA256,
+            "The hash-linked stream this event belongs to: one deliberate Start's episode, or one " +
+                "dismissal's own single-event stream.",
+        )
+        recorded("opportunityId", SHA256, "The materialized opportunity this event's stream is attached to.")
+        recorded("sequence", INTEGER, "Position in the episode's chain, 1-based and contiguous.", UNITLESS_COUNT)
+        recorded(
+            "eventType", ENUM,
+            "What this event records. ELIGIBILITY_ATTESTED and its four facts are self-reported by the " +
+                "person's own one Start action, recorded in payloadJson; every other event type is system-recorded.",
+            allowedValues = eventTypes,
+        )
+        recorded("occurredAt", TIMESTAMP, "When the recorded thing happened.", EPOCH_MILLIS)
+        recorded(LOCAL_DATE, ISO_DATE, "Local calendar date of occurredAt.")
+        recorded(ZONE_ID, TEXT, "IANA zone identifier recorded with the event.")
+        recorded("studyPhaseId", SHA256, "Study phase in effect when the event was recorded.")
+        recorded(SOURCE_DEVICE_ID, TEXT, "The phone that recorded the event.")
+    }
+
+    private fun Dataset.episodeEventProtocolGateAndPayloadFields() {
+        val buildModes = AdvisoryBuildMode.entries.map { it.name }
+        fun recorded(
+            name: String,
+            type: String,
+            description: String,
+            unit: String = "",
+            allowedValues: List<String> = emptyList(),
+        ) = add(name, type, description, VariableProvenance.SYSTEM_RECORDED, unit = unit, allowedValues = allowedValues)
+
+        recorded("protocolId", TEXT, "Identifier of the named protocol.")
+        recorded("protocolVersion", INTEGER, "Version of the named protocol.", UNITLESS_COUNT)
+        recorded(
+            "protocolDefinitionSha256", SHA256,
+            "Content hash of the exact protocol definition named by protocolId and protocolVersion.",
+        )
+        recorded(
+            "protocolCatalogSha256", SHA256,
+            "Content hash of the evidence protocol catalogue this build's advisory allowlist was approved against.",
+        )
+        recorded(
+            "advisoryRuleVersion", TEXT, "The advisory eligibility rule version in effect when the event was recorded.",
+        )
+        recorded(
+            "buildMode", ENUM,
+            "Which kind of build recorded this event. Ordinary is every public build, and an ordinary " +
+                "build's protocol allowlist was empty at this version.",
+            allowedValues = buildModes,
+        )
+        recorded(
+            "operationalEvidenceApproved", BOOLEAN,
+            "Whether operational evidence was approved on this build when recorded.",
+            BOOLEAN_UNIT, BOOLEAN_VALUES,
+        )
+        recorded(
+            "masterAdvisoryEnabled", BOOLEAN, "Whether the person's master advisory opt-in was open when recorded.",
+            BOOLEAN_UNIT, BOOLEAN_VALUES,
+        )
+        recorded(
+            "deliveryAllowed", BOOLEAN, "Whether the person's delivery switch was open when recorded.",
+            BOOLEAN_UNIT, BOOLEAN_VALUES,
+        )
+        recorded(
+            "payloadSchemaVersion", INTEGER,
+            "Schema version of payloadJson's shape for this event type.", UNITLESS_COUNT,
+        )
+        add(
+            "payloadJson", JSON,
+            "Structured detail whose origin and shape depend on eventType. For ELIGIBILITY_ATTESTED: the " +
+                "four facts self-reported by the person's one manual Start action -- " +
+                "currentlySelfNoticesTensionOrArousal, choosesProtocol, exclusionsAndContraindicationsClear, " +
+                "notDrivingOperatingMachineryOrExerting -- never inferred from a sensor, Journal, or LLM. " +
+                "For a terminal event: operational delivery measurements only (delivered foreground " +
+                "duration and completed cycles), never a success, failure, or effect claim. For " +
+                "OUTCOME_WINDOW_OPENED: the window's open/close times. For " +
+                "OUTCOME_WINDOW_CLOSED_MISSING: that no compatible outcome instrument was registered, " +
+                "which is why the window closed with nothing measured -- never a negative outcome. " +
+                "\"{}\" for DISMISSED and STARTED.",
+            VariableProvenance.MIXED,
+        )
+        recorded(
+            "previousEventHash", SHA256,
+            "The preceding event's hash in this episode's chain. Empty at sequence 1.",
+        )
+        recorded("eventHash", SHA256, "This event's hash, over its own contents plus the previous hash.")
     }
 }

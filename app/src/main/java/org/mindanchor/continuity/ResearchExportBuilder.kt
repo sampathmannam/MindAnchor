@@ -10,8 +10,13 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import org.mindanchor.advisory.AdvisoryCodec
+import org.mindanchor.advisory.AdvisoryOutcomeReconciler
+import org.mindanchor.advisory.EventChainVerdict
 import org.mindanchor.backup.BackupRepository
+import org.mindanchor.data.db.AdvisoryOpportunityEntity
 import org.mindanchor.data.db.AnchorDatabase
+import org.mindanchor.data.db.InterventionEpisodeEventEntity
 import org.mindanchor.journal.ContextRecordType
 import org.mindanchor.research.EvidenceProtocolCatalog
 import org.mindanchor.research.LedgerChain
@@ -51,6 +56,8 @@ object ResearchExportBuilder {
         val passiveWindowRevisions: List<PassiveWindowRevisionDto>,
         val passiveDailyRevisions: List<PassiveDailyRevisionDto>,
         val passiveObservationDecisions: List<PassiveObservationDecisionDto>,
+        val advisoryOpportunities: List<AdvisoryOpportunityDto>,
+        val interventionEpisodeEvents: List<InterventionEpisodeEventDto>,
     )
 
     private suspend fun readRoomRows(
@@ -65,6 +72,7 @@ object ResearchExportBuilder {
         val ledger = research.ledgerEventsNow()
         afterLedgerRead()
         val passive = database.passive()
+        val advisory = database.advisory()
         RoomRows(
             entries = entries,
             contextRows = contextRows,
@@ -79,7 +87,40 @@ object ResearchExportBuilder {
             passiveWindowRevisions = passive.windowRevisionsNow().map { it.toDto() },
             passiveDailyRevisions = passive.dailyRevisionsNow().map { it.toDto() },
             passiveObservationDecisions = passive.observationDecisionsNow().map { it.toDto() },
+            advisoryOpportunities = verifiedAdvisoryOpportunities(advisory.opportunitiesNow()).map { it.toDto() },
+            interventionEpisodeEvents = verifiedInterventionEpisodeEvents(advisory.eventsNow()).map { it.toDto() },
         )
+    }
+
+    /**
+     * Every opportunity's content hash, recomputed and compared. On this
+     * device's own local Room database (not an untrusted restored backup),
+     * the only failure worth checking for is corruption, so this is a
+     * lighter check than restore's full registry/enum/payload-shape
+     * verification — see [org.mindanchor.continuity.AdvisoryRestoreVerification]
+     * for that stricter, untrusted-input case.
+     */
+    private fun verifiedAdvisoryOpportunities(
+        rows: List<AdvisoryOpportunityEntity>,
+    ): List<AdvisoryOpportunityEntity> {
+        check(rows.all { AdvisoryCodec.opportunityContentHash(it) == it.contentHash }) {
+            "an advisory opportunity's content hash does not match its recorded content; " +
+                "the export was not written"
+        }
+        return rows
+    }
+
+    /** Every episode's hash chain, verified per episode before any row is emitted. */
+    private fun verifiedInterventionEpisodeEvents(
+        rows: List<InterventionEpisodeEventEntity>,
+    ): List<InterventionEpisodeEventEntity> {
+        val chainsIntact = rows.groupBy { it.episodeId }.values.all {
+            AdvisoryCodec.verifyEpisodeChain(it) != EventChainVerdict.BROKEN
+        }
+        check(chainsIntact) {
+            "an intervention episode's hash chain is broken; the export was not written"
+        }
+        return rows
     }
 
     /** `mindanchor-research-YYYY-MM-DD.json`, from [today]'s local date (ISO-8601, e.g. "2026-08-29"). */
@@ -114,7 +155,7 @@ object ResearchExportBuilder {
      * "couldn't export the file" would be a wrong statement rather than a
      * wrong outcome.
      */
-    @Suppress("detekt.SwallowedException")
+    @Suppress("detekt.SwallowedException", "LongParameterList")
     suspend fun export(
         context: Context,
         database: AnchorDatabase,
@@ -122,6 +163,7 @@ object ResearchExportBuilder {
         now: Long = System.currentTimeMillis(),
         zone: ZoneId = ZoneId.systemDefault(),
         writeExport: (Context, Uri, String) -> Boolean = BackupRepository::write,
+        advisoryOutcomeReconciler: AdvisoryOutcomeReconciler? = null,
     ): ExportOutcome {
         val export = try {
             withContext(Dispatchers.IO) {
@@ -133,6 +175,7 @@ object ResearchExportBuilder {
                     zone = zone,
                     appVersionCode = packageInfo.longVersionCode.toInt(),
                     appVersionName = packageInfo.versionName.orEmpty(),
+                    advisoryOutcomeReconciler = advisoryOutcomeReconciler,
                 )
             }
         } catch (cancellation: CancellationException) {
@@ -171,7 +214,9 @@ object ResearchExportBuilder {
         appVersionCode: Int,
         appVersionName: String,
         afterLedgerRead: suspend () -> Unit = {},
+        advisoryOutcomeReconciler: AdvisoryOutcomeReconciler? = null,
     ): ResearchExport = withContext(Dispatchers.IO) {
+        advisoryOutcomeReconciler?.reconcile(now = now, zoneId = zone, requestCheckpoint = false)
         val rows = readRoomRows(database, afterLedgerRead)
         val entries = rows.entries
         val contextRows = rows.contextRows
@@ -230,6 +275,8 @@ object ResearchExportBuilder {
                 passiveWindowRevisions = rows.passiveWindowRevisions,
                 passiveDailyRevisions = rows.passiveDailyRevisions,
                 passiveObservationDecisions = rows.passiveObservationDecisions,
+                advisoryOpportunities = rows.advisoryOpportunities,
+                interventionEpisodeEvents = rows.interventionEpisodeEvents,
             ),
         )
     }
