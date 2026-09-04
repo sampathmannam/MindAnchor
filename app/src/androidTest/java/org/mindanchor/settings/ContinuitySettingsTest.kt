@@ -114,6 +114,18 @@ class ContinuitySettingsTest {
             }
         }
         rule.waitForIdle()
+        // On a slow/CPU-constrained CI runner, waitForIdle() settling
+        // Compose's own recomposition clock is not always enough time for
+        // the very first frame to have laid out every node — a handful of
+        // tests here saw "The component is not displayed!" for
+        // continuity_health_state despite it being unconditionally
+        // composed, never a wrong value. Polling for its actual presence
+        // (same waitForCondition pattern this class already uses for
+        // async state elsewhere) makes launch() itself the single place
+        // that absorbs that first-frame lag, rather than every caller.
+        waitForCondition {
+            rule.onAllNodesWithTag("continuity_health_state").fetchSemanticsNodes().isNotEmpty()
+        }
         return viewModel
     }
 
