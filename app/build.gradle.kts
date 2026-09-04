@@ -379,12 +379,12 @@ android {
         //   versionCode 96→97.
         versionCode = 97
         versionName = "0.72.1"
-        // MindAnchorTestRunner puts WorkManager into synchronous test mode
-        // for the whole instrumented suite — see that class's KDoc: without
-        // it, any test that writes through a real repository enqueues a
-        // real background CheckpointBackupWorker/NightlySnapshotWorker
-        // that can still be running after its own test method returns,
-        // corrupting ContinuitySettingsTest's on-disk state mid-run.
+        // MindAnchorTestRunner puts WorkManager into test mode for the
+        // whole instrumented suite — see that class's KDoc for why:
+        // without it, a test that writes through a real repository
+        // incidentally enqueues a real CheckpointBackupWorker that can
+        // execute on a real background thread and corrupt
+        // ContinuitySettingsTest's on-disk state mid-run.
         testInstrumentationRunner = "org.mindanchor.MindAnchorTestRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every
