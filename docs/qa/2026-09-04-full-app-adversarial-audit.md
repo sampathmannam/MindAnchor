@@ -118,6 +118,138 @@ pre-existing tests still pass.
 
 ---
 
+## Round 4 — 4 defects, all fixed
+
+Round 4 also turned up a defect in the **audit driver itself**, which matters for reading
+everything above: `uiautomator dump` switches an attribute to single quotes when its value
+contains a double quote, and the driver only parsed double-quoted attributes. Any on-screen text
+containing a `"` was invisible to it. Exactly six strings in the app contain one, and none of them
+underpinned a finding in Rounds 1–3, so no earlier conclusion changes — but the blind spot did
+hide two settings surfaces (see R4-02..04), and it produced one false positive that a screenshot
+refuted (the onboarding plan *does* render its "Add a pause" line; the driver could not see it).
+The driver now parses both quote styles, all node elements rather than only self-closing ones,
+and unescapes XML entities.
+
+### R4-01 — "Add a pause before opening" was silently dropped by backup
+
+**Where:** Settings → This phone → Save a copy… / Restore from a copy…
+(`BackupRepository`, `app/src/main/java/org/mindanchor/backup/BackupRepository.kt`)
+
+Found by diffing a saved backup against the friction DataStore on the device: the file said
+`"frictioned": []` while the device held `flagged_packages: com.google.android.deskclock`.
+
+`BackupCodec.Backup` has carried a `frictioned` field since the format was written, and the
+continuity-snapshot path restores the same set through `FrictionPrefs.replaceFlagged`. The
+user-facing backup never joined up: export hardcoded `frictioned = emptyList()` and import ignored
+the field. Restoring on a new phone returned favorites, hidden apps, renames, plan, people,
+check-ins and readings — while every pause quietly vanished, from a file that positively asserted
+there were none.
+
+**Fix:** export reads the flagged set; import restores it the way the other launcher preferences
+restore, with one exception — an empty list leaves the phone alone, because every copy saved by a
+build that hardcoded the empty list says `[]`, and an unconditional replace would delete the pauses
+of the person doing the restoring.
+
+**Verified:** 3 new instrumented tests; the export and import ones fail against the old code. On
+device the backup now writes `"frictioned": ["com.google.android.deskclock"]`.
+
+### R4-02..04 — a line break split one of the person's phrases into two
+
+**Where:** Settings → Pauses → "Small things that help" and "Self-compassion micro-moments", and
+the bedtime list. (`SmallThings`, `CompassionMoment`, `BedtimeList`)
+
+All three store one item per line and none stripped a line break out of the item first, so a
+phrase carrying one came back as two half-sentences. These lists are explicitly *"their words
+only; never the launcher's"*, which makes quietly rewriting them the wrong failure. Each codec's
+comment had already reasoned about stray newlines — but only far enough to stop them producing an
+*empty* item; splitting a real one was not considered.
+
+`Note.encode` already gets this right by base64-ing its body, which is why quick notes were never
+affected — the codebase's own correct pattern.
+
+**Fix:** normalise on the way in (`add`) and again in `encode`. Entry normalisation keeps the
+in-memory list, its dedupe and its cap agreeing with disk; `encode` is the format guarantee for
+`setBedtimeList`, which takes a whole list and has no add path.
+
+**Verified:** 7 new tests, all red against the old code.
+
+### Verified working in Round 4
+
+- Friction gate end to end: breath → intention → time box → the app opens. The 5-minute box
+  scheduled a real `SESSION_EXPIRED` alarm at exactly +5 minutes. "never mind" cancels without
+  opening.
+- Hide / unhide: hiding removes an app from the drawer and from partial search ("chro" → nothing)
+  while an exact-name query still finds it — matching the documented design, *"hiding reduces cues
+  without deleting access."* Unhide restores it to partial search.
+- Rename: reset, rename, persistence across a force-stop, and one well-formed row on disk.
+- Add to home / Remove from home, including the menu label flipping correctly.
+- Camera PPG: permission gate, live countdown, and — with no real finger signal — the reading was
+  **discarded rather than saved** ("too noisy to trust"), with the session still logged for
+  transparency. Backgrounding mid-capture released both the camera and the torch.
+- Onboarding round-trip: selections persist and drive the generated plan.
+
+---
+
+## Round 5 — 1 crash, reported and NOT fixed
+
+### R5-01 — the launcher can be killed by Android's long-screenshot capture
+
+**Evidence:** `FATAL EXCEPTION: main`, `java.lang.IllegalStateException: LayoutNode should be
+attached to an owner`, killing the MindAnchor process (`Process org.mindanchor (pid 8326) has
+died: fg TOP`).
+
+**Why this is not fixed here:** every frame in the stack is inside `androidx.compose.ui` —
+
+```
+androidx.compose.ui.node.LayoutNodeKt.requireOwner(LayoutNode.kt:1561)
+androidx.compose.ui.node.NodeCoordinator.draw(NodeCoordinator.kt:439)
+androidx.compose.ui.scrollcapture.ComposeScrollCaptureCallback
+    .onScrollCaptureImageRequest(ComposeScrollCaptureCallback.android.kt:169)
+```
+
+There is no MindAnchor frame anywhere in it. This is Compose's scroll-capture callback (the
+Android 14 "capture more" long screenshot) drawing a `LayoutNode` that was detached between the
+capture request and the draw. The app is running Compose UI **1.7.6** (BOM 2024.12.01).
+
+It matters more here than in most apps: MindAnchor *is* the launcher, so this crash takes out the
+home screen.
+
+**Frequency:** once in roughly 10,000 monkey events. It did not reproduce on a same-seed replay
+(monkey's stream depends on UI state, so the seed does not replay the sequence), nor on deliberate
+attempts to trigger scroll capture from the screenshot UI — the emulator did not offer "Capture
+more" on any MindAnchor screen.
+
+**The options, none taken unilaterally:**
+1. Upgrade the Compose BOM — the real fix, but a minor-version jump under a large Compose UI.
+   (This repo has no `gradle/verification-metadata.xml`, so no checksum regeneration is involved.)
+2. `window.decorView.scrollCaptureHint = View.SCROLL_CAPTURE_HINT_EXCLUDE` — three lines that
+   remove the crash surface, at the cost of long screenshots app-wide. For a journal, that is a
+   real loss, not an obvious win.
+3. Accept and track it.
+
+A dependency bump and a deliberate capability removal are both product calls, so this is reported
+rather than decided.
+
+### The ANR seen alongside it
+
+`ANR in org.mindanchor ... Reason: Input dispatching timed out (Application does not have a
+focused window)` — on the **restarted** process (a different PID), while `/proc/pressure/cpu`
+showed `some avg10=70.44` and load 11.74. A window-restore after a crash under that much CPU
+pressure is an environment artifact, not a second defect.
+
+### Verified working in Round 5
+
+- The Round 1 dead-control fixes hold on device: the morning self-compassion card goes from
+  present to gone on "Begin" (card count 1 → 0).
+- Small things and self-compassion phrases: add, list, remove, and HMAC-sealed persistence
+  (`v1 | small_things | <items> | <MAC>`) all correct.
+- Journal (Today / Entries / Patterns), Letter, Check-in history and Digest all open with correct
+  empty states.
+- Monkey: 2000 events clean, then 2500, 1500 and 1500 more across three further seeds — one crash
+  total, the framework one above.
+
+---
+
 ## Cumulative "verified working"
 
 - Onboarding, all three steps, including that selections actually drive the generated plan.
