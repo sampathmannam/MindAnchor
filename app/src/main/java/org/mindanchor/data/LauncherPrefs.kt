@@ -48,13 +48,7 @@ class LauncherPrefs(private val context: Context) {
 
     /** Map of component -> user-chosen label. */
     val renames: Flow<Map<String, String>> = context.dataStore.data.map { prefs ->
-        (prefs[renamesKey] ?: "")
-            .lineSequence()
-            .mapNotNull { line ->
-                val idx = line.indexOf('\t')
-                if (idx <= 0) null else line.substring(0, idx) to line.substring(idx + 1)
-            }
-            .toMap()
+        RenameRows.decode(prefs[renamesKey])
     }
 
     suspend fun toggleFavorite(component: String) {
@@ -98,24 +92,13 @@ class LauncherPrefs(private val context: Context) {
 
     suspend fun replaceRenames(renames: Map<String, String>) {
         context.dataStore.edit { prefs ->
-            prefs[renamesKey] = renames.entries
-                .filter { it.key.isNotBlank() && it.value.isNotBlank() }
-                // A tab or newline in a label would corrupt the next read,
-                // and a rename comes from a text field the user controls.
-                .joinToString("\n") { "${it.key}\t${it.value.replace('\t', ' ').replace('\n', ' ')}" }
+            prefs[renamesKey] = RenameRows.encode(renames)
         }
     }
 
     suspend fun rename(component: String, label: String?) {
         context.dataStore.edit { prefs ->
-            val current = (prefs[renamesKey] ?: "")
-                .lineSequence()
-                .filter { it.isNotBlank() && !it.startsWith("$component\t") }
-                .toMutableList()
-            if (!label.isNullOrBlank()) {
-                current += "$component\t$label"
-            }
-            prefs[renamesKey] = current.joinToString("\n")
+            prefs[renamesKey] = RenameRows.upsert(prefs[renamesKey], component, label)
         }
     }
 
@@ -189,4 +172,52 @@ class LauncherPrefs(private val context: Context) {
         /** Long enough for a sentence, short enough not to become a project. */
         const val MAX_ONE_THING_LENGTH = 140
     }
+}
+
+/**
+ * The wire format for the renames map: newline-delimited `component\tlabel`
+ * rows.
+ *
+ * Labels come from a text field the person controls, so every writer has to
+ * strip the two characters the format is built out of. A stray newline in a
+ * label does not just mangle that label — the reader splits on it, so the
+ * tail becomes its own row and renames whatever component it happens to name.
+ * That invariant used to live in a comment on the restore path while the path
+ * that actually carries typed text wrote the label through unchanged, so it is
+ * enforced in one place now and both writers go through it.
+ *
+ * `\r` counts: [lineSequence] treats a lone carriage return as a terminator
+ * too, so sanitizing only `\n` leaves the same hole open.
+ */
+internal object RenameRows {
+
+    fun decode(stored: String?): Map<String, String> =
+        (stored ?: "")
+            .lineSequence()
+            .mapNotNull { line ->
+                val idx = line.indexOf('\t')
+                if (idx <= 0) null else line.substring(0, idx) to line.substring(idx + 1)
+            }
+            .toMap()
+
+    fun encode(renames: Map<String, String>): String =
+        renames.entries
+            .filter { it.key.isNotBlank() && sanitize(it.value).isNotBlank() }
+            .joinToString("\n") { "${it.key}\t${sanitize(it.value)}" }
+
+    /** Replace [component]'s row, or drop it when [label] is blank. */
+    fun upsert(stored: String?, component: String, label: String?): String {
+        val rows = (stored ?: "")
+            .lineSequence()
+            .filter { it.isNotBlank() && !it.startsWith("$component\t") }
+            .toMutableList()
+        val clean = label?.let { sanitize(it) }
+        if (!clean.isNullOrBlank()) {
+            rows += "$component\t$clean"
+        }
+        return rows.joinToString("\n")
+    }
+
+    private fun sanitize(label: String): String =
+        label.replace('\t', ' ').replace('\n', ' ').replace('\r', ' ')
 }

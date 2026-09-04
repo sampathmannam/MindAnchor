@@ -43,20 +43,37 @@ object LetterLedger {
 
     fun encode(letters: List<Letter>): String =
         letters.joinToString(separator = "\n", postfix = "\n") { letter ->
-            val base = "${letter.date}\t${letter.body.replace("\n", " ")}"
+            val base = "${letter.date}\t${flatten(letter.body)}"
             if (letter.provider == null) {
                 base // pre-v0.25.7 shape
             } else {
                 listOf(
                     base,
-                    letter.provider,
-                    letter.model.orEmpty(),
+                    flatten(letter.provider),
+                    flatten(letter.model.orEmpty()),
                     letter.promptTokens?.toString().orEmpty(),
                     letter.completionTokens?.toString().orEmpty(),
                     letter.durationMs?.toString().orEmpty(),
                 ).joinToString(separator = "\t")
             }
         }
+
+    /**
+     * Flatten a field onto one row.
+     *
+     * Every character this format is built out of has to go: a tab
+     * would add a column, so the reader would truncate the body there
+     * and read the tail back as the `provider`/`model`/token columns —
+     * inventing metadata the letter never had. A newline, or the lone
+     * carriage return [lineSequence] also treats as a terminator, would
+     * end the row early and drop the remainder as an undated line.
+     *
+     * A letter body is LLM output or text the person typed into the BA
+     * prompt, so all three arrive in practice; the fields around it come
+     * from an API response for the same reason.
+     */
+    private fun flatten(field: String): String =
+        field.replace('\t', ' ').replace('\n', ' ').replace('\r', ' ')
 
     fun decode(raw: String): List<Letter> = raw.lineSequence()
         .mapNotNull(::decodeLine)
