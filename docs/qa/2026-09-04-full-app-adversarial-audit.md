@@ -250,6 +250,75 @@ pressure is an environment artifact, not a second defect.
 
 ---
 
+## Round 6 — clean
+
+- **Backup/restore, the whole loop, through the UI.** Configured a pause on Clock → saved a copy →
+  removed the pause → restored from that copy. The screen said "Restored.",
+  `flagged_packages` came back as `com.google.android.deskclock`, and tapping Clock **fired the
+  gate** ("What are you opening Clock for?"). That closes R4-01 end to end.
+- Quiet, Reading and Your plan settings groups all render correctly.
+- Daily-letter time picker: 08:00 → 07:30, with the UI and `letters_time` in DataStore agreeing.
+- "Generate now" with no API key degrades gracefully to the provider-setup section — no error, no
+  crash.
+- Monkey: 2 seeds × 2000 events. Zero crashes, zero ANRs, zero process deaths.
+
+## Round 7 — clean
+
+- **R1-04 finally device-verified.** The expressive-writing card was marked "device-verify
+  pending" back in Round 1 because it needed its toggle on. Tapping "Not now" now takes the card
+  from present to gone.
+- Home scene picker: all four scenes selectable, `nature_scene: FOREST` persisted, and a
+  screenshot confirms the home surface actually renders it.
+- Journal: entry written and saved, appears verbatim under Entries, and Patterns reports
+  "Days written: 1 / Words written: 8" — 8 being the correct count for the sentence written.
+- Draft recovery works: text the monkey typed into the journal survived as a draft.
+- "Re-classify all notes": confirmation dialog, then the work is queued (scheduled jobs 31 → 74).
+- Monkey: 3 seeds × 2000 events, plus two replays. Zero crashes, zero process deaths.
+
+### The Round 7 ANRs, and why they are not defects
+
+Two seeds reported `ANR in org.mindanchor`. The first instinct — host load — turned out to be
+wrong: a replay reproduced one at **load 4.45 with `/proc/pressure/memory some avg10=0.00`**, so
+it was worth taking seriously.
+
+What it actually is:
+
+- The reason is specifically *"Input dispatching timed out (**Application does not have a focused
+  window**)"*.
+- At the moment of the ANR the focused window was **`NotificationShade`** — the monkey had pulled
+  down the system shade.
+- The app's **PID was identical before and after** (15563), and it responded to `am start`
+  immediately, rendering the screen it had been on.
+
+So the main thread was never blocked. The monkey opened a system window and then kept injecting
+input aimed at MindAnchor, which by then had no focused window; Android attributes that timeout to
+the app underneath. A person pulling down the shade does not do the second half of that. No
+`FATAL EXCEPTION`, no process death, no hang.
+
+---
+
+## Stopping condition
+
+The brief was to keep going until two consecutive rounds found nothing. Rounds 6 and 7 were both
+clean, so the audit stops here.
+
+| Round | Defects | Status |
+|-------|---------|--------|
+| 1 | 6 | fixed (`1eafd9b`) |
+| 2 | 0 | clean |
+| 3 | 2 | fixed (`2ef25b8`) |
+| 4 | 4 | fixed (`c65056a`, `22e05a7`) |
+| 5 | 1 | **open** — framework crash, see R5-01 |
+| 6 | 0 | clean |
+| 7 | 0 | clean |
+
+12 defects found, 12 fixed in app code; 1 framework crash reported and left for a decision.
+
+Monkey coverage across the whole audit: **over 25,000 pseudo-random events**, producing exactly
+one MindAnchor crash — R5-01, inside Compose.
+
+---
+
 ## Cumulative "verified working"
 
 - Onboarding, all three steps, including that selections actually drive the generated plan.
