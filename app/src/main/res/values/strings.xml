@@ -769,6 +769,10 @@
     <string name="osmode_not_provisioned">This needs the guardian setup above first. Once that is granted, the switch appears here.</string>
     <string name="osmode_toggle">Close feed apps through the quiet hours</string>
     <string name="osmode_armed_note">Armed. Your quiet hours run %1$s – %2$s.</string>
+    <!-- T-1.3: what OS Mode has actually closed right now. Descriptive
+         only \u2014 a count and a list, never a score or a congratulation. -->
+    <string name="osmode_suspended_now">Closed right now: %1$s.</string>
+    <string name="osmode_suspended_none">Nothing is closed right now.</string>
     <string name="osmode_available_note">Ready when you are. Your quiet hours run %1$s – %2$s.</string>
 
     <string name="grayscale_section">Colour</string>

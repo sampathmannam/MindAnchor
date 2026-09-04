@@ -80,11 +80,35 @@ object DeviceOwner {
             self = context.packageName,
             alsoNeverSuspend = alwaysOpen,
         )
-        if (safe.isNotEmpty()) {
-            manager.setPackagesSuspended(component(context), safe.toTypedArray(), true)
+        if (safe.isEmpty()) {
+            emptyList()
+        } else {
+            actuallySuspended(
+                requested = safe,
+                refused = manager.setPackagesSuspended(component(context), safe.toTypedArray(), true),
+            )
         }
-        safe
     }.getOrDefault(emptyList())
+
+    /**
+     * What the system actually closed, out of what was asked.
+     *
+     * `setPackagesSuspended` returns the packages whose suspended state it
+     * could **not** set -- most often because they are not installed. That
+     * return used to be discarded and the whole request recorded as
+     * applied, which made the stored set claim more than had happened. The
+     * default feed list is seven popular apps, so a phone missing some of
+     * them is the ordinary case; and T-1.3 now shows this set to the
+     * person, so it has to be true rather than merely intended.
+     *
+     * A null return is treated as complete success: the platform documents
+     * an array, but this is an API boundary and a null must not erase a
+     * result that did happen.
+     */
+    fun actuallySuspended(requested: List<String>, refused: Array<String>?): List<String> {
+        val failed = refused?.toSet().orEmpty()
+        return requested.filterNot { it in failed }
+    }
 
     /** Lifts every suspension this app applied. */
     fun clear(context: Context, previously: Set<String>): Boolean = runCatching {

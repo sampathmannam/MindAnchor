@@ -25,6 +25,7 @@ import org.mindanchor.R
 import org.mindanchor.admin.DeviceOwner
 import org.mindanchor.admin.OsMode
 import org.mindanchor.admin.OsModePrefs
+import org.mindanchor.friction.CompassionateWrapNotifier
 import org.mindanchor.admin.OsModeState
 import org.mindanchor.data.SunsetPrefs
 import java.time.format.DateTimeFormatter
@@ -56,9 +57,19 @@ fun OsModeSection(
 ) {
     val context = LocalContext.current
 
+    val prefs = remember { OsModePrefs(context) }
+
     var enabled by remember { mutableStateOf(false) }
     LaunchedEffect(permissionEpoch) {
-        enabled = runCatching { OsModePrefs(context).isEnabled() }.getOrDefault(false)
+        enabled = runCatching { prefs.isEnabled() }.getOrDefault(false)
+    }
+
+    // Collected rather than read once: sync() writes the applied set after
+    // the switch moves, so a one-shot read keyed on permissionEpoch would
+    // still be showing "nothing is closed" while apps were already closed.
+    val applied by prefs.applied.collectAsState(initial = emptySet())
+    val suspendedNow = remember(applied) {
+        OsMode.suspendedNow(applied) { CompassionateWrapNotifier.labelFor(context, it) }
     }
 
     Column(
@@ -86,8 +97,9 @@ fun OsModeSection(
                 modifier = Modifier.padding(top = 4.dp),
             )
         } else {
-            OsModeArmedRow(enabled = enabled)
+            OsModeArmedRow(enabled = enabled, onEnabledChange = { enabled = it })
             OsModeWindowNote(enabled = enabled)
+            OsModeSuspendedNow(suspended = suspendedNow)
             Text(
                 text = stringResource(R.string.osmode_leaving),
                 style = MaterialTheme.typography.bodySmall,
@@ -97,10 +109,33 @@ fun OsModeSection(
     }
 }
 
+/**
+ * T-1.3 -- the half of the status the person could not see before: which
+ * apps OS Mode has actually closed at this moment.
+ *
+ * Stated either way round. "Nothing is closed right now" is as much a
+ * status as a list is, and leaving it out would make an armed-but-idle
+ * window look identical to a broken one. Descriptive only: a list, never
+ * a count-as-score and never congratulation (R6).
+ */
+@Suppress("FunctionNaming") // @Composable: PascalCase is the Compose convention.
+@Composable
+private fun OsModeSuspendedNow(suspended: List<String>) {
+    Text(
+        text = if (suspended.isEmpty()) {
+            stringResource(R.string.osmode_suspended_none)
+        } else {
+            stringResource(R.string.osmode_suspended_now, suspended.joinToString(", "))
+        },
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
 /** The grants copy and the switch itself. Flipping applies immediately. */
 @Suppress("FunctionNaming") // @Composable: PascalCase is the Compose convention.
 @Composable
-private fun OsModeArmedRow(enabled: Boolean) {
+private fun OsModeArmedRow(enabled: Boolean, onEnabledChange: (Boolean) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -122,6 +157,12 @@ private fun OsModeArmedRow(enabled: Boolean) {
             Switch(
                 checked = enabled,
                 onCheckedChange = { checked ->
+                    // A Switch renders whatever `checked` says, so the new
+                    // value has to reach the state driving it. Writing only
+                    // to prefs left the two disagreeing after one tap, and
+                    // every later tap re-sent the stale value -- the switch
+                    // could not be moved twice without leaving Settings.
+                    onEnabledChange(checked)
                     scope.launch {
                         // Write first, then sync: apply (or lift) immediately
                         // rather than waiting for the next alarm — a switch

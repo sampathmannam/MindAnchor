@@ -1819,7 +1819,7 @@ private fun HomeSurface(
             )
         }
 
-    val context = LocalContext.current
+        val context = LocalContext.current
 
         // v0.20.1 round 5: notes + check-in history
         // entry points. TopEnd, so neither collides

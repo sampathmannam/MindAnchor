@@ -2,6 +2,7 @@ package org.mindanchor.admin
 
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
 /**
  * Finding tests pinning the OS Mode wiring (master plan T-1.1/T-1.2),
@@ -92,5 +93,29 @@ class OsModeWiringFindingTest {
                 strings.contains("name=\"$key\""),
             )
         }
+    }
+
+    @Test
+    fun `the OS Mode switch reports its new state back, not only to prefs`() {
+        // A Compose Switch is fully controlled: it renders whatever
+        // `checked` says. The first version wrote the new value to
+        // OsModePrefs but never updated the state driving `checked`, so
+        // after one tap the control and the store disagreed -- every
+        // further tap re-sent the stale value and the switch could not be
+        // turned back on without leaving and re-entering Settings.
+        // Reproduced on device: three taps, switch stuck at checked=true,
+        // stored value stuck at false.
+        val source = File("src/main/java/org/mindanchor/settings/OsModeSection.kt")
+            .readText(Charsets.UTF_8)
+        val row = source.substringAfter("private fun OsModeArmedRow")
+        assertTrue(
+            "OsModeArmedRow must hoist the new value back to its caller",
+            row.contains("onEnabledChange"),
+        )
+        val handler = row.substringAfter("onCheckedChange = { checked ->").substringBefore("}")
+        assertTrue(
+            "onCheckedChange must report the new state, or the switch cannot move twice",
+            handler.contains("onEnabledChange(checked)"),
+        )
     }
 }

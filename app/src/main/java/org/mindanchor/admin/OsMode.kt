@@ -81,6 +81,25 @@ object OsMode {
     ): Boolean = osModeEnabled && sunsetEnabled && insideWindow && !earlyReleaseActive
 
     /**
+     * The apps OS Mode has closed right now, ready to read.
+     *
+     * The applied set is written by every sync and, until this existed,
+     * read by nothing: the person could be told the feature was armed but
+     * never which apps it had actually shut. Pure, so the ordering and the
+     * uninstalled-app case are testable without a PackageManager.
+     *
+     * Sorted case-insensitively because a Set has no order worth relying
+     * on, and a list that reshuffles between openings reads as churn
+     * rather than as status. A package that no longer resolves keeps its
+     * raw name rather than disappearing -- dropping it would claim the
+     * launcher had closed one thing fewer than it did.
+     */
+    fun suspendedNow(applied: Set<String>, label: (String) -> String): List<String> =
+        applied.filter { it.isNotBlank() }
+            .map(label)
+            .sortedBy { it.lowercase() }
+
+    /**
      * The moment the current window opened, given where we are now.
      *
      * Needed because the early-release marker is keyed to "this window":
