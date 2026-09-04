@@ -7,8 +7,10 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import org.mindanchor.corpus.CorpusImport
 import org.mindanchor.corpus.CorpusStore
+import org.mindanchor.data.FrictionPrefs
 import org.mindanchor.data.LauncherPrefs
 import org.mindanchor.data.db.AnchorDatabase
+import org.mindanchor.data.replaceFlagged
 import org.mindanchor.model.MomentStore
 import org.mindanchor.support.RoomSafetyPlanStore
 import org.mindanchor.support.SafetyPlanSaveResult
@@ -40,6 +42,7 @@ class BackupRepository internal constructor(
     )
 
     private val prefs = LauncherPrefs(context)
+    private val friction = FrictionPrefs(context)
 
     suspend fun export(now: Long): String = withContext(Dispatchers.IO) {
         val plan = db.safety().plan().first() ?: org.mindanchor.data.db.SafetyPlan()
@@ -51,7 +54,7 @@ class BackupRepository internal constructor(
                 pulses = db.pulses().history().first().map(BackupCodec::pulseOf),
                 favorites = prefs.favorites.first(),
                 hidden = prefs.hidden.first().toList().sorted(),
-                frictioned = emptyList(),
+                frictioned = friction.flaggedApps.first().toList().sorted(),
                 renames = prefs.renames.first(),
                 checkIns = MomentStore(context).moments.first().map(BackupCodec::checkInOf),
                 readings = MeasuredStore(context).all().map(BackupCodec::readingOf),
@@ -92,6 +95,8 @@ class BackupRepository internal constructor(
         prefs.replaceFavorites(backup.favorites)
         prefs.replaceHidden(backup.hidden.toSet())
         prefs.replaceRenames(backup.renames)
+
+        restoreFrictioned(backup)
 
         // Check-ins: additive, de-duplicated by day and minute. The label
         // history is the slowest data in the app to accumulate, so
@@ -144,6 +149,20 @@ class BackupRepository internal constructor(
             }
         }
         true
+    }
+
+    /**
+     * The pauses restore like the other launcher preferences: the file wins
+     * outright rather than merging.
+     *
+     * The empty case is the exception. Every copy saved before the export
+     * carried this field says `"frictioned": []`, so replacing with it would
+     * delete the pauses belonging to the phone doing the restoring.
+     */
+    private suspend fun restoreFrictioned(backup: BackupCodec.Backup) {
+        if (backup.frictioned.isNotEmpty()) {
+            friction.replaceFlagged(backup.frictioned.toSet())
+        }
     }
 
     companion object {
