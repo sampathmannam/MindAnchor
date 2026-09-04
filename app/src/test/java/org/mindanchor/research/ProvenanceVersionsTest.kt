@@ -1,0 +1,122 @@
+package org.mindanchor.research
+
+import java.lang.reflect.Modifier
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
+import org.junit.Test
+import org.mindanchor.advisory.AdvisoryPolicy
+import org.mindanchor.continuity.ContinuityContract
+import org.mindanchor.intelligence.PassiveEstimator
+
+/**
+ * Program 2A Task 5 — the provenance version vector is everything that
+ * could change how a record is produced or interpreted. A difference in
+ * any component opens a new study phase, which is the mechanism behind the
+ * design's rule that historical decisions are never silently
+ * reinterpreted.
+ */
+class ProvenanceVersionsTest {
+
+    private fun vector() = ProvenanceVersions.vector(
+        appVersionCode = 95,
+        appVersionName = "0.71.0",
+        sourceDeviceId = "device-a",
+    )
+
+    @Test
+    fun `the passive intelligence rule and model versions are registered`() {
+        assertEquals("passive-observation-rules-v6", PassiveEstimator.RULE_VERSION)
+        assertEquals(PassiveEstimator.RULE_VERSION, ProvenanceVersions.PASSIVE_RULE_SET_VERSION)
+        assertEquals("personal-robust-baseline-v4", ProvenanceVersions.MODEL_SET_VERSION)
+    }
+
+    @Test
+    fun `rule vector keeps passive and advisory versions separately`() {
+        val encoded = RuleSetVersionVector.encode(
+            passive = PassiveEstimator.RULE_VERSION,
+            advisory = AdvisoryPolicy.RULE_VERSION,
+        )
+        assertEquals(
+            "rule-version-vector-v1|passive=${PassiveEstimator.RULE_VERSION}|advisory=advisory-opportunity-v1",
+            encoded,
+        )
+        assertEquals(PassiveEstimator.RULE_VERSION, RuleSetVersionVector.passive(encoded))
+        assertEquals("advisory-opportunity-v1", RuleSetVersionVector.advisory(encoded))
+    }
+
+    @Test
+    fun `legacy phase rule value remains a passive-only value`() {
+        assertEquals("passive-observation-v4", RuleSetVersionVector.passive("passive-observation-v4"))
+        assertNull(RuleSetVersionVector.advisory("passive-observation-v4"))
+    }
+
+    @Test
+    fun `the shipped rule set version is the composite vector`() {
+        // The stored component is what a later reader has to be able to
+        // recover: a phase opened by this build must still answer "which
+        // passive rules ran?" without the reader knowing the vector shape.
+        assertEquals(
+            RuleSetVersionVector.encode(
+                passive = ProvenanceVersions.PASSIVE_RULE_SET_VERSION,
+                advisory = ProvenanceVersions.ADVISORY_RULE_SET_VERSION,
+            ),
+            ProvenanceVersions.RULE_SET_VERSION,
+        )
+        assertEquals(
+            PassiveEstimator.RULE_VERSION,
+            RuleSetVersionVector.passive(ProvenanceVersions.RULE_SET_VERSION),
+        )
+        assertEquals(
+            AdvisoryPolicy.RULE_VERSION,
+            RuleSetVersionVector.advisory(ProvenanceVersions.RULE_SET_VERSION),
+        )
+    }
+
+    @Test
+    fun `the vector reads its components from the things that own them`() {
+        val vector = vector()
+        assertEquals(EvidenceProtocolCatalog.registry.catalogSha256, vector.protocolCatalogSha256)
+        assertEquals(TransformationRegistry.setVersion, vector.transformationSetVersion)
+        assertEquals(MissingDataPolicy.VERSION, vector.missingDataPolicyVersion)
+        assertEquals(MorningMeasure.INSTRUMENT_VERSION, vector.instrumentVersion)
+        assertEquals(ContinuityContract.RESEARCH_DICTIONARY_VERSION, vector.dictionaryVersion)
+        assertEquals(ProvenanceVersions.RULE_SET_VERSION, vector.ruleSetVersion)
+        assertEquals(ProvenanceVersions.MODEL_SET_VERSION, vector.modelSetVersion)
+        assertEquals(95, vector.appVersionCode)
+        assertEquals("0.71.0", vector.appVersionName)
+        assertEquals("device-a", vector.sourceDeviceId)
+    }
+
+    @Test
+    fun `the vector is a pure function of its arguments`() {
+        assertEquals(vector(), vector())
+    }
+
+    @Test
+    fun `changing any single component changes the vector`() {
+        val base = vector()
+        val mutations: List<Pair<String, ProvenanceVector>> = listOf(
+            "appVersionCode" to base.copy(appVersionCode = 96),
+            "appVersionName" to base.copy(appVersionName = "0.72.0"),
+            "protocolCatalogSha256" to base.copy(protocolCatalogSha256 = "other"),
+            "ruleSetVersion" to base.copy(ruleSetVersion = "rule-set-sunset-v1"),
+            "modelSetVersion" to base.copy(modelSetVersion = "model-set-baseline-v1"),
+            "transformationSetVersion" to base.copy(transformationSetVersion = "other"),
+            "missingDataPolicyVersion" to base.copy(missingDataPolicyVersion = "not-a-real-policy-version"),
+            "instrumentVersion" to base.copy(instrumentVersion = "morning-v2"),
+            "dictionaryVersion" to base.copy(dictionaryVersion = "mindanchor-research-v9"),
+            "sourceDeviceId" to base.copy(sourceDeviceId = "device-b"),
+        )
+        assertEquals(
+            "every declared component must be covered by a mutation",
+            ProvenanceVector::class.java.declaredFields.count {
+                !it.isSynthetic && !Modifier.isStatic(it.modifiers)
+            },
+            mutations.size,
+        )
+        mutations.forEach { (component, mutated) ->
+            assertNotEquals("changing $component must change the vector", base, mutated)
+        }
+    }
+}

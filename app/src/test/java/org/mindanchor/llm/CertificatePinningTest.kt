@@ -79,13 +79,13 @@ class CertificatePinningTest {
     }
 
     @Test
-    fun `google hosts pin the verified WR2 issuer and GTS Root R1 fallback`() {
+    fun `google hosts pin the verified WE2 issuer and GTS Root R4 fallback`() {
         val pinner = CertificatePinning.forBaseUrl("https://generativelanguage.googleapis.com/v1beta/openai/")
         val pins = pinner!!.findMatchingPins("generativelanguage.googleapis.com").map { it.toString() }.toSet()
         assertEquals(
             setOf(
-                "sha256/YPtHaftLw6/0vnc2BnNKGF54xiCA28WFcccjkA4ypCM=",
-                "sha256/hxqRlPTu1bMS/0DITB1SSu0vd4u/8l8TjPgfaAp63Gc=",
+                "sha256/vh78KSg1Ry4NaqGDV10w/cTb9VH3BQUZoCWNa93W/EY=",
+                "sha256/mEflZT5enoR1FuXLgYYGqnVEoZvmf9c2bVBpiOjYQ0c=",
             ),
             pins,
         )

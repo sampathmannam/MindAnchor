@@ -39,6 +39,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -60,6 +61,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import org.mindanchor.anchorcore.SunsetProposal
 import org.mindanchor.friction.CompassionateWrapNotifier
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
@@ -87,7 +91,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Date
 
-private enum class LauncherSurface { Home, Drawer, Settings, Ppg, Report, Letter, HealthyDefaults }
+private enum class LauncherSurface { Home, Drawer, Settings, Ppg, Report, Letter, HealthyDefaults, Advisory }
 
 /**
  * v0.20.9: Modifier extension that auto-scrolls the nearest
@@ -269,6 +273,30 @@ fun LauncherRoot(
     // exposed as [viewModel.letterWriteState].
     val letterWriteState by viewModel.letterWriteState.collectAsState()
 
+    // Program 3 (adaptive protocol delivery): a dedicated ViewModel,
+    // never sharing state with [viewModel] above. onResume closes due
+    // outcome windows and materializes today's opportunity; onBackground
+    // is the ON_STOP half — it dispatches exactly one terminal write for
+    // whatever episode is currently running, synchronously at the
+    // ViewModel boundary, because ON_STOP cannot wait for a suspend
+    // function to finish.
+    val advisoryViewModel: org.mindanchor.advisory.AdvisoryViewModel = viewModel(
+        factory = org.mindanchor.advisory.AdvisoryViewModel.factory(context.applicationContext),
+    )
+    val advisoryUiState by advisoryViewModel.uiState.collectAsState()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, advisoryViewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> advisoryViewModel.onResume()
+                Lifecycle.Event.ON_STOP -> advisoryViewModel.onBackground()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     // Pressing home while deep in the drawer or settings must land on the
     // home surface — otherwise the launcher "sticks" wherever you left it.
     LaunchedEffect(goHomeSignal) {
@@ -304,7 +332,20 @@ fun LauncherRoot(
     // settings screen — every prior version did, which
     // is why the section index used to disappear on
     // the way out.
-    BackHandler(enabled = (surface != LauncherSurface.Home && surface != LauncherSurface.Settings) || gateFor != null) {
+    //
+    // Advisory is excluded the same way: its own
+    // [AdvisoryScreen] owns a [BackHandler] that first
+    // consumes Back into stopping an active episode or
+    // stepping Evidence back to the card, via
+    // [AdvisoryViewModel.onBack], before ever falling
+    // through to leaving the surface.
+    BackHandler(
+        enabled = (
+            surface != LauncherSurface.Home &&
+                surface != LauncherSurface.Settings &&
+                surface != LauncherSurface.Advisory
+            ) || gateFor != null,
+    ) {
         gateFor = null
         surface = LauncherSurface.Home
         viewModel.onQueryChange("")
@@ -473,6 +514,18 @@ fun LauncherRoot(
                     letterCameFrom = LauncherSurface.Home
                     surface = LauncherSurface.Letter
                 },
+                // Task 6 (Program 0 continuity): route to the standalone
+                // Journal experience (Today / Entries / Patterns). Same
+                // runCatching shape as onOpenNotes above — a misconfigured
+                // manifest should never crash the launcher.
+                onOpenJournal = {
+                    runCatching {
+                        val journalIntent = android.content.Intent(
+                            context, org.mindanchor.journal.JournalActivity::class.java,
+                        )
+                        context.startActivity(journalIntent)
+                    }
+                },
                 showIntroCallout = showIntroCallout,
                 onRecordLaunch = viewModel::recordHomeLaunch,
                 // v0.25.7 (Task 13): the LLM letter state
@@ -591,6 +644,15 @@ fun LauncherRoot(
                 sunsetProposal = sunsetProposalCardByState.collectAsState().value,
                 onAcceptSunsetProposal = viewModel::acceptSunsetProposal,
                 onDismissSunsetProposal = viewModel::dismissSunsetProposal,
+                // Program 3: only Card is ever passed through — Hidden,
+                // Evidence, and Player all resolve to no card here, since
+                // Evidence/Player render on their own dedicated surface.
+                advisoryCard = advisoryUiState as? org.mindanchor.advisory.AdvisoryUiState.Card,
+                onOpenAdvisory = {
+                    advisoryViewModel.openEvidence()
+                    surface = LauncherSurface.Advisory
+                },
+                onDismissAdvisory = advisoryViewModel::dismiss,
             )
         }
 
@@ -657,6 +719,24 @@ fun LauncherRoot(
         // scrolling through would mean starting it by accident.
         LauncherSurface.Ppg -> Surface(modifier = Modifier.fillMaxSize()) {
             PpgScreen(onBack = { surface = LauncherSurface.Settings })
+        }
+
+        // Reached only from the Home card's Open button. Back first goes
+        // through advisoryViewModel.onBack() — it stops an active episode
+        // or steps Evidence back to the card before this surface itself
+        // is ever left.
+        LauncherSurface.Advisory -> Surface(modifier = Modifier.fillMaxSize()) {
+            org.mindanchor.advisory.AdvisoryScreen(
+                state = advisoryUiState,
+                onStart = advisoryViewModel::start,
+                onStop = advisoryViewModel::stop,
+                onReportDiscomfort = advisoryViewModel::reportDiscomfort,
+                onBack = {
+                    if (!advisoryViewModel.onBack()) {
+                        surface = LauncherSurface.Home
+                    }
+                },
+            )
         }
 
         LauncherSurface.Report -> Surface(modifier = Modifier.fillMaxSize()) {
@@ -1001,6 +1081,14 @@ private fun HomeSurface(
      */
     onOpenLetters: () -> Unit = {},
     /**
+     * Task 6 (Program 0 continuity): route to
+     * [org.mindanchor.journal.JournalActivity] — the Today /
+     * Entries / Patterns Journal experience. Own activity, same
+     * shape as [onOpenNotes] and [onOpenLetters]: a crash while
+     * writing must never take the launcher down with it.
+     */
+    onOpenJournal: () -> Unit = {},
+    /**
      * v0.20.4: the home-screen quick-notes
      * affordance. The card shows a one-line
      * input, a save button, and the most recent
@@ -1282,6 +1370,15 @@ private fun HomeSurface(
     sunsetProposal: SunsetProposal.Decision = SunsetProposal.HIDDEN,
     onAcceptSunsetProposal: () -> Unit = {},
     onDismissSunsetProposal: () -> Unit = {},
+    /**
+     * Program 3 (adaptive protocol delivery): at most one ordinary,
+     * dismissible historical advisory card. Null hides it — an ordinary
+     * build, a disabled master switch, or an already-handled opportunity
+     * all resolve to null upstream in [LauncherRoot].
+     */
+    advisoryCard: org.mindanchor.advisory.AdvisoryUiState.Card? = null,
+    onOpenAdvisory: () -> Unit = {},
+    onDismissAdvisory: () -> Unit = {},
 ) {
     val now = rememberMinuteTick()
     val clockFormat = rememberClockFormat()
@@ -1593,6 +1690,14 @@ private fun HomeSurface(
                 )
             }
 
+            advisoryCard?.let {
+                org.mindanchor.advisory.AdvisoryHomeCard(
+                    opportunity = it.opportunity,
+                    onOpen = onOpenAdvisory,
+                    onDismiss = onDismissAdvisory,
+                )
+            }
+
             Column(
                 modifier = Modifier.padding(top = 40.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -1739,6 +1844,18 @@ private fun HomeSurface(
             ) {
                 Text(
                     text = stringResource(R.string.check_in_history_shortcut),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = sky.textSecondary,
+                )
+            }
+            // Task 6 (Program 0 continuity): a fourth stacked button —
+            // "journal" — alongside letter/notes/history. Additive only;
+            // does not reorder or displace any of the three above it.
+            TextButton(
+                onClick = onOpenJournal,
+            ) {
+                Text(
+                    text = stringResource(R.string.journal_shortcut),
                     style = MaterialTheme.typography.labelMedium,
                     color = sky.textSecondary,
                 )

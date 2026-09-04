@@ -8,7 +8,9 @@ import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import org.mindanchor.continuity.ContinuityWorkScheduler
 
 private val Context.letterDataStore by preferencesDataStore(name = "letters")
 
@@ -92,6 +94,7 @@ class LetterStore(private val context: Context) {
             val current = prefs[readDatesKey] ?: emptySet()
             prefs[readDatesKey] = if (read) current + date.toString() else current - date.toString()
         }
+        ContinuityWorkScheduler.requestCheckpoint(context)
     }
 
     /**
@@ -124,6 +127,7 @@ class LetterStore(private val context: Context) {
             val deduped = current.filter { it.date != letter.date } + letter
             prefs[lettersKey] = LetterLedger.encode(deduped)
         }
+        ContinuityWorkScheduler.requestCheckpoint(context)
     }
 
     suspend fun delete(date: LocalDate) {
@@ -132,6 +136,7 @@ class LetterStore(private val context: Context) {
             val kept = current.filter { it.date != date }
             prefs[lettersKey] = LetterLedger.encode(kept)
         }
+        ContinuityWorkScheduler.requestCheckpoint(context)
     }
 
     /**
@@ -253,4 +258,22 @@ class LetterStore(private val context: Context) {
      * same initial value [LetterStore] falls back to, without
      * re-hardcoding "8" in a second place.
      */
+}
+
+/**
+ * Task 7 — merges a restored snapshot's letters into the local store.
+ * For each incoming letter, the local record wins outright when one
+ * already exists for that date (the safer, additive-restore behaviour);
+ * only a date with no local letter at all gets the incoming one. Read
+ * dates are unioned in, never removed — "read" is monotonic, so restoring
+ * an old snapshot can only add read marks, never take one away.
+ *
+ * Idempotent: a date already covered locally (whether from a prior run of
+ * this merge or original local data) is never re-added or overwritten,
+ * and [setRead] is itself a no-op when the date is already marked read.
+ */
+suspend fun LetterStore.mergeRestored(incoming: List<Letter>, incomingReadDates: Set<LocalDate>) {
+    val localDates = letters.first().map { it.date }.toSet()
+    incoming.filter { it.date !in localDates }.forEach { save(it) }
+    incomingReadDates.forEach { date -> setRead(date, read = true) }
 }

@@ -74,7 +74,13 @@ class AnchorCoreUiTest {
         val beforeLetter = rule.onAllNodesWithText("Letter knows the week")
             .fetchSemanticsNodes().isNotEmpty()
         subtitle.performClick()
-        rule.waitForIdle()
+        // The click writes DataStore and the collected state then drives a
+        // recomposition. Compose can be idle between those two operations,
+        // so waitForIdle alone races the round-trip on a busy full-suite run.
+        rule.waitUntil(timeoutMillis = 5_000L) {
+            rule.onAllNodesWithText("Letter knows the week")
+                .fetchSemanticsNodes().isNotEmpty() != beforeLetter
+        }
         val afterLetter = rule.onAllNodesWithText("Letter knows the week")
             .fetchSemanticsNodes().isNotEmpty()
         // The state must have flipped.
