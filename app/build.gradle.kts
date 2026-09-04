@@ -379,7 +379,13 @@ android {
         //   versionCode 96→97.
         versionCode = 97
         versionName = "0.72.1"
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // MindAnchorTestRunner puts WorkManager into synchronous test mode
+        // for the whole instrumented suite — see that class's KDoc: without
+        // it, any test that writes through a real repository enqueues a
+        // real background CheckpointBackupWorker/NightlySnapshotWorker
+        // that can still be running after its own test method returns,
+        // corrupting ContinuitySettingsTest's on-disk state mid-run.
+        testInstrumentationRunner = "org.mindanchor.MindAnchorTestRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every
         // Gradle run, CI included, and invoked deliberately instead:
@@ -668,6 +674,7 @@ dependencies {
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.room.testing)
+    androidTestImplementation(libs.androidx.work.testing)
     androidTestImplementation(libs.compose.ui.test.junit4)
     debugImplementation(libs.compose.ui.test.manifest)
 }
