@@ -191,7 +191,18 @@ object BedtimeList {
      * list.
      */
     fun encode(items: List<String>): String =
-        items.joinToString("\n") { it.trim() }.trimEnd()
+        items.joinToString("\n") { oneLine(it).trim() }.trimEnd()
+
+    /**
+     * One item per line is the whole format, so a line break inside an item
+     * would split it into two on the next read. Items are the person's own
+     * words, pasted as often as typed, so both writers normalise rather than
+     * trusting the field to be single-line. A lone carriage return counts:
+     * [lineSequence] treats it as a terminator too.
+     */
+    private fun oneLine(text: String): String =
+        text.replace('\n', ' ').replace('\r', ' ')
+
 
     /**
      * Decodes a stored file. Items are trimmed, blank items are

@@ -68,7 +68,7 @@ object SmallThings {
 
     /** Adds [thing], trimmed, deduplicated, and capped at [MAX]. */
     fun add(things: List<String>, thing: String): List<String> {
-        val trimmed = thing.trim()
+        val trimmed = oneLine(thing).trim()
         if (trimmed.isEmpty()) return things
         if (things.any { it.equals(trimmed, ignoreCase = true) }) return things
         return (things + trimmed).takeLast(MAX)
@@ -81,7 +81,18 @@ object SmallThings {
      * One per line. Blank lines are dropped on the way in, so a stored
      * file that picks up stray newlines cannot produce an empty offer.
      */
-    fun encode(things: List<String>): String = things.joinToString("\n")
+    fun encode(things: List<String>): String = things.joinToString("\n") { oneLine(it) }
+
+    /**
+     * One item per line is the whole format, so a line break inside an item
+     * would split it into two on the next read. Items are the person's own
+     * words, pasted as often as typed, so both writers normalise rather than
+     * trusting the field to be single-line. A lone carriage return counts:
+     * [lineSequence] treats it as a terminator too.
+     */
+    private fun oneLine(text: String): String =
+        text.replace('\n', ' ').replace('\r', ' ')
+
 
     fun decode(raw: String): List<String> =
         raw.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.take(MAX).toList()
