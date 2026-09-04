@@ -3201,6 +3201,14 @@ fun SettingsScreen(
         }
 
         if (group == SettingsGroup.QUIET) {
+            // v0.70 (master plan T-1.1): OS Mode — the guided surface for
+            // what the device-owner grant above makes possible. Sits
+            // directly under the grant so the two read as one arrangement:
+            // the section above is the handle, this one is the posture.
+            OsModeSection(permissionEpoch = permissionEpoch)
+        }
+
+        if (group == SettingsGroup.QUIET) {
             // --- Colour ---
             //
             // Needs a permission Android will not hand to an app from inside

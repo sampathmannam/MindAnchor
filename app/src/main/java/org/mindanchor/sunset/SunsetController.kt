@@ -154,6 +154,15 @@ object SunsetController {
                 }
                 ensureScheduled(appContext)
             }
+
+            // v0.70 (master plan T-1.2): OS Mode adds the person's own
+            // feed-app list to what closes through the window. Sync runs
+            // on every alarm — START applies it, END lifts it, and either
+            // action heals any state that drifted out of step with the
+            // window. Deliberately outside the quietHours/greyNights block:
+            // turning a switch off must also be able to lift what an
+            // earlier window closed. Never throws.
+            runCatching { org.mindanchor.admin.OsMode.sync(appContext) }
         }
     }
 }
