@@ -6,20 +6,19 @@ import kotlinx.coroutines.withContext
 
 /**
  * v0.30+ (Phase 4 G-28) — the Kotlin face of the
- * whisper.cpp engine. Mirrors the [LlamaEngine]
- * pattern: a thin native handle plus a [Whisper] class
- * that is the only thing the Kotlin side ever touches.
+ * whisper.cpp engine: a thin native handle plus a
+ * [Whisper] class that is the only thing the Kotlin
+ * side ever touches.
  *
  * The native side is a single shared library,
  * `mindanchor_whisper.so`, that wraps whisper.cpp's
- * C API. The vendoring + build setup is the same
- * shape as `mindanchor_llama.so`:
+ * C API:
  *
  *   third_party/whisper.cpp/   (vendored, pinned)
  *   app/src/main/cpp/mindanchor_whisper.cpp
- *   app/src/main/cpp/CMakeLists.txt (already
- *     includes the whisper target; the subdirectory
- *     pattern matches llama.cpp)
+ *   app/src/main/cpp/CMakeLists.txt (the whisper
+ *     target, currently commented out — see that
+ *     file's own comment for why)
  *
  * The model is ~75 MB; v0.30+ bundles the smallest
  * available (whisper-tiny.en, ~75 MB) for English
@@ -28,12 +27,10 @@ import kotlinx.coroutines.withContext
  * — see [org.mindanchor.narrate.Whisper.MODEL_PATH]
  * and the [Whisper.downloadIfMissing] hook below.
  *
- * [nativeTranscribe] returns raw UTF-8 bytes (the
- * same Modified-UTF-8 rationale as
- * [LlamaEngine.nativeGenerate]). The JNI side is
- * responsible for trimming the BOS/EOS tokens the
- * model inserts at the start and end of the
- * transcription; the Kotlin side sees a clean
+ * [nativeTranscribe] returns raw UTF-8 bytes; the
+ * JNI side is responsible for trimming the BOS/EOS
+ * tokens the model inserts at the start and end of
+ * the transcription, so the Kotlin side sees a clean
  * string back.
  */
 internal class WhisperEngine {
@@ -63,9 +60,9 @@ internal class WhisperEngine {
 
 /**
  * v0.30+ (Phase 4 G-28) — the on-device voice
- * journal's high-level API. Mirrors [LlamaNarrator]:
- * the consumer never touches the native engine
- * directly. [transcribe] writes a 16 kHz mono WAV
+ * journal's high-level API. The consumer never
+ * touches the native engine directly.
+ * [transcribe] writes a 16 kHz mono WAV
  * to a temp file, hands it to the engine, and
  * returns the transcript.
  *
@@ -103,8 +100,7 @@ class Whisper(private val context: Context) {
      * - the model file at [MODEL_PATH] is missing
      * - the transcription failed for any other
      *   reason (the engine returns null on its
-     *   every failure path, matching the
-     *   [LlamaNarrator] convention)
+     *   every failure path rather than throwing)
      */
     suspend fun transcribe(
         pcm16kMono: ShortArray,
@@ -123,9 +119,8 @@ class Whisper(private val context: Context) {
         // 16 kHz PCM blob at the realistic size
         // (60s × 16 kHz × 2 bytes = 1.9 MB) and
         // crosses the JNI limit for some devices.
-        // The file path approach also matches the
-        // [LlamaEngine.nativeGenerate] pattern
-        // (model file on disk).
+        // The file path approach also keeps the
+        // model itself on disk rather than in memory.
         val tmp = java.io.File.createTempFile("whisper-", ".pcm16", context.cacheDir)
         try {
             java.io.DataOutputStream(java.io.FileOutputStream(tmp)).use { out ->

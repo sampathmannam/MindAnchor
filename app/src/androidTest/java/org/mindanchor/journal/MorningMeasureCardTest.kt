@@ -3,6 +3,7 @@ package org.mindanchor.journal
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -24,6 +25,24 @@ class MorningMeasureCardTest {
     @get:Rule
     val rule = createAndroidComposeRule<ComponentActivity>()
 
+    /**
+     * Waits for [tag] to actually appear before the caller acts on it.
+     *
+     * On a slow/CPU-constrained CI runner, [rule]'s own waitForIdle() —
+     * which settles Compose's recomposition clock — is not always enough
+     * time for the very first frame after a `setContent`/state-driven
+     * recomposition to have laid out every node. A handful of tests here
+     * that click several chips in quick succession right after
+     * `setContent` saw the click silently miss (the onSave callback never
+     * fired) rather than a wrong value, which points at the target node
+     * not existing yet rather than a logic bug in the card itself.
+     */
+    private fun waitForNode(tag: String, timeoutMillis: Long = 15_000) {
+        rule.waitUntil(timeoutMillis) {
+            rule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
     @Test
     fun savingSelectedValuesInvokesCallbackWithExactValues() {
         var captured: List<Int>? = null
@@ -38,6 +57,7 @@ class MorningMeasureCardTest {
             }
         }
         rule.waitForIdle()
+        waitForNode("mood_2")
 
         rule.onNodeWithTag("mood_2").performClick()
         rule.onNodeWithTag("anxiety_4").performClick()
@@ -119,6 +139,7 @@ class MorningMeasureCardTest {
 
         rule.onNodeWithText("Edit").performClick()
         rule.waitForIdle()
+        waitForNode("mood_5")
 
         // Pre-filled with the existing values: only change one dimension, then save.
         rule.onNodeWithTag("mood_5").performClick()

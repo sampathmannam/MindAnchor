@@ -35,9 +35,11 @@ import androidx.compose.ui.unit.dp
  *     interface (no tunnel), the screen. Explicit
  *     on-device, not implied.
  *  3. **Where the data does not go.** The negative
- *     list closes the privacy surface (no cloud, no
- *     analytics, no device-to-device transfer, no LLM
- *     cloud).
+ *     list closes the privacy surface (no cloud backup
+ *     unless Google Drive backup is turned on — and even
+ *     then, never the safety plan or crisis contacts —
+ *     no analytics, no device-to-device transfer, no
+ *     LLM call unless the user opts in).
  *  4. **What the user can do.** Delete everything;
  *     export the on-device log. The two affordances
  *     that make the negative list actionable.
@@ -47,6 +49,41 @@ import androidx.compose.ui.unit.dp
  * is the in-app surface, the doc is the
  * version-controlled surface.
  */
+private const val PRIVACY_HOLDS_BODY =
+    "Your suicide safety plan and the phone numbers of the people you would call at your worst. " +
+        "The text of the notifications you have read or chosen to read. " +
+        "Your mood history and the WHO-5 responses. The letters you have written, the notes you have saved, " +
+        "the open cognitive loops you have parked. Wearable data the launcher reads from Health Connect " +
+        "(heart rate, sleep, HRV, steps, mindfulness minutes) — read only, never written back. " +
+        "The local-only decisions the launcher has made for you (per-app session lengths, if-then plans, " +
+        "batched-notification schedule, Going Light windows)."
+
+private const val PRIVACY_GOES_BODY =
+    "The phone, by default. Every byte of the above lives on the device, in the app's private storage, " +
+        "encrypted with the Android Keystore. Backup is off unless you turn on Google Drive backup " +
+        "(Settings → Reading, opt-in) — that syncs your notes, letters, check-ins and wellness readings " +
+        "to your own Drive each night; your safety plan and crisis contacts never go, even then. " +
+        "Device-to-device transfer is refused. " +
+        "The Going Light VPN captures loopback traffic and decides forward-or-drop per packet, locally; " +
+        "the loopback interface is the only place the captured packet goes. " +
+        "Everything you see is rendered from local data."
+
+private const val PRIVACY_DOES_NOT_GO_BODY =
+    "The phone's network by default (the INTERNET permission is held only because the " +
+        "VpnService API requires it; the runtime telemetry confirms zero outbound bytes unless " +
+        "you've opted into Google Drive backup or the COROS bridge). Your safety plan and crisis " +
+        "contacts, full stop — those never leave the phone, even with Google Drive backup on. " +
+        "An analytics service. " +
+        "A device-to-device transfer. There is no on-device model or LLM of any kind running on the " +
+        "phone: the daily letter's writing is opt-in and cloud-only, silent until you add a provider " +
+        "key in Settings → Reading — no key, no outbound call, ever."
+
+private const val PRIVACY_CAN_DO_BODY =
+    "Settings → About → \"Delete all my data\" wipes the app's private storage and the wearable cache. " +
+        "Settings → About → \"Share diagnostic log\" produces a redacted text file (phone numbers, " +
+        "emails, and held-notification bodies are scrubbed before share). " +
+        "The wellness tool, not a medical device, is the project's standing rule."
+
 @Composable
 fun PrivacyFlowCard(
     modifier: Modifier = Modifier,
@@ -65,38 +102,10 @@ fun PrivacyFlowCard(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
-            PrivacySection(
-                title = "What the app holds on the device",
-                body = "Your suicide safety plan and the phone numbers of the people you would call at your worst. " +
-                    "The text of the notifications you have read or chosen to read. " +
-                    "Your mood history and the WHO-5 responses. The letters you have written, the notes you have saved, " +
-                    "the open cognitive loops you have parked. Wearable data the launcher reads from Health Connect " +
-                    "(heart rate, sleep, HRV, steps, mindfulness minutes) — read only, never written back. " +
-                    "The local-only decisions the launcher has made for you (per-app session lengths, if-then plans, " +
-                    "batched-notification schedule, Going Light windows).",
-            )
-            PrivacySection(
-                title = "Where the data goes",
-                body = "The phone. Every byte of the above lives on the device, in the app's private storage, " +
-                    "encrypted with the Android Keystore. Backup is off. Device-to-device transfer is refused. " +
-                    "The Going Light VPN captures loopback traffic and decides forward-or-drop per packet, locally; " +
-                    "the loopback interface is the only place the captured packet goes. " +
-                    "Everything you see is rendered from local data.",
-            )
-            PrivacySection(
-                title = "Where the data does not go",
-                body = "The phone's network (the INTERNET permission is held only because the VpnService API requires it; " +
-                    "the runtime telemetry confirms zero outbound bytes). A cloud backup. An analytics service. " +
-                    "A device-to-device transfer. A cloud LLM (the on-device Phi-4 runs entirely on the device; " +
-                    "the Groq cloud fallback exists in code but is disabled by the same network-call test).",
-            )
-            PrivacySection(
-                title = "What you can do",
-                body = "Settings → About → \"Delete all my data\" wipes the app's private storage and the wearable cache. " +
-                    "Settings → About → \"Share diagnostic log\" produces a redacted text file (phone numbers, " +
-                    "emails, and held-notification bodies are scrubbed before share). " +
-                    "The wellness tool, not a medical device, is the project's standing rule.",
-            )
+            PrivacySection(title = "What the app holds on the device", body = PRIVACY_HOLDS_BODY)
+            PrivacySection(title = "Where the data goes", body = PRIVACY_GOES_BODY)
+            PrivacySection(title = "Where the data does not go", body = PRIVACY_DOES_NOT_GO_BODY)
+            PrivacySection(title = "What you can do", body = PRIVACY_CAN_DO_BODY)
             Text(
                 text = "Full text in docs/PRIVACY.md. Updated 2026-08-24.",
                 style = MaterialTheme.typography.bodySmall,

@@ -10,6 +10,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 
 private val Context.letterLlmDataStore by preferencesDataStore(name = "letter_llm")
@@ -73,16 +74,49 @@ class LlmPrefs(private val context: Context) {
     }
 
     /**
-     * The API key is read from the encrypted
-     * blob. The flow shape is preserved so the
-     * call sites do not change; the body is just
-     * synchronous underneath (the encrypted file
-     * is small — a few hundred bytes — and reading
-     * it is microseconds).
+     * v0.70+ (bug fix, part 2): the key is scoped
+     * per [LlmProvider]. It used to be one shared
+     * slot regardless of which provider was
+     * selected — switching the provider chip left
+     * whatever key was typed for the *previous*
+     * provider sitting in the field, silently
+     * tested against the *new* provider's API.
+     * Google AI Studio, OpenRouter and Groq are
+     * three separate services with incompatible
+     * keys; a Groq key (`gsk_...`) sent to
+     * OpenRouter's endpoint will 401 every time,
+     * no matter how many times it is retyped —
+     * confirmed live via a temporary debug log
+     * that showed the exact same `gsk_` key being
+     * sent to OpenRouter's and Google's endpoints
+     * after switching provider chips. Each
+     * provider now gets its own encrypted slot and
+     * its own cached flow, so switching providers
+     * shows (and tests) that provider's own key,
+     * and a key entered for one provider survives
+     * switching away and back.
+     *
+     * The cache lives on the companion object, not
+     * the instance: both [org.mindanchor.settings
+     * .LlmSettingsViewModel] and
+     * [org.mindanchor.launcher.LauncherViewModel]
+     * construct their own [LlmPrefs] against the
+     * same encrypted file, and both need to see a
+     * key saved through the other one — an
+     * instance-level cache would leave the letter
+     * writer holding a stale key after the user
+     * updates it in Settings, which is the same
+     * kind of bug in a different shape. Seeded
+     * lazily per provider from the encrypted blob
+     * by whichever [LlmPrefs] instance asks for
+     * that provider's key first, so nothing spins
+     * up the Keystore until something actually
+     * needs it.
      */
-    val apiKey: Flow<String> = kotlinx.coroutines.flow.flow {
-        emit(keyStore.read())
-    }
+    private fun sharedApiKey(provider: LlmProvider): MutableStateFlow<String> =
+        sharedApiKeyState.computeIfAbsent(provider) { MutableStateFlow(keyStore.read(it)) }
+
+    fun apiKeyFor(provider: LlmProvider): Flow<String> = sharedApiKey(provider)
 
     val model: Flow<String> = context.letterLlmDataStore.data.map { prefs ->
         prefs[modelKey] ?: LlmProvider.GOOGLE_AI_STUDIO.defaultModel
@@ -118,9 +152,10 @@ class LlmPrefs(private val context: Context) {
      * clearing the field is an explicit action
      * and the empty string is the right value.
      */
-    suspend fun setApiKey(key: String) {
+    suspend fun setApiKey(provider: LlmProvider, key: String) {
         val cleaned = key.trim().take(MAX_KEY_LEN).filterNot { it.isISOControl() }
-        keyStore.write(cleaned)
+        keyStore.write(provider, cleaned)
+        sharedApiKey(provider).value = cleaned
     }
 
     suspend fun setModel(model: String) {
@@ -137,6 +172,9 @@ class LlmPrefs(private val context: Context) {
 
     internal suspend fun reset() {
         keyStore.clear()
+        for (p in LlmProvider.values()) {
+            sharedApiKey(p).value = ""
+        }
         context.letterLlmDataStore.edit { it.clear() }
     }
 
@@ -149,11 +187,18 @@ class LlmPrefs(private val context: Context) {
          * plus any future provider.
          */
         const val MAX_KEY_LEN = 256
+
+        /** One cached flow per provider, shared across every [LlmPrefs] instance. */
+        private val sharedApiKeyState =
+            java.util.concurrent.ConcurrentHashMap<LlmProvider, MutableStateFlow<String>>()
     }
 }
 
 /**
- * The encrypted-prefs blob for the LLM API key.
+ * The encrypted-prefs blob for the LLM API keys —
+ * one slot per [LlmProvider], since Google AI
+ * Studio, OpenRouter and Groq are separate services
+ * with separate, incompatible keys.
  *
  * Mirrors [org.mindanchor.backup.TokenStore] and
  * [org.mindanchor.vitals.coros.CorosCredentialStore]:
@@ -165,14 +210,14 @@ class LlmPrefs(private val context: Context) {
  */
 internal class LlmKeyStore(private val prefs: SharedPreferences) {
 
-    fun read(): String =
-        prefs.getString(KEY_API_KEY, null)?.takeIf { it.isNotBlank() } ?: ""
+    fun read(provider: LlmProvider): String =
+        prefs.getString(keyFor(provider), null)?.takeIf { it.isNotBlank() } ?: ""
 
-    fun write(key: String) {
+    fun write(provider: LlmProvider, key: String) {
         if (key.isBlank()) {
-            prefs.edit { remove(KEY_API_KEY) }
+            prefs.edit { remove(keyFor(provider)) }
         } else {
-            prefs.edit { putString(KEY_API_KEY, key) }
+            prefs.edit { putString(keyFor(provider), key) }
         }
     }
 
@@ -180,9 +225,10 @@ internal class LlmKeyStore(private val prefs: SharedPreferences) {
         prefs.edit { clear() }
     }
 
+    private fun keyFor(provider: LlmProvider) = "api_key_${provider.name}"
+
     companion object {
         private const val PREF_FILE = "letter_llm_keys"
-        private const val KEY_API_KEY = "api_key"
 
         fun create(context: Context): LlmKeyStore = LlmKeyStore(openEncrypted(context))
 

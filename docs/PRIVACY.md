@@ -1,6 +1,6 @@
 # MindAnchor Privacy Promise
 
-**Last updated:** 2026-08-23
+**Last updated:** 2026-08-29
 
 This page is the privacy promise for MindAnchor. It is short because
 the app's stance is short. If anything below is wrong, the bug is in
@@ -19,7 +19,8 @@ its build configuration enforces that:
 - `app/proguard-rules.pro` keeps no analytics SDK, no crash reporter,
   no telemetry library in the dependency graph. A static
   `NetworkCallsForbiddenTest` checks that no production source
-  outside the opt-in bridges (`org.mindanchor.vitals.coros/**`)
+  outside the opt-in bridges (`org.mindanchor.vitals.coros/**`,
+  `org.mindanchor.backup/**`, and `org.mindanchor.llm/**`)
   imports any network API.
 
 ## What the app holds on this phone
@@ -33,9 +34,21 @@ its build configuration enforces that:
   Health Connect. The launcher reads it; it never writes back to
   the watch and never transmits it.
 - **If you have opted in:** your COROS account email + password
-  hash, your Google Drive refresh token, and your Groq LLM API
-  key, all held in `EncryptedSharedPreferences` (Tink-backed).
-  Each of these can be cleared from Settings.
+  hash, your signed-in Google account email plus a short-lived
+  Google Drive access token (Google's side holds the refresh
+  token; this phone re-requests a fresh access token from Google
+  each time one is needed rather than storing one that outlives
+  a session), and your API key for whichever LLM provider(s)
+  you've set up for the Daily letter feature (Google AI Studio,
+  OpenRouter, or Groq — each provider's key is stored in its own
+  slot, so adding one doesn't overwrite another), all held in
+  `EncryptedSharedPreferences` (Tink-backed). Each of these can
+  be cleared from Settings.
+- **If you turn on Google Drive backup:** a second copy of your
+  notes, letters, check-ins, and wellness readings in your own
+  Google Drive, in four plain text files this app created and is
+  the only app that can see. Your safety plan and crisis contacts
+  are never included — see the section above.
 
 ## What the app does NOT do
 
@@ -43,16 +56,23 @@ its build configuration enforces that:
 - No crash reporting to any server. The "Share logs" button in
   Settings writes a file to local storage and hands it to the
   system Share sheet — you choose who, if anyone, sees it.
-- No background telemetry. The only network calls the launcher
-  makes are to the three opt-in bridges above, and only when
-  you ask.
+- No background telemetry. The launcher makes network calls in
+  exactly two situations: the three opt-in bridges above (only
+  once you've turned one on) and the automatic update check
+  described below.
 - No advertising ID. No usage stats.
 
 ## What the app does to the network
 
-A single exception exists to the "no network" promise: **the
-auto-update check**. When you open the app, it makes **one** GET
-request to `api.github.com/repos/sampathmannam/MindAnchor/releases/latest`
+Two kinds of network calls happen. The first is the three opt-in
+bridges described above — the COROS Training Hub sync, Google
+Drive backup, and the Daily letter (LLM) feature — each silent
+until you turn it on. The second is one automatic check that runs
+regardless of whether any bridge is on:
+
+**The auto-update check.** When you open the app, it makes **one**
+GET request to
+`api.github.com/repos/sampathmannam/MindAnchor/releases/latest`
 to find out whether a newer version of MindAnchor has been
 published. The request sends no user data, no device id, and
 no app id beyond the standard HTTP `User-Agent`. The result is
@@ -60,10 +80,18 @@ cached locally for 24 hours. The check is best-effort: on
 network failure it returns silently, and the launcher does not
 block on it.
 
-The check can be turned off entirely by denying the app
-network access at the system level (Settings → Apps → MindAnchor
-→ Mobile data & Wi-Fi → disable). The launcher's other features
-do not require network access.
+**The Daily letter (LLM) feature**, in more detail: there is no
+on-device model or LLM of any kind running on the phone. Once you
+add an API key in Settings → Reading for a provider (Google AI
+Studio, OpenRouter, or Groq), the launcher sends your recent notes
+and most recent check-in to that provider to write one daily
+reflection. No key, no outbound call — ever.
+
+The auto-update check can be turned off entirely by denying the
+app network access at the system level (Settings → Apps →
+MindAnchor → Mobile data & Wi-Fi → disable). With that permission
+denied and none of the three opt-in bridges turned on, the
+launcher makes zero outbound calls.
 
 ## What to do with your data
 

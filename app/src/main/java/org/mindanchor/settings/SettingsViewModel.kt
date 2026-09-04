@@ -21,12 +21,7 @@ import kotlinx.coroutines.launch
 import org.mindanchor.corpus.CorpusImport
 import org.mindanchor.corpus.CorpusStore
 import org.mindanchor.data.AppearancePrefs
-import org.mindanchor.letters.Letter
 import org.mindanchor.letters.LetterStore
-import org.mindanchor.letters.LetterWriter
-import org.mindanchor.letters.WeekDataCollector
-import org.mindanchor.narrate.ModelSlot
-import org.mindanchor.narrate.ModelStore
 import org.mindanchor.data.NotificationPrefs
 import org.mindanchor.data.SunsetPrefs
 import org.mindanchor.reader.ReaderPrefs
@@ -942,7 +937,23 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     sealed interface HealthConnectStatus {
         data object Unknown : HealthConnectStatus
         data object Unavailable : HealthConnectStatus
-        data class Available(val granted: Int, val total: Int) : HealthConnectStatus
+        /**
+         * [granted]/[total] count the record-read permissions.
+         * [additionalGranted]/[additionalTotal] count the two
+         * "additional" grants (background + history), which are
+         * requested through their own launch — Health Connect
+         * silently drops them from a request that also carries
+         * record reads, see
+         * [org.mindanchor.vitals.HealthConnectSource.ADDITIONAL_PERMISSIONS]
+         * — so the section needs to know separately when that
+         * second step still has something to ask.
+         */
+        data class Available(
+            val granted: Int,
+            val total: Int,
+            val additionalGranted: Int,
+            val additionalTotal: Int,
+        ) : HealthConnectStatus
     }
 
     private val _healthConnectStatus = MutableStateFlow<HealthConnectStatus>(HealthConnectStatus.Unknown)
@@ -960,9 +971,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 HealthConnectStatus.Unavailable
             } else {
                 val granted = HealthConnectSource.grantedPermissions(app).size
+                val additionalEffective = HealthConnectSource.effectiveAdditionalPermissions(app)
+                val additionalGranted = HealthConnectSource.grantedAdditionalPermissions(app)
+                    .count { it in additionalEffective }
                 HealthConnectStatus.Available(
                     granted = granted,
                     total = HealthConnectSource.PERMISSIONS.size,
+                    additionalGranted = additionalGranted,
+                    additionalTotal = additionalEffective.size,
                 )
             }
         }
@@ -1058,123 +1074,22 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    // --- Model (the small model a future writing engine would run) ---
-    //
-    // Mirrors the corpus section immediately above: a plain file import
-    // into app-private storage, with the whole read and copy on
-    // Dispatchers.IO because ModelStore is moving a multi-gigabyte file
-    // off storage the app does not own. See ModelStore and Narrator for
-    // why importing one does not yet make any writing happen.
-
-    private val _modelPresent = MutableStateFlow(false)
-
-    /** Whether a model is on file at all. */
-    val modelPresent: StateFlow<Boolean> = _modelPresent.asStateFlow()
-
-    private val _modelFit = MutableStateFlow(ModelSlot.Fit.TOO_LARGE)
-
-    /**
-     * Whether the model on file would actually run here. Meaningless
-     * while [modelPresent] is false, where it defaults to the same
-     * refuse-by-default value [ModelStore.fit] itself falls back to.
-     */
-    val modelFit: StateFlow<ModelSlot.Fit> = _modelFit.asStateFlow()
-
-    private val _modelImportFailed = MutableStateFlow(false)
-
-    /** Whether the most recent import attempt this session failed. */
-    val modelImportFailed: StateFlow<Boolean> = _modelImportFailed.asStateFlow()
-
-    fun refreshModel() {
-        viewModelScope.launch(Dispatchers.IO) {
-            val context = getApplication<Application>()
-            _modelPresent.value = ModelStore.hasModel(context)
-            _modelFit.value = ModelStore.fit(context)
-            // Keep the new boolean StateFlow in sync with the
-            // detailed fit enum, so a UI consuming [modelFits] sees
-            // the same answer the model card does — both are read
-            // off the same model file on the same disk.
-            ModelStore.refreshFit(context)
-        }
-    }
-
-    /**
-     * Reads a picked file into app-private storage, replacing whatever
-     * model was there before.
-     *
-     * A failed import leaves the previous model, if any, untouched — see
-     * [ModelStore.importFrom] for why a failed copy never leaves a
-     * partial file to be mistaken for a real one.
-     */
-    fun importModel(uri: Uri) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val context = getApplication<Application>()
-            val imported = ModelStore.importFrom(context, uri)
-            _modelImportFailed.value = !imported
-            _modelPresent.value = ModelStore.hasModel(context)
-            _modelFit.value = ModelStore.fit(context)
-            ModelStore.refreshFit(context)
-        }
-    }
-
-    /** Removes the model on file, if any. */
-    fun clearModel() {
-        viewModelScope.launch(Dispatchers.IO) {
-            val context = getApplication<Application>()
-            ModelStore.clear(context)
-            _modelImportFailed.value = false
-            _modelPresent.value = ModelStore.hasModel(context)
-            _modelFit.value = ModelStore.fit(context)
-            ModelStore.refreshFit(context)
-        }
-    }
-
-    // --- Letters (the v0.25.2 morning letter) ---
-    //
-    // The fields here drive both the letter inbox (Task 6) and the
-    // future Reading sub-section of the settings screen (Task 10).
-    // They default to safe values so the screen renders even before
-    // the first refresh completes: modelFits is "no, the model is
-    // not on file yet", letterRunning is "no generation in flight",
-    // and the size / count / enabled flags come from DataStore
-    // flows that emit their persisted value the moment they are
-    // collected.
-
     private val letterStore = LetterStore(application)
 
     private val readerPrefs = ReaderPrefs(application)
-
-    /**
-     * Whether the model on file would actually run on this phone,
-     * exposed as a plain [Boolean] for the letter inbox's
-     * "Generate now" enablement and the empty-state copy.
-     *
-     * Backed by the same probe as [modelFit], just rephrased — see
-     * [ModelStore.fitFlow] for why the StateFlow is held on the
-     * store rather than re-asked on every recomposition.
-     */
-    val modelFits: StateFlow<Boolean> = ModelStore.fitFlow()
-
-    private val _letterRunning = MutableStateFlow(false)
-
-    /**
-     * True while a "Generate now" letter is in flight. Flipped back
-     * to false in a [finally], so a generation that throws still
-     * leaves the UI re-enabled. Mirrors the
-     * [org.mindanchor.report.ReportScheduler] `runReportNow` shape
-     * that this view model already uses for the nightly report.
-     */
-    val letterRunning: StateFlow<Boolean> = _letterRunning.asStateFlow()
 
     /**
      * The number of letters the user has not yet opened. v0.25.3-WP-C:
      * derived from the real per-letter [LetterStore.readDates] set
      * (replaces the v0.25.2 install-date stand-in). The [combine]
      * flow re-emits whenever either side changes — a new letter is
-     * generated, or the user opens a letter — so the Settings
-     * "Open inbox (N)" badge decrements the moment a row is tapped.
-     * Empty `readDates` means a fresh install with no letters
-     * opened, and the count then equals the total letter count.
+     * generated, or the user opens a letter. Empty `readDates` means
+     * a fresh install with no letters opened, and the count then
+     * equals the total letter count.
+     *
+     * General letter-inbox accounting, not tied to how a letter was
+     * written — it counts every [org.mindanchor.letters.Letter] in
+     * [LetterStore] regardless of source.
      */
     val unreadLetterCount: StateFlow<Int> = combine(
         letterStore.letters,
@@ -1193,63 +1108,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
      * is [ReadingSize.MEDIUM] — the same default [ReaderPrefs] falls
      * back to when no value has been persisted yet, so a user who
      * opens the screen before [ReaderPrefs] has emitted does not see
-     * a value jump. [SharingStarted.Eagerly] matches the pattern
-     * used by [unreadLetterCount] above: the upstream is a tiny
-     * SharedPreferences read, the value is needed as soon as the
-     * settings screen binds, and the cost of holding the latest
-     * emission is one `ReadingSize` reference.
+     * a value jump. [SharingStarted.Eagerly] is used because the
+     * upstream is a tiny SharedPreferences read, the value is needed
+     * as soon as the settings screen binds, and the cost of holding
+     * the latest emission is one `ReadingSize` reference.
      */
     val letterSize: StateFlow<ReadingSize> = readerPrefs.size
         .stateIn(viewModelScope, SharingStarted.Eagerly, ReadingSize.MEDIUM)
-
-    /**
-     * The hour-of-day the user chose to receive the daily letter,
-     * exposed as a [StateFlow] so the Reading sub-section can render
-     * the current value and survive recomposition without re-reading
-     * the DataStore.
-     *
-     * Backed by [LetterStore.time] — same flow as the
-     * [org.mindanchor.letters.LetterScheduler] reads. Initial value is
-     * 08:00 (the spec's default — see [LetterStore]); a user who
-     * opens the settings screen before the first DataStore emission
-     * sees the default rather than a value jump, same posture as
-     * [letterSize] above. [SharingStarted.Eagerly] matches the
-     * pattern used by [unreadLetterCount] and [letterSize] because
-     * the upstream is a small DataStore read and the value is needed
-     * as soon as the settings screen binds.
-     */
-    val lettersTime: StateFlow<Pair<Int, Int>> = letterStore.time
-        .stateIn(
-            viewModelScope,
-            SharingStarted.Eagerly,
-            LetterStore.DEFAULT_HOUR to LetterStore.DEFAULT_MINUTE,
-        )
-
-    /**
-     * Whether the user has switched the daily letter on.
-     *
-     * The toggle on the Reading sub-section binds to this; the
-     * [org.mindanchor.letters.LetterScheduler] reads the same
-     * [LetterStore.enabled] source. Initial value is `false` — the
-     * spec is "off by default; opt-in" — and matches the default
-     * [LetterStore] falls back to when no value has been persisted
-     * yet, so a user who opens the screen before the first
-     * DataStore emission does not see a value jump.
-     * [SharingStarted.Eagerly] matches the pattern used by
-     * [unreadLetterCount], [letterSize], and [lettersTime] above.
-     */
-    val lettersEnabled: StateFlow<Boolean> = letterStore.enabled
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
-
-    /** Pass-through to [LetterStore.setEnabled]. */
-    fun setLettersEnabled(enabled: Boolean) {
-        viewModelScope.launch { letterStore.setEnabled(enabled) }
-    }
-
-    /** Pass-through to [LetterStore.setTime]. */
-    fun setLettersTime(hour: Int, minute: Int) {
-        viewModelScope.launch { letterStore.setTime(hour, minute) }
-    }
 
     /** Pass-through to [ReaderPrefs.setSize]. */
     fun setLetterSize(size: ReadingSize) {
@@ -1270,41 +1135,20 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     // separate per-type opt-in a stale idea rather than a bug to fix.
     // `BackupPrefs` itself (and its own round-trip test) is untouched —
     // out of this task's scope.
-
-    /**
-     * Generates a letter on demand, using the same call shape as
-     * the daily alarm ([org.mindanchor.letters.LetterScheduler.onFire])
-     * but without the notification post and the re-arm.
-     *
-     * The notification belongs to the alarm — a person who pressed
-     * "Generate now" is already looking at the result on the
-     * settings screen, and a duplicate notification for the same
-     * letter is the kind of small noise that trains people to
-     * ignore the channel. The re-arm is also a no-op: the alarm is
-     * already held by [org.mindanchor.letters.LetterScheduler] at
-     * the user's chosen time, and re-arming it on every manual
-     * generation would only move the trigger by the time the
-     * function takes to return.
-     *
-     * Never throws. A missing model, a sparse week, a generation
-     * the safety filter rejects — all of those are a quiet
-     * "nothing today", same as the daily alarm.
-     */
-    fun runLetterNow() {
-        viewModelScope.launch(Dispatchers.IO) {
-            _letterRunning.value = true
-            try {
-                runCatching {
-                    val week = WeekDataCollector(getApplication()).collectLastWeek()
-                    val writer = LetterWriter(getApplication())
-                    val body = writer.write(week) ?: return@runCatching
-                    letterStore.save(Letter(date = LocalDate.now(), body = body))
-                }
-            } finally {
-                _letterRunning.value = false
-            }
-        }
-    }
+    //
+    // Parallel-merge note: the v0.70.7 single-toggle
+    // `driveNightlySyncEnabled`/`setDriveNightlySyncEnabled` pair that
+    // used to sit here is also removed, for the same reason — nothing
+    // outside the old `GoogleDriveBackupSettingsSection` called it, and
+    // that Composable no longer exists. Main's own `runLetterNow()` /
+    // `_letterRunning` (the cloud-LLM "Generate now" button's backing
+    // state) is likewise dropped here: it called
+    // `WeekDataCollector`/`LetterWriter`, both of which read the
+    // on-device GGUF model this branch removed entirely per explicit
+    // user request ("remove the model... I don't want that feature at
+    // all") — those two classes no longer exist in this branch, and
+    // nothing else in the merged tree still references
+    // `runLetterNow`/`letterRunning`.
 
     // --- Wellness signals (N-of-1, from Health Connect) ---
     //

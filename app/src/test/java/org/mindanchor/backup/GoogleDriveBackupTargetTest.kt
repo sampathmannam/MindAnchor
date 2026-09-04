@@ -207,6 +207,20 @@ class GoogleDriveBackupTargetTest {
             "create body must close with the multipart closing boundary",
             bodyText.contains("--MindAnchorBoundary"),
         )
+        // RFC 2046 §5.1.1: a CRLF must precede every boundary delimiter,
+        // including the closing one. Google's Drive API rejects a body
+        // that is missing it with "Missing end boundary in multipart
+        // body" (400) — a `contains("--boundary")` check alone does not
+        // catch a missing CRLF, since the delimiter text is still present
+        // even when it is glued directly onto the payload with no line
+        // break before it.
+        val closingBoundaryIndex = bodyText.lastIndexOf("--MindAnchorBoundary")
+        assertTrue(
+            "closing boundary must be preceded by CRLF: ${bodyText.takeLast(40)}",
+            closingBoundaryIndex >= 2 &&
+                bodyText[closingBoundaryIndex - 2] == '\r' &&
+                bodyText[closingBoundaryIndex - 1] == '\n',
+        )
     }
 
     @Test fun `append on an existing file downloads, appends, and re-uploads`() = runBlocking {
@@ -292,6 +306,61 @@ class GoogleDriveBackupTargetTest {
         assertTrue(
             "type mismatch (Letters, but target is Notes) must surface as NetworkError",
             result is AppendResult.NetworkError,
+        )
+        assertEquals("no HTTP call on type mismatch", 0, server.requestCount)
+    }
+
+    @Test fun `download on an existing file returns its current content`() = runBlocking {
+        val existingContent = "line-one\nline-two\n".toByteArray()
+        stubFileFound(size = existingContent.size)
+        stubDownloadOk(existingContent)
+
+        val result = target.download(ContentType.Notes)
+
+        assertArrayEquals("download must return the file's raw bytes", existingContent, result)
+        val findReq = server.takeRequest()
+        assertEquals("GET", findReq.method)
+        val downloadReq = server.takeRequest()
+        assertEquals("GET", downloadReq.method)
+        assertTrue("download must use alt=media", downloadReq.requestUrl.toString().contains("alt=media"))
+        assertEquals("exactly find + download, no upload", 2, server.requestCount)
+    }
+
+    @Test fun `download when the file has never been written returns null with one HTTP call`() = runBlocking {
+        stubFileNotFound()
+
+        val result = target.download(ContentType.Notes)
+
+        assertEquals("no file yet must read as null, not an error", null, result)
+        assertEquals("only the find call, no download attempt", 1, server.requestCount)
+    }
+
+    @Test fun `download returns null without any HTTP call when the auth has no token`() = runBlocking {
+        val ctx = ApplicationProvider.getApplicationContext<Context>()
+        val emptyTokenStore = TokenStore(
+            ctx.getSharedPreferences("test_drive_auth_empty_download", Context.MODE_PRIVATE),
+        )
+        emptyTokenStore.clear()
+        val noAuth = GoogleDriveAuth(ctx, emptyTokenStore)
+        val noAuthTarget = GoogleDriveBackupTarget(
+            client = client,
+            auth = noAuth,
+            type = ContentType.Notes,
+            allowInsecureForTest = GoogleDriveBackupTarget.AllowInsecureForTest.INSTANCE,
+        )
+
+        val result = noAuthTarget.download(ContentType.Notes)
+
+        assertEquals("no-token download must return null without any HTTP call", null, result)
+        assertEquals("no HTTP request must be made", 0, server.requestCount)
+    }
+
+    @Test fun `download with a type-mismatch returns null without any HTTP call`() = runBlocking {
+        val result = target.download(ContentType.Letters)
+        assertEquals(
+            "type mismatch (Letters, but target is Notes) must return null",
+            null,
+            result,
         )
         assertEquals("no HTTP call on type mismatch", 0, server.requestCount)
     }

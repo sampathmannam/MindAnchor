@@ -11,14 +11,27 @@ import okhttp3.Response
 import java.util.concurrent.TimeUnit
 
 /**
- * The Google Drive REST target for v0.25.4. The
- * v0.23.0 WebDAV bridge's PUT/GET/PROPFIND
- * surface is replaced by the same shape against
- * the user's own Drive: one file per
- * [ContentType], append-only, encrypted before
- * transport (the caller wraps the payload with
- * [EncryptedBackupCodec] before passing it to
- * [append]).
+ * The Google Drive REST target for the backup
+ * feature. One file per [ContentType], append-only,
+ * plain UTF-8 text — the same protection the rest
+ * of a person's Drive already has (only this app
+ * can access a `drive.file`-scoped file it created;
+ * the file itself is an ordinary Drive file the
+ * account owner can open, same as any other document
+ * in their Drive).
+ *
+ * v0.70.7: this used to encrypt every payload with a
+ * device-bound Android Keystore key before it left
+ * the phone. That key could never leave the device
+ * it was generated on — Keystore keys are
+ * non-exportable by design — so anything backed up
+ * that way became permanently undecryptable the
+ * moment the phone was replaced, which is exactly
+ * the continuity a backup feature exists to provide.
+ * The user chose to drop that layer rather than move
+ * to a passphrase-derived key, in exchange for the
+ * files being genuinely restorable on a new phone
+ * signed into the same Google account.
  *
  * ## Why a class per ContentType
  *
@@ -38,20 +51,15 @@ import java.util.concurrent.TimeUnit
  * Each call to [append] writes the `payload` bytes
  * verbatim, followed by a single newline
  * (`\n`, 0x0A). The per-type file is therefore a
- * sequence of newline-terminated AES-256-GCM
- * blobs. A restore is a download + split on `\n`
- * + per-line unwrap via [EncryptedBackupCodec.unwrap]
- * + parse each line as a single JSON entry.
- * Restoring is out of scope for v0.25.4; the
- * format is documented here so the WP-D scheduler
- * can be built against it without guessing.
+ * sequence of newline-terminated one-line JSON
+ * objects — a JSON-Lines file. [download] + split on
+ * `\n` + parse each line is the whole restore.
  *
  * The newline separator is what makes the file
  * inspectable in the Drive web UI: opening
- * `MindAnchor-Notes.txt` shows a list of encoded
- * blobs, one per entry, exactly the v0.25.2
- * `BackupCodec` JSON-Lines shape (each line is
- * a JSON object, encrypted on disk).
+ * `MindAnchor-Notes.txt` shows a plain list of the
+ * person's own entries, one JSON object per line,
+ * word for word what they wrote.
  *
  * ## Protocol
  *
@@ -218,6 +226,32 @@ class GoogleDriveBackupTarget(
         }
 
     /**
+     * Downloads the per-type file's current complete
+     * content, or null if the file does not exist yet
+     * (nothing of this type has ever been backed up
+     * from any device) or the download failed.
+     *
+     * v0.70.7. Reuses the same find-then-download
+     * pair [append] already uses for its
+     * download-append-reupload dance — restore is
+     * "find the file, download it, stop" instead of
+     * "...download it, append, reupload".
+     */
+    override suspend fun download(type: ContentType): ByteArray? = withContext(Dispatchers.IO) {
+        if (type != this@GoogleDriveBackupTarget.type) {
+            Log.w(LOG_TAG, "download: type mismatch ${type.fileName}")
+            return@withContext null
+        }
+        val token = auth.currentAccessToken()
+        if (token.isNullOrBlank()) {
+            Log.w(LOG_TAG, "download: no access token (signed out?)")
+            return@withContext null
+        }
+        val fileId = findFileId(type, token) ?: return@withContext null
+        downloadFile(fileId, token)
+    }
+
+    /**
      * Finds the per-type file's id in the user's
      * Drive root. Returns null if the file does
      * not exist (the first call to [append] for a
@@ -268,8 +302,8 @@ class GoogleDriveBackupTarget(
             .build()
         return runRequest(req) { resp ->
             val ok = resp.code in HTTP_OK_RANGE
-            if (!ok) Log.w(LOG_TAG, "createFile: HTTP ${resp.code}")
-            resp.close()
+            if (!ok) Log.w(LOG_TAG, "createFile: HTTP ${resp.code} ${resp.use { it.body?.string() }}")
+            else resp.close()
             ok
         }.getOrElse { e ->
             Log.w(LOG_TAG, "createFile failed: $e")
@@ -362,7 +396,15 @@ class GoogleDriveBackupTarget(
         // shape, so we hand-build the body and
         // set the content-type explicitly.
         val metadataBytes = bodyBuilder.toString().toByteArray(Charsets.UTF_8)
-        val closing = "--$boundary--\r\n".toByteArray(Charsets.UTF_8)
+        // A CRLF must precede every boundary delimiter, including the
+        // closing one (RFC 2046 §5.1.1) — the transition from the
+        // metadata part to this part gets its CRLF from the "append(crlf)"
+        // calls above, but the raw `content` bytes end wherever the
+        // caller's payload happens to end, so the CRLF before the closing
+        // boundary has to be added here explicitly. Without it, Drive's
+        // parser reads `<content>--boundary--` as one unterminated line
+        // and rejects the whole request with "Missing end boundary".
+        val closing = "\r\n--$boundary--\r\n".toByteArray(Charsets.UTF_8)
         val combined = metadataBytes + content + closing
         val mediaType = "multipart/related; boundary=$boundary".toMediaType()
         return combined.toRequestBody(mediaType)

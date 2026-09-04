@@ -158,7 +158,13 @@ class LetterViewModel(
         cancelled = false
         _state.value = LetterWriteState.Writing
 
-        val apiKey = llmPrefs.apiKey.first()
+        // v0.70+ (bug fix, part 2): read provider before the key,
+        // and read the key *for that provider* — apiKey used to be
+        // one shared slot regardless of provider, so switching
+        // providers in Settings silently tested/used the wrong
+        // service's key here too.
+        val provider = llmPrefs.provider.first()
+        val apiKey = llmPrefs.apiKeyFor(provider).first()
         if (apiKey.isBlank()) {
             val error = LetterError.NoApiKey()
             letterLog.append(logEntry(today, error, 0L))
@@ -166,7 +172,6 @@ class LetterViewModel(
             return
         }
 
-        val provider = llmPrefs.provider.first()
         val model = llmPrefs.model.first()
         val client = clientOverride ?: LlmClientFactory.create(provider, apiKey, model)
 

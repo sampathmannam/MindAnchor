@@ -58,7 +58,7 @@ class LlmSettingsTest {
     @Test
     fun `setApiKey round-trips through the view model`() = runBlocking {
         vm.setApiKeyNow("test-key")
-        assertEquals("test-key", prefs.apiKey.first())
+        assertEquals("test-key", prefs.apiKeyFor(vm.provider.value).first())
     }
 
     @Test
@@ -89,5 +89,34 @@ class LlmSettingsTest {
     @Test
     fun `default lastTestResult is NONE`() = runBlocking {
         assertEquals(LlmTestResult.NONE, vm.lastTestResult.first())
+    }
+
+    // v0.70+ (bug fix, part 2) — apiKey used to be one
+    // shared slot regardless of provider: switching the
+    // provider chip left whatever key was typed for the
+    // previous provider sitting in the field, silently
+    // tested against the new provider's API. Confirmed
+    // live via a temporary debug log that showed the same
+    // Groq-formatted key (`gsk_...`) being sent to
+    // OpenRouter's and Google's endpoints after switching
+    // provider chips in Settings.
+    //
+    // Checked through `prefs.apiKeyFor(...)` rather than
+    // `vm.apiKey`, matching `setProvider round-trips
+    // through the view model` above: `vm.apiKey` chains
+    // through two `viewModelScope`-driven StateFlows
+    // (provider, then apiKey via flatMapLatest), and
+    // reading it immediately after a write races
+    // Robolectric's un-idled main looper rather than
+    // testing the fix itself.
+    @Test
+    fun `switching provider shows that provider's own key, not the previous provider's`() = runBlocking {
+        vm.setApiKeyNow("google-key")
+        vm.setProviderNow(LlmProvider.OPENROUTER)
+        assertEquals("", prefs.apiKeyFor(LlmProvider.OPENROUTER).first())
+
+        vm.setApiKeyNow("openrouter-key")
+        assertEquals("openrouter-key", prefs.apiKeyFor(LlmProvider.OPENROUTER).first())
+        assertEquals("google-key", prefs.apiKeyFor(LlmProvider.GOOGLE_AI_STUDIO).first())
     }
 }

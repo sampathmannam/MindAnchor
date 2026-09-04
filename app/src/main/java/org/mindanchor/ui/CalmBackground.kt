@@ -9,9 +9,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.platform.LocalContext
 import org.mindanchor.data.AppearancePrefs
 import java.time.LocalDate
@@ -80,9 +82,43 @@ fun CalmBackground(content: @Composable (SkyContent) -> Unit) {
     }.toColor()
     val hillTint = landColor
 
+    val starOpacity = SkyMath.starOpacity(minuteOfDay)
+    val sunOpacity = SkyMath.sunOpacity(minuteOfDay)
+
     Box(modifier = Modifier.fillMaxSize()) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             drawRect(brush = Brush.verticalGradient(listOf(top, mid, bottom)))
+
+            // Stars, drawn onto the bare sky before anything in front of
+            // it. starOpacity fades on the exact same dawn/dusk windows
+            // the palette anchors above use, so they never fight the sky
+            // for which one is "actually" night. TEXT_LIGHT is reused as
+            // the tint rather than a new colour — it is already the
+            // colour this file chooses for night, so the stars read as
+            // part of the same palette instead of a decoration bolted on.
+            if (starOpacity > 0f) {
+                drawStars(opacity = starOpacity, tint = SkyMath.TEXT_LIGHT.toColor())
+            }
+
+            // The sun: a soft radial glow rather than a hard disc, for
+            // the same "distance reads as atmosphere, not as an object
+            // demanding attention" reason the hills are filled shapes
+            // and not a spotlight. It fades in and out on the exact
+            // same dawn/dusk windows as the stars (sunOpacity is their
+            // complement), so the two are never both on screen at
+            // once. Its position traces a high overhead arc across the
+            // day — low at sunrise and sunset, near the top of the sky
+            // at solar noon — computed the same way the palette itself
+            // is: a pure function of the clock, stepping once a minute
+            // rather than animating.
+            if (sunOpacity > 0f) {
+                drawSun(
+                    opacity = sunOpacity,
+                    tint = SUN_TINT.toColor(),
+                    xFraction = SkyMath.sunXFraction(minuteOfDay),
+                    yFraction = SkyMath.sunYFraction(minuteOfDay),
+                )
+            }
 
             // Two hills, drawn as shapes rather than as glows.
             //
@@ -140,6 +176,99 @@ fun CalmBackground(content: @Composable (SkyContent) -> Unit) {
 /** How far the land drops below a dark sky, and rises above a bright one. */
 private const val LAND_DARKEN = 0.55
 private const val LAND_LIGHTEN = 0.45
+
+/** How many stars to scatter, and how far down the sky they reach. */
+private const val STAR_COUNT = 48
+
+/**
+ * Stars stay in the upper sky, clear of the hill crests (0.74–0.84) and the
+ * nature-scene ridges drawn on top of them — the same "distance reads as
+ * atmosphere, not as an object" reasoning the hills themselves use.
+ */
+private const val STAR_MAX_HEIGHT_FRACTION = 0.6f
+
+/** Jitter salts — arbitrary but distinct, so x, y, size and brightness don't correlate. */
+private const val STAR_SALT_X = 11
+private const val STAR_SALT_Y = 29
+private const val STAR_SALT_SIZE = 47
+
+private const val STAR_MIN_RADIUS_PX = 1.2f
+private const val STAR_MAX_RADIUS_PX = 3.2f
+private const val STAR_MIN_ALPHA = 0.25f
+private const val STAR_MAX_ALPHA = 0.85f
+
+/**
+ * A scattered, deterministic field of small circles standing in for stars.
+ *
+ * Positions and sizes come from [NatureMath.jitter] — the same "hand-placed
+ * but identical on every recomposition" trick the landscape ridges use — so
+ * the sky does not visibly rearrange itself between one minute's redraw and
+ * the next. Nothing here animates or twinkles; this file's whole premise is
+ * that ambient change stays far below the threshold where motion draws the
+ * eye, and a field of blinking stars would be exactly that threshold.
+ */
+private fun DrawScope.drawStars(opacity: Float, tint: Color) {
+    for (i in 0 until STAR_COUNT) {
+        val xFraction = (NatureMath.jitter(i, STAR_SALT_X) + 1.0) / 2.0
+        val yFraction = (NatureMath.jitter(i, STAR_SALT_Y) + 1.0) / 2.0 * STAR_MAX_HEIGHT_FRACTION
+        val sizeFraction = (NatureMath.jitter(i, STAR_SALT_SIZE) + 1.0) / 2.0
+        val radius = STAR_MIN_RADIUS_PX + sizeFraction.toFloat() * (STAR_MAX_RADIUS_PX - STAR_MIN_RADIUS_PX)
+        val alpha = STAR_MIN_ALPHA + sizeFraction.toFloat() * (STAR_MAX_ALPHA - STAR_MIN_ALPHA)
+        drawCircle(
+            color = tint.copy(alpha = (alpha * opacity).coerceIn(0f, 1f)),
+            radius = radius,
+            center = Offset(
+                (xFraction * size.width).toFloat(),
+                (yFraction * size.height).toFloat(),
+            ),
+        )
+    }
+}
+
+/**
+ * How far the glow reaches, as a fraction of the sky's width. The sun's
+ * arc (see [SkyMath.sunXFraction] / [SkyMath.sunYFraction]) does cross
+ * behind the clock and the corner buttons at points in the day — the
+ * same thing already happens with the star field, which scatters across
+ * the full width. A soft, low-opacity glow behind opaque text reads as
+ * atmosphere, not as something competing with it.
+ */
+private const val SUN_RADIUS_FRACTION = 0.28f
+
+/** Peak alpha at the glow's centre; it falls to 0 at [SUN_RADIUS_FRACTION]. */
+private const val SUN_CORE_ALPHA = 0.5f
+
+/**
+ * A soft warm gold — the same low-saturation register as the dawn/dusk
+ * anchors above, rather than a bright, attention-grabbing yellow.
+ */
+private val SUN_TINT = Rgb(0xF2, 0xDC, 0xAD)
+
+/**
+ * A soft glow standing in for the sun, the same treatment [drawStars] gives
+ * the night sky: a radial gradient rather than a hard-edged disc, so it
+ * reads as daylight rather than as a shape sitting on top of the sky.
+ *
+ * [xFraction] / [yFraction] place it along today's arc — like the
+ * palette itself, position only changes on the once-a-minute clock
+ * tick that redraws this whole Canvas, not a continuous animation.
+ */
+private fun DrawScope.drawSun(opacity: Float, tint: Color, xFraction: Float, yFraction: Float) {
+    val center = Offset(size.width * xFraction, size.height * yFraction)
+    val radius = size.width * SUN_RADIUS_FRACTION
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(
+                tint.copy(alpha = (SUN_CORE_ALPHA * opacity).coerceIn(0f, 1f)),
+                tint.copy(alpha = 0f),
+            ),
+            center = center,
+            radius = radius,
+        ),
+        radius = radius,
+        center = center,
+    )
+}
 
 /**
  * Opacity of the two horizon shapes. Well above the old 8% and 6%, which

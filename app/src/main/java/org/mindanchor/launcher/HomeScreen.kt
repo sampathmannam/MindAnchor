@@ -6,6 +6,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -462,9 +463,6 @@ fun LauncherRoot(
                     // notifier owns the trigger.
                     viewModel.recordCompassionateWrap(event)
                 },
-                heldNotificationsDao = org.mindanchor.data.db.AnchorDatabase
-                    .get(context.applicationContext as android.app.Application)
-                    .heldNotifications(),
                 goingLightSchedule = goingLightScheduleByState.collectAsState().value,
                 onGoingLightConsentDismissed = viewModel::dismissGoingLightConsent,
                 morningCompassionEnabled = morningCompassionEnabledByState.collectAsState().value,
@@ -982,31 +980,35 @@ private fun QuickNotesCard(
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
             )
         } else {
-            recent.forEach { note ->
-                // The note row is intentionally
-                // compact: first line of the body
-                // (the title by convention) plus a
-                // small timestamp. Full body is in
-                // the activity; the home only
-                // surfaces the *fact* the user
-                // wrote it, and the rough when.
-                val title = note.title.ifBlank { note.body.take(60) }
-                val whenText = noteTimeText(note)
-                TextButton(
-                    onClick = onOpenAll,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(
-                        text = stringResource(
-                            R.string.quick_notes_saved_at,
-                            title,
-                            whenText,
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = sky.textSecondary,
-                        textAlign = TextAlign.Center,
-                    )
-                }
+            // v0.70+: this used to list up to
+            // QUICK_NOTES_RECENT_CAP (3) notes here,
+            // each its own row. That's a real
+            // contributor to the home screen
+            // overflowing a typical screen (measured
+            // ~95dp with 6 favourites + 2 notes on a
+            // real device) and forcing a scroll that
+            // used to be avoidable. The card's job is
+            // to confirm the capture landed, not to
+            // preview the list — full browsing is
+            // "View all" one tap away — so only the
+            // single latest note shows here now.
+            val note = recent.first()
+            val title = note.title.ifBlank { note.body.take(60) }
+            val whenText = noteTimeText(note)
+            TextButton(
+                onClick = onOpenAll,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    text = stringResource(
+                        R.string.quick_notes_saved_at,
+                        title,
+                        whenText,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = sky.textSecondary,
+                    textAlign = TextAlign.Center,
+                )
             }
             TextButton(onClick = onOpenAll) {
                 Text(stringResource(R.string.quick_notes_view_all), color = sky.textSecondary)
@@ -1123,17 +1125,6 @@ private fun HomeSurface(
      * view-model owns the storage.
      */
     onAddCompassionateWrapNote: (CompassionateWrapNotifier.Event) -> Unit = {},
-    /**
-     * v0.26+ (Phase 1 G-20) — the held-notifications DAO
-     * for the [HomeDietCard]. The card's data layer is the
-     * `releasedCountSince(since)` query (added in
-     * commit `75029c8`). The DAO is the read-side; the
-     * [AnchorNotificationListenerService] is the write
-     * side. Default null so existing call sites still
-     * compile; the launcher view-model wires the real
-     * DAO in [LauncherRoot].
-     */
-    heldNotificationsDao: org.mindanchor.data.db.HeldNotificationDao? = null,
     /**
      * v0.26+ (Phase 1 G-1) — the Going Light schedule for
      * the [GoingLightConsentCard]. The card shows when
@@ -1469,15 +1460,34 @@ private fun HomeSurface(
         // opts in to BringIntoViewRequester so the
         // focused field is scrolled into view above the
         // keyboard.
-        Column(
+        // v0.70+: verticalScroll measures its child with
+        // unbounded height, so the Arrangement.CenterVertically
+        // below was never actually centring anything — the
+        // content just packed to the top and the slack landed
+        // below it as dead space. That dead space is easy to
+        // miss when it is just blank area below the favourites,
+        // but it reads as a clearly broken empty block between
+        // the Sleep Lock card and the keyboard once the IME is
+        // open and shrinks the space available here.
+        // BoxWithConstraints gives the Column a real height
+        // (heightIn(min = ...) below) to centre within — it can
+        // still grow past that and scroll if the content is
+        // taller.
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
-                .imePadding()
-                .padding(start = 32.dp, end = 32.dp, top = 32.dp, bottom = 88.dp)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+                .imePadding(),
         ) {
+            val minHeight = maxHeight
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = minHeight)
+                    .padding(start = 32.dp, end = 32.dp, top = 32.dp, bottom = 88.dp)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+            ) {
             Text(
                 text = now.format(DateTimeFormatter.ofPattern(clockFormat)),
                 style = MaterialTheme.typography.displayLarge.copy(
@@ -1623,13 +1633,6 @@ private fun HomeSurface(
                 )
             }
 
-            // v0.26+ (Phase 1 G-20) — the notification diet card.
-            // Reports the trailing-7-day released count and the
-            // Mark 2005 23-minute-interruption-recovery cost.
-            // The card hides itself on a fresh install (zero
-            // released) — never pre-fill with zeros.
-            heldNotificationsDao?.let { HomeDietCard(dao = it) }
-
             // v0.26+ (Phase 1 G-19) — the compassionate-wrap
             // Snackbar host. AppWatchService posts events to
             // CompassionateWrapNotifier when the user closes a
@@ -1743,7 +1746,16 @@ private fun HomeSurface(
             }
 
             Column(
-                modifier = Modifier.padding(top = 40.dp),
+                // v0.70+: 40dp used to sit above the favourites
+                // list unconditionally. With 6 favourites (the
+                // documented max) plus a couple of quick notes,
+                // the column overflows a typical screen by
+                // ~95dp, forcing a scroll that did not used to
+                // be there. 16dp keeps the visual break between
+                // the notes card and favourites without being
+                // the single biggest contributor to that
+                // overflow.
+                modifier = Modifier.padding(top = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 favorites.forEach { app ->
@@ -1767,10 +1779,19 @@ private fun HomeSurface(
                             style = MaterialTheme.typography.headlineSmall,
                             color = sky.textPrimary,
                             textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(vertical = 10.dp),
+                            // v0.70+: 10dp of vertical padding pushed
+                            // each row past the 48dp touch-target floor
+                            // above (52dp measured), which added up
+                            // across up to 6 favourites. 6dp lets the
+                            // Box's heightIn floor do the work instead,
+                            // so every row still meets the 48dp minimum
+                            // but none of them exceed it just from
+                            // padding.
+                            modifier = Modifier.padding(vertical = 6.dp),
                         )
                     }
                 }
+            }
             }
         }
 
@@ -1792,11 +1813,21 @@ private fun HomeSurface(
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding(),
         ) {
-            Text(
-                text = stringResource(R.string.open_drawer),
-                style = MaterialTheme.typography.titleMedium,
-                color = sky.textSecondary,
-            )
+            // v0.70.x (UI audit): an invisible second line, the
+            // same style as the Digest button's subtitle, so this
+            // button's bottom edge sits as low as Digest's does —
+            // otherwise this label's baseline sits visibly lower
+            // than Digest's title, since Digest is a two-line
+            // Column and this bottom-aligned row would otherwise
+            // hug its own single line to the bottom.
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = stringResource(R.string.open_drawer),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = sky.textSecondary,
+                )
+                Text(text = "", style = MaterialTheme.typography.labelSmall)
+            }
         }
 
         TextButton(
@@ -1812,11 +1843,16 @@ private fun HomeSurface(
                 // pixel.
                 .padding(end = 8.dp),
         ) {
-            Text(
-                text = stringResource(R.string.settings),
-                style = MaterialTheme.typography.labelMedium,
-                color = sky.textSecondary,
-            )
+            // See the open_drawer button above — same
+            // invisible-second-line baseline fix.
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = stringResource(R.string.settings),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = sky.textSecondary,
+                )
+                Text(text = "", style = MaterialTheme.typography.labelSmall)
+            }
         }
 
     val context = LocalContext.current
@@ -2169,12 +2205,30 @@ class DearManDialogState {
  * the activity is paused or in a transition. The
  * sleep lock is a UX safeguard, not a security
  * boundary, so a missed call is a soft fail.
+ *
+ * v0.70.x (UI audit): guarded on [ActivityManager]'s own lock-task
+ * state before calling [Activity.startLockTask] again. Reproduced
+ * live: [LaunchedEffect] re-running startLockTask while the task
+ * was already pinned made the OS re-show its "App is pinned"
+ * confirmation banner repeatedly instead of once per sleep window,
+ * which made the phone hard to use even for the "I am awake and I
+ * want to use it" case the unlock phrase exists for. Calling
+ * startLockTask only when not already locked is correct regardless
+ * of what exactly re-triggered the composable — a pin request while
+ * already pinned should always be a no-op, not a repeat prompt.
  */
 internal fun startLockTaskOn(context: android.content.Context) {
+    if (isAlreadyLockTaskLocked(context)) return
     val activity = context.findActivity()
     if (activity != null) {
         runCatching { activity.startLockTask() }
     }
+}
+
+/** Whether some task on the device is already in lock task mode. */
+internal fun isAlreadyLockTaskLocked(context: android.content.Context): Boolean {
+    val activityManager = context.getSystemService(android.app.ActivityManager::class.java)
+    return activityManager?.lockTaskModeState != android.app.ActivityManager.LOCK_TASK_MODE_NONE
 }
 
 /**

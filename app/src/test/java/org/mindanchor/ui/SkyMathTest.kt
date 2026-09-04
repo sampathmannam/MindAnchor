@@ -166,6 +166,154 @@ class SkyMathTest {
         )
     }
 
+    // --- Stars --------------------------------------------------------
+
+    @Test
+    fun `stars are fully out at midday and fully in at midnight`() {
+        assertEquals(0f, SkyMath.starOpacity(at(13)), 0.001f)
+        assertEquals(1f, SkyMath.starOpacity(at(0)), 0.001f)
+    }
+
+    @Test
+    fun `stars hold flat through the night and day plateaus`() {
+        assertEquals(1f, SkyMath.starOpacity(at(0)))
+        assertEquals(1f, SkyMath.starOpacity(at(3)))
+        assertEquals(1f, SkyMath.starOpacity(at(5)))
+        assertEquals(0f, SkyMath.starOpacity(at(9)))
+        assertEquals(0f, SkyMath.starOpacity(at(12)))
+        assertEquals(0f, SkyMath.starOpacity(at(17)))
+    }
+
+    @Test
+    fun `stars fade out monotonically at dawn and in monotonically at dusk`() {
+        var previous = SkyMath.starOpacity(at(5))
+        for (hour in 6..9) {
+            val current = SkyMath.starOpacity(at(hour))
+            assertTrue("stars brightened during dawn at $hour", current <= previous + 1e-9)
+            previous = current
+        }
+        previous = SkyMath.starOpacity(at(17))
+        for (hour in 18..21) {
+            val current = SkyMath.starOpacity(at(hour))
+            assertTrue("stars dimmed during dusk at $hour", current >= previous - 1e-9)
+            previous = current
+        }
+    }
+
+    @Test
+    fun `star opacity never leaves 0 to 1`() {
+        for (minute in 0 until 24 * 60) {
+            val alpha = SkyMath.starOpacity(minute)
+            assertTrue("star opacity $alpha out of range at minute $minute", alpha in 0f..1f)
+        }
+    }
+
+    @Test
+    fun `star opacity is continuous across the midnight wrap`() {
+        val before = SkyMath.starOpacity(at(23, 59))
+        val after = SkyMath.starOpacity(at(0, 0))
+        assertTrue(kotlin.math.abs(before - after) < 0.01f)
+    }
+
+    @Test
+    fun `star opacity wraps instead of crashing out of range`() {
+        assertEquals(SkyMath.starOpacity(at(3)), SkyMath.starOpacity(at(3) + 24 * 60), 0.001f)
+        assertEquals(SkyMath.starOpacity(at(3)), SkyMath.starOpacity(at(3) - 24 * 60), 0.001f)
+    }
+
+    // --- Sun ------------------------------------------------------------
+
+    @Test
+    fun `sun is fully out at midnight and fully in at midday`() {
+        assertEquals(0f, SkyMath.sunOpacity(at(0)), 0.001f)
+        assertEquals(1f, SkyMath.sunOpacity(at(13)), 0.001f)
+    }
+
+    @Test
+    fun `sun opacity is the exact complement of star opacity at every minute`() {
+        for (minute in 0 until 24 * 60) {
+            assertEquals(
+                1f - SkyMath.starOpacity(minute),
+                SkyMath.sunOpacity(minute),
+                0.0001f,
+            )
+        }
+    }
+
+    @Test
+    fun `sun and stars are never both bright at once`() {
+        for (minute in 0 until 24 * 60) {
+            val total = SkyMath.sunOpacity(minute) + SkyMath.starOpacity(minute)
+            assertEquals("sun+star should sum to 1 at minute $minute", 1f, total, 0.0001f)
+        }
+    }
+
+    // --- Sun arc ----------------------------------------------------------
+
+    @Test
+    fun `sun sits low on the left at sunrise and low on the right at sunset`() {
+        assertEquals(0.12f, SkyMath.sunXFraction(at(5)), 0.001f)
+        assertEquals(0.58f, SkyMath.sunYFraction(at(5)), 0.001f)
+        assertEquals(0.88f, SkyMath.sunXFraction(at(21, 30)), 0.001f)
+        assertEquals(0.58f, SkyMath.sunYFraction(at(21, 30)), 0.001f)
+    }
+
+    @Test
+    fun `sun is centred and highest at solar noon`() {
+        val solarNoon = at(13, 15)
+        assertEquals(0.5f, SkyMath.sunXFraction(solarNoon), 0.001f)
+        assertEquals(0.12f, SkyMath.sunYFraction(solarNoon), 0.001f)
+    }
+
+    @Test
+    fun `sun moves left to right monotonically across the day`() {
+        var previous = SkyMath.sunXFraction(at(5))
+        for (hour in 6..21) {
+            val current = SkyMath.sunXFraction(at(hour))
+            assertTrue("sun moved backwards at $hour", current >= previous - 1e-6f)
+            previous = current
+        }
+    }
+
+    @Test
+    fun `sun's height is symmetric around solar noon`() {
+        val solarNoon = at(13, 15)
+        for (offsetMinutes in 0..400 step 20) {
+            val before = SkyMath.sunYFraction(solarNoon - offsetMinutes)
+            val after = SkyMath.sunYFraction(solarNoon + offsetMinutes)
+            assertEquals(
+                "height should mirror around solar noon at +/-$offsetMinutes minutes",
+                before,
+                after,
+                0.001f,
+            )
+        }
+    }
+
+    @Test
+    fun `sun position never leaves its designed range`() {
+        for (minute in 0 until 24 * 60) {
+            val x = SkyMath.sunXFraction(minute)
+            val y = SkyMath.sunYFraction(minute)
+            assertTrue("sun x $x out of range at minute $minute", x in 0.12f..0.88f)
+            assertTrue("sun y $y out of range at minute $minute", y in 0.12f..0.58f)
+        }
+    }
+
+    @Test
+    fun `sun position wraps instead of crashing out of range`() {
+        assertEquals(
+            SkyMath.sunXFraction(at(13)),
+            SkyMath.sunXFraction(at(13) + 24 * 60),
+            0.001f,
+        )
+        assertEquals(
+            SkyMath.sunYFraction(at(13)),
+            SkyMath.sunYFraction(at(13) + 24 * 60),
+            0.001f,
+        )
+    }
+
     // --- Colour maths sanity ---------------------------------------------
 
     @Test

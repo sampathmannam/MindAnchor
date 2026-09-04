@@ -27,16 +27,20 @@ enum class ReportFeedback {
 }
 
 /**
- * A stored [Report] together with the paragraph, if any, a
- * [org.mindanchor.narrate.Narrator] wrote about it, and whatever
- * [PatternFinder] found in this person's own history.
+ * A stored [Report] together with the paragraph, if any, was written
+ * about it, and whatever [PatternFinder] found in this person's own
+ * history.
+ *
+ * v0.70.5: the on-device model that used to write [narration] has been
+ * removed (Settings → Reading → Model); the field stays, permanently
+ * null, so a report saved before this version still decodes.
  *
  * Kept apart from [Report] itself rather than adding fields there.
- * [org.mindanchor.report.ReportComposer] never produces a narration — a
- * narrator only ever runs afterwards, on the finished report — so every
- * caller that builds a bare [Report], test or otherwise, would either
- * have to thread a null through for a field it has no opinion about, or
- * get a default that invites a future caller to forget the field exists.
+ * [org.mindanchor.report.ReportComposer] never produces a narration —
+ * so every caller that builds a bare [Report], test or otherwise, would
+ * either have to thread a null through for a field it has no opinion
+ * about, or get a default that invites a future caller to forget the
+ * field exists.
  * [StoredReport] exists at the one layer that actually knows about
  * narration and patterns: storage. [patterns] defaults to the empty list
  * for the same reason — [PatternFinder] runs alongside [ReportComposer]
@@ -81,9 +85,9 @@ data class StoredReport(
  * ever read there — a line shaped like one appearing after the first
  * `SECTION` is treated as an unrecognised record and ignored, the same
  * as it would be for any format this version has never heard of. It is
- * entirely optional: a report saved before narration existed, or one a
- * [org.mindanchor.narrate.Narrator] declined to write anything about, has
- * no `NARRATION` line at all, and decodes exactly as it always did, with
+ * entirely optional: a report with nothing to say — every report now,
+ * since v0.70.5 removed the model that used to write this line — has no
+ * `NARRATION` line at all, and decodes exactly as it always did, with
  * [StoredReport.narration] simply null.
  *
  * `PATTERN` lines follow the same rule as `NARRATION`, for the same
@@ -400,8 +404,9 @@ class ReportStore(private val context: Context) {
     /**
      * Overwrites the single stored report. There is never more than one.
      *
-     * [narration] is whatever a [org.mindanchor.narrate.Narrator] wrote —
-     * or null, which is the ordinary outcome; see that interface's KDoc.
+     * [narration] is always null since v0.70.5 removed the on-device
+     * model that used to write it — the ordinary outcome even before
+     * that, since most nights had no model able to run.
      * [patterns] is whatever [PatternFinder] found in this person's own
      * history — ordinarily empty, for the same reason a strong link is
      * rare by design; see that object's KDoc.

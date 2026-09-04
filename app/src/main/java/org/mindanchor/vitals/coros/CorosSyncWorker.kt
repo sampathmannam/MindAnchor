@@ -11,6 +11,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import java.util.concurrent.TimeUnit
+import org.mindanchor.vitals.WellnessRepository
 
 /**
  * Periodic + on-demand sync of COROS Training Hub data into
@@ -71,7 +72,7 @@ class CorosSyncWorker(
         if (!auth.connectionState(lastSyncEpochMs = null).isConnectedLike()) {
             return Result.failure()
         }
-        val authed = try {
+        var authed = try {
             auth.ensureAuthed()
         } catch (e: CorosApiException) {
             // Authentication failure with stored
@@ -90,13 +91,35 @@ class CorosSyncWorker(
         val dashboard = try {
             api.fetchDashboard(authed)
         } catch (e: CorosApiException) {
-            // Transient: the worker should retry on the
-            // next periodic tick rather than fail the
-            // whole batch. The exception's `corosResult`
-            // field is the structured diagnostic; the UI
-            // shows the lastSync timestamp going stale.
-            @Suppress("SwallowedException")
-            return Result.retry()
+            if (e.corosResult != REGION_MISMATCH_RESULT) {
+                // Transient: the worker should retry on the
+                // next periodic tick rather than fail the
+                // whole batch. The exception's `corosResult`
+                // field is the structured diagnostic; the UI
+                // shows the lastSync timestamp going stale.
+                @Suppress("SwallowedException")
+                return Result.retry()
+            }
+            // result=1019 ("Access token is invalid") on a
+            // token minted seconds ago is not a bad token.
+            // Login is federated across the Training Hub's
+            // regional hosts — any of them will mint a token
+            // for any account — but the data plane is
+            // sharded, and a token only reads data on the
+            // host the account actually lives on. The region
+            // chosen at connect time is therefore
+            // unverifiable at login and only provably wrong
+            // here. Probe the other regions with the stored
+            // credentials; the first data plane that answers
+            // is the account's real home, and it is
+            // persisted so every later sync starts right.
+            // (Observed in the wild 2026-08-28: an account
+            // connected as "eu" — accepted at login — whose
+            // data lives on the US host.)
+            val healed = healRegion(ctx, api, authed.region)
+                ?: return Result.retry()
+            authed = healed.auth
+            healed.dashboard
         }
         val analyse = try {
             api.fetchAnalyse(authed)
@@ -121,11 +144,74 @@ class CorosSyncWorker(
             daily = analyse,
             activities = activities,
         )
+        // The fetched history also seeds the per-signal wellness
+        // ledger, so a freshly connected account's 28 days of RHR
+        // make the baseline reportable now rather than 14 daily
+        // reads from now. The call never throws — a ledger hiccup
+        // must not fail the sync that fetched the data.
+        WellnessRepository(ctx).backfillFromWearable(hrv = dashboard, daily = analyse)
         return Result.success()
     }
 
     private fun CorosConnectionState.isConnectedLike(): Boolean =
         this is CorosConnectionState.Connected
+
+    /**
+     * A successful region probe: the token minted on the
+     * account's real home host, and the dashboard that host
+     * already returned (so the caller does not fetch it a
+     * second time).
+     */
+    private data class HealedRegion(
+        val auth: CorosAuthPayload,
+        val dashboard: List<CorosHrv>,
+    )
+
+    /**
+     * Finds the account's real regional host after the
+     * stored region's data plane rejected a fresh token —
+     * see the call site for why that means "wrong region"
+     * rather than "bad credentials". Tries each other
+     * region in turn; a host that fails, in any way, is
+     * simply not the home region. On success the corrected
+     * region is persisted so the next sync — and the
+     * Settings screen's connection line — start right.
+     */
+    private suspend fun healRegion(
+        ctx: Context,
+        api: CorosApi,
+        badRegion: String,
+    ): HealedRegion? {
+        val store = CorosCredentialStore(ctx)
+        val creds = store.read() ?: return null
+        val hash = CorosPasswordHasher.md5Hex(creds.second)
+        val (region, healed) = CANDIDATE_REGIONS
+            .filter { it != badRegion }
+            .firstNotNullOfOrNull { region -> tryRegion(api, region, creds.first, hash)?.let { region to it } }
+            ?: return null
+        store.write(creds.first, creds.second, region)
+        return healed
+    }
+
+    @Suppress("SwallowedException", "detekt.TooGenericExceptionCaught")
+    private suspend fun tryRegion(
+        api: CorosApi,
+        region: String,
+        username: String,
+        hash: String,
+    ): HealedRegion? {
+        val payload = try {
+            api.login(username, hash, region)
+        } catch (e: Exception) {
+            return null
+        }
+        val dashboard = try {
+            api.fetchDashboard(payload)
+        } catch (e: Exception) {
+            return null
+        }
+        return HealedRegion(payload, dashboard)
+    }
 
     companion object {
         /**
@@ -154,13 +240,41 @@ class CorosSyncWorker(
         private const val PERIODIC_INTERVAL_HOURS: Long = 6
 
         /**
+         * The Training Hub's "Access token is invalid"
+         * result code. On a token minted moments earlier it
+         * means the stored *region* is wrong, not the token
+         * — see the [healRegion] call site.
+         */
+        private const val REGION_MISMATCH_RESULT = "1019"
+
+        /**
+         * Every regional host the Training Hub runs, in the
+         * order [healRegion] probes them. Must cover the
+         * same set [CorosApi.baseUrl] maps.
+         */
+        private val CANDIDATE_REGIONS = listOf("eu", "us", "cn")
+
+        /**
          * Arms the periodic worker. Called from
          * [org.mindanchor.settings.SettingsViewModel]
-         * when the user connects the bridge. The
-         * [ExistingPeriodicWorkPolicy.KEEP] policy
-         * means a second call is a no-op: an already
-         * running schedule is left alone. Use [cancel]
-         * to drop the schedule.
+         * when the user connects the bridge.
+         *
+         * v0.70.5: was [ExistingPeriodicWorkPolicy.KEEP]. KEEP
+         * treats an already-scheduled unique work as untouchable —
+         * a later change to this worker's constraints or interval
+         * silently never reaches a device that connected the
+         * bridge under an older version, because the call that
+         * would apply it is a no-op by design. Confirmed live: the
+         * [setRequiresBatteryNotLow] constraint below did not
+         * appear in `dumpsys jobscheduler`'s JobInfo for the
+         * already-running periodic work on a real device until
+         * this policy changed. [ExistingPeriodicWorkPolicy.UPDATE]
+         * (sibling [org.mindanchor.friction.BanditResetWorker]
+         * already uses it) replaces the stored definition —
+         * constraints, interval — while preserving the original
+         * enqueue phase, so this does not reset the 6-hour cycle
+         * or cause an immediate re-sync; it only makes today's
+         * definition the one that is actually running.
          */
         fun ensureScheduled(context: Context) {
             val request = PeriodicWorkRequestBuilder<CorosSyncWorker>(
@@ -168,11 +282,16 @@ class CorosSyncWorker(
             ).setConstraints(
                 Constraints.Builder()
                     .setRequiredNetworkType(NetworkType.CONNECTED)
+                    // A watch sync every 6 hours is not worth spending
+                    // the last of a critically low battery on; the OS
+                    // defers this run and picks it back up once the
+                    // level recovers or the phone is charging.
+                    .setRequiresBatteryNotLow(true)
                     .build(),
             ).build()
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 PERIODIC_NAME,
-                ExistingPeriodicWorkPolicy.KEEP,
+                ExistingPeriodicWorkPolicy.UPDATE,
                 request,
             )
         }

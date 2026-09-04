@@ -31,6 +31,20 @@ jobs:
 
       - name: Semgrep
         run: |
+          # v0.70.x: on a branch where this step ran after the Allure
+          # report step, the finding count varied run to run on
+          # identical commits (0 locally, 12/6/8 in CI) — looked like
+          # the p/security-audit / p/secrets / p/kotlin registry
+          # aliases drifting server-side, but the finding-detail dump
+          # below showed the real cause: every instance was
+          # generic.secrets.detected-facebook-oauth firing on
+          # allure-report/ and allure-history/, the Allure step's own
+          # generated report JSON — never present in a local checkout,
+          # freshly regenerated (with run-dependent content) on every
+          # CI job. Not a registry drift, not a real secret. Scanning
+          # here, before Allure ever runs, avoids the directory
+          # existing at all; the finding-detail dump stays as a
+          # general debugging aid for whatever this step does flag.
           image=returntocorp/semgrep@sha256:f1f7b71861c7b28b6e0f661225a2c4f58a484f5d0f182465c6d6b3b22f972ade
           docker pull "$image"
           docker run --rm -v "$PWD:/src" "$image" \
@@ -40,6 +54,9 @@ jobs:
             > /tmp/semgrep.json 2>/dev/null
           findings=$(python3 -c "import json; print(len(json.load(open('/tmp/semgrep.json')).get('results', [])))" 2>/dev/null || echo 0)
           echo "Semgrep findings: $findings"
+          if [ "$findings" != 0 ]; then
+            python3 -c "import json; d = json.load(open('/tmp/semgrep.json')); [print(r['check_id'], r['path']+':'+str(r['start']['line'])+chr(10)+'  '+r['extra']['message'].splitlines()[0]) for r in d.get('results', [])]"
+          fi
           test "$findings" = 0
 
       - name: Setup Android SDK

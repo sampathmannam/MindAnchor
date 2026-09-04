@@ -168,6 +168,84 @@ object SkyMath {
     fun primaryTextFor(palette: SkyPalette): Rgb =
         if (palette.lightText) TEXT_LIGHT else TEXT_DARK
 
+    // --- Stars --------------------------------------------------------
+
+    private const val NIGHT_END_MINUTE = 5 * 60
+    private const val DAWN_END_MINUTE = 9 * 60
+    private const val DUSK_START_MINUTE = 17 * 60
+    private const val NIGHT_START_MINUTE = 21 * 60 + 30
+
+    /**
+     * How visible stars should be, 0 (day) to 1 (full night).
+     *
+     * Reuses the exact same dawn/dusk windows the sky palette anchors
+     * above use, rather than a separate schedule — stars fade in and out
+     * exactly as the sky itself visibly darkens and lightens, so the two
+     * are never fighting or out of step with each other.
+     */
+    fun starOpacity(minutesOfDay: Int): Float {
+        val minutes = ((minutesOfDay % DAY_MINUTES) + DAY_MINUTES) % DAY_MINUTES
+        return when {
+            minutes < NIGHT_END_MINUTE -> 1f
+            minutes < DAWN_END_MINUTE ->
+                1f - (minutes - NIGHT_END_MINUTE).toFloat() / (DAWN_END_MINUTE - NIGHT_END_MINUTE)
+            minutes < DUSK_START_MINUTE -> 0f
+            minutes < NIGHT_START_MINUTE ->
+                (minutes - DUSK_START_MINUTE).toFloat() / (NIGHT_START_MINUTE - DUSK_START_MINUTE)
+            else -> 1f
+        }
+    }
+
+    /**
+     * How visible the sun should be, 0 (night) to 1 (full day) — the exact
+     * complement of [starOpacity] on the same dawn/dusk windows, so the two
+     * are never both faint or both bright at once.
+     */
+    fun sunOpacity(minutesOfDay: Int): Float = 1f - starOpacity(minutesOfDay)
+
+    /** Sun rises at the same minute the stars finish fading in and sets when they start fading out. */
+    private const val SUNRISE_MINUTE = NIGHT_END_MINUTE
+    private const val SUNSET_MINUTE = NIGHT_START_MINUTE
+
+    private const val SUN_SUNRISE_X = 0.12f
+    private const val SUN_SET_X = 0.88f
+    private const val SUN_HORIZON_Y = 0.58f
+    private const val SUN_ZENITH_Y = 0.12f
+
+    /**
+     * 0 at sunrise, 1 at sunset — where the sun is along today's arc.
+     * Clamped, so a call during the night (when [sunOpacity] is already 0
+     * and the sun is not drawn) still returns a defined value.
+     */
+    private fun sunDayProgress(minutesOfDay: Int): Float {
+        val minutes = ((minutesOfDay % DAY_MINUTES) + DAY_MINUTES) % DAY_MINUTES
+        val span = (SUNSET_MINUTE - SUNRISE_MINUTE).toFloat()
+        return ((minutes - SUNRISE_MINUTE) / span).coerceIn(0f, 1f)
+    }
+
+    /**
+     * Horizontal position of the sun, 0 (left edge) to 1 (right edge),
+     * moving left to right over the course of the day. Like the palette
+     * itself, this only changes with the once-a-minute clock tick — the
+     * sun does not animate, it steps, the same way the sky's colour does.
+     */
+    fun sunXFraction(minutesOfDay: Int): Float {
+        val t = sunDayProgress(minutesOfDay)
+        return SUN_SUNRISE_X + (SUN_SET_X - SUN_SUNRISE_X) * t
+    }
+
+    /**
+     * Vertical position of the sun, 0 (top of the sky) to 1 (bottom).
+     * A high overhead arc: low at sunrise and sunset, sweeping up near
+     * the top of the sky at solar noon. `sin` of the day-progress traces
+     * that arc in one line — 0 at both ends, 1 at the midpoint.
+     */
+    fun sunYFraction(minutesOfDay: Int): Float {
+        val t = sunDayProgress(minutesOfDay)
+        val height = kotlin.math.sin(t * Math.PI).toFloat().coerceIn(0f, 1f)
+        return SUN_HORIZON_Y - (SUN_HORIZON_Y - SUN_ZENITH_Y) * height
+    }
+
     /** The composited background a caller's text actually sits on. */
     fun withHaze(background: Rgb, palette: SkyPalette): Rgb =
         blend(background, palette.haze, palette.hazeAlpha.toDouble())

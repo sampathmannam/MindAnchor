@@ -3,9 +3,11 @@ package org.mindanchor.settings
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -25,7 +27,15 @@ class LlmSettingsViewModel(application: Application) : AndroidViewModel(applicat
         initialValue = LlmProvider.GOOGLE_AI_STUDIO,
     )
 
-    val apiKey: StateFlow<String> = llmPrefs.apiKey.stateIn(
+    /**
+     * v0.70+ (bug fix, part 2): the key follows the
+     * selected provider — [flatMapLatest] re-subscribes
+     * to that provider's own encrypted slot every time
+     * [provider] changes, instead of the one shared key
+     * every provider used to read and overwrite.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val apiKey: StateFlow<String> = provider.flatMapLatest { llmPrefs.apiKeyFor(it) }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = "",
@@ -70,7 +80,12 @@ class LlmSettingsViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     internal suspend fun setApiKeyNow(key: String) {
-        llmPrefs.setApiKey(key)
+        // Read the provider fresh from the underlying store rather
+        // than provider.value (the cached, viewModelScope-driven
+        // StateFlow) — right after switching providers, that cache
+        // can briefly lag the real current provider, which would
+        // write the new key into the *previous* provider's slot.
+        llmPrefs.setApiKey(llmPrefs.provider.first(), key)
     }
 
     internal suspend fun setModelNow(model: String) {

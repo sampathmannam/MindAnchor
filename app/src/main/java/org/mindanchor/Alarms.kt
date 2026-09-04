@@ -15,13 +15,20 @@ import org.mindanchor.sunset.SunsetController
  *
  * Alarms do not survive a reboot, and until this existed the list of what
  * to put back lived only inside `BootReceiver` — where it had drifted.
- * Batch releases, sunset, the nightly report, and the check-in
- * prompts are re-armed here. (The 2026-08-24 release removed the
- * fortnightly pulse scheduler; this function used to call it as a
- * fifth entry. The original list-of-five bug — see git history — was
- * that two of the five were not being re-armed; the re-arm contract
- * now covers the remaining four and the missing-alarm class of bug
- * is closed for them.)
+ * Batch releases, sunset, the nightly report, the check-in prompts, and
+ * OS Mode's window-suspension re-entry are re-armed here. (The
+ * 2026-08-24 release removed the fortnightly pulse scheduler; this
+ * function used to call it as a fifth entry. The original list-of-five
+ * bug — see git history — was that two of the five were not being
+ * re-armed; the re-arm contract covered the remaining four and closed
+ * the missing-alarm class of bug for them. v0.70.7 briefly added a fifth
+ * entry — the nightly Google Drive backup, `DriveNightlySync` — but that
+ * feature's settings UI was later replaced by Program 0's continuity
+ * backup, which schedules itself independently through WorkManager, not
+ * through this AlarmManager re-arm path; re-arming DriveNightlySync here
+ * with no UI left to turn it off would have silently doubled up nightly
+ * Drive traffic against the same signed-in account, so that entry was
+ * removed rather than carried forward as dead weight.)
  *
  * A missing alarm is the worst shape of bug this app can have: nothing
  * fails, nothing is logged, a feature just never speaks again and the

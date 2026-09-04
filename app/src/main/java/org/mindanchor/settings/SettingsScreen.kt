@@ -10,6 +10,8 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,9 +30,11 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -74,7 +78,6 @@ import org.mindanchor.admin.DeviceOwner
 import org.mindanchor.friction.AppWatchService
 import org.mindanchor.grayscale.Grayscale
 import org.mindanchor.launcher.DisplayApp
-import org.mindanchor.narrate.ModelSlot
 import org.mindanchor.notifications.BatchSchedule
 import org.mindanchor.onboarding.Goal
 import org.mindanchor.report.MeasureSource
@@ -106,6 +109,7 @@ import kotlin.math.roundToLong
  */
 private const val HEALTH_CONNECT_PACKAGE = "com.google.android.apps.healthdata"
 private const val HEALTH_CONNECT_MAIN_ACTION = "androidx.health.ACTION_HEALTH_CONNECT_HOME"
+private const val HEALTH_CONNECT_LOG_TAG = "MindAnchor/HealthConnect"
 
 /**
  * A section title, marked when the person named a reason for it.
@@ -126,6 +130,40 @@ private fun SectionHeading(titleRes: Int, section: SettingsSection?, goals: Set<
             Text(
                 text = stringResource(R.string.goal_marker),
                 style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/**
+ * A rationale paragraph, collapsed behind a small "Why?" tap by default.
+ *
+ * v0.70.x (UI audit): this app explains itself before it asks anything
+ * of you — a deliberate, cite-the-research stance, not filler. But
+ * stacking that explanation in front of every single control turned
+ * Quiet and Measuring into a wall of prose a person had to read past
+ * just to find the switch. The text itself is untouched — nothing is
+ * shortened or removed — it is just not shown until someone asks for it.
+ */
+@Suppress("FunctionNaming")
+@Composable
+private fun WhyExplainer(text: String, modifier: Modifier = Modifier) {
+    var expanded by remember { mutableStateOf(false) }
+    Column(modifier = modifier) {
+        TextButton(
+            onClick = { expanded = !expanded },
+            contentPadding = PaddingValues(vertical = 4.dp, horizontal = 0.dp),
+        ) {
+            Text(
+                text = stringResource(if (expanded) R.string.why_hide else R.string.why_show),
+                style = MaterialTheme.typography.labelMedium,
+            )
+        }
+        if (expanded) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -209,10 +247,21 @@ private fun TimeNudgerRow(
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.weight(1f),
         )
-        TextButton(onClick = onEarlier) {
+        // v0.70.x (UI audit): outlined, not text-only — a bare
+        // TextButton reads as a label rather than a control, and
+        // this one is meant to be tapped repeatedly to nudge a
+        // time. The tightened content padding keeps both buttons
+        // fitting comfortably next to a long label.
+        OutlinedButton(
+            onClick = onEarlier,
+            contentPadding = ButtonDefaults.TextButtonContentPadding,
+        ) {
             Text(stringResource(R.string.time_earlier))
         }
-        TextButton(onClick = onLater) {
+        OutlinedButton(
+            onClick = onLater,
+            contentPadding = ButtonDefaults.TextButtonContentPadding,
+        ) {
             Text(stringResource(R.string.time_later))
         }
     }
@@ -402,8 +451,7 @@ private fun ChronotypeRadioRow(
                 selected = selected == chronotype,
                 role = Role.RadioButton,
                 onClick = { onChange(chronotype) },
-            )
-            .padding(vertical = 4.dp),
+            ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         RadioButton(selected = selected == chronotype, onClick = null)
@@ -413,54 +461,6 @@ private fun ChronotypeRadioRow(
             modifier = Modifier.padding(start = 8.dp),
         )
     }
-}
-
-/**
- * v0.25.2-A (Task 10): the dialog for picking the daily letter's
- * time. Lives in its own sub-Composable so the parent
- * [SettingsScreen] does not grow past the detekt [LongMethod]
- * threshold — the dialog's [rememberTimePickerState] + [TimePicker]
- * + [AlertDialog] wiring is the part the parent would otherwise
- * inline.
- *
- * 24-hour because the spec is local-time-of-day, and a user who
- * has just chosen "08:00" in the toggle row should not have to
- * translate AM/PM in a second control. The confirm button hands
- * the picked [TimePickerState.hour] / [TimePickerState.minute]
- * straight back to the caller; nothing in here writes to the
- * store, so the dialog is safe to open, dismiss, and reopen
- * without ever touching [org.mindanchor.letters.LetterStore.setTime].
- */
-@Suppress("FunctionNaming")
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun LetterTimePickerDialog(
-    initialHour: Int,
-    initialMinute: Int,
-    onDismiss: () -> Unit,
-    onConfirm: (hour: Int, minute: Int) -> Unit,
-) {
-    val state = rememberTimePickerState(
-        initialHour = initialHour,
-        initialMinute = initialMinute,
-        is24Hour = true,
-    )
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(onClick = { onConfirm(state.hour, state.minute) }) {
-                Text(stringResource(R.string.action_save))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.action_close))
-            }
-        },
-        text = {
-            TimePicker(state = state)
-        },
-    )
 }
 
 /**
@@ -527,6 +527,101 @@ private fun GroupRow(titleRes: Int, descriptionRes: Int, marked: Boolean, onClic
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+    }
+}
+
+/**
+ * The "Apps to batch" list, as its own screen.
+ *
+ * v0.70.x (UI audit): this used to render every installed app inline
+ * inside Quiet — an alphabetical dump of the whole app drawer, with no
+ * way to jump to a specific app, was the single biggest reason that
+ * screen read as cluttered. Splitting it out costs one tap to reach
+ * and buys back a scrollable-in-its-own-right screen, plus room for
+ * the search field a list this long actually needs.
+ */
+@Suppress("FunctionNaming")
+@Composable
+private fun AppPickerScreen(
+    allApps: List<org.mindanchor.launcher.DisplayApp>,
+    batchedApps: Set<String>,
+    onSetAppBatched: (String, Boolean) -> Unit,
+    onBack: () -> Unit,
+) {
+    var query by remember { mutableStateOf("") }
+    val filtered = remember(allApps, query) {
+        if (query.isBlank()) {
+            allApps
+        } else {
+            allApps.filter { it.label.contains(query, ignoreCase = true) }
+        }
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .safeDrawingPadding()
+            .imePadding()
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+    ) {
+        TextButton(onClick = onBack) {
+            Text(stringResource(R.string.action_back))
+        }
+        Text(
+            text = stringResource(R.string.batching_apps_picker_title),
+            style = MaterialTheme.typography.headlineMedium,
+            modifier = Modifier.padding(vertical = 16.dp),
+        )
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            singleLine = true,
+            placeholder = { Text(stringResource(R.string.batching_apps_picker_search_hint)) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
+        )
+        if (filtered.isEmpty()) {
+            Text(
+                text = stringResource(R.string.batching_apps_picker_none_match, query),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 16.dp),
+            )
+        } else {
+            LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
+                items(filtered, key = { it.component }) { app ->
+                    AppPickerRow(
+                        app = app,
+                        batched = app.component.substringBefore('/') in batchedApps,
+                        onSetAppBatched = onSetAppBatched,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Suppress("FunctionNaming")
+@Composable
+private fun AppPickerRow(
+    app: org.mindanchor.launcher.DisplayApp,
+    batched: Boolean,
+    onSetAppBatched: (String, Boolean) -> Unit,
+) {
+    val packageName = app.component.substringBefore('/')
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .toggleable(value = batched, role = Role.Switch) { onSetAppBatched(packageName, it) },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = app.label,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f),
+        )
+        Switch(checked = batched, onCheckedChange = null)
     }
 }
 
@@ -623,19 +718,39 @@ fun SettingsScreen(
     // group's own screen in its place.
     var group by remember { mutableStateOf<SettingsGroup?>(null) }
 
-    // Back closes an open group first and only leaves the
-    // screen on a second press. Without this, the global
-    // back handler in [HomeScreen] would short-circuit to
-    // the home surface the moment a group is open and the
-    // user would lose the index. The visible "back" text
-    // button below has the same predicate, so both paths
-    // behave identically.
+    // v0.70.x (UI audit): the "Apps to batch" list used to inline
+    // every installed app directly into Quiet, which is what made
+    // that screen read as cluttered — a settings tab whose length
+    // was dominated by an alphabetical dump of the whole app
+    // drawer. It now opens as its own screen instead, the same way
+    // "group" already does for the six top-level destinations.
+    var showAppPicker by remember { mutableStateOf(false) }
+
+    // Back closes the app picker first, then an open group, and
+    // only leaves the screen on a third press. Without this, the
+    // global back handler in [HomeScreen] would short-circuit to
+    // the home surface the moment something is open and the user
+    // would lose whatever they were in the middle of. The visible
+    // "back" text button below has the same predicate, so both
+    // paths behave identically.
     BackHandler(enabled = true) {
-        if (group != null) {
+        if (showAppPicker) {
+            showAppPicker = false
+        } else if (group != null) {
             group = null
         } else {
             onBack()
         }
+    }
+
+    if (showAppPicker) {
+        AppPickerScreen(
+            allApps = allApps,
+            batchedApps = batchedApps,
+            onSetAppBatched = viewModel::setAppBatched,
+            onBack = { showAppPicker = false },
+        )
+        return
     }
 
     // COROS bridge form state. Held at the screen level so
@@ -890,11 +1005,7 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
             )
-            Text(
-                text = stringResource(R.string.small_things_explainer),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            WhyExplainer(stringResource(R.string.small_things_explainer))
             val smallThings by viewModel.smallThings.collectAsState()
             smallThings.forEach { thing ->
                 Row(
@@ -949,11 +1060,7 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
             )
-            Text(
-                text = stringResource(R.string.compassion_explainer),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            WhyExplainer(stringResource(R.string.compassion_explainer))
             val compassionMoments by viewModel.compassionMoments.collectAsState()
             compassionMoments.forEach { moment ->
                 Row(
@@ -993,11 +1100,7 @@ fun SettingsScreen(
         if (group == SettingsGroup.QUIET) {
             // --- Notification batching (F1) ---
             SectionHeading(R.string.batching_section, SettingsSection.BATCHING, goals)
-            Text(
-                text = stringResource(R.string.batching_explainer),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            WhyExplainer(stringResource(R.string.batching_explainer))
 
             if (!hasNotificationAccess) {
                 TextButton(
@@ -1052,10 +1155,8 @@ fun SettingsScreen(
                     // meaningless, and the whole point of batching is that
                     // interruptions land when a person can absorb them.
                     val releaseTimes by viewModel.releaseTimes.collectAsState()
-                    Text(
+                    WhyExplainer(
                         text = stringResource(R.string.batching_times_explainer),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 12.dp),
                     )
                     releaseTimes.forEachIndexed { slot, time ->
@@ -1129,30 +1230,16 @@ fun SettingsScreen(
                         }
                     }
 
-                    Text(
-                        text = stringResource(R.string.batching_choose_apps),
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
-                    )
-                    allApps.forEach { app ->
-                        val packageName = app.component.substringBefore('/')
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 48.dp)
-                                .toggleable(
-                                    value = packageName in batchedApps,
-                                    role = Role.Switch,
-                                ) { viewModel.setAppBatched(packageName, it) },
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = app.label,
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.weight(1f),
-                            )
-                            Switch(checked = packageName in batchedApps, onCheckedChange = null)
-                        }
+                    TextButton(
+                        onClick = { showAppPicker = true },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp, bottom = 4.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.batching_apps_button, batchedApps.size) + "  →",
+                            modifier = Modifier.weight(1f),
+                        )
                     }
 
                     // v0.30+ (spec Phase 2) — the active-hours
@@ -1269,6 +1356,12 @@ fun SettingsScreen(
                 // onClick there were two tap targets per line and the
                 // inner one had no words — a screen reader landed on an
                 // unnamed radio button between every named row.
+                // v0.70.x (UI audit): dropped the extra vertical
+                // padding this Row used to add on top of its own
+                // heightIn(min = 48.dp) — the 48dp floor already
+                // guarantees the accessible touch target, so the
+                // padding was only adding cosmetic air, making a
+                // short 5-item list read as longer than it is.
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1276,8 +1369,7 @@ fun SettingsScreen(
                         .selectable(
                             selected = natureScene == scene,
                             role = Role.RadioButton,
-                        ) { viewModel.setNatureScene(scene) }
-                        .padding(vertical = 4.dp),
+                        ) { viewModel.setNatureScene(scene) },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     RadioButton(selected = natureScene == scene, onClick = null)
@@ -1702,11 +1794,7 @@ fun SettingsScreen(
             // thrown that away. So it is measured here instead — which also
             // means it survives changing watch, or wearing none at all.
             SectionHeading(R.string.ppg_section, SettingsSection.SLEEP, goals)
-            Text(
-                text = stringResource(R.string.ppg_explainer),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            WhyExplainer(stringResource(R.string.ppg_explainer))
             TextButton(onClick = onOpenPpg) {
                 Text(stringResource(R.string.ppg_start))
             }
@@ -1783,23 +1871,16 @@ fun SettingsScreen(
                         )
                         Switch(checked = mirrorOn, onCheckedChange = null)
                     }
-                    Text(
-                        text = stringResource(R.string.mirror_explainer),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                     val laterNights by viewModel.nightsLaterThanUsual.collectAsState()
                     laterNights?.let { count ->
                         Text(
                             text = stringResource(R.string.mirror_line, count),
                             style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(top = 8.dp),
                         )
                     }
-                    Text(
-                        text = stringResource(R.string.sleep_regularity_note),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    WhyExplainer(
+                        text = stringResource(R.string.mirror_explainer) +
+                            " " + stringResource(R.string.sleep_regularity_note),
                         modifier = Modifier.padding(top = 4.dp),
                     )
                     // Suggested wind-down, opt-in. Built from the user's
@@ -1866,96 +1947,6 @@ fun SettingsScreen(
         }
 
         if (group == SettingsGroup.READING) {
-            // --- Daily letter (v0.25.2-A) ---
-            //
-            // The headline entry on the Reading surface. The
-            // toggle is always editable, on purpose: a person who
-            // has not yet imported a model needs to be able to
-            // *say* they want a letter without the row being
-            // dead, and the daily alarm is held by the
-            // [org.mindanchor.letters.LetterScheduler] which
-            // already does the right thing when the model is
-            // missing (a quiet "nothing today" — see
-            // [org.mindanchor.letters.LetterScheduler.onFire]).
-            // The "Generate now" button is the one row that
-            // gates on `modelFits`, because pushing a button
-            // that visibly does nothing is its own small
-            // dishonesty. The inbox count gates on
-            // `unreadCount > 0` for the same reason — a button
-            // that says "Open inbox (0)" reads as a stat
-            // rather than an affordance.
-            SectionHeading(R.string.letters_section, null, goals)
-            Text(
-                text = stringResource(R.string.letters_explainer),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            val modelFits by viewModel.modelFits.collectAsState()
-            val lettersEnabled by viewModel.lettersEnabled.collectAsState()
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp)
-                    .toggleable(value = lettersEnabled, role = Role.Switch) {
-                        viewModel.setLettersEnabled(it)
-                    }
-                    .padding(top = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(R.string.letters_toggle),
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.weight(1f),
-                )
-                Switch(checked = lettersEnabled, onCheckedChange = null)
-            }
-            val lettersTime by viewModel.lettersTime.collectAsState()
-            var showLetterTimePicker by remember { mutableStateOf(false) }
-            TextButton(
-                enabled = lettersEnabled,
-                onClick = { showLetterTimePicker = true },
-            ) {
-                Text(
-                    stringResource(
-                        R.string.letters_time,
-                        lettersTime.first,
-                        lettersTime.second,
-                    ),
-                )
-            }
-            if (showLetterTimePicker) {
-                LetterTimePickerDialog(
-                    initialHour = lettersTime.first,
-                    initialMinute = lettersTime.second,
-                    onDismiss = { showLetterTimePicker = false },
-                    onConfirm = { hour, minute ->
-                        viewModel.setLettersTime(hour, minute)
-                        showLetterTimePicker = false
-                    },
-                )
-            }
-            val letterRunning by viewModel.letterRunning.collectAsState()
-            TextButton(
-                enabled = !letterRunning && lettersEnabled && modelFits,
-                onClick = viewModel::runLetterNow,
-            ) {
-                Text(
-                    stringResource(
-                        if (letterRunning) R.string.letters_running_now
-                        else R.string.letters_run_now,
-                    ),
-                )
-            }
-            val unreadCount by viewModel.unreadLetterCount.collectAsState()
-            TextButton(
-                enabled = unreadCount > 0,
-                onClick = onOpenLetters,
-            ) {
-                Text(stringResource(R.string.letters_open_inbox, unreadCount))
-            }
-        }
-
-        if (group == SettingsGroup.READING) {
             // --- Daily letter (LLM) (v0.25.7) ---
             //
             // The LLM-driven daily letter path. BYOK: the
@@ -1966,7 +1957,7 @@ fun SettingsScreen(
             // completion; the cached result is shown in the
             // Connection row above.
             val llmVm: org.mindanchor.settings.LlmSettingsViewModel = viewModel()
-            org.mindanchor.settings.LlmSettingsScreen(llmVm)
+            org.mindanchor.settings.LlmSettingsScreen(llmVm, onOpenLetters = onOpenLetters)
         }
 
         if (group == SettingsGroup.READING) {
@@ -2154,77 +2145,6 @@ fun SettingsScreen(
         }
 
         if (group == SettingsGroup.READING) {
-            // --- Model (the small model a future writing engine would run) ---
-            //
-            // No inference engine is built into this app yet — see
-            // org.mindanchor.narrate.NoEngineNarrator. Importing a model here
-            // does not yet make any writing happen; it records the file and,
-            // exactly like ModelSlot was built to, reports honestly whether
-            // this phone has enough memory to run it once an engine exists.
-            SectionHeading(R.string.model_section, null, goals)
-            Text(
-                text = stringResource(R.string.model_explainer),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = stringResource(R.string.model_no_engine),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-            val modelPresent by viewModel.modelPresent.collectAsState()
-            val modelFit by viewModel.modelFit.collectAsState()
-            val modelImportFailed by viewModel.modelImportFailed.collectAsState()
-            LaunchedEffect(Unit) { viewModel.refreshModel() }
-            Text(
-                text = stringResource(if (modelPresent) R.string.model_present else R.string.model_none),
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(top = 8.dp),
-            )
-            if (modelPresent) {
-                val fitRes = when (modelFit) {
-                    ModelSlot.Fit.FITS -> R.string.model_fit_fits
-                    ModelSlot.Fit.TIGHT -> R.string.model_fit_tight
-                    ModelSlot.Fit.TOO_LARGE -> R.string.model_fit_too_large
-                    ModelSlot.Fit.UNSUPPORTED -> R.string.model_fit_unsupported
-                }
-                Text(
-                    text = stringResource(fitRes),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            val modelPicker = rememberLauncherForActivityResult(
-                // OpenDocument, and "*/*", for the same reason as the corpus
-                // picker above: a GGUF is not a MIME type every file provider
-                // on every phone reports, and a picker offering nothing
-                // selectable is a dead end.
-                ActivityResultContracts.OpenDocument(),
-            ) { uri -> uri?.let(viewModel::importModel) }
-            TextButton(onClick = { modelPicker.launch(arrayOf("*/*")) }) {
-                Text(stringResource(R.string.model_import))
-            }
-            if (modelImportFailed) {
-                Text(
-                    text = stringResource(R.string.model_import_failed),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (modelPresent) {
-                TextButton(onClick = viewModel::clearModel) {
-                    Text(stringResource(R.string.model_clear))
-                }
-            }
-            // v0.23.0: one-tap Phi-4 mini download.
-            // The download runs through the system
-            // DownloadManager; when it finishes, the
-            // launcher listens for
-            // ACTION_DOWNLOAD_COMPLETE and prompts the
-            // user with a Yes-then-import.
-            Phi4ModelDownloadSection(viewModel = viewModel)
-
             // Task 12 (Program 0): continuity backup
             // health, recovery key, and kill switches —
             // replaces the v0.25.4 Google Drive backup
@@ -2266,11 +2186,7 @@ fun SettingsScreen(
             // that drops the evidence anchor is
             // caught at review time.
             SectionHeading(R.string.ema_section, null, goals)
-            Text(
-                text = stringResource(R.string.ema_explainer),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            WhyExplainer(stringResource(R.string.ema_explainer))
             Text(
                 text = stringResource(R.string.ema_research_link),
                 style = MaterialTheme.typography.bodySmall,
@@ -2506,7 +2422,7 @@ fun SettingsScreen(
             val healthConnectPermissionLauncher = rememberLauncherForActivityResult(
                 contract = healthConnectPermissionContract,
             ) { granted ->
-                Log.w("MindAnchor/HealthConnect", "permission result: " + granted.size + " granted")
+                Log.w(HEALTH_CONNECT_LOG_TAG, "permission result: " + granted.size + " granted")
                 hcLaunchError = null
                 viewModel.refreshHealthConnectStatus()
             }
@@ -2553,7 +2469,7 @@ fun SettingsScreen(
                 // is never silent again.
                 TextButton(
                     onClick = {
-                        Log.w("MindAnchor/HealthConnect", "launch requested")
+                        Log.w(HEALTH_CONNECT_LOG_TAG, "launch requested")
                         val primary = runCatching {
                             healthConnectPermissionLauncher.launch(
                                 HealthConnectSource.effectivePermissions(context),
@@ -2594,7 +2510,11 @@ fun SettingsScreen(
                             ?: fallbackOpen.exceptionOrNull()
                             ?: playStore.exceptionOrNull()
                         if (failure != null) {
-                            Log.e("MindAnchor/HealthConnect", "all three launches failed; last error: " + failure.javaClass.simpleName, failure)
+                            Log.e(
+                                HEALTH_CONNECT_LOG_TAG,
+                                "all three launches failed; last error: " + failure.javaClass.simpleName,
+                                failure,
+                            )
                             hcLaunchError = failure.javaClass.simpleName
                         }
                     },
@@ -2684,7 +2604,7 @@ fun SettingsScreen(
                                                         context.startActivity(intent)
                                                     }.onFailure { t ->
                                                         Log.e(
-                                                            "MindAnchor/HealthConnect",
+                                                            HEALTH_CONNECT_LOG_TAG,
                                                             "play store launch failed: " +
                                                                 t.javaClass.simpleName,
                                                             t,
@@ -2703,6 +2623,58 @@ fun SettingsScreen(
                                 }
                             }
                         }
+                    }
+                }
+
+                // v0.70.2: the second step of the connect flow.
+                // READ_HEALTH_DATA_IN_BACKGROUND and
+                // READ_HEALTH_DATA_HISTORY are "additional"
+                // permissions, and Health Connect silently drops
+                // them from a request that also carries record-read
+                // permissions: the dialog renders toggles for the
+                // record reads only, the additional two come back
+                // ungranted, and nothing logs why. Both had been
+                // declared in the manifest and bundled into the
+                // connect launch above — and both were still
+                // ungranted on the project's own phone after every
+                // connect pass. They only get their grant screens
+                // when launched on their own, so they get their own
+                // row: shown once any record read is granted (alone,
+                // the two read nothing) while at least one of the
+                // two is still missing; gone once both are granted.
+                // Background is what lets the overnight look's
+                // receiver read at ~03:00 with no activity in the
+                // foreground; history lifts the 30-day read floor so
+                // the picture of your usual can backfill. The set is
+                // feature-gated per provider like mindfulness — an
+                // unadvertised permission crashes the dialog — and
+                // the launch reuses the cached launcher, whose
+                // callback already refreshes the status.
+                if (s.granted > 0 && s.additionalGranted < s.additionalTotal) {
+                    Text(
+                        text = stringResource(R.string.health_connect_additional_explainer),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                    TextButton(
+                        onClick = {
+                            Log.w(HEALTH_CONNECT_LOG_TAG, "additional-access launch requested")
+                            runCatching {
+                                healthConnectPermissionLauncher.launch(
+                                    HealthConnectSource.effectiveAdditionalPermissions(context),
+                                )
+                            }.onFailure { t ->
+                                Log.e(
+                                    HEALTH_CONNECT_LOG_TAG,
+                                    "additional-access launch failed: " + t.javaClass.simpleName,
+                                    t,
+                                )
+                                hcLaunchError = t.javaClass.simpleName
+                            }
+                        },
+                    ) {
+                        Text(stringResource(R.string.health_connect_additional_button))
                     }
                 }
             }
@@ -2927,8 +2899,7 @@ fun SettingsScreen(
                             .selectable(
                                 selected = corosRegionDraft == regionCode,
                                 role = Role.RadioButton,
-                            ) { corosRegionDraft = regionCode }
-                            .padding(vertical = 4.dp),
+                            ) { corosRegionDraft = regionCode },
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         RadioButton(

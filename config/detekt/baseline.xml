@@ -42,8 +42,6 @@
     <ID>FunctionNaming:GoingLightConsentCard.kt$@Composable fun GoingLightConsentCard( schedule: GoingLightSchedule, onDismiss: () -&gt; Unit, modifier: Modifier = Modifier, )</ID>
     <ID>FunctionNaming:HealthyDefaultsScreen.kt$@Composable private fun DefaultRow( title: String, currentDefault: String, recommendation: String, rationale: String, onChange: () -&gt; Unit, )</ID>
     <ID>FunctionNaming:HealthyDefaultsScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun HealthyDefaultsScreen( onBack: () -&gt; Unit, modifier: Modifier = Modifier, )</ID>
-    <ID>FunctionNaming:HomeDietCard.kt$@Composable fun HomeDietCard( dao: org.mindanchor.data.db.HeldNotificationDao, showIfEmpty: Boolean = false, modifier: Modifier = Modifier, )</ID>
-    <ID>FunctionNaming:HomeDietCard.kt$@Composable private fun HomeDietCardContent( releasedCountFlow: Flow&lt;Int&gt;, showIfEmpty: Boolean, modifier: Modifier = Modifier, )</ID>
     <ID>FunctionNaming:HomeScreen.kt$@Composable @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class) private fun QuickNotesCard( sky: SkyContent, recent: List&lt;Note&gt;, onSave: (String) -&gt; Unit, onOpenAll: () -&gt; Unit, onLongPressTitle: (() -&gt; Unit)? = null, )</ID>
     <ID>FunctionNaming:HomeScreen.kt$@Composable fun LauncherRoot( viewModel: LauncherViewModel = viewModel(), /** Bumped whenever the home button is pressed; see HomeActivity. */ goHomeSignal: Int = 0, /** * v0.25.2-A (Task 8): when the user taps a letter notification, * HomeActivity writes the letter's date here. The launcher navigates * to the reader for that date, then signals back via * [onLetterDateConsumed] so the activity clears the value. The * reset is what makes a re-tap for the same date work — without * it, the flow would not re-emit and the second tap would be a * silent no-op. */ letterDateSignal: LocalDate? = null, /** * v0.25.2-A (Task 8): invoked after the launcher has applied a * [letterDateSignal]. HomeActivity uses this to clear its * `MutableStateFlow` so a configuration change does not re-trigger * the same navigation. */ onLetterDateConsumed: () -&gt; Unit = {}, /** * v0.25.9 (auto-update): a non-null value means a newer * MindAnchor version is on GitHub. The home surface shows * a snackbar; tapping the action opens the release page in * the browser. `onUpdateAction` is invoked on tap; * `onUpdateDismiss` on "not now" (the activity clears the * value so the snackbar does not reappear on the next * recomposition). */ availableUpdate: org.mindanchor.update.UpdateInfo? = null, onUpdateAction: (org.mindanchor.update.UpdateInfo) -&gt; Unit = {}, onUpdateDismiss: () -&gt; Unit = {}, /** * v0.25.9 (deployability §8.3): whether MindAnchor is the * user's default home. The home surface shows a one-line * callout with a single action button while this is false. */ isDefaultHome: Boolean = true, onSetDefaultHome: () -&gt; Unit = {}, )</ID>
     <ID>FunctionNaming:HomeScreen.kt$@Composable private fun DefaultHomeCallout( sky: SkyContent, onAction: () -&gt; Unit, onDismiss: () -&gt; Unit, )</ID>
@@ -52,7 +50,6 @@
     <ID>FunctionNaming:JournalEntries.kt$@Composable fun JournalEntries( entries: List&lt;JournalEntry&gt;, searchQuery: String, onSearchQueryChange: (String) -&gt; Unit, modifier: Modifier = Modifier, )</ID>
     <ID>FunctionNaming:JournalPatterns.kt$@Composable fun JournalPatterns( entries: List&lt;JournalEntry&gt;, morningMeasureHistory: List&lt;MorningMeasure&gt;, modifier: Modifier = Modifier, )</ID>
     <ID>FunctionNaming:JournalScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun JournalScreen(viewModel: JournalViewModel, onBack: () -&gt; Unit)</ID>
-    <ID>FunctionNaming:JournalToday.kt$@Composable fun JournalToday( today: LocalDate, title: String, body: String, onTitleChange: (String) -&gt; Unit, onBodyChange: (String) -&gt; Unit, onSave: () -&gt; Unit, savedConfirmation: Boolean, saveError: Boolean, morningMeasure: MorningMeasure?, onSaveMorningMeasure: (mood: Int, anxiety: Int, angerUrge: Int, energyFunction: Int, sleepQuality: Int) -&gt; Unit, modifier: Modifier = Modifier, )</ID>
     <ID>FunctionNaming:MorningCompassionCard.kt$@Composable fun MorningCompassionCard( onStart: () -&gt; Unit, onSkip: () -&gt; Unit, modifier: Modifier = Modifier, )</ID>
     <ID>FunctionNaming:MorningMeasureCard.kt$@Composable fun MorningMeasureCard( existing: MorningMeasure?, onSave: (mood: Int, anxiety: Int, angerUrge: Int, energyFunction: Int, sleepQuality: Int) -&gt; Unit, modifier: Modifier = Modifier, )</ID>
     <ID>FunctionNaming:MorningMeasureCard.kt$@Composable private fun SegmentedRow(dimension: MeasureDimension, selected: Int, onSelect: (Int) -&gt; Unit)</ID>
@@ -82,9 +79,6 @@
     <ID>FunctionNaming:SettingsScreen.kt$@Composable private fun TimeNudgerRow( label: String, /** The current value to display next to the label. */ value: String, onEarlier: () -&gt; Unit, onLater: () -&gt; Unit, )</ID>
     <ID>FunctionNaming:SettingsScreen.kt$@Composable private fun WellnessSignalRow(reading: org.mindanchor.vitals.WellnessReading)</ID>
     <ID>FunctionNaming:SleepWindowOptimizerCard.kt$@Composable fun SleepWindowOptimizerCard( medianBedtime: Duration, medianWakeTime: Duration, daysOfData: Int, onApply: () -&gt; Unit, onDismiss: () -&gt; Unit, modifier: Modifier = Modifier, )</ID>
-    <ID>FunctionNaming:SupportScreen.kt$@Composable fun SupportScreen( onClose: () -&gt; Unit, viewModel: SupportViewModel = viewModel(), )</ID>
-    <ID>FunctionNaming:SupportScreen.kt$@Composable private fun PlanField( labelRes: Int, hintRes: Int, value: String, onValueChange: (String) -&gt; Unit, )</ID>
-    <ID>FunctionNaming:SupportScreen.kt$@Composable private fun SafetyPlanEditor( plan: SafetyPlan, onChange: (SafetyPlan) -&gt; Unit, contacts: List&lt;CrisisContact&gt;, onAddContact: (String, String, Boolean) -&gt; Unit, onRemoveContact: (CrisisContact) -&gt; Unit, )</ID>
     <ID>FunctionNaming:SupportScreen.kt$@Composable private fun SafetyPlanReader(plan: SafetyPlan)</ID>
     <ID>FunctionNaming:Theme.kt$@Composable fun MindAnchorTheme(content: @Composable () -&gt; Unit)</ID>
     <ID>FunctionNaming:Theme.kt$@Composable internal fun MindAnchorThemeForced(dark: Boolean, content: @Composable () -&gt; Unit)</ID>
@@ -107,27 +101,21 @@
     <ID>LongMethod:IfThenBuilderCard.kt$@Composable fun IfThenBuilderCard( appLabel: String, initial: IfThenPlan, onSave: (IfThenPlan) -&gt; Unit, modifier: Modifier = Modifier, )</ID>
     <ID>LongMethod:JournalEntries.kt$@Composable fun JournalEntries( entries: List&lt;JournalEntry&gt;, searchQuery: String, onSearchQueryChange: (String) -&gt; Unit, modifier: Modifier = Modifier, )</ID>
     <ID>LongMethod:JournalScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun JournalScreen(viewModel: JournalViewModel, onBack: () -&gt; Unit)</ID>
-    <ID>LongMethod:LlmSettingsScreen.kt$@Suppress("FunctionNaming") @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class) @Composable fun LlmSettingsScreen(viewModel: LlmSettingsViewModel)</ID>
     <ID>LongMethod:NoteScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun NoteScreen( notes: NotesState, onAdd: (body: String) -&gt; Unit, onEdit: (id: Long, body: String) -&gt; Unit, onTogglePinned: (id: Long) -&gt; Unit, onDelete: (id: Long) -&gt; Unit, onClose: () -&gt; Unit, )</ID>
     <ID>LongMethod:PerAppSessionLengthRow.kt$@Composable fun PerAppSessionLengthRow( appLabel: String, currentLength: PerAppSessionLength, learnThisTimeDefault: Boolean, onPick: (minutes: Long?) -&gt; Unit, onToggleLearn: (Boolean) -&gt; Unit, onForget: () -&gt; Unit, modifier: Modifier = Modifier, )</ID>
+    <ID>LongMethod:PhaseFourCards.kt$@Composable fun SleepLockCard( bedtime: String, waketime: String, onUnlock: (String) -&gt; Unit, modifier: Modifier = Modifier, )</ID>
     <ID>LongMethod:PreHomeActivity.kt$@Composable private fun PreHomeSurface( intentions: MorningIntentionRepository, doomscrollList: DoomscrollList, onSkipToHome: () -&gt; Unit, )</ID>
     <ID>LongMethod:ReportScheduler.kt$ReportScheduler$private suspend fun buildAndStore(context: Context)</ID>
     <ID>LongMethod:RestoreCoordinator.kt$RestoreCoordinator.Companion$fun build(context: Context): RestoreCoordinator</ID>
     <ID>LongMethod:SettingsScreen.kt$@Composable fun SettingsScreen( allApps: List&lt;DisplayApp&gt;, hiddenApps: List&lt;DisplayApp&gt;, onUnhide: (DisplayApp) -&gt; Unit, onBack: () -&gt; Unit, /** * v0.30+ (spec Phase 3) — open the Healthy * defaults walkthrough on its own surface. Wired * to the 'Healthy defaults' card in About; the * walkthrough itself lives in * [org.mindanchor.settings.HealthyDefaultsScreen]. */ onOpenHealthyDefaults: () -&gt; Unit = {}, /** Opens the heart-rhythm reading on its own surface. */ onOpenPpg: () -&gt; Unit = {}, /** Opens last night's report on its own surface. */ onOpenReport: () -&gt; Unit = {}, /** * v0.25.2-A (Task 10): opens the letter inbox + reader on its * own surface. Wired from the home screen with the same * `cameFrom = LauncherSurface.Settings` discipline as * [onOpenReport] — the back button on the letter surface * returns here, not to the home, because the user came from * here. The button is also reachable from the new Daily letter * sub-section below; both paths converge on the same callback. */ onOpenLetters: () -&gt; Unit = {}, )</ID>
-    <ID>LongMethod:SupportScreen.kt$@Composable fun SupportScreen( onClose: () -&gt; Unit, viewModel: SupportViewModel = viewModel(), )</ID>
-    <ID>LongMethod:SupportScreen.kt$@Composable private fun SafetyPlanEditor( plan: SafetyPlan, onChange: (SafetyPlan) -&gt; Unit, contacts: List&lt;CrisisContact&gt;, onAddContact: (String, String, Boolean) -&gt; Unit, onRemoveContact: (CrisisContact) -&gt; Unit, )</ID>
     <ID>LongParameterList:AppActionsDialog.kt$( app: DisplayApp, isFrictioned: Boolean, isAlwaysOpen: Boolean, onDismiss: () -&gt; Unit, onToggleFavorite: () -&gt; Unit, onToggleHidden: () -&gt; Unit, onToggleFriction: () -&gt; Unit, onToggleAlwaysOpen: () -&gt; Unit, onRename: (String?) -&gt; Unit, )</ID>
-    <ID>LongParameterList:ContinuityBackupCoordinator.kt$ContinuityBackupCoordinator$( private val isBackupEnabled: suspend () -&gt; Boolean, private val currentVerifiedKey: suspend () -&gt; RecoveryKey?, private val remoteBackupStore: RemoteBackupStore, private val captureSnapshot: suspend (now: Long) -&gt; ContinuitySnapshot, private val acknowledgePending: suspend (snapshotId: String) -&gt; Unit, private val recordError: suspend (ContinuityErrorCode) -&gt; Unit, private val recordVerified: suspend (at: Long, snapshotId: String, contentHash: String) -&gt; Unit, private val now: () -&gt; Long = System::currentTimeMillis, )</ID>
     <ID>LongParameterList:FrictionGate.kt$( appLabel: String, onOpen: (minutes: Long?) -&gt; Unit, onNeverMind: () -&gt; Unit, /** How hard to push this time; see [FrictionTone]. */ tone: FrictionTone = FrictionTone.FULL, /** * One of the person's own small things, or null. Chosen by * [SmallThings], which is where the rules about when to stay quiet * live. Never shown on FEATHER and never in the quiet hours. */ smallThing: String? = null, onSmallThingTaken: () -&gt; Unit = {}, /** * The user's pre-written if-then plan for this app, or null. When * present, the intention prompt is pre-filled with the user's * own words — the Gollwitzer 1999 implementation-intention * structure, which the SOTA brief (docs/research/15 §8) calls * the cheapest anti-habituation fix. */ ifThenPlan: IfThenPlan? = null, /** * One of the user's own self-compassion phrases for this reach, * or null. Rotated by [CompassionStore.rotate] so the same * phrase does not become wallpaper. */ compassionMoment: String? = null, /** * The user's per-app session-length map. v0.20.1 round 4 * (item M, docs/research/22). The gate looks up * `perAppSessionLength.defaultMinutes(packageName)` and * highlights the matching button in the 5/10/20 row. * If the user has never picked a length for this app, * the gate shows a "Learn this for next time" toggle * (on by default) and records the choice iff the * toggle is on at the moment of the tap. The default * value (`FALLBACK_MINUTES = 10L`) is used when no * map entry exists. */ perAppSessionLength: PerAppSessionLength = PerAppSessionLength(), /** * The package name of the app the gate is interrupting. * Used to look up the per-app default in * [perAppSessionLength]. Empty string is treated as * "no per-app default known"; the gate falls back to * the 5/10/20 row with no highlight. */ packageName: String = "", /** * Invoked when the user picks a time-box (one of 5, 10, * 20). The launcher records the choice via * `FrictionPrefs.recordPerAppSessionLength` iff the * "Learn this for next time" toggle is on at the moment * of the tap. The callback is *not* invoked for the * "open untimed" button (no per-app length is recorded * for an untimed open — the user's choice is "I want * no timer," not a length to learn). */ onTimeBoxPicked: (packageName: String, minutes: Long) -&gt; Unit = { _, _ -&gt; }, /** * v0.20.1 round 5 follow-up: invoked when the * user asks to forget the per-app default. The * launcher calls `FrictionPrefs.clearPerAppSessionLength` * on this. The callback is only invoked when a * default exists; the affordance is hidden * otherwise. The launcher never shows a "Forget" * affordance on the first reach per app — there * is nothing to forget. */ onForgetDefault: (packageName: String) -&gt; Unit = { _ -&gt; }, )</ID>
     <ID>LongParameterList:FrictionGate.kt$( sky: SkyContent, appLabel: String, onOpen: (minutes: Long?) -&gt; Unit, onNeverMind: () -&gt; Unit, smallThing: String? = null, onSmallThingTaken: () -&gt; Unit = {}, /** * The user's pre-written if-then plan for this app. When * present, the prompt is pre-filled with the user's own * words — the user-chosen plan is *additional* to the * existing time-box buttons, not a replacement. The way * in stays exactly where it was. */ ifThenPlan: IfThenPlan? = null, /** * The user's rotated self-compassion moment for this * reach. One line, beneath the if-then plan if both are * present. */ compassionMoment: String? = null, /** * The user's per-app session-length map. v0.20.1 round 4 * (item M). The IntentionPrompt uses * `perAppSessionLength.defaultMinutes(packageName)` to * decide which button to highlight. The default * (`FALLBACK_MINUTES = 10L`) is returned when no entry * exists; in that case the gate shows the "Learn this * for next time" toggle so the user can record their * first pick. */ perAppSessionLength: PerAppSessionLength = PerAppSessionLength(), /** * The package name of the app the gate is interrupting. * Used to look up the per-app default in * [perAppSessionLength]. Empty string is treated as * "no per-app default known"; the gate falls back to * the 5/10/20 row with no highlight. */ packageName: String = "", /** * Invoked when the user picks a time-box (5, 10, 20). * The launcher records the choice iff the "Learn this * for next time" toggle is on at the moment of the * tap. Not invoked for the "open untimed" button. */ onTimeBoxPicked: (packageName: String, minutes: Long) -&gt; Unit = { _, _ -&gt; }, /** * v0.20.1 round 5 follow-up: invoked when the * user asks to forget the per-app default. Shown * only when a default exists. See the docstring * on the parent [FrictionGate] for the lifecycle. */ onForgetDefault: (packageName: String) -&gt; Unit = { _ -&gt; }, )</ID>
     <ID>LongParameterList:GoogleDriveBackupSettingsSection.kt$ContinuitySettingsViewModel$( private val context: Context, private val auth: GoogleDriveAuth = GoogleDriveAuth(context.applicationContext), val signedInEmail: Flow&lt;String?&gt; = auth.signedInEmailFlow, private val continuityPrefs: ContinuityPrefs = ContinuityPrefs(context.applicationContext), private val recoveryKeyStore: RecoveryKeyStore = RecoveryKeyStore.create(context.applicationContext), private val database: AnchorDatabase = AnchorDatabase.get(context.applicationContext), private val requestCheckpoint: (Context) -&gt; Unit = ContinuityWorkScheduler::requestCheckpoint, private val ensureNightlyScheduled: (Context) -&gt; Unit = ContinuityWorkScheduler::ensureNightlyScheduled, private val cancelAllWork: (Context) -&gt; Unit = ContinuityWorkScheduler::cancelAll, /** * Actually starts the given [Intent] — a seam so an instrumented test * can capture the Intent [openRestore] builds instead of really * starting [RestoreActivity]. Kept separate from `Intent(context, * RestoreActivity::class.java)` itself, which always runs for real * (and is what the JVM file-shape test pins) — only the act of * launching it is swappable. */ private val launchRestore: (Context, Intent) -&gt; Unit = { ctx, intent -&gt; ctx.startActivity(intent) }, private val captureSnapshot: suspend (Long) -&gt; ContinuitySnapshot = { now -&gt; defaultSnapshotRepository(context).capture(now) }, private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate), )</ID>
     <ID>LongParameterList:HomeScreen.kt$( viewModel: LauncherViewModel = viewModel(), /** Bumped whenever the home button is pressed; see HomeActivity. */ goHomeSignal: Int = 0, /** * v0.25.2-A (Task 8): when the user taps a letter notification, * HomeActivity writes the letter's date here. The launcher navigates * to the reader for that date, then signals back via * [onLetterDateConsumed] so the activity clears the value. The * reset is what makes a re-tap for the same date work — without * it, the flow would not re-emit and the second tap would be a * silent no-op. */ letterDateSignal: LocalDate? = null, /** * v0.25.2-A (Task 8): invoked after the launcher has applied a * [letterDateSignal]. HomeActivity uses this to clear its * `MutableStateFlow` so a configuration change does not re-trigger * the same navigation. */ onLetterDateConsumed: () -&gt; Unit = {}, /** * v0.25.9 (auto-update): a non-null value means a newer * MindAnchor version is on GitHub. The home surface shows * a snackbar; tapping the action opens the release page in * the browser. `onUpdateAction` is invoked on tap; * `onUpdateDismiss` on "not now" (the activity clears the * value so the snackbar does not reappear on the next * recomposition). */ availableUpdate: org.mindanchor.update.UpdateInfo? = null, onUpdateAction: (org.mindanchor.update.UpdateInfo) -&gt; Unit = {}, onUpdateDismiss: () -&gt; Unit = {}, /** * v0.25.9 (deployability §8.3): whether MindAnchor is the * user's default home. The home surface shows a one-line * callout with a single action button while this is false. */ isDefaultHome: Boolean = true, onSetDefaultHome: () -&gt; Unit = {}, )</ID>
-    <ID>LongParameterList:JournalToday.kt$( today: LocalDate, title: String, body: String, onTitleChange: (String) -&gt; Unit, onBodyChange: (String) -&gt; Unit, onSave: () -&gt; Unit, savedConfirmation: Boolean, saveError: Boolean, morningMeasure: MorningMeasure?, onSaveMorningMeasure: (mood: Int, anxiety: Int, angerUrge: Int, energyFunction: Int, sleepQuality: Int) -&gt; Unit, modifier: Modifier = Modifier, )</ID>
-    <ID>LongParameterList:JournalViewModel.kt$JournalViewModel$( private val journalRepository: JournalRepository, private val morningMeasureRepository: MorningMeasureRepository, private val draftStore: JournalDraftStore, database: AnchorDatabase, private val legacyImporter: JournalLegacyImporter? = null, private val clock: () -&gt; Long = { System.currentTimeMillis() }, today: () -&gt; LocalDate = { LocalDate.now() }, private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate), )</ID>
     <ID>LongParameterList:MorningMeasure.kt$MorningMeasure.Companion$( localDate: LocalDate, now: Long, mood: Int, anxiety: Int, angerUrge: Int, energyFunction: Int, sleepQuality: Int, sourceDeviceId: String, id: String = UUID.randomUUID().toString(), createdAt: Long = now, )</ID>
     <ID>LongParameterList:PpgTest.kt$PpgTest$( bpm: Double, seconds: Double, rsaMillis: Double = 0.0, rsaHz: Double = 0.25, wander: Double = 0.35, noise: Double = 0.02, seed: Long = 12345L, inverted: Boolean = false, )</ID>
     <ID>LongParameterList:ReportScheduler.kt$( signal: Signal, date: LocalDate, vitalsByDate: Map&lt;LocalDate, DailyVitals&gt;, momentsByDay: Map&lt;String, List&lt;Moment&gt;&gt;, measured: Map&lt;Pair&lt;String, String&gt;, Double&gt;, sleepByWake: Map&lt;LocalDate, SleepWindow&gt;, inferred: Map&lt;Pair&lt;String, String&gt;, Double&gt;, zone: ZoneId, )</ID>
-    <ID>LongParameterList:RestoreCoordinator.kt$RestoreCoordinator$( private val currentStageInfo: suspend () -&gt; RestoreStageInfo, private val persistDownloaded: suspend (remoteName: String, envelopeSha256: String, expectedContentHash: String) -&gt; Unit, private val persistDecrypted: suspend (expectedContentHash: String) -&gt; Unit, private val persistRoomMerged: suspend () -&gt; Unit, private val persistDataStoresMerged: suspend () -&gt; Unit, private val persistVerified: suspend () -&gt; Unit, private val resetState: suspend () -&gt; Unit, private val readStagedBytes: suspend () -&gt; ByteArray?, private val writeStagedBytesAtomically: suspend (ByteArray) -&gt; Unit, private val deleteStagedFile: suspend () -&gt; Unit, private val currentVerifiedKey: suspend () -&gt; RecoveryKey?, private val preflightIsLocalDataEmpty: suspend () -&gt; Boolean, private val mergeRoom: suspend (ContinuityPayload) -&gt; Unit, private val mergeDataStores: suspend (ContinuityPayload) -&gt; Unit, private val recapture: suspend () -&gt; ContinuitySnapshot, private val recordRestoreVerified: suspend (at: Long, contentHash: String) -&gt; Unit, private val recordVerifyFailed: suspend () -&gt; Unit, private val now: () -&gt; Long = System::currentTimeMillis, )</ID>
     <ID>LongParameterList:RestoreCoordinatorTest.kt$RestoreCoordinatorTest$( stateStore: FakeStateStore, stagedFile: FakeStagedFile, localStore: FakeLocalStore, key: RecoveryKey?, preflightEmpty: Boolean = true, preflightCalls: MutableList&lt;Unit&gt; = mutableListOf(), readGuard: ThrowOnce = ThrowOnce(), mergeRoomGuard: ThrowOnce = ThrowOnce(), mergeDataStoresGuard: ThrowOnce = ThrowOnce(), recaptureGuard: ThrowOnce = ThrowOnce(), verifyFailedCalls: MutableList&lt;Unit&gt; = mutableListOf(), restoreVerifiedCalls: MutableList&lt;Pair&lt;Long, String&gt;&gt; = mutableListOf(), // Lets a test simulate the re-captured local content actually // disagreeing with the snapshot's own contentSha256 (e.g. a // concurrent local write racing the restore) — by default, // recapture faithfully reflects whatever localStore currently // holds, which is what every idempotency test needs. recaptureOverride: (suspend () -&gt; ContinuitySnapshot)? = null, )</ID>
     <ID>LongParameterList:SettingsScreen.kt$( allApps: List&lt;DisplayApp&gt;, hiddenApps: List&lt;DisplayApp&gt;, onUnhide: (DisplayApp) -&gt; Unit, onBack: () -&gt; Unit, /** * v0.30+ (spec Phase 3) — open the Healthy * defaults walkthrough on its own surface. Wired * to the 'Healthy defaults' card in About; the * walkthrough itself lives in * [org.mindanchor.settings.HealthyDefaultsScreen]. */ onOpenHealthyDefaults: () -&gt; Unit = {}, /** Opens the heart-rhythm reading on its own surface. */ onOpenPpg: () -&gt; Unit = {}, /** Opens last night's report on its own surface. */ onOpenReport: () -&gt; Unit = {}, /** * v0.25.2-A (Task 10): opens the letter inbox + reader on its * own surface. Wired from the home screen with the same * `cameFrom = LauncherSurface.Settings` discipline as * [onOpenReport] — the back button on the letter surface * returns here, not to the home, because the user came from * here. The button is also reachable from the new Daily letter * sub-section below; both paths converge on the same callback. */ onOpenLetters: () -&gt; Unit = {}, )</ID>
     <ID>LoopWithTooManyJumpStatements:Hrv.kt$Hrv$for</ID>
@@ -136,8 +124,6 @@
     <ID>LoopWithTooManyJumpStatements:ScreenRhythm.kt$ScreenRhythm$for</ID>
     <ID>LoopWithTooManyJumpStatements:SourceUidResolver.kt$SourceUidResolver$for</ID>
     <ID>LoopWithTooManyJumpStatements:StringResourcesTest.kt$StringResourcesTest$for</ID>
-    <ID>MagicNumber:AnchorDatabase.kt$AnchorDatabase.Companion.&lt;no name provided&gt;$35</ID>
-    <ID>MagicNumber:AnchorDatabase.kt$AnchorDatabase.Companion.&lt;no name provided&gt;$5</ID>
     <ID>MagicNumber:BatchSchedule.kt$BatchSchedule$18</ID>
     <ID>MagicNumber:BatchSchedule.kt$BatchSchedule$30</ID>
     <ID>MagicNumber:BatchSchedule.kt$BatchSchedule$8</ID>
@@ -152,6 +138,8 @@
     <ID>MagicNumber:CalmBackground.kt$0.70f</ID>
     <ID>MagicNumber:CalmBackground.kt$0.74f</ID>
     <ID>MagicNumber:CalmBackground.kt$0.84f</ID>
+    <ID>MagicNumber:CalmBackground.kt$0xDC</ID>
+    <ID>MagicNumber:CalmBackground.kt$0xF2</ID>
     <ID>MagicNumber:CalmBackground.kt$255</ID>
     <ID>MagicNumber:CheckIn.kt$CheckInEngine$24L</ID>
     <ID>MagicNumber:CheckInPatterns.kt$CheckInPatterns$0.4</ID>
@@ -161,7 +149,6 @@
     <ID>MagicNumber:CheckInPatterns.kt$PartOfDay.Companion$16</ID>
     <ID>MagicNumber:CheckInPatterns.kt$PartOfDay.Companion$17</ID>
     <ID>MagicNumber:CheckInPatterns.kt$PartOfDay.Companion$21</ID>
-    <ID>MagicNumber:CheckInPatterns.kt$PartOfDay.Companion$5</ID>
     <ID>MagicNumber:Clock.kt$60_000L</ID>
     <ID>MagicNumber:Deviation.kt$Deviation$1440</ID>
     <ID>MagicNumber:Deviation.kt$Deviation$18</ID>
@@ -175,7 +162,6 @@
     <ID>MagicNumber:FrictionGate.kt$1.6f</ID>
     <ID>MagicNumber:FrictionGate.kt$1.8f</ID>
     <ID>MagicNumber:FrictionGate.kt$20L</ID>
-    <ID>MagicNumber:FrictionGate.kt$5L</ID>
     <ID>MagicNumber:FrictionPrefs.kt$FrictionPrefs$8</ID>
     <ID>MagicNumber:FrictionViewModel.kt$FrictionViewModel$0.25</ID>
     <ID>MagicNumber:FrictionViewModel.kt$FrictionViewModel$0.5</ID>
@@ -184,7 +170,6 @@
     <ID>MagicNumber:FrictionViewModel.kt$FrictionViewModel$16</ID>
     <ID>MagicNumber:FrictionViewModel.kt$FrictionViewModel$17</ID>
     <ID>MagicNumber:FrictionViewModel.kt$FrictionViewModel$20</ID>
-    <ID>MagicNumber:FrictionViewModel.kt$FrictionViewModel$5</ID>
     <ID>MagicNumber:GoingLight.kt$GoingLightSchedule$20</ID>
     <ID>MagicNumber:GoingLight.kt$GoingLightSchedule$22</ID>
     <ID>MagicNumber:GoingLightPackageList.kt$GoingLightPackageList$1001</ID>
@@ -199,10 +184,8 @@
     <ID>MagicNumber:GoingLightVpnService.kt$GoingLightVpnService$48</ID>
     <ID>MagicNumber:GoingLightVpnService.kt$GoingLightVpnService$58</ID>
     <ID>MagicNumber:GoingLightVpnService.kt$GoingLightVpnService$8</ID>
-    <ID>MagicNumber:HomeDietCard.kt$23.0</ID>
     <ID>MagicNumber:HomeScreen.kt$11</ID>
     <ID>MagicNumber:HomeScreen.kt$17</ID>
-    <ID>MagicNumber:HomeScreen.kt$5</ID>
     <ID>MagicNumber:Hrv.kt$Hrv$50.0</ID>
     <ID>MagicNumber:JournalEntries.kt$40</ID>
     <ID>MagicNumber:JournalStore.kt$JournalStore$365L</ID>
@@ -216,18 +199,11 @@
     <ID>MagicNumber:LetterContext.kt$LetterContext$200</ID>
     <ID>MagicNumber:LetterContext.kt$LetterContext$21</ID>
     <ID>MagicNumber:LetterContext.kt$LetterContext$24</ID>
-    <ID>MagicNumber:LetterContext.kt$LetterContext$5</ID>
-    <ID>MagicNumber:LetterLedger.kt$LetterLedger$5</ID>
     <ID>MagicNumber:Link.kt$LinkFinder.Xorshift$13</ID>
     <ID>MagicNumber:Link.kt$LinkFinder.Xorshift$17</ID>
-    <ID>MagicNumber:LlamaNarrator.kt$LlamaNarrator.Companion$0xffffffffL</ID>
     <ID>MagicNumber:LlmSettingsViewModel.kt$LlmSettingsViewModel$5_000</ID>
-    <ID>MagicNumber:ModelSlot.kt$ModelSlot$1024</ID>
-    <ID>MagicNumber:ModelSlot.kt$ModelSlot$2048</ID>
     <ID>MagicNumber:MomentStore.kt$MomentLedger$1439</ID>
     <ID>MagicNumber:MorningIntentionRepository.kt$MorningIntentionRepository$30L</ID>
-    <ID>MagicNumber:MorningMeasure.kt$MorningMeasure.Companion$5</ID>
-    <ID>MagicNumber:MorningMeasureCard.kt$5</ID>
     <ID>MagicNumber:NatureLayer.kt$0.012f</ID>
     <ID>MagicNumber:NatureLayer.kt$0.028f</ID>
     <ID>MagicNumber:NatureLayer.kt$0.02f</ID>
@@ -280,7 +256,6 @@
     <ID>MagicNumber:PacketForwarder.kt$PacketForwarder$5061</ID>
     <ID>MagicNumber:PacketForwarder.kt$PacketForwarder$53</ID>
     <ID>MagicNumber:PerAppSessionLengthRow.kt$20L</ID>
-    <ID>MagicNumber:PerAppSessionLengthRow.kt$5L</ID>
     <ID>MagicNumber:PhaseFourCards.kt$30</ID>
     <ID>MagicNumber:Ppg.kt$Ppg$0.20</ID>
     <ID>MagicNumber:Ppg.kt$Ppg$0.35</ID>
@@ -290,11 +265,9 @@
     <ID>MagicNumber:Ppg.kt$Ppg$60_000.0</ID>
     <ID>MagicNumber:PpgCapture.kt$PpgCapture.Companion$0xFF</ID>
     <ID>MagicNumber:PreHomeActivity.kt$3_000L</ID>
-    <ID>MagicNumber:Reframer.kt$Reframer$120</ID>
     <ID>MagicNumber:ReportScheduler.kt$60_000L</ID>
     <ID>MagicNumber:ReportScreen.kt$1440</ID>
     <ID>MagicNumber:ReportScreen.kt$18</ID>
-    <ID>MagicNumber:ReportStore.kt$ReportLedger$5</ID>
     <ID>MagicNumber:RestoreScreen.kt$16</ID>
     <ID>MagicNumber:Retrieval.kt$Retrieval$0.5</ID>
     <ID>MagicNumber:SessionManager.kt$SessionManager$60_000</ID>
@@ -355,7 +328,6 @@
     <ID>MagicNumber:SkyMath.kt$SkyMath$255</ID>
     <ID>MagicNumber:SkyMath.kt$SkyMath$255.0</ID>
     <ID>MagicNumber:SkyMath.kt$SkyMath$30</ID>
-    <ID>MagicNumber:SkyMath.kt$SkyMath$5</ID>
     <ID>MagicNumber:SleepMath.kt$SleepMath$3_600_000.0</ID>
     <ID>MagicNumber:SleepMath.kt$SleepMath$720</ID>
     <ID>MagicNumber:SleepMath.kt$SleepWindow$3_600_000.0</ID>
@@ -391,8 +363,6 @@
     <ID>MagicNumber:WatchPolicy.kt$WatchPolicy$60_000L</ID>
     <ID>MatchingDeclarationName:CalmBackground.kt$SkyContent</ID>
     <ID>MatchingDeclarationName:DigestScreen.kt$DigestViewModel : AndroidViewModel</ID>
-    <ID>MaxLineLength:AnchorDatabase.kt$AnchorDatabase.Companion.&lt;no name provided&gt;$"INSERT INTO held_notifications_new (id, packageName, appLabel, title, text, postedAt, releasedAt) "</ID>
-    <ID>MaxLineLength:AnchorDatabase.kt$AnchorDatabase.Companion.&lt;no name provided&gt;$"SELECT id, packageName, appLabel, title, text, postedAt, releasedAt FROM held_notifications"</ID>
     <ID>MaxLineLength:AnchorDatabase.kt$AnchorDatabase.Companion.&lt;no name provided&gt;$db.execSQL("CREATE INDEX IF NOT EXISTS index_continuity_changes_occurredAt ON continuity_changes(occurredAt)")</ID>
     <ID>MaxLineLength:BackupHealth.kt$BackupHealth.Companion$ContinuityErrorCode.VERIFY_FAILED, ContinuityErrorCode.DECODE_FAILED, ContinuityErrorCode.RESTORE_VERIFY_FAILED -&gt; return VerificationFailed</ID>
     <ID>MaxLineLength:ContinuityBackupCoordinator.kt$CheckpointResult.KeyMissing$/** No recovery key is stored, or it has not been [org.mindanchor.continuity.crypto.RecoveryKeyStore.markVerified]. */</ID>
@@ -404,7 +374,6 @@
     <ID>MaxLineLength:ContinuityBackupCoordinatorTest.kt$ContinuityBackupCoordinatorTest.FakeRemoteBackupStore$return RemoteResult.Ok(RemoteObject(id = "id-$name", name = name, size = bytes.size.toLong(), modifiedTime = Instant.EPOCH))</ID>
     <ID>MaxLineLength:ContinuitySnapshotCodecTest.kt$ContinuitySnapshotCodecTest$legacyBackupJson = """{"version":1,"note":"n","savedAt":42,"plan":{"warningSigns":"","copingSteps":"","distractions":"","reasonsForLiving":"","environmentSafety":""},"contacts":[],"pulses":[],"favorites":[],"hidden":[],"frictioned":[],"renames":{},"checkIns":[],"readings":[],"corpusAdditions":"","inferred":[]}"""</ID>
     <ID>MaxLineLength:ContinuityWorkSchedulerTest.kt$ContinuityWorkSchedulerTest$for</ID>
-    <ID>MaxLineLength:CorosPasswordHasher.kt$CorosPasswordHasher$val digest = MessageDigest.getInstance("MD5").digest(bytes) // nosemgrep: use-of-md5 — COROS Training Hub web API requires hex MD5 of UTF-8 password bytes (mobile API logs user out). Class KDoc documents the 2025-12-04 contract test.</ID>
     <ID>MaxLineLength:CorpusImportTest.kt$CorpusImportTest$val outcome = CorpusImport.merge(seed, row("hrv-rmssd", "Shaffer &amp; Ginsberg 2017", "RMSSD reflects vagal tone."))</ID>
     <ID>MaxLineLength:GoingLightConsentCard.kt$text = "Going Light blocks mobile-internet traffic during a window you choose. The system will ask once; you can turn it off any time."</ID>
     <ID>MaxLineLength:GoogleDriveBackupSettingsSectionFindingTest.kt$GoogleDriveBackupSettingsSectionFindingTest$assertTrue("expected continuity_/drive_ string resources in strings.xml", continuityStringResourceLines.isNotEmpty())</ID>
@@ -421,15 +390,12 @@
     <ID>MaxLineLength:LetterContextTest.kt$LetterContextTest$val newer = CheckIn(rating = 4, reflection = "today felt lighter", atMillis = today.atStartOfDay(zone).toInstant().toEpochMilli() + 10 * 3600_000L)</ID>
     <ID>MaxLineLength:LetterContextTest.kt$LetterContextTest$val oldNote = Note(id = 1L, body = "from 4 days ago", createdAt = today.minusDays(4).atStartOfDay(zone).toInstant().toEpochMilli())</ID>
     <ID>MaxLineLength:LetterContextTest.kt$LetterContextTest$val older = CheckIn(rating = 3, reflection = "yesterday", atMillis = today.minusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() + 18 * 3600_000L)</ID>
-    <ID>MaxLineLength:LlmProviderContractTest.kt$LlmProviderContractTest$"provider ${provider.name} defaultModel ${provider.defaultModel} not in suggestedModels ${provider.suggestedModels}"</ID>
     <ID>MaxLineLength:NightlySnapshotWorker.kt$NightlySnapshotWorker$return</ID>
     <ID>MaxLineLength:NightlySnapshotWorker.kt$NightlySnapshotWorker$targetFileName = { snapshot -&gt; ContinuityFiles.versioned(Instant.ofEpochMilli(snapshot.createdAt), snapshot.snapshotId) }</ID>
     <ID>MaxLineLength:OpenAiCompatibleClient.kt$OpenAiCompatibleClient$return LlmResponse(content = content, promptTokens = promptTokens, completionTokens = completionTokens, durationMs = durationMs)</ID>
     <ID>MaxLineLength:OpenAiCompatibleClient.kt$OpenAiCompatibleClient.OpenAiRequestBody$private</ID>
     <ID>MaxLineLength:PatternsTest.kt$PatternsTest$val labels = mapOf(Label.VALENCE to (0 until n).associate { start.plusDays(it.toLong()) to (it % 5).toDouble() })</ID>
     <ID>MaxLineLength:PhaseThreeCards.kt$return</ID>
-    <ID>MaxLineLength:PrivacyFlowCard.kt$"Your mood history and the WHO-5 responses. The letters you have written, the notes you have saved, "</ID>
-    <ID>MaxLineLength:PrivacyFlowCard.kt$body</ID>
     <ID>MaxLineLength:RecoveryKeyCodec.kt$RecoveryKeyCodec$fun</ID>
     <ID>MaxLineLength:RecoveryKeyCodecTest.kt$RecoveryKeyCodecTest$assertNull("corrupting index $i ('${human[i]}' -&gt; '$replacement') must fail to decode", RecoveryKeyCodec.decode(corrupted))</ID>
     <ID>MaxLineLength:RecoveryKeyStore.kt$RecoveryKeyStore.Companion$/** The production factory. Opens the encrypted-prefs file under [PREF_FILE] with a Keystore-backed [MasterKey]. */</ID>
@@ -449,7 +415,6 @@
     <ID>MaxLineLength:RestoreCandidateSelectorTest.kt$RestoreCandidateSelectorTest.FakeRemoteBackupStore$.</ID>
     <ID>MaxLineLength:RestoreCandidateSelectorTest.kt$RestoreCandidateSelectorTest.FakeRemoteBackupStore$RemoteResult.Ok(RemoteObject(id = name, name = name, size = bytes.size.toLong(), modifiedTime = Instant.EPOCH))</ID>
     <ID>MaxLineLength:RestoreCoordinator.kt$/** Null when [LetterDto.date] fails to parse — the caller drops that one letter rather than aborting the whole restore. */</ID>
-    <ID>MaxLineLength:RestoreCoordinator.kt$RestoreCoordinator$private val persistDownloaded: suspend (remoteName: String, envelopeSha256: String, expectedContentHash: String) -&gt; Unit</ID>
     <ID>MaxLineLength:RestoreCoordinator.kt$RestoreCoordinator$val</ID>
     <ID>MaxLineLength:RestoreCoordinator.kt$RestoreCoordinator.Companion$payload.readLetterDates.mapNotNull { raw -&gt; runCatching { LocalDate.parse(raw) }.getOrNull() }.toSet()</ID>
     <ID>MaxLineLength:RestoreCoordinator.kt$RestoreResult.AlreadyVerified$/** [RestoreCoordinator.resume] was called when the persisted stage was already [RestoreStage.VERIFIED]. A fast no-op. */</ID>
@@ -471,7 +436,6 @@
     <ID>MaxLineLength:RestoreScreen.kt$Text("Not signed in", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("restore_sign_in_status"))</ID>
     <ID>MaxLineLength:RestoreScreen.kt$is RestoreUiState.WrongRecoveryKey -&gt; Text("Wrong recovery key.", modifier = Modifier.testTag("restore_wrong_key_message"))</ID>
     <ID>MaxLineLength:SettingsScreen.kt$"https://play.google.com/store/apps/details?id=$HEALTH_CONNECT_PACKAGE".toUri()</ID>
-    <ID>MaxLineLength:SettingsScreen.kt$Log.e("MindAnchor/HealthConnect", "all three launches failed; last error: " + failure.javaClass.simpleName, failure)</ID>
     <ID>MaxLineLength:TippCard.kt$text = "Skip any that don't fit: cardiovascular for cold/ice; cardiac / surgery / pregnancy for intense exercise; pulmonary / low BP for paced breathing; low-back pain / acute injury for paired muscle relaxation."</ID>
     <ID>MayBeConst:Ppg.kt$Ppg$val MAX_RR_MS = 60_000.0 / MIN_BPM // 1428.6 ms</ID>
     <ID>MayBeConst:Ppg.kt$Ppg$val MIN_RR_MS = 60_000.0 / MAX_BPM // 285.7 ms</ID>
@@ -493,7 +457,6 @@
     <ID>ReturnCount:Note.kt$Note.Companion$fun decodeLine(line: String): Note?</ID>
     <ID>ReturnCount:NotificationClassifier.kt$NotificationClassifier$fun shouldHold( meta: NotificationMeta, batchingEnabled: Boolean, batchedApps: Set&lt;String&gt;, ownPackage: String, /** Chosen people who must never be delayed, whatever the settings. */ crisisContacts: Collection&lt;CrisisContactRef&gt; = emptyList(), ): Boolean</ID>
     <ID>ReturnCount:PacketForwarder.kt$PacketForwarder$private fun isRfc1918(addr: InetAddress): Boolean</ID>
-    <ID>ReturnCount:Prompting.kt$NarrationGuard$fun judge(raw: String): Verdict</ID>
     <ID>ReturnCount:RecoveryKeyCodec.kt$RecoveryKeyCodec$fun decode(human: String): RecoveryKey?</ID>
     <ID>ReturnCount:ReportStore.kt$ReportLedger$private fun decodeObservation(rest: String): Observation?</ID>
     <ID>ReturnCount:ReportStore.kt$ReportLedger$private fun decodePattern(rest: String): Pattern?</ID>
@@ -530,12 +493,8 @@
     <ID>TooGenericExceptionCaught:PpgCapture.kt$PpgCapture$error: Throwable</ID>
     <ID>TooGenericExceptionCaught:SealedCodecs.kt$SealedCodecs$e: Exception</ID>
     <ID>TooGenericExceptionCaught:SourceUidResolver.kt$SourceUidResolver$e: Exception</ID>
-    <ID>TooManyFunctions:BackupCodec.kt$BackupCodec</ID>
     <ID>TooManyFunctions:FrictionPrefs.kt$FrictionPrefs</ID>
-    <ID>TooManyFunctions:HealthConnectSource.kt$HealthConnectSource</ID>
     <ID>TooManyFunctions:JournalDao.kt$JournalDao</ID>
-    <ID>TooManyFunctions:Ppg.kt$Ppg</ID>
-    <ID>TooManyFunctions:SealedCodecs.kt$SealedCodecs</ID>
     <ID>TooManyFunctions:SettingsViewModel.kt$SettingsViewModel : AndroidViewModel</ID>
     <ID>UnusedParameter:FrictionGate.kt$/** * v0.20.1 round 5 follow-up: invoked when the * user asks to forget the per-app default. The * launcher calls `FrictionPrefs.clearPerAppSessionLength` * on this. The callback is only invoked when a * default exists; the affordance is hidden * otherwise. The launcher never shows a "Forget" * affordance on the first reach per app — there * is nothing to forget. */ onForgetDefault: (packageName: String) -&gt; Unit = { _ -&gt; }</ID>
     <ID>UnusedParameter:FrictionViewModel.kt$FrictionViewModel$prior: Int</ID>
@@ -547,7 +506,6 @@
     <ID>UnusedPrivateProperty:ContinuityBackupCoordinator.kt$ContinuityBackupCoordinator$val putResult = remoteBackupStore.put(fileName, bytes)</ID>
     <ID>UnusedPrivateProperty:ContinuityBackupCoordinator.kt$ContinuityBackupCoordinator$val putResult = remoteBackupStore.put(fileName, envelopeBytes)</ID>
     <ID>UnusedPrivateProperty:FrictionGate.kt$private const val BREATH_MILLIS = BreathingProtocol.CYCLE_MILLIS</ID>
-    <ID>UnusedPrivateProperty:HomeDietCard.kt$val ctx = LocalContext.current</ID>
     <ID>UnusedPrivateProperty:NightlySnapshotWorker.kt$NightlySnapshotWorker$val refreshResult = coordinator.putAndVerifyBytes(ContinuityFiles.LATEST, verified.envelopeBytes)</ID>
     <ID>UseCheckOrError:RestoreCoordinatorTest.kt$RestoreCoordinatorTest.ThrowOnce$throw IllegalStateException("injected failure")</ID>
     <ID>UseCheckOrError:SealedCodecs.kt$SealedCodecs$throw IllegalStateException("Keystore unavailable")</ID>

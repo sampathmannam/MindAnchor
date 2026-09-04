@@ -67,6 +67,298 @@ android {
         //   call-site wiring. Zero new permissions; no
         //   network; clinical-review wordlist gate green.
         //   versionCode 92→93.
+        // v0.70.1: Health Connect app-list alias
+        // (VIEW_PERMISSION_USAGE) — without it Android 14+
+        // auto-denies every health permission request in one
+        // frame and the launcher never appears in Health
+        // Connect's own app list. versionCode 93→95 (94 was
+        // consumed by the diverged t31-t32 release commit
+        // d01980c; skipping it keeps the two lineages'
+        // versionCodes from colliding on the same number
+        // with different bits).
+        // v0.70.2: second grant step for the two "additional"
+        // Health Connect permissions (READ_HEALTH_DATA_IN_BACKGROUND
+        // + READ_HEALTH_DATA_HISTORY). Bundled into the record-read
+        // request — as they had been since they were declared —
+        // Health Connect silently drops them from the dialog and
+        // they stay ungranted. They now ride their own launch from
+        // a Settings row shown while a record read is granted and
+        // either of the two is missing. Background is what lets the
+        // overnight look's ~03:00 receiver read at all; history
+        // lifts the 30-day read floor so the baseline can backfill.
+        // versionCode 95→96.
+        // v0.70.3: COROS history seeds the wellness baseline.
+        // The bridge already syncs 28 days of RHR and 7 nights
+        // of HRV, but the per-signal ledger only grew from its
+        // own daily reads, so a fresh connect still said "still
+        // building a picture" for 14 more days about data the
+        // account already had. Synced history now backfills the
+        // ledger on every sync — append-only (an existing day
+        // always wins) with Sourcing.pick precedence (a
+        // camera-PPG measurement beats the watch's number).
+        // versionCode 96→97.
+        // v0.70.4: HomeActivity + PreHomeActivity locked to
+        // portrait. Neither activity declared screenOrientation,
+        // by deliberate prior design (free rotation for
+        // mounts/stands/tablets) — but no other launcher on the
+        // phone behaves that way, so the home screen rotating
+        // whenever the phone is set down or tilted read as the
+        // system's own auto-rotate switching itself on. Reported
+        // against the real device 2026-08-28; no code anywhere
+        // in this app touches the actual rotation setting
+        // (grepped, and a 35s idle poll showed zero drift) — the
+        // manifest's free-rotation stance was the whole cause.
+        // versionCode 97→98.
+        // v0.70.5: battery audit. Checked every background/
+        // continuous-resource mechanism (clock tick, notification
+        // listener, nightly report scheduling, Going Light's VPN
+        // packet loop, the accessibility service's event scope,
+        // camera+torch teardown) — all already correctly built
+        // against real drain (lifecycle-gated, bounded retries,
+        // blocking I/O, NonCancellable cleanup). The two real gaps:
+        // CorosSyncWorker and BanditResetWorker had no
+        // setRequiresBatteryNotLow constraint, so both would still
+        // fire on a critically low battery. Both now defer until
+        // the level recovers or the phone is charging.
+        // versionCode 98→99.
+        // v0.70.6: removed the on-device model feature (Settings →
+        // Reading → Model: import/download a GGUF, run it for report
+        // narration, note classification, and the legacy Phi-4 letter
+        // path) — the user does not want it. All three consumers
+        // already fell back to their no-model behavior on every real
+        // phone (nothing had ever imported one), so nothing observable
+        // changes; the capability to ever add one is simply gone, along
+        // with the vendored llama.cpp native library, the legacy
+        // AlarmManager-based letter scheduler that only that model
+        // could feed, and ~20 now-orphaned strings. The modern cloud-LLM
+        // daily letter (Settings → Reading → Daily letter (LLM)) is a
+        // separate, untouched feature.
+        // versionCode 99→100.
+        // v0.70.7: Google Drive backup now covers notes, letters,
+        // check-ins, and wellness readings (was notes + letters only),
+        // runs as a real nightly AlarmManager job (was two Settings
+        // toggles wired to nothing and a streaming trigger that was
+        // never started), and adds a restore path — the read half the
+        // interface always anticipated but never got. Dropped the
+        // AES-256-GCM layer: its key was Android Keystore-bound and
+        // could never follow the user to a new phone, which silently
+        // defeated the whole point of a backup. The sync now diffs
+        // against what is already in Drive instead of re-uploading
+        // everything every night, so it can't grow the Drive files or
+        // slow down over time. Safety plan and crisis contacts stay
+        // phone-only, unchanged.
+        // versionCode 100→101.
+        // v0.70.8: fixed a bug in GoogleDriveBackupTarget's multipart
+        // body builder that made every single Drive upload fail with
+        // HTTP 400 "Missing end boundary in multipart body" — the raw
+        // payload bytes were glued directly onto the closing boundary
+        // with no CRLF between them (RFC 2046 §5.1.1 requires one before
+        // every boundary delimiter, including the closing one). This
+        // silently broke v0.70.7's entire backup feature on the very
+        // first real upload; found by driving the live sign-in and
+        // backup flow end to end on a real device against a real
+        // Google Cloud OAuth client, not by a unit test — the mocked
+        // Drive responses in the existing test suite never exercised
+        // real RFC 2046 parsing. Added a regression test that checks
+        // the actual byte sequence around the closing boundary rather
+        // than a loose substring match.
+        // versionCode 101→102.
+        // v0.70.9: fixed a second live-only bug in the Drive backup —
+        // BackupScheduler called BackupTarget.append once per new entry
+        // in a loop, and GoogleDriveBackupTarget.append finds-or-creates
+        // the Drive file on every call. Drive's file-search index does
+        // not reliably see a file the instant it is created, so a
+        // second entry's "does this file exist" check could still say
+        // no immediately after the first entry's call had just created
+        // it, spawning a second file with the same name instead of
+        // appending to the first. Confirmed live: backing up 2 notes in
+        // one run produced 2 separate MindAnchor-Notes.txt files in
+        // Drive. Fixed by collecting every new entry for a type before
+        // appending anything, so each backupAll run makes exactly one
+        // find-or-create decision per type. Re-verified live after
+        // cleaning up the duplicates this bug had already created: one
+        // file per type, correct combined content, restore correctly
+        // finds nothing new.
+        // versionCode 102→103.
+        // v0.70.10: fixed a third live-only bug — GoogleDriveAuth.
+        // currentAccessToken read the on-disk TokenStore cache first and
+        // returned it immediately whenever it was non-blank, only ever
+        // calling GoogleAuthUtil.getToken (the real fresh-token fetch)
+        // on a cache miss. Once any token was cached it was treated as
+        // good forever, but Google access tokens expire in about an
+        // hour. Confirmed live: a backup that worked right after sign-in
+        // failed about ninety minutes later with HTTP 401 "Invalid
+        // Credentials" — and would have failed every night after,
+        // forever, since nothing ever cleared the cache to force a
+        // refresh. This would have made the nightly sync (which runs
+        // hours after the user was last in the app) fail permanently
+        // after its first night. Fixed by always asking for a fresh
+        // token when an account is signed in — GoogleAuthUtil.getToken
+        // already has its own correct cache-and-refresh against Play
+        // Services, so this class re-caching on top of it was both
+        // redundant and wrong. TokenStore is now purely a fallback for
+        // when a fresh fetch cannot be made at all.
+        // versionCode 103→104.
+        // v0.70.11: UI/alignment audit across the app. Fixed the home
+        // screen's "search" button rendering at titleMedium (visibly
+        // larger) instead of labelMedium like its "settings" and
+        // "Digest" siblings in the same row; the Settings → Reading
+        // "Model" label wrapping mid-word into "Mo"/"del" because the
+        // model-name button had no width cap; and "1 notifications
+        // released" on the home diet card (now a proper plurals
+        // resource, correct at any count). Also fixed three places
+        // that still flatly claimed nothing backs up to the cloud /
+        // backup is off — stale since v0.70.7 added opt-in Google
+        // Drive backup: the "Keep a copy" intro, the About paragraph,
+        // and the privacy card's "Where the data goes" / "Where the
+        // data does not go" sections, all now describe Drive backup
+        // as a second opt-in exception and are explicit that the
+        // safety plan and crisis contacts never leave the phone.
+        // versionCode 104→105.
+        // v0.70.12: CI schema fix (every run had been failing
+        // instantly all session on a workflow-file schema error);
+        // fixed Semgrep/detekt findings that surfaced once CI could
+        // actually run; a real Room migration gap (1→5 had no path
+        // through 3→4) that the same CI fix exposed. UI audit
+        // continuation: collapsible "Why?" rationale text on Quiet/
+        // Measuring/Pauses (was a wall of prose in front of every
+        // control); Digest/Notes/History lists no longer force-fill
+        // the screen when short; home nav baseline alignment;
+        // Earlier/Later buttons now read as tappable; removed the
+        // home screen's "This week" notification-diet card per
+        // request; added a night-time star field to the background
+        // (fades in/out on the same schedule the sky's own colour
+        // already does); "Apps to batch" extracted from an inlined
+        // dump of every installed app into its own searchable
+        // screen; guarded the Sleep Lock's startLockTask call
+        // against re-triggering while already locked.
+        // versionCode 105→106.
+        // v0.70.13: two follow-ups from the sleep-window UI audit.
+        // (1) The home screen still scrolled after the "This week"
+        // card was removed — reproduced live with 6 favourites (the
+        // documented max) plus a couple of quick notes, measured
+        // ~95dp of real overflow on-device. Fixed by tightening the
+        // favourites list's padding (still floors at the 48dp touch
+        // target) and collapsing the quick-notes preview from up to
+        // 3 rows to just the latest note — verified live, all 6
+        // favourites now fit with room to spare and a swipe no
+        // longer moves anything. (2) The Sleep Lock's unlock field
+        // was missing the bringIntoViewOnFocus() modifier every
+        // other input field in the app already uses for the same
+        // imePadding + verticalScroll Column — the likely cause of
+        // the reported gap between the field and the keyboard.
+        // versionCode 106→107.
+        // v0.70.14: the v0.70.13 bringIntoViewOnFocus fix on its own
+        // wasn't the whole story — a live screenshot from the real
+        // device showed the field correctly scrolled clear of the
+        // keyboard, but with a large dead gap between the Sleep Lock
+        // card and the keyboard, with the bottom nav row floating in
+        // the middle of it. Root cause: Modifier.verticalScroll()
+        // measures its Column with unbounded height, so
+        // Arrangement.CenterVertically was never actually centring —
+        // content just packed to the top and the slack landed below
+        // it as dead space, on the home screen and (much more
+        // visibly) here once the keyboard shrank the usable area.
+        // Wrapped the Column in BoxWithConstraints and gave it
+        // heightIn(min = maxHeight) so it has a real height to centre
+        // within — verified live against the real sleep window: the
+        // dead gap is gone and the layout no longer looks top-packed
+        // with the keyboard open or closed.
+        //
+        // Also added a sun to the daytime sky, the same treatment
+        // the v0.70.12 night stars got: a fixed, non-animating glow
+        // whose opacity is the exact complement of the stars' (same
+        // dawn/dusk windows), so the two are never both on screen.
+        // versionCode 107→108.
+        // v0.70.15: fixed the LLM API key never sticking in
+        // Settings → Daily letter (LLM). LlmPrefs.apiKey was
+        // `flow { emit(keyStore.read()) }` — a cold flow that reads
+        // the encrypted key once per collection and then completes.
+        // LlmSettingsViewModel turns it into a StateFlow via
+        // stateIn(), which collects it exactly once and then just
+        // reads .value forever after; setApiKey() writes the new
+        // key straight to the encrypted store but never touched
+        // that already-completed flow, so the field looked like it
+        // kept losing whatever was typed, and Test Connection kept
+        // testing a stale (often blank) key. Existing unit tests
+        // never caught it because they all call apiKey.first() —
+        // a fresh collection every time — instead of going through
+        // stateIn() the way the real screen does.
+        //
+        // Fixed with a reactive cache that setApiKey() updates in
+        // place. It has to be shared across every LlmPrefs instance
+        // (not per-instance) because LauncherViewModel and
+        // LlmSettingsViewModel each construct their own against the
+        // same encrypted file — an instance-level cache would leave
+        // the letter writer holding a stale key after the user
+        // updates it in Settings, the same bug in a different shape.
+        // Added a regression test that collects apiKey into a
+        // stateIn() StateFlow before writing, the exact pattern the
+        // old code silently failed.
+        // versionCode 108→109.
+        // v0.70.16: the v0.70.15 reactivity fix made the API key
+        // actually stick, but "Test connection" still failed —
+        // confirmed live via a temporary debug log that a
+        // Groq-formatted key (`gsk_...`) was being sent to
+        // OpenRouter's and Google AI Studio's endpoints too. The
+        // real bug: apiKey was one shared slot regardless of which
+        // provider chip was selected. Google AI Studio, OpenRouter
+        // and Groq are three separate services with incompatible
+        // keys; switching providers left whatever key was typed for
+        // the previous one sitting there, silently tested/used
+        // against the new one. Every provider now gets its own
+        // encrypted slot (LlmKeyStore keyed by provider) and its own
+        // cached flow (LlmPrefs.apiKeyFor(provider)); the Settings
+        // ViewModel's apiKey follows the selected provider via
+        // flatMapLatest, and the actual letter-writer
+        // (LetterViewModel) reads the key for whichever provider is
+        // current instead of the old single slot. Also hardened
+        // setApiKeyNow to read the current provider fresh rather
+        // than a cached StateFlow value, closing a narrow race where
+        // a key typed immediately after switching providers could
+        // land in the previous provider's slot.
+        // versionCode 109→110.
+        // v0.70.17: full live-device QA pass across every Settings
+        // section (Quiet, Pauses, Measuring, Your plan, This phone) —
+        // no crashes found anywhere, all toggles/add-remove flows
+        // verified working. Found and fixed two real privacy-wording
+        // accuracy gaps: (1) the About screen's summary said "Two
+        // opt-in exceptions" (COROS bridge, Drive backup) and never
+        // mentioned the Daily letter (LLM) feature, which is now a
+        // genuinely working third exception since the v0.70.16 fix —
+        // it's a third opt-in exception now; (2) the Health Connect
+        // section's "What this app does NOT do" list had an
+        // unqualified "no network call to a server, ever" claim that
+        // read as an app-wide promise rather than being scoped to
+        // health/wearable data specifically, where it's already
+        // contradicted one paragraph later by the COROS bridge
+        // disclosure. Neither claim was ever true app-wide; both are
+        // now precisely scoped to what they actually describe.
+        // versionCode 110→111.
+        // v0.70.18: the sun now moves. User picked a "high overhead arc"
+        // (low at sunrise/sunset, sweeping up near the top of the sky at
+        // solar noon) from a set of sampled options, and chose to keep
+        // the existing glow style as-is rather than the other sampled
+        // looks. Position is a pure function of the clock — SkyMath.
+        // sunXFraction/sunYFraction — computed the same way the palette
+        // itself already is, so it steps once a minute rather than
+        // animating continuously, matching this file's "nothing here
+        // animates" premise. Not verified live yet — the device was mid
+        // GitHub 2FA login when this shipped.
+        // versionCode 111→112.
+        //
+        // v0.70.19: merged origin/main's CI/build hardening line (Room
+        // migration-chain restore, defusedxml on the DefectDojo JUnit
+        // tools, a pinned Allure action commit SHA, and the CI gate
+        // fixes that got the workflow running again) into this
+        // branch's v0.70.x line. No app behavior changes — the
+        // migration chain and the XML/hashing tooling this pulls in
+        // were already independently fixed on this branch's own side
+        // where they overlapped (MIGRATION_3_4/4_5, CorosPasswordHasher);
+        // main's versions were kept where the two differed only in
+        // constant-naming style, since main is the branch this merges
+        // into.
+        // versionCode 112→113.
         // v0.71.0: Task 13 release-hardening bump (Program 0's
         //   complete, reviewed feature slice — Tasks 1-12).
         //   versionCode 94→95.
@@ -78,9 +370,22 @@ android {
         //   and research export v1→v2, both with the older version kept
         //   readable and verifiable. Zero new permissions, no network.
         //   versionCode 95→96.
-        versionCode = 96
-        versionName = "0.72.0"
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // v0.72.1: merged this branch's v0.70.x line (per-provider LLM
+        //   keys, sun-arc UI, Health Connect additional-permissions
+        //   fix, on-device model removal, Drive-backup live-bug fixes,
+        //   privacy-copy fixes) into main's Program 0/1/3 line. No
+        //   app behavior changes beyond what each line already shipped
+        //   independently.
+        //   versionCode 96→97.
+        versionCode = 97
+        versionName = "0.72.1"
+        // MindAnchorTestRunner puts WorkManager into test mode for the
+        // whole instrumented suite — see that class's KDoc for why:
+        // without it, a test that writes through a real repository
+        // incidentally enqueues a real CheckpointBackupWorker that can
+        // execute on a real background thread and corrupt
+        // ContinuitySettingsTest's on-disk state mid-run.
+        testInstrumentationRunner = "org.mindanchor.MindAnchorTestRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every
         // Gradle run, CI included, and invoked deliberately instead:
@@ -91,25 +396,21 @@ android {
 
         externalNativeBuild {
             cmake {
-                // The off-list is load-bearing, not tidiness. LLAMA_CURL
-                // and WHISPER_CURL must be OFF because this app's
-                // privacy promise is that no path to the network
-                // exists anywhere in it, native code included.
-                // GGML_NATIVE must be OFF because -march=native on
-                // a build machine produces code the phone may not
-                // run. The rest keeps the vendored trees to
-                // exactly the libraries — no tools, no tests, no
-                // server, no examples, no models. The same
-                // BUILD_SHARED_LIBS=OFF applies to both
-                // add_subdirectory()s; every llama/ggml and
-                // whisper/ggml object is linked statically into
-                // its respective .so.
+                // The off-list is load-bearing, not tidiness. WHISPER_CURL
+                // must be OFF because this app's privacy promise is that
+                // no path to the network exists anywhere in it, native
+                // code included. GGML_NATIVE must be OFF because
+                // -march=native on a build machine produces code the
+                // phone may not run. The rest keeps the vendored tree to
+                // exactly the library — no tools, no tests, no server,
+                // no examples, no models. BUILD_SHARED_LIBS=OFF means
+                // every whisper/ggml object is linked statically into
+                // the one .so.
+                //
+                // v0.70.5: the LLAMA_* entries this list used to carry
+                // are gone along with the llama.cpp target itself —
+                // see app/src/main/cpp/CMakeLists.txt.
                 arguments += listOf(
-                    "-DLLAMA_CURL=OFF",
-                    "-DLLAMA_BUILD_COMMON=OFF",
-                    "-DLLAMA_BUILD_TESTS=OFF",
-                    "-DLLAMA_BUILD_EXAMPLES=OFF",
-                    "-DLLAMA_BUILD_SERVER=OFF",
                     "-DGGML_NATIVE=OFF",
                     "-DGGML_OPENMP=OFF",
                     "-DBUILD_SHARED_LIBS=OFF",
@@ -373,6 +674,7 @@ dependencies {
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.room.testing)
+    androidTestImplementation(libs.androidx.work.testing)
     androidTestImplementation(libs.compose.ui.test.junit4)
     debugImplementation(libs.compose.ui.test.manifest)
 }
