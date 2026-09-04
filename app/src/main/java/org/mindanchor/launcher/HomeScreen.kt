@@ -187,6 +187,9 @@ fun LauncherRoot(
     // activity is host-process: the LaunchedEffect
     // body is on the main thread so the call is safe.
     val context = LocalContext.current
+    // v0.70 (master plan T-1.2): scope for the typed-dwell escape hatch,
+    // which lifts OS Mode's window suspension without blocking the UI.
+    val unlockScope = rememberCoroutineScope()
 
     // v0.26+ (Phase 1 G-22, G-21, G-1) — the protective
     // layer rituals' read-side state. Each card gates on
@@ -556,7 +559,16 @@ fun LauncherRoot(
                 // that the [DeviceOwner] object owns.
                 sleepLockBedtime = viewModel.sleepLockBedtime.collectAsState().value,
                 sleepLockWaketime = viewModel.sleepLockWaketime.collectAsState().value,
-                onSleepLockUnlock = { stopLockTaskOn(context) },
+                onSleepLockUnlock = {
+                    stopLockTaskOn(context)
+                    // v0.70 (master plan T-1.2): the 30-second typed dwell
+                    // is the escape hatch for OS Mode's suspension too.
+                    // Marks this window as released and lifts the feed-app
+                    // layer; idempotent when nothing is suspended.
+                    unlockScope.launch {
+                        org.mindanchor.admin.OsMode.onEarlyUnlock(context)
+                    }
+                },
                 inSleepWindow = inSleepWindowByState.collectAsState().value,
                 // v0.28+ (Phase 3 G-25) — the n-of-1
                 // weekly patterns. Read from the
@@ -1642,7 +1654,7 @@ private fun HomeSurface(
             )
         }
 
-        val context = LocalContext.current
+    val context = LocalContext.current
 
         // v0.20.1 round 5: notes + check-in history
         // entry points. TopEnd, so neither collides

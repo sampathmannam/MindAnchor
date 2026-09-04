@@ -47,6 +47,12 @@ object Alarms {
         runCatching { SunsetController.ensureScheduled(app) }
         runCatching { ReportScheduler.ensureScheduled(app) }
         runCatching { EmaScheduler.ensureScheduled(app) }
+        // v0.70 (master plan T-1.2): crash-safe re-entry for OS Mode's
+        // window suspension. Suspension is never persisted as truth; boot
+        // re-derives it from the sunset window, so a process killed
+        // mid-window cannot leave apps stranded on either side of the
+        // state they should be in. Never throws, like everything here.
+        runCatching { org.mindanchor.admin.OsMode.sync(app) }
     }
 
     /**
