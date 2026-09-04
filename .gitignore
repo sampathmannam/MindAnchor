@@ -30,3 +30,6 @@ gradle-*.log
 ESCALATION_REQUEST.md
 ESCALATION_RESULT.md
 BLOCKED.md
+
+# Local brainstorming companion artifacts
+.superpowers/

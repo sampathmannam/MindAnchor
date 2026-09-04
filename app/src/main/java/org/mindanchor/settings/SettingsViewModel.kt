@@ -79,6 +79,40 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setAnchorFrictionHold(v: Boolean) = viewModelScope.launch { anchorPrefs.setFrictionHoldEnabled(v) }
     fun setAnchorSunsetProposal(v: Boolean) = viewModelScope.launch { anchorPrefs.setSunsetProposalEnabled(v) }
 
+    // Program 3: the two independent advisory switches, both default
+    // off. AdvisoryPrefs exposes one combined settings Flow rather than
+    // one Flow per flag, so each is projected out with `map` here.
+    private val advisoryPrefs = org.mindanchor.advisory.AdvisoryPrefs(application)
+
+    val advisoryMasterEnabled = advisoryPrefs.settings.map { it.masterAdvisoryEnabled }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    val advisoryDeliveryAllowed = advisoryPrefs.settings.map { it.deliveryAllowed }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setAdvisoryMasterEnabled(v: Boolean) = viewModelScope.launch { advisoryPrefs.setMasterAdvisoryEnabled(v) }
+
+    /**
+     * Turning delivery off is the reachable kill switch: if an episode
+     * is currently active, it stops immediately through
+     * [org.mindanchor.advisory.EpisodeEventType.STOPPED_KILL_SWITCH]
+     * rather than waiting for the player screen (which may not even be
+     * open right now) to next check delivery state itself.
+     */
+    fun setAdvisoryDeliveryAllowed(v: Boolean) = viewModelScope.launch {
+        advisoryPrefs.setDeliveryAllowed(v)
+        if (!v) {
+            val activeEpisodeId = advisoryPrefs.settings.first().currentEpisodeId
+            if (activeEpisodeId != null) {
+                org.mindanchor.advisory.RoomAdvisoryRepository.build(getApplication()).stop(
+                    episodeId = activeEpisodeId,
+                    kind = org.mindanchor.advisory.EpisodeEventType.STOPPED_KILL_SWITCH,
+                    now = System.currentTimeMillis(),
+                    deliveredForegroundMillis = 0L,
+                )
+            }
+        }
+    }
+
     // The Hook C override, so the accept is visible and revocable here.
     private val _sunsetOverride = MutableStateFlow<Pair<java.time.LocalTime, java.time.LocalTime>?>(null)
     val sunsetOverride: StateFlow<Pair<java.time.LocalTime, java.time.LocalTime>?> = _sunsetOverride.asStateFlow()
@@ -97,7 +131,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val appearancePrefs = AppearancePrefs(application)
     private val onboardingPrefs = org.mindanchor.onboarding.OnboardingPrefs(application)
     private val reportStore = ReportStore(application)
-    private val backupPrefs = org.mindanchor.backup.BackupPrefs(application)
 
     /**
      * What the person said they were struggling with, at onboarding or
@@ -1208,35 +1241,20 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { readerPrefs.setSize(size) }
     }
 
-    /**
-     * v0.25.4: per-type auto-sync toggles for the
-     * Google Drive backup. The Settings sub-section
-     * binds to these flows; the WP-D scheduler
-     * reads the same [BackupPrefs] to decide
-     * whether to fire on a new note / letter.
-     *
-     * The toggles are independent of the sign-in
-     * state: a user can sign in with Google but
-     * leave both toggles off (no auto-sync), or
-     * flip a toggle before signing in (the sign-in
-     * prompt fires when the first auto-sync
-     * attempt finds no account). The default is
-     * `false` on both — the v0.23.0
-     * "off by default; opt-in" design that the
-     * v0.25.4 plan explicitly extends.
-     */
-    val autoSyncNotes: StateFlow<Boolean> = backupPrefs.autoSyncNotes
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
-    val autoSyncLetters: StateFlow<Boolean> = backupPrefs.autoSyncLetters
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
-
-    fun setAutoSyncNotes(enabled: Boolean) {
-        viewModelScope.launch { backupPrefs.setAutoSyncNotes(enabled) }
-    }
-
-    fun setAutoSyncLetters(enabled: Boolean) {
-        viewModelScope.launch { backupPrefs.setAutoSyncLetters(enabled) }
-    }
+    // Task 12 (Program 0): the v0.25.4 per-type Notes/Letters auto-sync
+    // toggles (`autoSyncNotes`/`autoSyncLetters`/`setAutoSyncNotes`/
+    // `setAutoSyncLetters`) were removed here. A full-codebase search
+    // before removal found no consumer of `BackupPrefs.autoSyncNotes` /
+    // `autoSyncLetters` other than this ViewModel and the old
+    // `GoogleDriveBackupSettingsSection` Composable (whose toggle
+    // `onCheckedChange` was a literal no-op) — the "WP-D scheduler reads
+    // the same DataStore" claim in `BackupPrefs`'s KDoc was never backed
+    // by an actual on-write trigger anywhere in `app/src/main`. Program
+    // 0's `ContinuityWorkScheduler` now checkpoints Notes/Letters
+    // unconditionally whenever continuity backup is on, making a
+    // separate per-type opt-in a stale idea rather than a bug to fix.
+    // `BackupPrefs` itself (and its own round-trip test) is untouched —
+    // out of this task's scope.
 
     /**
      * Generates a letter on demand, using the same call shape as

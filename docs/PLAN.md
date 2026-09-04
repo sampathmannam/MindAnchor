@@ -47,6 +47,13 @@ v1.5 NFC-tag physical friction · v2.0 keystroke-metadata baseline (own IME fork
 
 ## 3. Milestones
 
+> **Active development handoff (2026-09-02):** Program 2 and the support
+> safety-plan reliability redesign have passed the clean JVM/build and repeated
+> Android 14 gates. Program 3 continues on
+> `program-3-adaptive-protocol-delivery`; see the
+> [MacBook handoff and verification record](qa/2026-09-02-program-3-macbook-handoff.md).
+> Do not continue this work directly on `main`.
+>
 > **Status (2026-08-07): M0–M5 complete and CI-verified**, and the sensing
 > and writing layers on top of them are built — see
 > [research/08](research/08-sensing-architecture.md) and

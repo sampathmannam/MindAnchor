@@ -100,4 +100,41 @@ class ClinicalReviewWordlistTest {
             )
         }
     }
+
+    /**
+     * Program 3 (adaptive protocol delivery) surfaces its own clinical
+     * claims about a person — the historical advisory card, its evidence
+     * screen, the two settings switches, and the strings block behind
+     * them. Each must carry the `@wording-reviewed` tag this codebase
+     * already uses to mark a clinical-review surface, so a future edit
+     * that removes the tag (rather than the wording it was reviewed
+     * against) fails the build instead of silently losing the marker.
+     */
+    @Test
+    fun `every Program 3 advisory surface carries the wording-reviewed tag`() {
+        val kotlinSurfaces = listOf(
+            "src/main/java/org/mindanchor/advisory/AdvisoryScreen.kt",
+            "src/main/java/org/mindanchor/advisory/AdvisoryHomeCard.kt",
+            "src/main/java/org/mindanchor/advisory/AdvisorySettingsSection.kt",
+        )
+        kotlinSurfaces.forEach { path ->
+            val file = File(path)
+            assertTrue("expected to find $path", file.isFile)
+            assertTrue(
+                "$path must carry the @wording-reviewed tag",
+                file.readText(Charsets.UTF_8).contains("@wording-reviewed"),
+            )
+        }
+
+        val stringsFile = File("src/main/res/values/strings.xml")
+        assertTrue("expected to find strings.xml", stringsFile.isFile)
+        val stringsText = stringsFile.readText(Charsets.UTF_8)
+        val advisoryBlockStart = stringsText.indexOf("advisory_historical_title")
+        assertTrue("the advisory_* strings block must exist", advisoryBlockStart >= 0)
+        val precedingComment = stringsText.substring(0, advisoryBlockStart)
+        assertTrue(
+            "the strings.xml block preceding the advisory_* strings must carry @wording-reviewed",
+            precedingComment.substringAfterLast("<!--").contains("@wording-reviewed"),
+        )
+    }
 }
