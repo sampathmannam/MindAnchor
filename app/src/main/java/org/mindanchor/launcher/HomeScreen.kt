@@ -1389,6 +1389,28 @@ private fun HomeSurface(
     // isRoleHeld(ROLE_HOME) is true.
     var defaultHomeCalloutDismissed by remember { mutableStateOf(false) }
 
+    // The intro callout's "Got it" hides it for the rest of
+    // the session, the same way "Not now" does above. It
+    // still reappears on the next cold start until the
+    // launch count reaches INTRO_CALLOUT_LAUNCHES, which is
+    // what spreads the message across the first launches —
+    // but a person who taps a button labelled "Got it" has
+    // to see something happen, or the button reads as broken.
+    var introCalloutDismissed by remember { mutableStateOf(false) }
+
+    // Same rule for the two ritual cards below. Their
+    // "Begin"/"Skip" actions used to be empty lambdas left
+    // for a follow-up commit, so an enabled ritual card sat
+    // on the home surface permanently and neither button did
+    // anything. The practice each card describes is the one
+    // line of text on the card itself, so acknowledging it —
+    // either way — is the whole interaction: the card goes
+    // for this session and returns tomorrow.
+    var compassionCardDismissed by remember { mutableStateOf(false) }
+    var baPickerDismissed by remember { mutableStateOf(false) }
+    var expressiveWritingDismissed by remember { mutableStateOf(false) }
+    var windDownDismissed by remember { mutableStateOf(false) }
+
     // v0.20.9: nested safe-drawing on the outer Box and
     // imePadding on the inner scroll container. The outer
     // Box keeps the corner buttons clear of the status and
@@ -1477,10 +1499,11 @@ private fun HomeSurface(
             // before).
             if (showIntroCallout) {
                 LaunchedEffect(Unit) { onRecordLaunch() }
-                OnboardingCalloutCard(
-                    onDismiss = { /* session-scoped; the
-                        callout hides on launch 3+ */ },
-                )
+                if (!introCalloutDismissed) {
+                    OnboardingCalloutCard(
+                        onDismiss = { introCalloutDismissed = true },
+                    )
+                }
             }
 
             // v0.25.9 (deployability §8.3): the single
@@ -1550,10 +1573,10 @@ private fun HomeSurface(
             // "Begin" action is a no-op for v0.26.0; the
             // CompassionMoment rotation is the v0.27+
             // hook.
-            if (morningCompassionEnabled) {
+            if (morningCompassionEnabled && !compassionCardDismissed) {
                 MorningCompassionCard(
-                    onStart = { /* v0.27+ */ },
-                    onSkip = { /* v0.27+ */ },
+                    onStart = { compassionCardDismissed = true },
+                    onSkip = { compassionCardDismissed = true },
                 )
             }
 
@@ -1564,12 +1587,13 @@ private fun HomeSurface(
             // v0.26.0 (the save hook is in the launcher
             // view-model and the home surface calls
             // onSaveBaEntry).
-            if (baPromptEnabled) {
+            if (baPromptEnabled && !baPickerDismissed) {
                 BaPickerCard(
                     onSave = { mastery, pleasure ->
                         onSaveBaEntry(mastery, pleasure)
+                        baPickerDismissed = true
                     },
-                    onSkip = { /* v0.27+ */ },
+                    onSkip = { baPickerDismissed = true },
                 )
             }
 
@@ -1624,11 +1648,13 @@ private fun HomeSurface(
             // home surface when the user has enabled
             // the ritual. The Pennebaker 1997
             // 3-sentence minimum-dosage entry point.
-            if (expressiveWritingEnabled) {
+            if (expressiveWritingEnabled && !expressiveWritingDismissed) {
                 ExpressiveWritingCard(
-                    onSave = onSaveExpressiveWriting,
-                    onDismiss = { /* v0.28+ session
-                        scope */ },
+                    onSave = {
+                        onSaveExpressiveWriting(it)
+                        expressiveWritingDismissed = true
+                    },
+                    onDismiss = { expressiveWritingDismissed = true },
                 )
             }
 
@@ -1639,10 +1665,16 @@ private fun HomeSurface(
             // launcher view-model decides). The "Begin"
             // action applies the wind-down; the
             // "Not now" dismisses for this session.
-            if (windDownEnabled) {
+            if (windDownEnabled && !windDownDismissed) {
                 WindDownCard(
-                    onBegin = onBeginWindDown,
-                    onDismiss = onDismissWindDown,
+                    onBegin = {
+                        onBeginWindDown()
+                        windDownDismissed = true
+                    },
+                    onDismiss = {
+                        onDismissWindDown()
+                        windDownDismissed = true
+                    },
                 )
             }
 
