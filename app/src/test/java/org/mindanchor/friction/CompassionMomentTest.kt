@@ -177,4 +177,16 @@ class CompassionMomentTest {
         assertEquals(list, CompassionList.remove(list, ""))
         assertEquals(list, CompassionList.remove(list, "   "))
     }
+
+    @Test
+    fun `a line break inside a phrase cannot split it into two moments`() {
+        val stored = CompassionStore.encode(CompassionList.add(emptyList(), "may I be kind\nto myself"))
+        assertEquals(listOf("may I be kind to myself"), CompassionStore.decode(stored).map { it.phrase })
+    }
+
+    @Test
+    fun `a carriage return splits a phrase too`() {
+        val stored = CompassionStore.encode(CompassionList.add(emptyList(), "this passes\rit always has"))
+        assertEquals(listOf("this passes it always has"), CompassionStore.decode(stored).map { it.phrase })
+    }
 }

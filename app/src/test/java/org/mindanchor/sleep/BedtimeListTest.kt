@@ -282,4 +282,18 @@ class BedtimeListTest {
             ),
         )
     }
+
+    @Test
+    fun `a line break inside an item cannot split it into two`() {
+        // setBedtimeList takes a whole list, so the format guarantee has to
+        // live in encode rather than in an add path.
+        val stored = BedtimeList.encode(listOf("lay out clothes\nfor the morning"))
+        assertEquals(listOf("lay out clothes for the morning"), BedtimeList.decode(stored))
+    }
+
+    @Test
+    fun `a carriage return splits an item too`() {
+        val stored = BedtimeList.encode(listOf("phone\ron the shelf"))
+        assertEquals(listOf("phone on the shelf"), BedtimeList.decode(stored))
+    }
 }

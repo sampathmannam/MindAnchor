@@ -3,7 +3,6 @@ package org.mindanchor
 import android.app.AlarmManager
 import android.content.Context
 import android.os.Build
-import org.mindanchor.backup.DriveNightlySync
 import org.mindanchor.model.EmaScheduler
 import org.mindanchor.notifications.BatchAlarms
 import org.mindanchor.report.ReportScheduler
@@ -17,13 +16,19 @@ import org.mindanchor.sunset.SunsetController
  * Alarms do not survive a reboot, and until this existed the list of what
  * to put back lived only inside `BootReceiver` — where it had drifted.
  * Batch releases, sunset, the nightly report, the check-in prompts, and
- * (v0.70.7) the nightly Google Drive backup are re-armed here. (The
+ * OS Mode's window-suspension re-entry are re-armed here. (The
  * 2026-08-24 release removed the fortnightly pulse scheduler; this
  * function used to call it as a fifth entry. The original list-of-five
  * bug — see git history — was that two of the five were not being
  * re-armed; the re-arm contract covered the remaining four and closed
- * the missing-alarm class of bug for them. v0.70.7 brings the count back
- * to five with a genuinely new entry.)
+ * the missing-alarm class of bug for them. v0.70.7 briefly added a fifth
+ * entry — the nightly Google Drive backup, `DriveNightlySync` — but that
+ * feature's settings UI was later replaced by Program 0's continuity
+ * backup, which schedules itself independently through WorkManager, not
+ * through this AlarmManager re-arm path; re-arming DriveNightlySync here
+ * with no UI left to turn it off would have silently doubled up nightly
+ * Drive traffic against the same signed-in account, so that entry was
+ * removed rather than carried forward as dead weight.)
  *
  * A missing alarm is the worst shape of bug this app can have: nothing
  * fails, nothing is logged, a feature just never speaks again and the
@@ -49,7 +54,12 @@ object Alarms {
         runCatching { SunsetController.ensureScheduled(app) }
         runCatching { ReportScheduler.ensureScheduled(app) }
         runCatching { EmaScheduler.ensureScheduled(app) }
-        runCatching { DriveNightlySync.ensureScheduled(app) }
+        // v0.70 (master plan T-1.2): crash-safe re-entry for OS Mode's
+        // window suspension. Suspension is never persisted as truth; boot
+        // re-derives it from the sunset window, so a process killed
+        // mid-window cannot leave apps stranded on either side of the
+        // state they should be in. Never throws, like everything here.
+        runCatching { org.mindanchor.admin.OsMode.sync(app) }
     }
 
     /**

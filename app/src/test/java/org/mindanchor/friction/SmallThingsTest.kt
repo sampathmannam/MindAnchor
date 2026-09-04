@@ -75,4 +75,23 @@ class SmallThingsTest {
         assertEquals(listOf("a", "b"), SmallThings.decode("\n a \n\n\n b \n"))
         assertEquals(emptyList<String>(), SmallThings.decode("\n\n   \n"))
     }
+
+    @Test
+    fun `a line break inside a small thing cannot split it into two`() {
+        // One item per line is the format, so a pasted line break used to
+        // turn one thing that helps into two half-sentences on the next read.
+        val stored = SmallThings.encode(SmallThings.add(emptyList(), "walk to the end\nof the road"))
+        assertEquals(listOf("walk to the end of the road"), SmallThings.decode(stored))
+    }
+
+    @Test
+    fun `a carriage return splits a small thing too`() {
+        val stored = SmallThings.encode(SmallThings.add(emptyList(), "sit outside\rfor a bit"))
+        assertEquals(listOf("sit outside for a bit"), SmallThings.decode(stored))
+    }
+
+    @Test
+    fun `encode normalises a list that was never added through add`() {
+        assertEquals(listOf("one two"), SmallThings.decode(SmallThings.encode(listOf("one\ntwo"))))
+    }
 }

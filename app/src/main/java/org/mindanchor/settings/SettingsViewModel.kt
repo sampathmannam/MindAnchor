@@ -542,6 +542,21 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    /**
+     * T-3.2 (v0.72+) — whether marketing notifications are demoted to
+     * silent digest entries. Independent of batching being enabled: the
+     * classifier holds marketing pings even from apps the person never
+     * asked to batch, so its toggle stands on its own.
+     */
+    val marketingDemotionEnabled = notificationPrefs.marketingDemotionEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    fun setMarketingDemotionEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            notificationPrefs.setMarketingDemotionEnabled(enabled)
+        }
+    }
+
     // --- Going Light ---
 
     /**

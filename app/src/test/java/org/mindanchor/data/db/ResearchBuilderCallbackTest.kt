@@ -85,9 +85,13 @@ class ResearchBuilderCallbackTest {
     @Test
     fun `version eight and nine migrations and callback cover passive and advisory immutable history`() {
         val source = File("src/main/java/org/mindanchor/data/db/AnchorDatabase.kt").readText(Charsets.UTF_8)
-        assertTrue(source.contains("version = 9"))
+        // v10 (T-3.2) added the held-notification sender tier on top of
+        // this history; the v8 and v9 migrations this test guards must
+        // survive that, and the new one is pinned the same way.
+        assertTrue(source.contains("version = 10"))
         assertTrue(source.contains("Migration(7, 8)"))
         assertTrue(source.contains("Migration(8, 9)"))
+        assertTrue(source.contains("Migration(9, 10)"))
         assertTrue(source.contains("abstract fun passive(): PassiveDao"))
         assertTrue(source.contains("abstract fun advisory(): AdvisoryDao"))
 

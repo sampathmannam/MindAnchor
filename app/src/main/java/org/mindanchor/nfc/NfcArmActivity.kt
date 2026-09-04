@@ -109,12 +109,20 @@ class NfcArmActivity : ComponentActivity() {
         dispatch(action)
     }
 
+    /**
+     * Nothing to arm — no tag, an unreadable tag, or a tag
+     * this app does not recognise.
+     *
+     * This activity draws no UI of its own: it exists to
+     * receive an NFC intent, act on it, and get out of the
+     * way. It previously returned here without finishing,
+     * which left a blank, exit-less screen on top of
+     * whatever the person was doing — a worse outcome than
+     * the "no-op" the tag contract promises. Finishing is
+     * what a no-op actually looks like.
+     */
     private fun renderIdle() {
-        // The consent card is the default. The actual
-        // Compose surface is the follow-up commit
-        // (G-4 wiring + Activity onCreate Composable).
-        // The contract is the readNdefPayload +
-        // parsePayload + dispatch trio.
+        finish()
     }
 
     private fun readNdefPayload(tag: Tag): String? {
@@ -143,6 +151,11 @@ class NfcArmActivity : ComponentActivity() {
     private fun dispatch(action: ArmAction) {
         val vibrator = getSystemService(VIBRATOR_SERVICE) as? Vibrator
         vibrator?.vibrate(VibrationEffect.createOneShot(60, VibrationEffect.DEFAULT_AMPLITUDE))
+        // A tap that changes a setting has to say so. The
+        // buzz alone cannot distinguish "armed Going Light"
+        // from "that tag means nothing here", and this
+        // activity has no surface of its own to say it on.
+        android.widget.Toast.makeText(this, toastFor(action), android.widget.Toast.LENGTH_SHORT).show()
         when (action) {
             ArmAction.GOING_LIGHT -> lifecycleScope.launch {
                 val prefs = FrictionPrefs(this@NfcArmActivity)
@@ -159,6 +172,15 @@ class NfcArmActivity : ComponentActivity() {
                 // follow-up.
             }
         }
+        // Handled: leave rather than sit on top of whatever
+        // the person was doing behind us.
+        finish()
+    }
+
+    private fun toastFor(action: ArmAction): String = when (action) {
+        ArmAction.GOING_LIGHT -> "Going Light armed"
+        ArmAction.SUNSET -> "Sunset armed"
+        ArmAction.SLEEP_LOCK -> "Sleep Lock is not available yet"
     }
 
     private enum class ArmAction { GOING_LIGHT, SUNSET, SLEEP_LOCK }

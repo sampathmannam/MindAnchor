@@ -62,6 +62,17 @@ data class CompassionMoment(
  * would rotate through without any single phrase
  * becoming wallpaper.
  */
+/**
+ * One phrase per line is the whole format, so a line break inside a phrase
+ * would split it into two on the next read. Phrases are the person's own
+ * words, pasted as often as typed, so both [CompassionList.add] and
+ * [CompassionStore.encode] normalise rather than trusting the field to be
+ * single-line. A lone carriage return counts: [lineSequence] treats it as a
+ * terminator too.
+ */
+private fun oneLine(text: String): String =
+    text.replace('\n', ' ').replace('\r', ' ')
+
 object CompassionList {
     const val MAX = 6
     const val MAX_PHRASE = 140
@@ -71,7 +82,7 @@ object CompassionList {
      *  resulting phrase is trimmed and capped to
      *  [MAX_PHRASE] characters. */
     fun add(moments: List<CompassionMoment>, phrase: String): List<CompassionMoment> {
-        val cleaned = phrase.trim().take(MAX_PHRASE)
+        val cleaned = oneLine(phrase).trim().take(MAX_PHRASE)
         if (cleaned.isEmpty()) return moments
         if (moments.any { it.phrase.trim() == cleaned }) return moments
         if (moments.size >= MAX) return moments
@@ -98,7 +109,8 @@ object CompassionList {
 object CompassionStore {
 
     fun encode(moments: List<CompassionMoment>): String =
-        moments.joinToString("\n") { it.phrase.trim() }
+        moments.joinToString("\n") { oneLine(it.phrase).trim() }
+
 
     fun decode(raw: String): List<CompassionMoment> =
         raw.lineSequence()

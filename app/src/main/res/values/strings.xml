@@ -266,6 +266,26 @@
     <string name="digest_stamp_other_day">%1$s %2$s</string>
     <string name="digest_text">From %1$s</string>
 
+    <!--
+        T-3.1 weekly attention receipt (v0.72). Descriptive counts only:
+        no ranking language, no goals, no congratulation (R6). These join
+        the DigestScreen @wording-reviewed sign-off list.
+    -->
+    <string name="receipt_show">Attention receipt</string>
+    <string name="receipt_hide">Hide receipt</string>
+    <string name="receipt_title">Who asked for your attention</string>
+    <string name="receipt_subtitle">Notifications held over the last %1$d days</string>
+    <string name="receipt_row">%1$d × %2$s</string>
+    <string name="receipt_tier_machine">app</string>
+    <string name="receipt_tier_marketing">marketing</string>
+    <string name="receipt_tier_human">person</string>
+    <string name="receipt_empty">Nothing was held in this window.</string>
+    <string name="receipt_footnote">A record of what was held, not a score. Entries appear while batching or marketing demotion was on.</string>
+
+    <!-- T-3.2 marketing demotion toggle (v0.72). -->
+    <string name="marketing_demotion_title">Demote marketing notifications</string>
+    <string name="marketing_demotion_explainer">Promotions and re-engagement pings never buzz — they wait silently in the digest with everything else that was batched.</string>
+
     <string name="appearance_section">Home screen</string>
     <string name="appearance_explainer">A quiet landscape under the sky. Even a brief glance at greenery or water measurably steadies attention, so this is drawn to be looked at — and never to move.</string>
     <string name="scene_rotate">A different scene each day</string>
@@ -694,6 +714,19 @@
     <string name="owner_release">Hand this back</string>
     <string name="owner_release_cost">Any suspended apps open again straight away. Getting this back later needs another factory reset, so it is worth being sure — but if you want it back, take it back.</string>
     <string name="owner_release_confirm">Hand it back</string>
+
+    <!-- v0.70 (master plan T-1.1): OS Mode. The contract copy states both
+         directions — what arming closes and every way out — before the
+         switch, per the autonomy law in CONCEPT 3.3. -->
+    <string name="osmode_section">OS Mode</string>
+    <string name="osmode_explainer">The step past everything walkable: while armed, the feed apps you chose close for the whole quiet-hours window, from every way in — notifications, links, share sheets included. You chose the list, you chose the hours, and the phone holds that choice instead of asking you each time.</string>
+    <string name="osmode_grants">Arming this closes your chosen feed apps through the quiet-hours window, and lets the sleep lock hold them shut until morning. Nothing is ever suspended outside the hours you set.</string>
+    <string name="osmode_leaving">Ways out: type the unlock phrase on the sleep lock card to open everything for the rest of tonight, turn this switch off for good, or use “Hand this back” above to remove the whole arrangement.</string>
+    <string name="osmode_not_provisioned">This needs the guardian setup above first. Once that is granted, the switch appears here.</string>
+    <string name="osmode_toggle">Close feed apps through the quiet hours</string>
+    <string name="osmode_armed_note">Armed. Your quiet hours run %1$s – %2$s.</string>
+    <string name="osmode_available_note">Ready when you are. Your quiet hours run %1$s – %2$s.</string>
+
     <string name="grayscale_section">Colour</string>
     <string name="grayscale_explainer">A grey screen is the single most effective change measured in this field — not through willpower, but because colour is most of what makes a feed feel alive. Trials consistently find people put the phone down sooner without it.</string>
     <string name="grayscale_needs_grant">Android will not let an app turn this on by itself, which is the right rule. Run this once from a computer with the phone plugged in, and it sticks through reboots:</string>
