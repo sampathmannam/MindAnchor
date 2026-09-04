@@ -102,6 +102,11 @@ class NotificationPrefs(private val context: Context) {
     // this are pruned on next service start; the
     // default is the spec's 7 days.
     private val heldRetentionDaysKey = intPreferencesKey("held_retention_days")
+    // T-3.2 (v0.72+) — marketing demotion toggle.
+    // Default ON: the master plan ships the classifier as part of batching's
+    // promise ("marketing never buzzes"), but it remains a toggle per the
+    // project's autonomy law — nothing is imposed.
+    private val marketingDemotionKey = booleanPreferencesKey("marketing_demotion_enabled")
 
     val activeHoursStart: Flow<Int> = context.dataStore.data.map { prefs ->
         prefs[activeHoursStartKey] ?: DEFAULT_ACTIVE_START
@@ -112,6 +117,11 @@ class NotificationPrefs(private val context: Context) {
     val heldRetentionDays: Flow<Int> = context.dataStore.data.map { prefs ->
         prefs[heldRetentionDaysKey]?.coerceIn(1, MAX_RETENTION_DAYS)
             ?: DEFAULT_RETENTION_DAYS
+    }
+
+    /** T-3.2 (v0.72+) — whether marketing notifications are demoted to silent digest entries. */
+    val marketingDemotionEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[marketingDemotionKey] ?: DEFAULT_MARKETING_DEMOTION
     }
 
     /**
@@ -140,6 +150,13 @@ class NotificationPrefs(private val context: Context) {
     suspend fun setHeldRetentionDays(days: Int) {
         context.dataStore.edit { prefs ->
             prefs[heldRetentionDaysKey] = days.coerceIn(1, MAX_RETENTION_DAYS)
+        }
+    }
+
+    /** T-3.2 (v0.72+) — toggles marketing demotion on or off. */
+    suspend fun setMarketingDemotionEnabled(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[marketingDemotionKey] = enabled
         }
     }
 
@@ -175,6 +192,9 @@ class NotificationPrefs(private val context: Context) {
         // the table in held notifications.
         const val DEFAULT_RETENTION_DAYS = 7
         const val MAX_RETENTION_DAYS = 30
+
+        /** T-3.2 (v0.72+) — marketing demotion ships on; the toggle exists to turn it off. */
+        const val DEFAULT_MARKETING_DEMOTION = true
 
         /**
          * v0.30+ (spec Phase 2) — whether the given

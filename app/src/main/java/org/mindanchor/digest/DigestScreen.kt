@@ -25,17 +25,22 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.mindanchor.R
 import org.mindanchor.data.db.AnchorDatabase
 import org.mindanchor.data.db.HeldNotification
 import org.mindanchor.notifications.BatchReleaser
+import org.mindanchor.notifications.SenderTier
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+
+private const val MILLIS_PER_DAY = 24L * 60L * 60L * 1000L
 
 class DigestViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -43,6 +48,28 @@ class DigestViewModel(application: Application) : AndroidViewModel(application) 
 
     val journal = dao.journal()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
+     * T-3.1 — the weekly attention receipt, or `null` while collapsed.
+     * Loaded on demand from the same journal table; nothing is precomputed
+     * or stored, so the receipt is always exactly what the journal
+     * remembers and disappears with it.
+     */
+    private val receiptState = MutableStateFlow<List<ReceiptEntry>?>(null)
+    val receipt: StateFlow<List<ReceiptEntry>?> = receiptState
+
+    fun toggleReceipt() {
+        val current = receiptState.value
+        if (current != null) {
+            receiptState.value = null
+            return
+        }
+        viewModelScope.launch {
+            val since = System.currentTimeMillis() -
+                AttentionReceipt.WINDOW_DAYS * MILLIS_PER_DAY
+            receiptState.value = AttentionReceipt.compose(dao.interruptCountsSince(since))
+        }
+    }
 
     fun releaseNow() {
         viewModelScope.launch { BatchReleaser.releaseNow(getApplication()) }
@@ -72,6 +99,10 @@ class DigestViewModel(application: Application) : AndroidViewModel(application) 
  * sign-off for the digest surface, in line with R6
  * (no streaks, no goals, no congratulation; the
  * journal is chronological, not evaluative).
+ *
+ * The T-3.1 attention-receipt section added in v0.72 follows the same
+ * constraint: its strings are counts of what was held, at which sender
+ * tier — descriptive, never evaluative. They join this sign-off list.
  */
 @Composable
 fun DigestScreen(
@@ -79,6 +110,7 @@ fun DigestScreen(
     viewModel: DigestViewModel = viewModel(),
 ) {
     val journal by viewModel.journal.collectAsState()
+    val receipt by viewModel.receipt.collectAsState()
     val waiting = journal.filter { it.releasedAt == null }
     val released = journal.filter { it.releasedAt != null }
 
@@ -97,6 +129,22 @@ fun DigestScreen(
                     modifier = Modifier.weight(1f).padding(start = 8.dp),
                 )
             }
+
+            // T-3.1 — collapsed by default: per CONCEPT 6.3 the receipt is
+            // supporting cast, one quiet affordance rather than a headline.
+            TextButton(onClick = viewModel::toggleReceipt) {
+                Text(
+                    text = stringResource(
+                        if (receipt == null) {
+                            R.string.receipt_show
+                        } else {
+                            R.string.receipt_hide
+                        },
+                    ),
+                )
+            }
+
+            receipt?.let { entries -> ReceiptSection(entries) }
 
             if (waiting.isNotEmpty()) {
                 Row(
@@ -159,6 +207,83 @@ private val timeFormat = DateTimeFormatter.ofPattern("HH:mm")
 
 /** Weekday and day-of-month — enough to place an entry, without a year. */
 private val dayFormat = DateTimeFormatter.ofPattern("EEE d MMM")
+
+/**
+ * T-3.1 — the weekly attention receipt: who asked for this person's
+ * attention, and how often. A flat descriptive list — app, tier, count —
+ * heaviest first. No ranking language, no totals framed as achievement,
+ * per CONCEPT 6.3 (receipts demoted to supporting cast).
+ *
+ * @wording-reviewed — receipt_title / receipt_subtitle / receipt_row /
+ * receipt_tier_* / receipt_empty / receipt_footnote are factual counts
+ * with a neutral footer; they join this file's clinical-review sign-off.
+ */
+@Suppress("FunctionNaming") // Compose naming convention; sibling screens are baselined
+@Composable
+private fun ReceiptSection(entries: List<ReceiptEntry>) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.receipt_title),
+            style = MaterialTheme.typography.titleMedium,
+        )
+        Text(
+            text = stringResource(R.string.receipt_subtitle, AttentionReceipt.WINDOW_DAYS),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (entries.isEmpty()) {
+            Text(
+                text = stringResource(R.string.receipt_empty),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 12.dp),
+            )
+        } else {
+            LazyColumn(modifier = Modifier.heightIn(max = 220.dp)) {
+                items(entries, key = { it.packageName + ":" + it.tier.name }) { entry ->
+                    ReceiptRow(entry)
+                }
+            }
+            Text(
+                text = stringResource(R.string.receipt_footnote),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
+    }
+}
+
+@Suppress("FunctionNaming") // Compose naming convention; sibling screens are baselined
+@Composable
+private fun ReceiptRow(entry: ReceiptEntry) {
+    val tierLabel = stringResource(
+        when (entry.tier) {
+            SenderTier.HUMAN -> R.string.receipt_tier_human
+            SenderTier.MARKETING -> R.string.receipt_tier_marketing
+            SenderTier.MACHINE -> R.string.receipt_tier_machine
+        },
+    )
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.receipt_row, entry.count, entry.appLabel),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = tierLabel,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
 
 /**
  * A journal entry's timestamp, carrying its day only when that day is not

@@ -1,6 +1,7 @@
 package org.mindanchor.data.db
 
 import android.content.Context
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Delete
@@ -15,6 +16,7 @@ import androidx.room.Transaction
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
+import org.mindanchor.notifications.SenderTier
 
 /**
  * A notification we held back for the next batch. This journal is the
@@ -30,6 +32,26 @@ data class HeldNotification(
     val text: String,
     val postedAt: Long,
     val releasedAt: Long? = null,
+    /**
+     * T-3.2 (v0.72+) — the sender tier at hold time, one of
+     * [org.mindanchor.notifications.SenderTier] names. Rows predating the
+     * column read as MACHINE via the migration default and
+     * [org.mindanchor.notifications.SenderTier.fromStored].
+     */
+    @ColumnInfo(defaultValue = "MACHINE")
+    val tier: String = SenderTier.MACHINE.name,
+)
+
+/**
+ * One row of the weekly attention receipt (T-3.1): how many times a single
+ * app interrupted this person inside a window, at which sender tier.
+ * Produced by [HeldNotificationDao.interruptCountsSince].
+ */
+data class AppInterruptCount(
+    val packageName: String,
+    val appLabel: String,
+    val tier: String,
+    val count: Int,
 )
 
 @Dao
@@ -66,6 +88,22 @@ interface HeldNotificationDao {
 
     @Query("SELECT * FROM held_notifications ORDER BY postedAt DESC LIMIT 300")
     fun journal(): Flow<List<HeldNotification>>
+
+    /**
+     * T-3.1 (v0.72+) — weekly attention-receipt attribution: held
+     * notifications grouped by app and sender tier inside the window
+     * starting at [since] epoch-millis. Reads the whole journal
+     * (waiting AND released), because an interruption that was later
+     * delivered still happened; the retention prune is what bounds this
+     * table, so the receipt naturally covers the same window the journal
+     * remembers.
+     */
+    @Query(
+        "SELECT packageName, appLabel, tier, COUNT(*) AS count " +
+            "FROM held_notifications WHERE postedAt >= :since " +
+            "GROUP BY packageName, appLabel, tier ORDER BY count DESC",
+    )
+    suspend fun interruptCountsSince(since: Long): List<AppInterruptCount>
 
     @Query("UPDATE held_notifications SET releasedAt = :releasedAt WHERE releasedAt IS NULL")
     suspend fun markAllReleased(releasedAt: Long)
@@ -218,7 +256,9 @@ abstract class SafetyDao {
     // does and MIGRATION_4_5 for the v4/v5 tier history.
     // v9 (Program 3): the append-only advisory opportunity
     // and episode-event tables. See MIGRATION_8_9.
-    version = 9,
+    // v10 (T-3.2): the held-notification sender tier. See
+    // MIGRATION_9_10.
+    version = 10,
     exportSchema = true,
 )
 abstract class AnchorDatabase : RoomDatabase() {
@@ -558,6 +598,38 @@ abstract class AnchorDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * T-3.2 — the journal learns which sender tier held each row.
+         *
+         * Every pre-existing row was, by construction, an ordinary machine
+         * notification: marketing classification did not exist when it was
+         * written. MACHINE is therefore both the honest and the
+         * conservative default — it never retroactively labels something a
+         * person sent as marketing.
+         *
+         * This arrives as 9->10 rather than the 3->4 it was written as on
+         * its own branch: main reached v9 through Programs 1-3 while that
+         * branch sat unmerged, and v4 there is a different migration
+         * entirely.
+         *
+         * **This is not the column MIGRATION_4_5 dropped.** That `tier` was
+         * the v0.69.x retention tier -- a denormalised copy of a
+         * NotificationPrefs value, whose lingering presence made v0.70.0
+         * crash on launch for every v0.69.x user (Room identity-hash
+         * mismatch). It shares this one's name and table and nothing else:
+         * this is the *sender* tier, PERSON vs MACHINE, and it is the only
+         * home for that fact rather than a copy of one. Anyone reading the
+         * chain and reaching for a tidy-up should read `aac47a1` first.
+         */
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE held_notifications " +
+                        "ADD COLUMN tier TEXT NOT NULL DEFAULT 'MACHINE'",
+                )
+            }
+        }
+
         /** Exposed so instrumented tests can walk an old database forward. */
         fun migrations(): Array<Migration> =
             arrayOf(
@@ -569,6 +641,7 @@ abstract class AnchorDatabase : RoomDatabase() {
                 MIGRATION_6_7,
                 MIGRATION_7_8,
                 MIGRATION_8_9,
+                MIGRATION_9_10,
             )
 
         /**

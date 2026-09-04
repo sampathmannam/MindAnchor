@@ -29,6 +29,13 @@ class AnchorNotificationListenerService : NotificationListenerService() {
     private lateinit var config: kotlinx.coroutines.flow.StateFlow<Pair<Boolean, Set<String>>>
 
     /**
+     * T-3.2 (v0.72+) — whether the marketing classifier is allowed to
+     * demote notifications. Collected eagerly like [config] so the hot
+     * path stays a synchronous read.
+     */
+    private lateinit var marketingDemotion: kotlinx.coroutines.flow.StateFlow<Boolean>
+
+    /**
      * Chosen people who must never be delayed. Held in memory so the hot
      * path stays synchronous — a notification arrives before any suspend
      * function could finish loading them.
@@ -63,6 +70,9 @@ class AnchorNotificationListenerService : NotificationListenerService() {
             )
         retentionDays = prefs.heldRetentionDays
             .stateIn(scope, SharingStarted.Eagerly, NotificationPrefs.DEFAULT_RETENTION_DAYS)
+        // T-3.2 (v0.72+) — marketing demotion toggle; default on.
+        marketingDemotion = prefs.marketingDemotionEnabled
+            .stateIn(scope, SharingStarted.Eagerly, NotificationPrefs.DEFAULT_MARKETING_DEMOTION)
 
         scope.launch {
             AnchorDatabase.get(applicationContext).safety().contacts().collect { contacts ->
@@ -173,15 +183,9 @@ class AnchorNotificationListenerService : NotificationListenerService() {
         }
         val (enabled, batchedApps) = config.value
         val meta = sbn.toMeta()
-        val hold = NotificationClassifier.shouldHold(
-            meta = meta,
-            batchingEnabled = enabled,
-            batchedApps = batchedApps,
-            ownPackage = packageName,
-            crisisContacts = crisisContacts,
-        )
-        if (!hold) return
-
+        // T-3.2 (v0.72+) — title/text/appLabel are extracted BEFORE the
+        // hold decision now: the marketing classifier needs them, and they
+        // were already needed for every notification we hold.
         val extras = sbn.notification.extras
         val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
         val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty()
@@ -190,6 +194,23 @@ class AnchorNotificationListenerService : NotificationListenerService() {
                 packageManager.getApplicationInfo(sbn.packageName, 0),
             ).toString()
         }.getOrDefault(sbn.packageName)
+
+        val demoteMarketing =
+            marketingDemotion.value && MarketingClassifier.isMarketing(
+                meta = meta,
+                title = title,
+                text = text,
+                appLabel = appLabel,
+            )
+        val hold = demoteMarketing ||
+            NotificationClassifier.shouldHold(
+                meta = meta,
+                batchingEnabled = enabled,
+                batchedApps = batchedApps,
+                ownPackage = packageName,
+                crisisContacts = crisisContacts,
+            )
+        if (!hold) return
         val key = sbn.key
 
         scope.launch {
@@ -200,6 +221,11 @@ class AnchorNotificationListenerService : NotificationListenerService() {
                     title = title,
                     text = text,
                     postedAt = sbn.postTime,
+                    tier = if (demoteMarketing) {
+                        SenderTier.MARKETING.name
+                    } else {
+                        SenderTier.MACHINE.name
+                    },
                 ),
             )
             // Journaled — now it is safe to take it off the shade.

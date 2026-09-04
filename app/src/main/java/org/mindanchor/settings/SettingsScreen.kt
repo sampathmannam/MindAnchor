@@ -1214,7 +1214,34 @@ fun SettingsScreen(
                         },
                     )
                 }
-            }
+
+                // T-3.2 (v0.72+) — marketing demotion sits outside the
+                // batching-enabled block on purpose: it holds marketing
+                // pings even from apps never opted into batching.
+                val marketingDemotion by viewModel.marketingDemotionEnabled.collectAsState()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .toggleable(value = marketingDemotion, role = Role.Switch) { enabled ->
+                            viewModel.setMarketingDemotionEnabled(enabled)
+                        }
+                        .padding(top = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.marketing_demotion_title),
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                        Text(
+                            text = stringResource(R.string.marketing_demotion_explainer),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = marketingDemotion, onCheckedChange = null)
+                }            }
         }
 
         if (group == SettingsGroup.PHONE) {
