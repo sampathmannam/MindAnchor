@@ -2118,18 +2118,22 @@ fun SettingsScreen(
         }
 
         if (group == SettingsGroup.READING) {
-            // v0.25.4: Google Drive backup (replaces
-            // v0.23.0 WebDAV). The section lives in
-            // the Reading group because the "what
-            // you wrote" surface is the natural
+            // Task 12 (Program 0): continuity backup
+            // health, recovery key, and kill switches —
+            // replaces the v0.25.4 Google Drive backup
+            // sub-section (per-type Notes/Letters toggles
+            // + a direct-network "Back up now"). The
+            // section lives in the Reading group because
+            // the "what you wrote" surface is the natural
             // home for "where the writes go" — the
-            // letters feature sits here, the
-            // nightly report reuses the same
-            // ReaderPrefs, and the user looking
-            // for the "I lost my phone, where's
-            // my data?" affordance is reading the
-            // same screen.
-            GoogleDriveBackupSettingsSection(viewModel = viewModel)
+            // letters feature sits here, the nightly
+            // report reuses the same ReaderPrefs, and the
+            // user looking for the "I lost my phone,
+            // where's my data?" affordance is reading the
+            // same screen. The section owns its own state
+            // (see ContinuitySettingsViewModel) rather than
+            // reading SettingsViewModel.
+            GoogleDriveBackupSettingsSection()
         }
 
         if (group == SettingsGroup.MEASURING) {
@@ -2667,6 +2671,9 @@ fun SettingsScreen(
                 "exercise" to R.string.health_connect_reads_exercise,
                 "calories" to R.string.health_connect_reads_calories,
                 "mindfulness" to R.string.health_connect_reads_mindfulness,
+                "oxygen_saturation" to R.string.health_connect_reads_oxygen_saturation,
+                "history" to R.string.health_connect_reads_history,
+                "background" to R.string.health_connect_reads_background,
             )
             Text(
                 text = stringResource(R.string.health_connect_what_reads_header),
@@ -3595,6 +3602,10 @@ fun SettingsScreen(
                     }
                 }
             }
+        }
+
+        if (group == SettingsGroup.MEASURING) {
+            org.mindanchor.advisory.AdvisorySettingsSection(viewModel = viewModel)
         }
     }
 }

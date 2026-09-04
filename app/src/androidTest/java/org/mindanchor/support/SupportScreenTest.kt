@@ -22,8 +22,8 @@ import org.mindanchor.ui.MindAnchorTheme
 /**
  * The support screen is the one place that has to work when someone is at
  * their worst, so it gets driven end to end: it must render, the crisis
- * lines must be present without scrolling past anything, and a contact the
- * user adds must persist.
+ * card must be present without scrolling past anything, and the contact
+ * form must reject an unreachable person.
  */
 @RunWith(AndroidJUnit4::class)
 class SupportScreenTest {
@@ -94,7 +94,9 @@ class SupportScreenTest {
             .performScrollTo()
             .performTextInput("cannot sleep")
         rule.onNodeWithText("done").performScrollTo().performClick()
-        rule.waitForIdle()
+        rule.waitUntil(timeoutMillis = 10_000L) {
+            rule.onAllNodes(hasText("edit")).fetchSemanticsNodes().isNotEmpty()
+        }
         rule.onAllNodes(hasText("cannot sleep", substring = true)).onFirst().assertExists()
     }
 }

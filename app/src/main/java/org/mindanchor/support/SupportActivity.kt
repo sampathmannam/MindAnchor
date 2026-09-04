@@ -4,6 +4,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.compose.viewModel
 import org.mindanchor.ui.MindAnchorTheme
 
 /**
@@ -11,14 +13,21 @@ import org.mindanchor.ui.MindAnchorTheme
  * the home screen, a notification, or a shortcut — without first passing
  * through the launcher's other surfaces.
  */
-class SupportActivity : ComponentActivity() {
+open class SupportActivity : ComponentActivity() {
+
+    protected open fun supportViewModelFactory(): ViewModelProvider.Factory =
+        defaultViewModelProviderFactory
+
+    protected open fun closeSupport() = finish()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        val factory = supportViewModelFactory()
         setContent {
             MindAnchorTheme {
-                SupportScreen(onClose = { finish() })
+                val supportViewModel: SupportViewModel = viewModel(factory = factory)
+                SupportScreen(onClose = ::closeSupport, viewModel = supportViewModel)
             }
         }
     }

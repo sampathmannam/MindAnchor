@@ -267,6 +267,22 @@ class FrictionPrefs(private val context: Context) {
         }
     }
 
+    /**
+     * Fully replaces the flagged-apps set. Task 7's `replaceFlagged`
+     * extension function (same package as [org.mindanchor.continuity])
+     * uses this for the continuity-restore path, where a snapshot's set of
+     * flagged apps should win outright rather than merge with whatever is
+     * already flagged locally.
+     */
+    suspend fun replaceFlaggedApps(packageNames: Set<String>) {
+        context.dataStore.edit { prefs -> prefs[flaggedKey] = packageNames }
+    }
+
+    /** Fully replaces the always-open set — see [replaceFlaggedApps]. */
+    suspend fun replaceAlwaysOpenApps(packageNames: Set<String>) {
+        context.dataStore.edit { prefs -> prefs[alwaysOpenKey] = packageNames }
+    }
+
     private val reachKey = stringPreferencesKey("recent_reaches")
 
     /**
@@ -763,4 +779,19 @@ class FrictionPrefs(private val context: Context) {
 
     suspend fun extensionsToday(packageName: String, today: String): Int =
         ExtensionLedger.count(context.dataStore.data.first()[ledgerKey].orEmpty(), packageName, today)
+}
+
+/**
+ * Task 7 — fully replaces the flagged-apps set with [packageNames], for the
+ * continuity-restore path. Blank package name strings are dropped first;
+ * idempotent by construction, since a DataStore set write is itself
+ * idempotent for the same input.
+ */
+suspend fun FrictionPrefs.replaceFlagged(packageNames: Set<String>) {
+    replaceFlaggedApps(packageNames.filterTo(mutableSetOf()) { it.isNotBlank() })
+}
+
+/** Task 7 — the always-open counterpart of [replaceFlagged]. */
+suspend fun FrictionPrefs.replaceAlwaysOpen(packageNames: Set<String>) {
+    replaceAlwaysOpenApps(packageNames.filterTo(mutableSetOf()) { it.isNotBlank() })
 }

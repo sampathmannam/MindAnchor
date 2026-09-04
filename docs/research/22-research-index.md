@@ -100,6 +100,8 @@ The plan in `22-10-of-10-roadmap.md` and the v0.20.9 release notes mention some 
 | Friction gate (if-then plan pre-fill) | `friction/FrictionGate.kt` | Gollwitzer 1999 (implementation intentions); Gollwitzer & Sheeran 2006 (meta-analysis) |
 | Physiological-sigh breath cycle (2s + 1s + 6s) | `friction/BreathingProtocol.kt` | Balban et al. 2023 (cyclic sighing won on affect) |
 | Slow-exhale parasympathetic drive (mechanism) | `friction/BreathingProtocol.kt` | Bernardi et al. 2001 (slow breathing, baroreflex) |
+| Evidence protocol registry — `cyclic-sighing` v1, outcome evidence | `research/EvidenceProtocolCatalog.kt` | Balban et al. 2023 (RCT, 5-min daily dose) |
+| Evidence protocol registry — `cyclic-sighing` v1, mechanism evidence | `research/EvidenceProtocolCatalog.kt` | Bernardi et al. 2001 (slow breathing, baroreflex) |
 | Self-compassion micro-moments (Neff framing) | `friction/CompassionMoment.kt` | Neff 2003 |
 | Self-compassion micro-moments (app-delivered effect size) | `friction/CompassionMoment.kt` | Linardon 2020 (g=0.31 self-compassion, k=9) |
 | Self-compassion micro-moments (loving-kindness app) | `friction/CompassionMoment.kt` | Liu et al. 2023 |

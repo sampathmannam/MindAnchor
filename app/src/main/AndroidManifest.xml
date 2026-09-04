@@ -118,6 +118,7 @@
     <uses-permission android:name="android.permission.health.READ_EXERCISE" />
     <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED" />
     <uses-permission android:name="android.permission.health.READ_MINDFULNESS" />
+    <uses-permission android:name="android.permission.health.READ_OXYGEN_SATURATION" />
     <!--
         The next two are not "read this record type"; they
         are "how far back" and "when during the day". The
@@ -495,6 +496,27 @@
             android:excludeFromRecents="true"
             android:stateNotNeeded="true"
             android:configChanges="orientation|screenSize|keyboard|keyboardHidden" />
+
+        <!--
+            Task 6 (Program 0 continuity): the Journal experience
+            (Today / Entries / Patterns). Own activity so a crash while
+            writing never takes the launcher down with it.
+        -->
+        <activity
+            android:name=".journal.JournalActivity"
+            android:exported="false"
+            android:stateNotNeeded="false"
+            android:theme="@style/Theme.MindAnchor" />
+
+        <!--
+            Task 11 (Program 0 continuity): the replacement-phone restore
+            flow. Own activity, same rationale as JournalActivity above.
+        -->
+        <activity
+            android:name=".continuity.RestoreActivity"
+            android:exported="false"
+            android:stateNotNeeded="false"
+            android:theme="@style/Theme.MindAnchor" />
 
         <!--
             v0.20.1 round 5 follow-up: the

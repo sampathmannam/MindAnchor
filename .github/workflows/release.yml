@@ -18,6 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-java@v4
         with:
@@ -26,57 +28,103 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # The signing key never lives in the repository. If the secret is
-      # absent — every fork, every contributor — this step writes nothing
-      # and the build falls back to a debug-signed APK, clearly labelled
-      # as such below. It does not fail: an unsigned build is still a
-      # useful build for anyone testing their own changes.
+      # An official release must be signed with the project's release key.
+      # There is no fallback here: a `v*` tag push or a manual "Release"
+      # run either builds the real, signed APK or the job fails before
+      # anything is built and before any GitHub Release is created.
+      # Ordinary contributors and forks still get debug builds from
+      # ci.yml on every push — this workflow only ever produces the one
+      # build that gets published as an official release, and it is
+      # never allowed to be a debug-signed one.
+      - name: Require signing secrets
+        env:
+          MINDANCHOR_KEYSTORE_BASE64: ${{ secrets.MINDANCHOR_KEYSTORE_BASE64 }}
+          MINDANCHOR_KEYSTORE_PASSWORD: ${{ secrets.MINDANCHOR_KEYSTORE_PASSWORD }}
+          MINDANCHOR_KEY_ALIAS: ${{ secrets.MINDANCHOR_KEY_ALIAS }}
+          MINDANCHOR_KEY_PASSWORD: ${{ secrets.MINDANCHOR_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          missing=""
+          [ -z "$MINDANCHOR_KEYSTORE_BASE64" ] && missing="$missing MINDANCHOR_KEYSTORE_BASE64"
+          [ -z "$MINDANCHOR_KEYSTORE_PASSWORD" ] && missing="$missing MINDANCHOR_KEYSTORE_PASSWORD"
+          [ -z "$MINDANCHOR_KEY_ALIAS" ] && missing="$missing MINDANCHOR_KEY_ALIAS"
+          [ -z "$MINDANCHOR_KEY_PASSWORD" ] && missing="$missing MINDANCHOR_KEY_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing required release-signing secret(s):$missing"
+            echo "An official release must be signed with the project release key — see docs/RELEASING.md."
+            exit 1
+          fi
+          echo "All four signing secrets are present."
+
       - name: Restore signing key
         id: keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.MINDANCHOR_KEYSTORE_BASE64 }}
         run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/mindanchor.jks"
-            echo "path=$RUNNER_TEMP/mindanchor.jks" >> "$GITHUB_OUTPUT"
-            echo "signed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "No signing key configured; falling back to a debug build."
-            echo "signed=false" >> "$GITHUB_OUTPUT"
-          fi
+          set -euo pipefail
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/mindanchor.jks"
+          echo "path=$RUNNER_TEMP/mindanchor.jks" >> "$GITHUB_OUTPUT"
 
       - name: Determine tag
         id: tag
         run: echo "tag=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
 
-      - name: Build signed release APK
-        if: steps.keystore.outputs.signed == 'true'
+      # Two clean, identically-configured `assembleRelease` builds, hashed
+      # and compared. This both proves the build is reproducible and
+      # leaves a real signed APK behind at the usual Gradle output path —
+      # the second build's output is what every step below uses. See
+      # tools/verify-reproducible-release.sh for what "reproducible"
+      # means here and its documented boundary.
+      - name: Verify build reproducibility
         env:
           MINDANCHOR_KEYSTORE: ${{ steps.keystore.outputs.path }}
           MINDANCHOR_KEYSTORE_PASSWORD: ${{ secrets.MINDANCHOR_KEYSTORE_PASSWORD }}
           MINDANCHOR_KEY_ALIAS: ${{ secrets.MINDANCHOR_KEY_ALIAS }}
           MINDANCHOR_KEY_PASSWORD: ${{ secrets.MINDANCHOR_KEY_PASSWORD }}
+        run: ./tools/verify-reproducible-release.sh
+
+      - name: Copy release APK
+        id: sum
         run: |
-          ./gradlew assembleRelease --stacktrace
+          set -euo pipefail
           cp app/build/outputs/apk/release/app-release.apk \
              mindanchor-${{ steps.tag.outputs.tag }}.apk
-
-      - name: Build debug APK
-        if: steps.keystore.outputs.signed != 'true'
-        run: |
-          ./gradlew assembleDebug --stacktrace
-          cp app/build/outputs/apk/debug/app-debug.apk \
-             mindanchor-${{ steps.tag.outputs.tag }}-debug.apk
+          echo "sha256=$(sha256sum mindanchor-${{ steps.tag.outputs.tag }}.apk | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "file=mindanchor-${{ steps.tag.outputs.tag }}.apk" >> "$GITHUB_OUTPUT"
 
       # The checksum matters more than usual here: this app is distributed
       # outside any store, so the only way to know an APK is the one CI
-      # built is to compare it against something CI published.
-      - name: Checksum
-        id: sum
+      # built is to compare it against something CI published. The
+      # certificate check below catches a different failure mode — a
+      # compromised or simply wrong keystore producing a validly-signed
+      # APK that isn't actually signed by the project's real key.
+      - name: Verify release signature
         run: |
-          FILE=$(ls mindanchor-*.apk | head -n1)
-          echo "sha256=$(sha256sum "$FILE" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
-          echo "file=$FILE" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          APKSIGNER=$(find "$ANDROID_HOME" -name apksigner -type f 2>/dev/null | sort -V | tail -n1)
+          if [ -z "$APKSIGNER" ]; then
+            echo "::error::apksigner not found under ANDROID_HOME=$ANDROID_HOME"
+            exit 1
+          fi
+          "$APKSIGNER" verify --verbose --print-certs \
+            app/build/outputs/apk/release/app-release.apk | tee apksigner-output.txt
+
+          digest=$(grep -i "certificate SHA-256 digest" apksigner-output.txt | head -n1 | awk '{print $NF}' | tr '[:lower:]' '[:upper:]')
+          expected=$(printf '%s' "${{ vars.MINDANCHOR_RELEASE_CERT_SHA256 }}" | tr '[:lower:]' '[:upper:]')
+
+          if [ -z "$digest" ]; then
+            echo "::error::Could not extract a certificate SHA-256 digest from apksigner's output."
+            exit 1
+          fi
+          if [ -z "$expected" ]; then
+            echo "::error::vars.MINDANCHOR_RELEASE_CERT_SHA256 is not set. Record the release certificate's SHA-256 fingerprint as a repository variable — see docs/RELEASING.md."
+            exit 1
+          fi
+          if [ "$digest" != "$expected" ]; then
+            echo "::error::Release certificate mismatch. Built APK is signed with $digest, expected $expected. This may mean the wrong (or a compromised) keystore was used."
+            exit 1
+          fi
+          echo "Certificate SHA-256 verified: $digest"
 
       - name: Create release
         uses: softprops/action-gh-release@v2
@@ -92,6 +140,5 @@ jobs:
             `SHA-256` of `${{ steps.sum.outputs.file }}`:
             `${{ steps.sum.outputs.sha256 }}`
 
-            ${{ steps.keystore.outputs.signed == 'true'
-                && 'Signed with the project release key.'
-                || 'Debug-signed build. Play Protect will warn about it, and it cannot be upgraded in place from a release-signed install.' }}
+            Signed with the project release key. Certificate fingerprint
+            verified against `vars.MINDANCHOR_RELEASE_CERT_SHA256`.

@@ -38,11 +38,27 @@ import okhttp3.CertificatePinner
  *
  * - `generativelanguage.googleapis.com` and
  *   `aistudio.google.com` both chain
- *   leaf → **WR2** (Google Trust Services) →
- *   **GTS Root R1** (Google Trust Services LLC).
+ *   leaf → **WE2** (Google Trust Services) →
+ *   **GTS Root R4** (Google Trust Services LLC).
  * - `openrouter.ai` and `api.groq.com` both chain
  *   leaf → **WE1** (Google Trust Services) →
  *   **GTS Root R4** (Google Trust Services LLC).
+ *
+ * v0.72+ (2026-08-29 re-verification): the pin set
+ * above replaces an earlier WR2 / GTS Root R1 pin
+ * for the Google AI Studio hosts, which no longer
+ * matched the live chain — every real
+ * `generativelanguage.googleapis.com` call was
+ * failing closed with `SSLPeerUnverifiedException`,
+ * surfaced to the user as a generic "Network
+ * unreachable" error (see
+ * [OpenAiCompatibleClient.mapToLetterError], which
+ * maps any `IOException` — including a pin mismatch
+ * — to [LetterError.NetworkUnreachable]). Re-captured
+ * via `curl -v` from a real device on a real network
+ * (not a proxied dev shell, which independently
+ * showed a different, incorrect chain for the same
+ * host and would have produced a wrong pin here).
  *
  * The original audit note assumed openrouter.ai and
  * api.groq.com were issued by Let's Encrypt (ISRG
@@ -55,9 +71,10 @@ import okhttp3.CertificatePinner
  *
  * ## Why the pin set is conservative
  *
- * The pin set is the issuer intermediate (WR2 or
- * WE1) plus its root (GTS Root R1 or GTS Root R4).
- * Pinning the leaf would fail on the next cert
+ * The pin set is the issuer intermediate (WE2 or
+ * WE1) plus its root (GTS Root R4, the same root
+ * for both provider groups as of the 2026-08-29
+ * re-verification). Pinning the leaf would fail on the next cert
  * rotation; pinning the issuer survives leaf
  * rotation, and the root pin survives an intermediate
  * rotation within the same root. The leaf itself is
@@ -114,7 +131,7 @@ internal object CertificatePinning {
         return when {
             host.contains("generativelanguage.googleapis.com") ||
                 host.contains("aistudio.google.com") ->
-                googleGtsR1Pinner()
+                googleAiStudioPinner()
             host.contains("openrouter.ai") ||
                 host.contains("api.groq.com") ->
                 googleGtsR4Pinner()
@@ -123,13 +140,14 @@ internal object CertificatePinning {
     }
 
     // generativelanguage.googleapis.com / aistudio.google.com:
-    // leaf -> WR2 -> GTS Root R1 (Google Trust Services LLC).
-    // Pins WR2 (the issuer) and GTS Root R1 (its root) so an
-    // intermediate rotation within the same root still verifies.
-    private fun googleGtsR1Pinner(): CertificatePinner =
+    // leaf -> WE2 -> GTS Root R4 (Google Trust Services LLC),
+    // re-verified 2026-08-29 — see class KDoc. Pins WE2 (the
+    // issuer) and GTS Root R4 (its root) so an intermediate
+    // rotation within the same root still verifies.
+    private fun googleAiStudioPinner(): CertificatePinner =
         CertificatePinner.Builder()
-            .add("aistudio.google.com", GOOGLE_WR2_PIN, GOOGLE_GTS_ROOT_R1_PIN)
-            .add("generativelanguage.googleapis.com", GOOGLE_WR2_PIN, GOOGLE_GTS_ROOT_R1_PIN)
+            .add("aistudio.google.com", GOOGLE_WE2_PIN, GOOGLE_GTS_ROOT_R4_PIN)
+            .add("generativelanguage.googleapis.com", GOOGLE_WE2_PIN, GOOGLE_GTS_ROOT_R4_PIN)
             .build()
 
     // openrouter.ai / api.groq.com: leaf -> WE1 -> GTS Root R4
@@ -141,10 +159,12 @@ internal object CertificatePinning {
             .add("api.groq.com", GOOGLE_WE1_PIN, GOOGLE_GTS_ROOT_R4_PIN)
             .build()
 
-    // SPKI (public-key) SHA-256 pins, read from each host's
-    // live TLS handshake on 2026-08-25 — see class KDoc.
-    private const val GOOGLE_WR2_PIN = "sha256/YPtHaftLw6/0vnc2BnNKGF54xiCA28WFcccjkA4ypCM="
-    private const val GOOGLE_GTS_ROOT_R1_PIN = "sha256/hxqRlPTu1bMS/0DITB1SSu0vd4u/8l8TjPgfaAp63Gc="
+    // SPKI (public-key) SHA-256 pins. WE1/GTS-R4 read from
+    // each host's live TLS handshake on 2026-08-25; WE2 read
+    // from a real device's live handshake on 2026-08-29 (a
+    // proxied dev-shell capture of the same host showed a
+    // different, wrong chain) — see class KDoc.
+    private const val GOOGLE_WE2_PIN = "sha256/vh78KSg1Ry4NaqGDV10w/cTb9VH3BQUZoCWNa93W/EY="
     private const val GOOGLE_WE1_PIN = "sha256/kIdp6NNEd8wsugYyyIYFsi1ylMCED3hZbSR8ZFsa/A4="
     private const val GOOGLE_GTS_ROOT_R4_PIN = "sha256/mEflZT5enoR1FuXLgYYGqnVEoZvmf9c2bVBpiOjYQ0c="
 }

@@ -13,6 +13,7 @@ import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.HeartRateVariabilityRmssdRecord
 import androidx.health.connect.client.records.MindfulnessSessionRecord
+import androidx.health.connect.client.records.OxygenSaturationRecord
 import androidx.health.connect.client.records.Record
 import androidx.health.connect.client.records.RestingHeartRateRecord
 import androidx.health.connect.client.records.SleepSessionRecord
@@ -50,15 +51,19 @@ import java.time.ZoneId
 object HealthConnectSource {
 
     /**
-     * Read-only permissions this app asks for. Every type here is
-     * something a given watch may simply never write; asking for all of
-     * them costs nothing, since each is reduced independently and an
-     * ungranted or empty type just leaves its [DailyVitals] field null.
+     * The nine read-only record-read permissions this app may ask for in
+     * the main request (see [ADDITIONAL_PERMISSIONS] below for the two
+     * that must never ride along with these). Eight record types are
+     * always eligible; [MindfulnessSessionRecord] is included only when
+     * the provider advertises its feature through [effectivePermissions].
+     * An ungranted or empty record type is reduced independently and
+     * leaves its [DailyVitals] field null.
      *
      * [TotalCaloriesBurnedRecord] is asked for as a general activity
      * signal even though no [DailyVitals] field consumes it yet — it is
      * here so the permission grant does not need revisiting the day a
      * calories field is added.
+     * [OxygenSaturationRecord] is retained as unscored context.
      *
      * [MindfulnessSessionRecord] is the mental-health signal. The
      * meditation apps that already write to Health Connect (Calm,
@@ -78,6 +83,7 @@ object HealthConnectSource {
         HealthPermission.getReadPermission(ExerciseSessionRecord::class),
         HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
         HealthPermission.getReadPermission(MindfulnessSessionRecord::class),
+        HealthPermission.getReadPermission(OxygenSaturationRecord::class),
     )
 
     /**
@@ -111,8 +117,8 @@ object HealthConnectSource {
 
     /**
      * The subset of [PERMISSIONS] the current provider can actually
-     * supply. Always at least the seven types that do not depend on
-     * a feature flag; the eighth — [MindfulnessSessionRecord] — is
+     * supply. The ten base permissions are eight record reads plus history
+     * and background access. The eleventh — [MindfulnessSessionRecord] — is
      * included only when [HealthConnectFeatures.FEATURE_MINDFULNESS_SESSION]
      * is reported as [HealthConnectFeatures.FEATURE_STATUS_AVAILABLE].
      *
@@ -255,6 +261,9 @@ object HealthConnectSource {
         "exercise" to HealthPermission.getReadPermission(ExerciseSessionRecord::class),
         "calories" to HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
         "mindfulness" to HealthPermission.getReadPermission(MindfulnessSessionRecord::class),
+        "oxygen_saturation" to HealthPermission.getReadPermission(OxygenSaturationRecord::class),
+        "history" to HealthPermission.PERMISSION_READ_HEALTH_DATA_HISTORY,
+        "background" to HealthPermission.PERMISSION_READ_HEALTH_DATA_IN_BACKGROUND,
     )
 
     /**

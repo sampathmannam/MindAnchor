@@ -1,0 +1,2978 @@
+{
+    "dataDictionaryVersion": "mindanchor-research-v4",
+    "exportedAt": 5000,
+    "appVersionCode": 95,
+    "appVersionName": "0.71.0",
+    "contentSha256": "ea3e34dc583b3d0e7ff1ce160e6434bd28064f7dc4b8dfcb094431c127ee2e7a",
+    "journalEntries": [
+        {
+            "id": "entry-1",
+            "createdAt": 1000,
+            "updatedAt": 1000,
+            "localDate": "2026-08-27",
+            "title": "Morning",
+            "body": "Body",
+            "kind": "DAILY",
+            "sourceDeviceId": "device-a",
+            "deletedAt": null
+        }
+    ],
+    "contextFacts": [
+        {
+            "id": "context-1",
+            "entryId": "entry-1",
+            "recordType": "FACT",
+            "key": "word_count",
+            "value": "1",
+            "sourceStart": null,
+            "sourceEnd": null,
+            "confidence": 1.0,
+            "extractorVersion": "structural-v1",
+            "createdAt": 1000
+        }
+    ],
+    "contextInferences": [],
+    "morningMeasures": [
+        {
+            "id": "measure-1",
+            "localDate": "2026-08-27",
+            "createdAt": 900,
+            "updatedAt": 900,
+            "mood": 3,
+            "anxiety": 2,
+            "angerUrge": 1,
+            "energyFunction": 4,
+            "sleepQuality": 3,
+            "instrumentVersion": "morning-v1",
+            "sourceDeviceId": "device-a"
+        }
+    ],
+    "ledgerEvents": [
+        {
+            "id": "event-1",
+            "sequence": 1,
+            "kind": "EXERCISE",
+            "occurredAt": 1000,
+            "recordedAt": 1000,
+            "localDate": "2026-08-27",
+            "studyPhaseId": "phase-0",
+            "sourceDeviceId": "device-a",
+            "note": "a walk",
+            "payloadJson": "{}",
+            "previousEventHash": "",
+            "eventHash": "event-1"
+        }
+    ],
+    "ledgerHeadHash": "event-1",
+    "ledgerEventCount": 1,
+    "ledgerHighWaterCount": 1,
+    "ledgerIntegrity": "VERIFIED",
+    "studyPhases": [
+        {
+            "id": "phase-0",
+            "ordinal": 0,
+            "startedAt": 900,
+            "reason": "INITIAL",
+            "appVersionCode": 95,
+            "appVersionName": "0.71.0",
+            "protocolCatalogSha256": "catalogue",
+            "ruleSetVersion": "rule-set-none-v1",
+            "modelSetVersion": "model-set-none-v1",
+            "transformationSetVersion": "transformations",
+            "missingDataPolicyVersion": "missing-data-v1",
+            "instrumentVersion": "morning-v1",
+            "dictionaryVersion": "mindanchor-research-v2",
+            "sourceDeviceId": "device-a"
+        }
+    ],
+    "protocolRegistry": [
+        {
+            "id": "cyclic-sighing",
+            "version": 1,
+            "targetState": "Elevated self-reported tension or arousal that the person has noticed themselves.",
+            "intendedPopulation": "One adult using MindAnchor for personal, non-clinical self-experimentation.",
+            "exclusions": [
+                "Not established for anyone under 18.",
+                "Not established during pregnancy.",
+                "Not established for any respiratory or cardiovascular condition.",
+                "Not for anyone whose clinician has advised against breathing exercises."
+            ],
+            "evidenceSources": [
+                {
+                    "title": "Brief structured respiration practices enhance mood and reduce physiological arousal",
+                    "citation": "Balban MY, Neri E, Kogon MM, Weed L, Nouriani B, Jo B, Holl G, Zeitzer JM, Spiegel D, & Huberman AD (2023). Cell Reports Medicine 4(1):100895.",
+                    "reference": "https://doi.org/10.1016/j.xcrm.2022.100895",
+                    "strength": "RANDOMIZED_OR_CONTROLLED_TRIAL",
+                    "sourceType": "PEER_REVIEWED_ARTICLE"
+                },
+                {
+                    "title": "Slow breathing reduces chemoreflex response to hypoxia and hypercapnia, and increases baroreflex sensitivity",
+                    "citation": "Bernardi L, Gabutti A, Porta C, & Spicuzza L (2001). J. Hypertens. 19(12):2221-2229.",
+                    "reference": "https://doi.org/10.1097/00004872-200112000-00016",
+                    "strength": "MECHANISTIC_STUDY",
+                    "sourceType": "PEER_REVIEWED_ARTICLE"
+                }
+            ],
+            "mechanism": "Bernardi et al. measured slow breathing at six breaths a minute and found it depressed chemoreflex responses and increased baroreflex sensitivity, which is the parasympathetic route the long exhale is thought to take. The double inhale is what makes the breath a sigh rather than an ordinary slow breath. Neither paper isolated which component carries the effect.",
+            "expectedOutcome": "A hypothesis, not a finding: higher same-day self-reported mood, relative to this person's own recent days. Balban et al. attribute the largest positive-affect gain and the largest resting-respiratory-rate drop to this arm; state anxiety moved equally across all of their breathing arms, so this protocol claims nothing distinctive there.",
+            "eligibilityRules": [
+                "The person chose to start it.",
+                "No exclusion listed in this protocol applies to them."
+            ],
+            "contraindicationRules": [
+                "Stop if breathing becomes uncomfortable or the person feels lightheaded.",
+                "Do not run while driving or operating machinery.",
+                "Do not run during physical exertion."
+            ],
+            "steps": [
+                {
+                    "ordinal": 1,
+                    "instruction": "Breathe in through the nose until the lungs are full.",
+                    "durationSeconds": 2
+                },
+                {
+                    "ordinal": 2,
+                    "instruction": "Take a second, shorter sip of air through the nose on top of the first.",
+                    "durationSeconds": 1
+                },
+                {
+                    "ordinal": 3,
+                    "instruction": "Let the breath out slowly through the mouth until it runs out, then begin the cycle again until the five minutes are up.",
+                    "durationSeconds": 6
+                }
+            ],
+            "permittedModalities": [
+                "VISUAL",
+                "AUDIO",
+                "HAPTIC",
+                "TEXT"
+            ],
+            "maxDurationSeconds": 300,
+            "stopRules": [
+                "USER_STOPPED",
+                "MAX_DURATION_REACHED",
+                "DISCOMFORT_REPORTED",
+                "INTERRUPTED_BY_PROTECTED_APP"
+            ],
+            "cooldownSeconds": 86400,
+            "outcomeWindowSeconds": 86400,
+            "successInterpretation": "Compared only against this person's own recent days. No clinical threshold, cut-off, or score is applied, and no result is evidence of a treatment effect.",
+            "clinicalReviewStatus": "NOT_REVIEWED",
+            "userFacingExplanation": "A five-minute breathing practice. A randomised trial with healthy adults compared a version of it against other breathing patterns; MindAnchor's cycle is shorter than the one that trial used. MindAnchor records this as a research protocol. It is not treatment, and it makes no promise about how you will feel."
+        }
+    ],
+    "protocolCatalogSha256": "9f71a3690bf4b0b07ade1ef6963ca8d36c4e6227342cb1911f27dbb4f2cf44ee",
+    "transformations": [
+        {
+            "id": "passive-block-calibration",
+            "version": "block-calibration-v3",
+            "input": "Historical daily passive observation scores.",
+            "output": "A block-resampled threshold, expected episode rate, seed, and configuration.",
+            "description": "Scores each historical day against its own weekday/weekend stratum, then calibrates thresholds with block resampling against an engineering false-observation budget rather than clinical accuracy."
+        },
+        {
+            "id": "passive-daily-features",
+            "version": "passive-daily-v1",
+            "input": "Versioned passive windows, source-read outcomes, and raw interval provenance.",
+            "output": "Local-date passive feature revisions with finality, coverage, missingness, and exclusions.",
+            "description": "Assigns sleep to wake date, clips steps and active minutes to local days, requires explicit successful UsageStats reads, and applies source-lag watermarks before final status."
+        },
+        {
+            "id": "passive-observation-explanation",
+            "version": "observation-explanation-v1",
+            "input": "A passive observation state with its domain evidence and data status.",
+            "output": "A deterministic observation-only explanation.",
+            "description": "Renders fixed templates that describe recorded signals and data limitations without diagnosis, prediction, or intervention language."
+        },
+        {
+            "id": "passive-personal-baseline",
+            "version": "personal-baseline-v3",
+            "input": "Point-in-time eligible daily passive-feature revisions within one baseline segment.",
+            "output": "Frozen-reference and trailing-candidate feature centres, scales, and sample counts.",
+            "description": "Builds a personal baseline from median/MAD statistics, with a declared IQR fallback for zero MAD and eligibility floors for total, weekday, weekend, and stratum data. Canonical point-in-time revisions freeze at the first eligible ingestion cutoff. The frozen reference and trailing candidate use the same pooling decision for a like-for-like population comparison."
+        },
+        {
+            "id": "passive-window-features",
+            "version": "passive-window-v1",
+            "input": "Provenance-preserving Health Connect and UsageStats source records.",
+            "output": "Absolute UTC 15-minute feature and quality revisions.",
+            "description": "Clips intervals to half-open windows, measures heart-rate minute-bin coverage, marks wake-relative alignment, and suppresses only physiology overlapping exercise. No absent value is filled or carried forward."
+        },
+        {
+            "id": "research-export-canonicalisation",
+            "version": "export-canon-v1",
+            "input": "Journal entries, structural context, morning measures, ledger events, study phases.",
+            "output": "A canonically sorted, content-hashed research export document.",
+            "description": "Sorts every list into a stable order and hashes the content, so two exports of the same data agree byte for byte regardless of when or where they were taken."
+        },
+        {
+            "id": "structural-context",
+            "version": "structural-v1",
+            "input": "One Journal entry, as the person wrote it.",
+            "output": "Structural FACT rows: entry kind, local date, word count, user-authored title.",
+            "description": "Derives structural metadata only. It reads no meaning from the body text: no sentiment, no inferred emotion, no clinical interpretation."
+        }
+    ],
+    "transformationSetVersion": "e52453a3bcb3fb940e41a9a390f74e12780129fc8e4654ee23e1a9a0a118e0dc",
+    "missingData": [
+        {
+            "localDate": "2026-08-28",
+            "variable": "morning_measure",
+            "reason": "NOT_RECORDED"
+        }
+    ],
+    "missingDataWindowStart": "2026-08-27",
+    "missingDataWindowThrough": "2026-08-29",
+    "missingDataPolicyVersion": "missing-data-v2",
+    "missingDataStatement": "Nothing is imputed, interpolated, carried forward, or filled in. Every absence in the reported window is listed with a reason. The window is stated in this file, in the exporting device’s local dates: it ends on the device’s export date — never after it, because a day that has not happened cannot be missing — and reaches back about ten years. When no record could be an observation, the window is absent and no absence is reported, which is not the same as having missed nothing. Records dated outside the window are excluded from it and from the reasons given inside it, and still appear in the data.",
+    "dataDictionary": {
+        "version": "mindanchor-research-v4",
+        "statement": "Every variable a MindAnchor research export can contain. Frozen: a change to this document requires a new version, and the old version stays readable forever.",
+        "missingDataPolicyVersion": "missing-data-v2",
+        "missingDataStatement": "Nothing is imputed, interpolated, carried forward, or filled in. Every absence in the reported window is listed with a reason. The window is stated in this file, in the exporting device’s local dates: it ends on the device’s export date — never after it, because a day that has not happened cannot be missing — and reaches back about ten years. When no record could be an observation, the window is absent and no absence is reported, which is not the same as having missed nothing. Records dated outside the window are excluded from it and from the reasons given inside it, and still appear in the data.",
+        "variables": [
+            {
+                "name": "id",
+                "dataset": "JOURNAL_ENTRIES",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Stable identifier for this entry.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "createdAt",
+                "dataset": "JOURNAL_ENTRIES",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "When the entry was first saved.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "updatedAt",
+                "dataset": "JOURNAL_ENTRIES",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "When the entry was last written.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "localDate",
+                "dataset": "JOURNAL_ENTRIES",
+                "type": "iso_local_date",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The local calendar date the entry belongs to. The join key for daily analysis.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "title",
+                "dataset": "JOURNAL_ENTRIES",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The title the person typed. Empty if they typed none.",
+                "provenance": "USER_AUTHORED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "body",
+                "dataset": "JOURNAL_ENTRIES",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The entry in the person's own words, stored exactly as written. Nothing reads meaning from it.",
+                "provenance": "USER_AUTHORED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "kind",
+                "dataset": "JOURNAL_ENTRIES",
+                "type": "enum",
+                "unit": "",
+                "allowedValues": [
+                    "DAILY",
+                    "BA",
+                    "DEAR_MAN",
+                    "GRATITUDE",
+                    "EXPRESSIVE_WRITING"
+                ],
+                "description": "Which writing surface produced the entry.",
+                "provenance": "USER_REPORTED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "sourceDeviceId",
+                "dataset": "JOURNAL_ENTRIES",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The phone that recorded the entry.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "deletedAt",
+                "dataset": "JOURNAL_ENTRIES",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "When the person removed the entry, or null. The row is kept; content is never destroyed.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "id",
+                "dataset": "JOURNAL_CONTEXT",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Stable identifier for this context row.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "structural-context"
+            },
+            {
+                "name": "entryId",
+                "dataset": "JOURNAL_CONTEXT",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The Journal entry this was derived from.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "structural-context"
+            },
+            {
+                "name": "recordType",
+                "dataset": "JOURNAL_CONTEXT",
+                "type": "enum",
+                "unit": "",
+                "allowedValues": [
+                    "FACT",
+                    "INFERENCE"
+                ],
+                "description": "FACT for a structural observation. INFERENCE exists in the schema but this build derives none.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "structural-context"
+            },
+            {
+                "name": "key",
+                "dataset": "JOURNAL_CONTEXT",
+                "type": "enum",
+                "unit": "",
+                "allowedValues": [
+                    "entry_kind",
+                    "local_date",
+                    "word_count",
+                    "user_title"
+                ],
+                "description": "Which structural fact this row holds.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "structural-context"
+            },
+            {
+                "name": "value",
+                "dataset": "JOURNAL_CONTEXT",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The fact's value, as text.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "structural-context"
+            },
+            {
+                "name": "sourceStart",
+                "dataset": "JOURNAL_CONTEXT",
+                "type": "integer",
+                "unit": "characters",
+                "allowedValues": [],
+                "description": "Start offset in the entry body, or null.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "structural-context"
+            },
+            {
+                "name": "sourceEnd",
+                "dataset": "JOURNAL_CONTEXT",
+                "type": "integer",
+                "unit": "characters",
+                "allowedValues": [],
+                "description": "End offset in the entry body, or null.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "structural-context"
+            },
+            {
+                "name": "confidence",
+                "dataset": "JOURNAL_CONTEXT",
+                "type": "number",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Always 1.0 in this build: a structural count is not a guess.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "structural-context"
+            },
+            {
+                "name": "extractorVersion",
+                "dataset": "JOURNAL_CONTEXT",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The transformation version that produced the row.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "structural-context"
+            },
+            {
+                "name": "createdAt",
+                "dataset": "JOURNAL_CONTEXT",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "When the row was derived.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "structural-context"
+            },
+            {
+                "name": "id",
+                "dataset": "MORNING_MEASURES",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Stable identifier for this measure.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "localDate",
+                "dataset": "MORNING_MEASURES",
+                "type": "iso_local_date",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The local calendar date the measure covers. One measure per date.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "createdAt",
+                "dataset": "MORNING_MEASURES",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "When the measure was first saved.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "updatedAt",
+                "dataset": "MORNING_MEASURES",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "When the measure was last edited.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "mood",
+                "dataset": "MORNING_MEASURES",
+                "type": "integer",
+                "unit": "",
+                "allowedValues": [
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5"
+                ],
+                "description": "Self-rated 1 to 5, where 1 is \"Low\" and 5 is \"High\". A personal research measure. No total, threshold, or cut-off is computed from it anywhere.",
+                "provenance": "USER_REPORTED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "anxiety",
+                "dataset": "MORNING_MEASURES",
+                "type": "integer",
+                "unit": "",
+                "allowedValues": [
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5"
+                ],
+                "description": "Self-rated 1 to 5, where 1 is \"Calm\" and 5 is \"Tense\". A personal research measure. No total, threshold, or cut-off is computed from it anywhere.",
+                "provenance": "USER_REPORTED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "angerUrge",
+                "dataset": "MORNING_MEASURES",
+                "type": "integer",
+                "unit": "",
+                "allowedValues": [
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5"
+                ],
+                "description": "Self-rated 1 to 5, where 1 is \"Steady\" and 5 is \"Reactive\". A personal research measure. No total, threshold, or cut-off is computed from it anywhere.",
+                "provenance": "USER_REPORTED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "energyFunction",
+                "dataset": "MORNING_MEASURES",
+                "type": "integer",
+                "unit": "",
+                "allowedValues": [
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5"
+                ],
+                "description": "Self-rated 1 to 5, where 1 is \"Depleted\" and 5 is \"Energized\". A personal research measure. No total, threshold, or cut-off is computed from it anywhere.",
+                "provenance": "USER_REPORTED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "sleepQuality",
+                "dataset": "MORNING_MEASURES",
+                "type": "integer",
+                "unit": "",
+                "allowedValues": [
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5"
+                ],
+                "description": "Self-rated 1 to 5, where 1 is \"Poor\" and 5 is \"Great\". A personal research measure. No total, threshold, or cut-off is computed from it anywhere.",
+                "provenance": "USER_REPORTED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "instrumentVersion",
+                "dataset": "MORNING_MEASURES",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The version of the five-item measure that was answered.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "sourceDeviceId",
+                "dataset": "MORNING_MEASURES",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The phone that recorded the measure.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "id",
+                "dataset": "RESEARCH_LEDGER_EVENTS",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The event's own hash. The row is content-addressed.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "sequence",
+                "dataset": "RESEARCH_LEDGER_EVENTS",
+                "type": "integer",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Position in the chain, 1-based and contiguous.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "kind",
+                "dataset": "RESEARCH_LEDGER_EVENTS",
+                "type": "enum",
+                "unit": "",
+                "allowedValues": [
+                    "SHIFT_SCHEDULE",
+                    "EXERCISE",
+                    "ILLNESS",
+                    "CAFFEINE",
+                    "MEDICATION_CHANGE",
+                    "LIFE_EVENT",
+                    "ADVERSE_OR_UNINTENDED_EFFECT",
+                    "STUDY_PHASE_STARTED",
+                    "PROTOCOL_VERSION_REGISTERED",
+                    "APP_VERSION_CHANGE",
+                    "RULE_VERSION_CHANGE",
+                    "MODEL_VERSION_CHANGE",
+                    "TRANSFORMATION_VERSION_CHANGE",
+                    "MISSING_DATA_POLICY_CHANGE",
+                    "INSTRUMENT_VERSION_CHANGE",
+                    "DICTIONARY_VERSION_CHANGE",
+                    "DEVICE_CHANGE",
+                    "SENSOR_GAP"
+                ],
+                "description": "What the event records. Its origin depends on event kind: chosen by the person for a self-reported event and assigned by MindAnchor for a provenance event.",
+                "provenance": "MIXED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "occurredAt",
+                "dataset": "RESEARCH_LEDGER_EVENTS",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "When the recorded thing happened. Its origin depends on event kind: supplied by the person for a self-reported event and assigned by MindAnchor for a provenance event.",
+                "provenance": "MIXED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "recordedAt",
+                "dataset": "RESEARCH_LEDGER_EVENTS",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "When the row was written. Never rewritten.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "localDate",
+                "dataset": "RESEARCH_LEDGER_EVENTS",
+                "type": "iso_local_date",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The local calendar date of occurredAt. The join key for daily analysis.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "studyPhaseId",
+                "dataset": "RESEARCH_LEDGER_EVENTS",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The study phase in effect when the row was written.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "sourceDeviceId",
+                "dataset": "RESEARCH_LEDGER_EVENTS",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The phone that wrote the row.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "note",
+                "dataset": "RESEARCH_LEDGER_EVENTS",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Text whose origin depends on event kind: the person's exact words for a self-reported event, and an empty value assigned by MindAnchor for a provenance event. Never interpreted.",
+                "provenance": "MIXED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "payloadJson",
+                "dataset": "RESEARCH_LEDGER_EVENTS",
+                "type": "json",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Structured detail for an event MindAnchor wrote about itself. \"{}\" for a self-reported one.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "previousEventHash",
+                "dataset": "RESEARCH_LEDGER_EVENTS",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The preceding event's hash. Empty at sequence 1.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "eventHash",
+                "dataset": "RESEARCH_LEDGER_EVENTS",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "This event's hash, over its own contents plus the previous hash.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "id",
+                "dataset": "STUDY_PHASES",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The phase's own hash over its ordinal, start and version vector.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "ordinal",
+                "dataset": "STUDY_PHASES",
+                "type": "integer",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Position in the sequence of phases, 0-based.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "startedAt",
+                "dataset": "STUDY_PHASES",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "When the phase opened. A phase has no end: it runs until the next one starts.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "reason",
+                "dataset": "STUDY_PHASES",
+                "type": "enum",
+                "unit": "",
+                "allowedValues": [
+                    "INITIAL",
+                    "APP_VERSION_CHANGE",
+                    "PROTOCOL_CATALOG_CHANGE",
+                    "RULE_VERSION_CHANGE",
+                    "MODEL_VERSION_CHANGE",
+                    "TRANSFORMATION_VERSION_CHANGE",
+                    "MISSING_DATA_POLICY_CHANGE",
+                    "INSTRUMENT_VERSION_CHANGE",
+                    "DICTIONARY_VERSION_CHANGE",
+                    "DEVICE_CHANGE"
+                ],
+                "description": "Which part of the version vector changed to open this phase.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "appVersionCode",
+                "dataset": "STUDY_PHASES",
+                "type": "integer",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The app build in effect during the phase.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "appVersionName",
+                "dataset": "STUDY_PHASES",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The app version name in effect during the phase.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "protocolCatalogSha256",
+                "dataset": "STUDY_PHASES",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Content hash of the evidence protocol catalogue in effect.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "ruleSetVersion",
+                "dataset": "STUDY_PHASES",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The decision-rule set in effect. This build ships none.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "modelSetVersion",
+                "dataset": "STUDY_PHASES",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The model set in effect. This build ships none.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "transformationSetVersion",
+                "dataset": "STUDY_PHASES",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Content hash of the transformation registry in effect.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "missingDataPolicyVersion",
+                "dataset": "STUDY_PHASES",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The missing-data policy in effect.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "instrumentVersion",
+                "dataset": "STUDY_PHASES",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The morning-measure instrument in effect.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "dictionaryVersion",
+                "dataset": "STUDY_PHASES",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The data dictionary in effect.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "sourceDeviceId",
+                "dataset": "STUDY_PHASES",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The phone the phase opened on.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "localDate",
+                "dataset": "MISSING_DATA",
+                "type": "iso_local_date",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The local calendar date the value is absent for.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "variable",
+                "dataset": "MISSING_DATA",
+                "type": "enum",
+                "unit": "",
+                "allowedValues": [
+                    "morning_measure",
+                    "journal_context"
+                ],
+                "description": "Which variable is absent.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "reason",
+                "dataset": "MISSING_DATA",
+                "type": "enum",
+                "unit": "",
+                "allowedValues": [
+                    "NOT_RECORDED",
+                    "BEFORE_FIRST_RECORD",
+                    "CONTEXT_NOT_DERIVED",
+                    "SENSOR_GAP",
+                    "DEVICE_CHANGE_GAP"
+                ],
+                "description": "Why it is absent. Nothing is filled in to replace it.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "id",
+                "dataset": "PASSIVE_RAW_PROVENANCE",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Content-derived stable identifier for the provenance row. Raw measurement values are omitted from this provenance-only dataset.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "sourceFamily",
+                "dataset": "PASSIVE_RAW_PROVENANCE",
+                "type": "enum",
+                "unit": "",
+                "allowedValues": [
+                    "HEART_RATE",
+                    "RESTING_HEART_RATE",
+                    "HRV_RMSSD",
+                    "SLEEP",
+                    "STEPS",
+                    "EXERCISE",
+                    "OXYGEN_SATURATION",
+                    "USAGE_STATS"
+                ],
+                "description": "The configured source family that supplied the record. Raw measurement values are omitted from this provenance-only dataset.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "recordKind",
+                "dataset": "PASSIVE_RAW_PROVENANCE",
+                "type": "enum",
+                "unit": "",
+                "allowedValues": [
+                    "HEART_RATE_SAMPLE",
+                    "RESTING_HEART_RATE",
+                    "HRV_RMSSD",
+                    "SLEEP_SESSION",
+                    "STEPS_INTERVAL",
+                    "EXERCISE_SESSION",
+                    "SPO2",
+                    "SCREEN_INTERACTIVE",
+                    "SCREEN_NON_INTERACTIVE",
+                    "SCREEN_UNLOCKED"
+                ],
+                "description": "The normalized kind of source record. Raw measurement values are omitted from this provenance-only dataset.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "eventStart",
+                "dataset": "PASSIVE_RAW_PROVENANCE",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "Inclusive start of the source event. Raw measurement values are omitted from this provenance-only dataset.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "eventEnd",
+                "dataset": "PASSIVE_RAW_PROVENANCE",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "End of the source event. Raw measurement values are omitted from this provenance-only dataset.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "unit",
+                "dataset": "PASSIVE_RAW_PROVENANCE",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The source measurement unit label retained without its measurement. Raw measurement values are omitted from this provenance-only dataset.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "dataOriginPackage",
+                "dataset": "PASSIVE_RAW_PROVENANCE",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Android package name reported as the data origin. Raw measurement values are omitted from this provenance-only dataset.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "deviceManufacturer",
+                "dataset": "PASSIVE_RAW_PROVENANCE",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Source device manufacturer, or null when unavailable. Raw measurement values are omitted from this provenance-only dataset.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "deviceModel",
+                "dataset": "PASSIVE_RAW_PROVENANCE",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Source device model, or null when unavailable. Raw measurement values are omitted from this provenance-only dataset.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "deviceType",
+                "dataset": "PASSIVE_RAW_PROVENANCE",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Source device type label, or null when unavailable. Raw measurement values are omitted from this provenance-only dataset.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "sourceUpdatedTime",
+                "dataset": "PASSIVE_RAW_PROVENANCE",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "When the source last reported updating the record, or null. Raw measurement values are omitted from this provenance-only dataset.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "ingestedAt",
+                "dataset": "PASSIVE_RAW_PROVENANCE",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "When MindAnchor read the source record. Raw measurement values are omitted from this provenance-only dataset.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "zoneId",
+                "dataset": "PASSIVE_RAW_PROVENANCE",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "IANA zone identifier recorded with the source event. Raw measurement values are omitted from this provenance-only dataset.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "zoneOffsetSeconds",
+                "dataset": "PASSIVE_RAW_PROVENANCE",
+                "type": "integer",
+                "unit": "seconds offset from UTC",
+                "allowedValues": [],
+                "description": "UTC offset recorded with the source event. Raw measurement values are omitted from this provenance-only dataset.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "recordId",
+                "dataset": "PASSIVE_RAW_PROVENANCE",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Identifier supplied by the source, or a deterministic fallback identifier. Raw measurement values are omitted from this provenance-only dataset.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "recordVersion",
+                "dataset": "PASSIVE_RAW_PROVENANCE",
+                "type": "integer",
+                "unit": "unitless count",
+                "allowedValues": [],
+                "description": "Version number supplied for the source record. Raw measurement values are omitted from this provenance-only dataset.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "id",
+                "dataset": "PASSIVE_SOURCE_READS",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Stable identifier for this source-read outcome.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "runId",
+                "dataset": "PASSIVE_SOURCE_READS",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Pipeline run that performed this read.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "sourceFamily",
+                "dataset": "PASSIVE_SOURCE_READS",
+                "type": "enum",
+                "unit": "",
+                "allowedValues": [
+                    "HEART_RATE",
+                    "RESTING_HEART_RATE",
+                    "HRV_RMSSD",
+                    "SLEEP",
+                    "STEPS",
+                    "EXERCISE",
+                    "OXYGEN_SATURATION",
+                    "USAGE_STATS"
+                ],
+                "description": "Source family that was read.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "state",
+                "dataset": "PASSIVE_SOURCE_READS",
+                "type": "enum",
+                "unit": "",
+                "allowedValues": [
+                    "SUCCESS",
+                    "UNAVAILABLE",
+                    "PERMISSION_DENIED",
+                    "READ_FAILURE_TRANSIENT",
+                    "READ_FAILURE_PERMANENT"
+                ],
+                "description": "Availability or failure outcome of the read.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "rangeStart",
+                "dataset": "PASSIVE_SOURCE_READS",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "Inclusive requested range start.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "rangeEnd",
+                "dataset": "PASSIVE_SOURCE_READS",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "Exclusive requested range end.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "zoneId",
+                "dataset": "PASSIVE_SOURCE_READS",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "IANA zone identifier used for the requested range.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "attemptedAt",
+                "dataset": "PASSIVE_SOURCE_READS",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "When the read was attempted.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "recordCount",
+                "dataset": "PASSIVE_SOURCE_READS",
+                "type": "integer",
+                "unit": "unitless count",
+                "allowedValues": [],
+                "description": "Number of normalized records returned by a successful read.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "errorCode",
+                "dataset": "PASSIVE_SOURCE_READS",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Stable provider error category, or null for a successful read.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "id",
+                "dataset": "PASSIVE_SOURCE_LAGS",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Stable identifier for this observed source-lag row.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "sourceFamily",
+                "dataset": "PASSIVE_SOURCE_LAGS",
+                "type": "enum",
+                "unit": "",
+                "allowedValues": [
+                    "HEART_RATE",
+                    "RESTING_HEART_RATE",
+                    "HRV_RMSSD",
+                    "SLEEP",
+                    "STEPS",
+                    "EXERCISE",
+                    "OXYGEN_SATURATION",
+                    "USAGE_STATS"
+                ],
+                "description": "Source family whose lag was observed.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "eventEnd",
+                "dataset": "PASSIVE_SOURCE_LAGS",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "End time of the source event.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "observedUpdatedAt",
+                "dataset": "PASSIVE_SOURCE_LAGS",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "Source-updated time used for lag calculation.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "ingestedAt",
+                "dataset": "PASSIVE_SOURCE_LAGS",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "When MindAnchor ingested the record.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "lagMillis",
+                "dataset": "PASSIVE_SOURCE_LAGS",
+                "type": "integer",
+                "unit": "milliseconds",
+                "allowedValues": [],
+                "description": "Observed arrival lag for finality calculation.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "usedIngestedAtFallback",
+                "dataset": "PASSIVE_SOURCE_LAGS",
+                "type": "boolean",
+                "unit": "boolean",
+                "allowedValues": [
+                    "false",
+                    "true"
+                ],
+                "description": "True when ingestion time replaced an unavailable source-updated time.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "observedAt",
+                "dataset": "PASSIVE_SOURCE_LAGS",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "When this lag evidence was recorded.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "id",
+                "dataset": "PASSIVE_BASELINE_SEGMENTS",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Hash of configured source/device fingerprints and transformation versions.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "openedAt",
+                "dataset": "PASSIVE_BASELINE_SEGMENTS",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "When this immutable baseline segment opened.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "fingerprintsJson",
+                "dataset": "PASSIVE_BASELINE_SEGMENTS",
+                "type": "json",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Canonical configured source and device fingerprints.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "windowTransformationVersion",
+                "dataset": "PASSIVE_BASELINE_SEGMENTS",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Version identifying the window transformation for this segment.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "dailyTransformationVersion",
+                "dataset": "PASSIVE_BASELINE_SEGMENTS",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Version identifying the daily transformation for this segment.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "id",
+                "dataset": "PASSIVE_PIPELINE_RUNS",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Stable identifier for this collection run.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "startedAt",
+                "dataset": "PASSIVE_PIPELINE_RUNS",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "When the collection run started.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "completedAt",
+                "dataset": "PASSIVE_PIPELINE_RUNS",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "When the collection run completed.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "scanStart",
+                "dataset": "PASSIVE_PIPELINE_RUNS",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "Inclusive start of the scanned interval.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "scanEnd",
+                "dataset": "PASSIVE_PIPELINE_RUNS",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "Exclusive end of the scanned interval.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "zoneId",
+                "dataset": "PASSIVE_PIPELINE_RUNS",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "IANA zone identifier used for local-day alignment.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "historyPermissionGranted",
+                "dataset": "PASSIVE_PIPELINE_RUNS",
+                "type": "boolean",
+                "unit": "boolean",
+                "allowedValues": [
+                    "false",
+                    "true"
+                ],
+                "description": "Whether extended Health Connect history permission was available.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "firstSuccessfulPermissionedRun",
+                "dataset": "PASSIVE_PIPELINE_RUNS",
+                "type": "boolean",
+                "unit": "boolean",
+                "allowedValues": [
+                    "false",
+                    "true"
+                ],
+                "description": "Whether this was the first successful collection with source permission.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "result",
+                "dataset": "PASSIVE_PIPELINE_RUNS",
+                "type": "enum",
+                "unit": "",
+                "allowedValues": [
+                    "SUCCESS_PERMISSIONED",
+                    "SUCCESS_NO_PERMISSION",
+                    "SUCCESS_WITH_FAILURES",
+                    "RETRY_TRANSIENT"
+                ],
+                "description": "Persisted collection-run outcome.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "sourceStatesJson",
+                "dataset": "PASSIVE_PIPELINE_RUNS",
+                "type": "json",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Per-source availability and failure states for the run.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "id",
+                "dataset": "PASSIVE_WINDOW_REVISIONS",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Stable identifier for this immutable window revision.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-window-features"
+            },
+            {
+                "name": "windowStart",
+                "dataset": "PASSIVE_WINDOW_REVISIONS",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "Inclusive start of the absolute UTC window.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-window-features"
+            },
+            {
+                "name": "windowEnd",
+                "dataset": "PASSIVE_WINDOW_REVISIONS",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "Exclusive end of the absolute UTC window.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-window-features"
+            },
+            {
+                "name": "asOfTime",
+                "dataset": "PASSIVE_WINDOW_REVISIONS",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "Point-in-time cutoff used for this revision.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-window-features"
+            },
+            {
+                "name": "zoneId",
+                "dataset": "PASSIVE_WINDOW_REVISIONS",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "IANA zone identifier retained for presentation and alignment.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-window-features"
+            },
+            {
+                "name": "zoneOffsetSeconds",
+                "dataset": "PASSIVE_WINDOW_REVISIONS",
+                "type": "integer",
+                "unit": "seconds offset from UTC",
+                "allowedValues": [],
+                "description": "UTC offset retained for presentation and alignment.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-window-features"
+            },
+            {
+                "name": "wakeRelativeMinute",
+                "dataset": "PASSIVE_WINDOW_REVISIONS",
+                "type": "integer",
+                "unit": "minutes",
+                "allowedValues": [],
+                "description": "Minute relative to wake time, or null when unavailable.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-window-features"
+            },
+            {
+                "name": "baselineSegment",
+                "dataset": "PASSIVE_WINDOW_REVISIONS",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Configured source/device segment used for this revision.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-window-features"
+            },
+            {
+                "name": "featureRowsJson",
+                "dataset": "PASSIVE_WINDOW_REVISIONS",
+                "type": "json",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Canonical feature rows with source unit, coverage, eligibility and observation-only exclusions.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-window-features"
+            },
+            {
+                "name": "heartRateCoverage",
+                "dataset": "PASSIVE_WINDOW_REVISIONS",
+                "type": "number",
+                "unit": "fraction from 0.0 through 1.0",
+                "allowedValues": [
+                    "0.0..1.0"
+                ],
+                "description": "Distinct observed heart-rate minute bins divided by fifteen.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-window-features"
+            },
+            {
+                "name": "physiologyEligible",
+                "dataset": "PASSIVE_WINDOW_REVISIONS",
+                "type": "boolean",
+                "unit": "boolean",
+                "allowedValues": [
+                    "false",
+                    "true"
+                ],
+                "description": "Whether physiology met coverage and exercise rules.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-window-features"
+            },
+            {
+                "name": "exerciseOverlapMillis",
+                "dataset": "PASSIVE_WINDOW_REVISIONS",
+                "type": "integer",
+                "unit": "milliseconds",
+                "allowedValues": [],
+                "description": "Exercise overlap inside the window.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-window-features"
+            },
+            {
+                "name": "provenanceRecordIdsJson",
+                "dataset": "PASSIVE_WINDOW_REVISIONS",
+                "type": "json",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Canonical source-record identifiers contributing to the window.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-window-features"
+            },
+            {
+                "name": "missingnessJson",
+                "dataset": "PASSIVE_WINDOW_REVISIONS",
+                "type": "json",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Canonical list of unavailable window features; none are filled.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-window-features"
+            },
+            {
+                "name": "exclusionsJson",
+                "dataset": "PASSIVE_WINDOW_REVISIONS",
+                "type": "json",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Canonical observation-only reasons features were ineligible.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-window-features"
+            },
+            {
+                "name": "transformationVersion",
+                "dataset": "PASSIVE_WINDOW_REVISIONS",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Window transformation version that produced the row.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-window-features"
+            },
+            {
+                "name": "sourceUpdatedTime",
+                "dataset": "PASSIVE_WINDOW_REVISIONS",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "Newest contributing source update time.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-window-features"
+            },
+            {
+                "name": "ingestedAt",
+                "dataset": "PASSIVE_WINDOW_REVISIONS",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "Newest contributing ingestion time.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-window-features"
+            },
+            {
+                "name": "final",
+                "dataset": "PASSIVE_WINDOW_REVISIONS",
+                "type": "boolean",
+                "unit": "boolean",
+                "allowedValues": [
+                    "false",
+                    "true"
+                ],
+                "description": "Whether the source watermark made this window final.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-window-features"
+            },
+            {
+                "name": "revisionReason",
+                "dataset": "PASSIVE_WINDOW_REVISIONS",
+                "type": "enum",
+                "unit": "",
+                "allowedValues": [
+                    "INITIAL",
+                    "CONTENT_CHANGED",
+                    "FINALITY",
+                    "BACKFILL"
+                ],
+                "description": "Why this immutable revision was appended.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-window-features"
+            },
+            {
+                "name": "contentHash",
+                "dataset": "PASSIVE_WINDOW_REVISIONS",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Hash of the canonical window-revision content.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-window-features"
+            },
+            {
+                "name": "id",
+                "dataset": "PASSIVE_DAILY_REVISIONS",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Stable identifier for this immutable daily revision.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-daily-features"
+            },
+            {
+                "name": "localDate",
+                "dataset": "PASSIVE_DAILY_REVISIONS",
+                "type": "iso_local_date",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Local calendar date represented by the daily revision.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-daily-features"
+            },
+            {
+                "name": "asOfTime",
+                "dataset": "PASSIVE_DAILY_REVISIONS",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "Point-in-time cutoff used for this daily revision.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-daily-features"
+            },
+            {
+                "name": "dataStatus",
+                "dataset": "PASSIVE_DAILY_REVISIONS",
+                "type": "enum",
+                "unit": "",
+                "allowedValues": [
+                    "AVAILABLE_FINAL",
+                    "AVAILABLE_PROVISIONAL",
+                    "INSUFFICIENT_DATA",
+                    "SUPPRESSED_EXERCISE",
+                    "BASELINE_BUILDING"
+                ],
+                "description": "Availability, finality or insufficiency state of the day.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-daily-features"
+            },
+            {
+                "name": "featuresJson",
+                "dataset": "PASSIVE_DAILY_REVISIONS",
+                "type": "json",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Canonical eligible daily feature names, values and units.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-daily-features"
+            },
+            {
+                "name": "excludedFeaturesJson",
+                "dataset": "PASSIVE_DAILY_REVISIONS",
+                "type": "json",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Canonical features excluded from observation scoring.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-daily-features"
+            },
+            {
+                "name": "baselineSegment",
+                "dataset": "PASSIVE_DAILY_REVISIONS",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Configured source/device segment used for the day.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-daily-features"
+            },
+            {
+                "name": "sourceUpdatedTime",
+                "dataset": "PASSIVE_DAILY_REVISIONS",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "Newest source update represented by the day.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-daily-features"
+            },
+            {
+                "name": "ingestedAt",
+                "dataset": "PASSIVE_DAILY_REVISIONS",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "Newest ingestion time represented by the day.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-daily-features"
+            },
+            {
+                "name": "sourceReadStatesJson",
+                "dataset": "PASSIVE_DAILY_REVISIONS",
+                "type": "json",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Per-source availability and failure states represented by the day.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-daily-features"
+            },
+            {
+                "name": "coverageJson",
+                "dataset": "PASSIVE_DAILY_REVISIONS",
+                "type": "json",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Per-feature coverage fractions from 0.0 through 1.0.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-daily-features"
+            },
+            {
+                "name": "missingnessJson",
+                "dataset": "PASSIVE_DAILY_REVISIONS",
+                "type": "json",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Canonical unavailable daily features; none are filled.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-daily-features"
+            },
+            {
+                "name": "exclusionsJson",
+                "dataset": "PASSIVE_DAILY_REVISIONS",
+                "type": "json",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Canonical observation-only reasons daily features were ineligible.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-daily-features"
+            },
+            {
+                "name": "provenanceJson",
+                "dataset": "PASSIVE_DAILY_REVISIONS",
+                "type": "json",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Canonical source-record identifiers contributing to the day.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-daily-features"
+            },
+            {
+                "name": "windowTransformationVersion",
+                "dataset": "PASSIVE_DAILY_REVISIONS",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Window transformation version used by this day.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-daily-features"
+            },
+            {
+                "name": "dailyTransformationVersion",
+                "dataset": "PASSIVE_DAILY_REVISIONS",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Daily transformation version that produced this row.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-daily-features"
+            },
+            {
+                "name": "watermark",
+                "dataset": "PASSIVE_DAILY_REVISIONS",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "Source-lag watermark used to decide finality.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-daily-features"
+            },
+            {
+                "name": "revisionReason",
+                "dataset": "PASSIVE_DAILY_REVISIONS",
+                "type": "enum",
+                "unit": "",
+                "allowedValues": [
+                    "INITIAL",
+                    "CONTENT_CHANGED",
+                    "FINALITY",
+                    "BACKFILL"
+                ],
+                "description": "Why this immutable daily revision was appended.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-daily-features"
+            },
+            {
+                "name": "contentHash",
+                "dataset": "PASSIVE_DAILY_REVISIONS",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Hash of the canonical daily-revision content.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-daily-features"
+            },
+            {
+                "name": "id",
+                "dataset": "PASSIVE_OBSERVATION_DECISIONS",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Stable identifier for this immutable observation decision.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "localDate",
+                "dataset": "PASSIVE_OBSERVATION_DECISIONS",
+                "type": "iso_local_date",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Local calendar date assessed by the observation system.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "asOfTime",
+                "dataset": "PASSIVE_OBSERVATION_DECISIONS",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "Point-in-time cutoff used for this decision.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "dataStatus",
+                "dataset": "PASSIVE_OBSERVATION_DECISIONS",
+                "type": "enum",
+                "unit": "",
+                "allowedValues": [
+                    "AVAILABLE_FINAL",
+                    "AVAILABLE_PROVISIONAL",
+                    "INSUFFICIENT_DATA",
+                    "SUPPRESSED_EXERCISE",
+                    "BASELINE_BUILDING"
+                ],
+                "description": "Availability or finality state carried into the decision.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "observationState",
+                "dataset": "PASSIVE_OBSERVATION_DECISIONS",
+                "type": "enum",
+                "unit": "",
+                "allowedValues": [
+                    "WITHIN_PERSON_RANGE",
+                    "RANGE_RETURN_PENDING",
+                    "TRANSIENT_DEVIATION",
+                    "SUSTAINED_DEVIATION",
+                    "BASELINE_SHIFT_CANDIDATE",
+                    "NO_OBSERVATION"
+                ],
+                "description": "Observation-only state; it is not an intervention instruction.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "baselineSegment",
+                "dataset": "PASSIVE_OBSERVATION_DECISIONS",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Configured source/device segment used for comparison.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "calibrationSeed",
+                "dataset": "PASSIVE_OBSERVATION_DECISIONS",
+                "type": "integer",
+                "unit": "unitless count",
+                "allowedValues": [],
+                "description": "Deterministic signed seed used for block calibration, or null.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-block-calibration"
+            },
+            {
+                "name": "frozenBaselineAsOfTime",
+                "dataset": "PASSIVE_OBSERVATION_DECISIONS",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "Immutable baseline eligibility cutoff, or null.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-personal-baseline"
+            },
+            {
+                "name": "frozenBaselineThroughDay",
+                "dataset": "PASSIVE_OBSERVATION_DECISIONS",
+                "type": "iso_local_date",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Last local date in the frozen baseline, or null.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-personal-baseline"
+            },
+            {
+                "name": "decisionJson",
+                "dataset": "PASSIVE_OBSERVATION_DECISIONS",
+                "type": "json",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Canonical observation-only evidence, calibration configuration, baseline comparison and explanation.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": "passive-observation-explanation"
+            },
+            {
+                "name": "revisionReason",
+                "dataset": "PASSIVE_OBSERVATION_DECISIONS",
+                "type": "enum",
+                "unit": "",
+                "allowedValues": [
+                    "INITIAL",
+                    "CONTENT_CHANGED",
+                    "FINALITY",
+                    "BACKFILL"
+                ],
+                "description": "Why this immutable decision revision was appended.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "contentHash",
+                "dataset": "PASSIVE_OBSERVATION_DECISIONS",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Hash of the canonical observation-decision content.",
+                "provenance": "DERIVED_STRUCTURAL",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "id",
+                "dataset": "ADVISORY_OPPORTUNITIES",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Content-derived stable identifier for this materialized advisory opportunity.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "presentedAt",
+                "dataset": "ADVISORY_OPPORTUNITIES",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "When this opportunity was materialized for review.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "localDate",
+                "dataset": "ADVISORY_OPPORTUNITIES",
+                "type": "iso_local_date",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Local calendar date the opportunity was presented on.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "zoneId",
+                "dataset": "ADVISORY_OPPORTUNITIES",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "IANA zone identifier recorded with presentation.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "sourceDecisionId",
+                "dataset": "ADVISORY_OPPORTUNITIES",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The finalized historical Program 2 observation decision this opportunity was built from.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "sourceDecisionContentHash",
+                "dataset": "ADVISORY_OPPORTUNITIES",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Content hash of the source decision at the moment this opportunity was built, so a later corrected revision cannot be silently substituted for the one actually shown.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "sourceLocalDate",
+                "dataset": "ADVISORY_OPPORTUNITIES",
+                "type": "iso_local_date",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Local calendar date the source decision assessed.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "sourceAsOfTime",
+                "dataset": "ADVISORY_OPPORTUNITIES",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "Point-in-time cutoff of the source decision.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "sourceDataStatus",
+                "dataset": "ADVISORY_OPPORTUNITIES",
+                "type": "enum",
+                "unit": "",
+                "allowedValues": [
+                    "AVAILABLE_FINAL"
+                ],
+                "description": "Availability state of the source decision; this build only materializes an opportunity from a decision already finalized.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "sourceObservationState",
+                "dataset": "ADVISORY_OPPORTUNITIES",
+                "type": "enum",
+                "unit": "",
+                "allowedValues": [
+                    "SUSTAINED_DEVIATION"
+                ],
+                "description": "Observation-only state of the source decision; this build only materializes an opportunity from a sustained deviation. Not a statement about the person's condition now.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "sourceExplanation",
+                "dataset": "ADVISORY_OPPORTUNITIES",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The frozen mechanical explanation stored by the finalized Program 2 decision; not a statement about the person's condition now.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "sourceBaselineSegment",
+                "dataset": "ADVISORY_OPPORTUNITIES",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Configured source/device segment the source decision compared against.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "sourcePassiveRuleVersion",
+                "dataset": "ADVISORY_OPPORTUNITIES",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Passive decision-rule version in effect for the source decision.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "sourcePassiveModelVersion",
+                "dataset": "ADVISORY_OPPORTUNITIES",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Passive model-set version in effect for the source decision.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "sourceStudyPhaseId",
+                "dataset": "ADVISORY_OPPORTUNITIES",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Study phase in effect when the source decision was recorded.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "protocolId",
+                "dataset": "ADVISORY_OPPORTUNITIES",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Identifier of the named protocol.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "protocolVersion",
+                "dataset": "ADVISORY_OPPORTUNITIES",
+                "type": "integer",
+                "unit": "unitless count",
+                "allowedValues": [],
+                "description": "Version of the named protocol.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "protocolDefinitionSha256",
+                "dataset": "ADVISORY_OPPORTUNITIES",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Content hash of the exact protocol definition named by protocolId and protocolVersion.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "protocolCatalogSha256",
+                "dataset": "ADVISORY_OPPORTUNITIES",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Content hash of the evidence protocol catalogue this build's advisory allowlist was approved against.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "protocolClinicalReviewStatus",
+                "dataset": "ADVISORY_OPPORTUNITIES",
+                "type": "enum",
+                "unit": "",
+                "allowedValues": [
+                    "NOT_REVIEWED",
+                    "REVIEW_REQUESTED",
+                    "REVIEWED_WITH_CHANGES",
+                    "REVIEWED_AND_ACCEPTED"
+                ],
+                "description": "Clinical review status of the named protocol at presentation.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "advisoryRuleVersion",
+                "dataset": "ADVISORY_OPPORTUNITIES",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The advisory eligibility rule version that materialized this opportunity.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "buildMode",
+                "dataset": "ADVISORY_OPPORTUNITIES",
+                "type": "enum",
+                "unit": "",
+                "allowedValues": [
+                    "ORDINARY",
+                    "PERSONAL_RESEARCH"
+                ],
+                "description": "Which kind of build materialized this opportunity. Ordinary is every public build, and an ordinary build's protocol allowlist was empty at this version.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "operationalEvidenceApproved",
+                "dataset": "ADVISORY_OPPORTUNITIES",
+                "type": "boolean",
+                "unit": "boolean",
+                "allowedValues": [
+                    "false",
+                    "true"
+                ],
+                "description": "Whether operational evidence was approved on this build at presentation.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "masterAdvisoryEnabled",
+                "dataset": "ADVISORY_OPPORTUNITIES",
+                "type": "boolean",
+                "unit": "boolean",
+                "allowedValues": [
+                    "false",
+                    "true"
+                ],
+                "description": "Whether the person's master advisory opt-in was open at presentation.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "deliveryAllowedAtPresentation",
+                "dataset": "ADVISORY_OPPORTUNITIES",
+                "type": "boolean",
+                "unit": "boolean",
+                "allowedValues": [
+                    "false",
+                    "true"
+                ],
+                "description": "Whether the person's delivery switch was open at presentation. Presenting a materialized opportunity is not itself gated by this switch.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "studyPhaseId",
+                "dataset": "ADVISORY_OPPORTUNITIES",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Study phase in effect when this opportunity was presented.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "sourceDeviceId",
+                "dataset": "ADVISORY_OPPORTUNITIES",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The phone that presented the opportunity.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "contentHash",
+                "dataset": "ADVISORY_OPPORTUNITIES",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Hash of the canonical opportunity content.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "id",
+                "dataset": "INTERVENTION_EPISODE_EVENTS",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "This event's own hash, over its content and the previous event's hash. Append-only and hash-verifiable.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "episodeId",
+                "dataset": "INTERVENTION_EPISODE_EVENTS",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The hash-linked stream this event belongs to: one deliberate Start's episode, or one dismissal's own single-event stream.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "opportunityId",
+                "dataset": "INTERVENTION_EPISODE_EVENTS",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The materialized opportunity this event's stream is attached to.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "sequence",
+                "dataset": "INTERVENTION_EPISODE_EVENTS",
+                "type": "integer",
+                "unit": "unitless count",
+                "allowedValues": [],
+                "description": "Position in the episode's chain, 1-based and contiguous.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "eventType",
+                "dataset": "INTERVENTION_EPISODE_EVENTS",
+                "type": "enum",
+                "unit": "",
+                "allowedValues": [
+                    "DISMISSED",
+                    "ELIGIBILITY_ATTESTED",
+                    "STARTED",
+                    "COMPLETED_MAX_DURATION",
+                    "STOPPED_BY_USER",
+                    "STOPPED_DISCOMFORT_REPORTED",
+                    "INTERRUPTED_APP_BACKGROUND",
+                    "INTERRUPTED_PROCESS_RECOVERY",
+                    "STOPPED_KILL_SWITCH",
+                    "OUTCOME_WINDOW_OPENED",
+                    "OUTCOME_WINDOW_CLOSED_MISSING"
+                ],
+                "description": "What this event records. ELIGIBILITY_ATTESTED and its four facts are self-reported by the person's own one Start action, recorded in payloadJson; every other event type is system-recorded.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "occurredAt",
+                "dataset": "INTERVENTION_EPISODE_EVENTS",
+                "type": "timestamp_epoch_millis",
+                "unit": "milliseconds since the Unix epoch",
+                "allowedValues": [],
+                "description": "When the recorded thing happened.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "localDate",
+                "dataset": "INTERVENTION_EPISODE_EVENTS",
+                "type": "iso_local_date",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Local calendar date of occurredAt.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "zoneId",
+                "dataset": "INTERVENTION_EPISODE_EVENTS",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "IANA zone identifier recorded with the event.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "studyPhaseId",
+                "dataset": "INTERVENTION_EPISODE_EVENTS",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Study phase in effect when the event was recorded.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "sourceDeviceId",
+                "dataset": "INTERVENTION_EPISODE_EVENTS",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The phone that recorded the event.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "protocolId",
+                "dataset": "INTERVENTION_EPISODE_EVENTS",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Identifier of the named protocol.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "protocolVersion",
+                "dataset": "INTERVENTION_EPISODE_EVENTS",
+                "type": "integer",
+                "unit": "unitless count",
+                "allowedValues": [],
+                "description": "Version of the named protocol.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "protocolDefinitionSha256",
+                "dataset": "INTERVENTION_EPISODE_EVENTS",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Content hash of the exact protocol definition named by protocolId and protocolVersion.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "protocolCatalogSha256",
+                "dataset": "INTERVENTION_EPISODE_EVENTS",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Content hash of the evidence protocol catalogue this build's advisory allowlist was approved against.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "advisoryRuleVersion",
+                "dataset": "INTERVENTION_EPISODE_EVENTS",
+                "type": "string",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The advisory eligibility rule version in effect when the event was recorded.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "buildMode",
+                "dataset": "INTERVENTION_EPISODE_EVENTS",
+                "type": "enum",
+                "unit": "",
+                "allowedValues": [
+                    "ORDINARY",
+                    "PERSONAL_RESEARCH"
+                ],
+                "description": "Which kind of build recorded this event. Ordinary is every public build, and an ordinary build's protocol allowlist was empty at this version.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "operationalEvidenceApproved",
+                "dataset": "INTERVENTION_EPISODE_EVENTS",
+                "type": "boolean",
+                "unit": "boolean",
+                "allowedValues": [
+                    "false",
+                    "true"
+                ],
+                "description": "Whether operational evidence was approved on this build when recorded.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "masterAdvisoryEnabled",
+                "dataset": "INTERVENTION_EPISODE_EVENTS",
+                "type": "boolean",
+                "unit": "boolean",
+                "allowedValues": [
+                    "false",
+                    "true"
+                ],
+                "description": "Whether the person's master advisory opt-in was open when recorded.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "deliveryAllowed",
+                "dataset": "INTERVENTION_EPISODE_EVENTS",
+                "type": "boolean",
+                "unit": "boolean",
+                "allowedValues": [
+                    "false",
+                    "true"
+                ],
+                "description": "Whether the person's delivery switch was open when recorded.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "payloadSchemaVersion",
+                "dataset": "INTERVENTION_EPISODE_EVENTS",
+                "type": "integer",
+                "unit": "unitless count",
+                "allowedValues": [],
+                "description": "Schema version of payloadJson's shape for this event type.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "payloadJson",
+                "dataset": "INTERVENTION_EPISODE_EVENTS",
+                "type": "json",
+                "unit": "",
+                "allowedValues": [],
+                "description": "Structured detail whose origin and shape depend on eventType. For ELIGIBILITY_ATTESTED: the four facts self-reported by the person's one manual Start action -- currentlySelfNoticesTensionOrArousal, choosesProtocol, exclusionsAndContraindicationsClear, notDrivingOperatingMachineryOrExerting -- never inferred from a sensor, Journal, or LLM. For a terminal event: operational delivery measurements only (delivered foreground duration and completed cycles), never a success, failure, or effect claim. For OUTCOME_WINDOW_OPENED: the window's open/close times. For OUTCOME_WINDOW_CLOSED_MISSING: that no compatible outcome instrument was registered, which is why the window closed with nothing measured -- never a negative outcome. \"{}\" for DISMISSED and STARTED.",
+                "provenance": "MIXED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "previousEventHash",
+                "dataset": "INTERVENTION_EPISODE_EVENTS",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "The preceding event's hash in this episode's chain. Empty at sequence 1.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            },
+            {
+                "name": "eventHash",
+                "dataset": "INTERVENTION_EPISODE_EVENTS",
+                "type": "sha256_hex",
+                "unit": "",
+                "allowedValues": [],
+                "description": "This event's hash, over its own contents plus the previous hash.",
+                "provenance": "SYSTEM_RECORDED",
+                "missingPolicy": "missing-data-v2",
+                "transformationId": null
+            }
+        ]
+    },
+    "dataDictionarySha256": "ffd008984df316e765ac97f38db489b4c176445170c5e798b35272f32364688f",
+    "passiveRawProvenance": [
+        {
+            "id": "raw-1",
+            "sourceFamily": "HEART_RATE",
+            "recordKind": "HEART_RATE_SAMPLE",
+            "eventStart": 1000,
+            "eventEnd": 2000,
+            "unit": "bpm",
+            "dataOriginPackage": "com.example.health",
+            "deviceManufacturer": "Example",
+            "deviceModel": "Watch",
+            "deviceType": "WATCH",
+            "sourceUpdatedTime": 2100,
+            "ingestedAt": 2200,
+            "zoneId": "Asia/Calcutta",
+            "zoneOffsetSeconds": 19800,
+            "recordId": "record-1",
+            "recordVersion": 1
+        }
+    ],
+    "passiveSourceReads": [
+        {
+            "id": "read-1",
+            "runId": "run-1",
+            "sourceFamily": "HEART_RATE",
+            "state": "SUCCESS",
+            "rangeStart": 1000,
+            "rangeEnd": 2000,
+            "zoneId": "Asia/Calcutta",
+            "attemptedAt": 2200,
+            "recordCount": 1,
+            "errorCode": null
+        }
+    ],
+    "passiveSourceLags": [
+        {
+            "id": "lag-1",
+            "sourceFamily": "HEART_RATE",
+            "eventEnd": 2000,
+            "observedUpdatedAt": 2100,
+            "ingestedAt": 2200,
+            "lagMillis": 100,
+            "usedIngestedAtFallback": false,
+            "observedAt": 2200
+        }
+    ],
+    "passiveBaselineSegments": [
+        {
+            "id": "segment-1",
+            "openedAt": 500,
+            "fingerprintsJson": "{}",
+            "windowTransformationVersion": "window-v1",
+            "dailyTransformationVersion": "daily-v1"
+        }
+    ],
+    "passivePipelineRuns": [
+        {
+            "id": "run-1",
+            "startedAt": 2000,
+            "completedAt": 2300,
+            "scanStart": 1000,
+            "scanEnd": 2000,
+            "zoneId": "Asia/Calcutta",
+            "historyPermissionGranted": true,
+            "firstSuccessfulPermissionedRun": true,
+            "result": "SUCCESS_PERMISSIONED",
+            "sourceStatesJson": "{}"
+        }
+    ],
+    "passiveWindowRevisions": [
+        {
+            "id": "window-1",
+            "windowStart": 1000,
+            "windowEnd": 1900,
+            "asOfTime": 2200,
+            "zoneId": "Asia/Calcutta",
+            "zoneOffsetSeconds": 19800,
+            "wakeRelativeMinute": 15,
+            "baselineSegment": "segment-1",
+            "featureRowsJson": "[]",
+            "heartRateCoverage": 1.0,
+            "physiologyEligible": true,
+            "exerciseOverlapMillis": 0,
+            "provenanceRecordIdsJson": "[\"raw-1\"]",
+            "missingnessJson": "[]",
+            "exclusionsJson": "[]",
+            "transformationVersion": "window-v1",
+            "sourceUpdatedTime": 2100,
+            "ingestedAt": 2200,
+            "final": false,
+            "revisionReason": "INITIAL",
+            "contentHash": "window-hash-1"
+        }
+    ],
+    "passiveDailyRevisions": [
+        {
+            "id": "daily-1",
+            "localDate": "2026-08-30",
+            "asOfTime": 2200,
+            "dataStatus": "AVAILABLE_PROVISIONAL",
+            "featuresJson": "{}",
+            "excludedFeaturesJson": "[]",
+            "baselineSegment": "segment-1",
+            "sourceUpdatedTime": 2100,
+            "ingestedAt": 2200,
+            "sourceReadStatesJson": "{}",
+            "coverageJson": "{}",
+            "missingnessJson": "[]",
+            "exclusionsJson": "[]",
+            "provenanceJson": "[\"raw-1\"]",
+            "windowTransformationVersion": "window-v1",
+            "dailyTransformationVersion": "daily-v1",
+            "watermark": 2000,
+            "revisionReason": "INITIAL",
+            "contentHash": "daily-hash-1"
+        }
+    ],
+    "passiveObservationDecisions": [
+        {
+            "id": "decision-1",
+            "localDate": "2026-08-30",
+            "asOfTime": 2200,
+            "dataStatus": "AVAILABLE_PROVISIONAL",
+            "observationState": "NO_OBSERVATION",
+            "baselineSegment": "segment-1",
+            "calibrationSeed": null,
+            "frozenBaselineAsOfTime": null,
+            "frozenBaselineThroughDay": null,
+            "decisionJson": "{}",
+            "revisionReason": "INITIAL",
+            "contentHash": "decision-hash-1"
+        }
+    ],
+    "advisoryOpportunities": [
+        {
+            "id": "opportunity-1",
+            "presentedAt": 5000,
+            "localDate": "2026-09-01",
+            "zoneId": "UTC",
+            "sourceDecisionId": "decision-1",
+            "sourceDecisionContentHash": "decision-hash",
+            "sourceLocalDate": "2026-09-01",
+            "sourceAsOfTime": 1000,
+            "sourceDataStatus": "AVAILABLE_FINAL",
+            "sourceObservationState": "SUSTAINED_DEVIATION",
+            "sourceExplanation": "Sustained deviation across two features.",
+            "sourceBaselineSegment": "segment-1",
+            "sourcePassiveRuleVersion": "passive-observation-rules-v6",
+            "sourcePassiveModelVersion": "personal-robust-baseline-v4",
+            "sourceStudyPhaseId": "phase-1",
+            "protocolId": "cyclic-sighing",
+            "protocolVersion": 1,
+            "protocolDefinitionSha256": "definition-hash",
+            "protocolCatalogSha256": "catalog-hash",
+            "protocolClinicalReviewStatus": "NOT_REVIEWED",
+            "advisoryRuleVersion": "advisory-opportunity-v1",
+            "buildMode": "PERSONAL_RESEARCH",
+            "operationalEvidenceApproved": true,
+            "masterAdvisoryEnabled": true,
+            "deliveryAllowedAtPresentation": true,
+            "studyPhaseId": "phase-1",
+            "sourceDeviceId": "device-a",
+            "contentHash": "content-hash-1"
+        }
+    ],
+    "interventionEpisodeEvents": [
+        {
+            "id": "event-1",
+            "episodeId": "episode-1",
+            "opportunityId": "opportunity-1",
+            "sequence": 1,
+            "eventType": "ELIGIBILITY_ATTESTED",
+            "occurredAt": 5100,
+            "localDate": "2026-09-01",
+            "zoneId": "UTC",
+            "studyPhaseId": "phase-1",
+            "sourceDeviceId": "device-a",
+            "protocolId": "cyclic-sighing",
+            "protocolVersion": 1,
+            "protocolDefinitionSha256": "definition-hash",
+            "protocolCatalogSha256": "catalog-hash",
+            "advisoryRuleVersion": "advisory-opportunity-v1",
+            "buildMode": "PERSONAL_RESEARCH",
+            "operationalEvidenceApproved": true,
+            "masterAdvisoryEnabled": true,
+            "deliveryAllowed": true,
+            "payloadSchemaVersion": 1,
+            "payloadJson": "{}",
+            "previousEventHash": "",
+            "eventHash": "event-1"
+        }
+    ]
+}

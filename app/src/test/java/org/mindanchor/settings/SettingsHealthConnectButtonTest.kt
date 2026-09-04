@@ -54,6 +54,12 @@ class SettingsHealthConnectButtonTest {
             "app/src/main/java/org/mindanchor/vitals/HealthConnectSource.kt",
         ).readText()
 
+    private val manifest: String
+        get() = fileAt("app/src/main/AndroidManifest.xml").readText()
+
+    private val strings: String
+        get() = fileAt("app/src/main/res/values/strings.xml").readText()
+
     @Test
     fun `the file declares a Health Connect permission launcher bound to the source contract`() {
         // v0.23.0: the contract factory is cached in a `remember`
@@ -249,5 +255,42 @@ class SettingsHealthConnectButtonTest {
                 "Block: $refreshFn",
             refreshFn.contains("Dispatchers.IO"),
         )
+    }
+
+    @Test
+    fun `Health Connect permissions and labels include oxygen history and background`() {
+        assertTrue(source.contains("HealthPermission.getReadPermission(OxygenSaturationRecord::class)"))
+        assertTrue(source.contains("HealthPermission.PERMISSION_READ_HEALTH_DATA_HISTORY"))
+        assertTrue(source.contains("HealthPermission.PERMISSION_READ_HEALTH_DATA_IN_BACKGROUND"))
+        val oxygen = source.indexOf("\"oxygen_saturation\" to")
+        val history = source.indexOf("\"history\" to")
+        val background = source.indexOf("\"background\" to")
+        assertTrue(oxygen >= 0 && history > oxygen && background > history)
+        assertTrue(
+            source.contains(
+                "val base = PERMISSIONS - HealthPermission.getReadPermission(MindfulnessSessionRecord::class)",
+            ),
+        )
+    }
+
+    @Test
+    fun `manifest declares oxygen read permission`() {
+        assertTrue(
+            manifest.contains(
+                "<uses-permission android:name=\"android.permission.health.READ_OXYGEN_SATURATION\" />",
+            ),
+        )
+    }
+
+    @Test
+    fun `settings copy accurately explains oxygen history and background permissions`() {
+        assertTrue(strings.contains("Oxygen saturation is kept as context and is not scored."))
+        assertTrue(strings.contains("health-data history — lets baseline building read up to 120 days"))
+        assertTrue(strings.contains("background health data — lets the local six-hour reader collect"))
+        assertTrue(strings.contains("Health Connect permissions"))
+        assertTrue(!strings.contains("signal types from your watch"))
+        assertTrue(screen.contains("\"oxygen_saturation\" to R.string.health_connect_reads_oxygen_saturation"))
+        assertTrue(screen.contains("\"history\" to R.string.health_connect_reads_history"))
+        assertTrue(screen.contains("\"background\" to R.string.health_connect_reads_background"))
     }
 }

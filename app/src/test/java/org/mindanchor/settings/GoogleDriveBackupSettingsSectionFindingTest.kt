@@ -1,139 +1,275 @@
 package org.mindanchor.settings
 
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
 /**
- * File-shape pinning for
- * [GoogleDriveBackupSettingsSection]. v0.25.4
- * (WP-C); re-pinned for the v0.70.7 single-toggle,
- * backup-plus-restore rewrite.
+ * File-shape pinning for [GoogleDriveBackupSettingsSection]. Task 12
+ * (Program 0) — rewrites the v0.25.4 Google Drive per-type Notes/Letters
+ * toggle surface into the continuity backup health/recovery-key/kill-switch
+ * surface.
  *
- * The Composable is the user-facing surface for
- * the Google Drive backup. A contributor who edits
- * the file can silently change the user contract
- * (e.g. drop the sign-in button, swap the toggle
- * semantics, remove the "Forget this account" or
- * the restore path) and nothing else would notice.
- * These tests pin the shape the SettingsScreen and
- * [org.mindanchor.backup.DriveNightlySync] depend on.
- *
- * The Composable is not directly testable in a
- * JVM-only Robolectric run (the activity
- * result launcher + the LocalContext are
- * bound to a real Activity); the file-shape
- * test is the contract the SettingsScreen
- * honors.
+ * The Composable is not directly testable in a JVM-only Robolectric run
+ * (the activity result launchers + LocalContext are bound to a real
+ * Activity) — same constraint the pre-Task-12 file's KDoc documented. The
+ * file-shape test is the contract; the real interaction tests live in the
+ * instrumented `ContinuitySettingsTest`.
  */
 class GoogleDriveBackupSettingsSectionFindingTest {
 
     private val sourcePath = "src/main/java/org/mindanchor/settings/GoogleDriveBackupSettingsSection.kt"
     private val source by lazy { File(sourcePath).readText() }
 
-    @Test fun `file is in the settings package and is internal`() {
-        assertTrue("package must be org.mindanchor.settings", source.contains("package org.mindanchor.settings"))
-        // `internal` is the testable-but-not-
-        // exported visibility: the SettingsScreen
-        // uses it, the rest of the app does not.
-        assertTrue("function must be internal", source.contains("internal fun GoogleDriveBackupSettingsSection"))
+    /**
+     * Every other production file that can carry user-facing continuity
+     * backup/health copy, for the honesty-guardrail test below. Kept as an
+     * explicit, commented list rather than a scan of all of `app/src/main`
+     * — scanning the whole tree would false-positive on unrelated,
+     * legitimate uses of "backed up" elsewhere (e.g. `backup_explainer` in
+     * strings.xml, which describes the pre-Program-0 local-file "Keep a
+     * copy" feature and correctly says local data is *not* backed up to
+     * the cloud).
+     */
+    private val otherHonestyScanFiles = listOf(
+        // BackupHealth is the domain type whose KDoc/variant docs define
+        // what "verified" means; a future edit here could restate the
+        // claim loosely.
+        "src/main/java/org/mindanchor/continuity/BackupHealth.kt",
+        // The other user-facing continuity export path (Journal research
+        // JSON) — its outcome copy is built here, not just in this file.
+        "src/main/java/org/mindanchor/continuity/ResearchExportBuilder.kt",
+        // Restore's Composable copy is hardcoded (not routed through
+        // strings.xml), so it needs its own scan.
+        "src/main/java/org/mindanchor/continuity/RestoreScreen.kt",
+    )
+
+    /**
+     * res/values/strings.xml scanned by string-resource name prefix, not as
+     * a whole-file blob: the file also holds `backup_*` strings for the
+     * unrelated pre-Program-0 local-file backup feature (e.g.
+     * `backup_explainer`'s legitimate "Nothing here is backed up to the
+     * cloud"), which would false-positive a naive full-file scan.
+     */
+    private val continuityStringResourceLines by lazy {
+        File("src/main/res/values/strings.xml").readLines()
+            .filter { Regex("""<string name="(continuity_|drive_)""").containsMatchIn(it) }
     }
 
-    @Test fun `section uses GoogleDriveAuth + the DataStore toggle from SettingsViewModel`() {
+    @Test fun `file is in the settings package and is internal`() {
+        assertTrue("package must be org.mindanchor.settings", source.contains("package org.mindanchor.settings"))
+        assertTrue(
+            "function must be internal",
+            source.contains("internal fun GoogleDriveBackupSettingsSection"),
+        )
+    }
+
+    /**
+     * The Task 12 investigation finding: the old per-type Notes/Letters
+     * auto-sync toggles were wired to literal no-op `onCheckedChange`
+     * lambdas, and a full-codebase search found no consumer of
+     * `BackupPrefs.autoSyncNotes`/`autoSyncLetters` other than the old
+     * ViewModel exposure and that dead toggle UI. Program 0's
+     * `ContinuityWorkScheduler` now checkpoints Notes/Letters
+     * unconditionally once continuity backup is on, so the fix is
+     * deletion, not rewiring: this test proves the new file carries no
+     * trace of the old toggle, the old scheduler-based "Back up now"
+     * path, or the SettingsViewModel dependency that only existed to
+     * expose those two dead flows.
+     */
+    @Test fun `old Notes-Letters auto-sync toggle is gone, not merely rewired`() {
+        val removedNeedles = listOf(
+            "autoSyncNotes",
+            "autoSyncLetters",
+            "R.string.drive_auto_sync_notes",
+            "R.string.drive_auto_sync_letters",
+            "viewModel: SettingsViewModel",
+            "BackupScheduler(",
+            "scheduler.backupAll()",
+            "OkHttpClient()",
+            "R.string.drive_backup_uploaded",
+        )
+        for (needle in removedNeedles) {
+            assertFalse("must NOT reference $needle (the dead per-type toggle path)", source.contains(needle))
+        }
+    }
+
+    @Test fun `section still reuses the existing GoogleDriveAuth sign-in machinery unchanged`() {
         val needs = listOf(
             "GoogleDriveAuth",
-            "viewModel.driveNightlySyncEnabled",
-            "R.string.drive_section",
-            "R.string.drive_explainer",
+            "auth.signInIntent()",
+            "auth.handleSignInResult",
+            "auth.signOut()",
+            "rememberLauncherForActivityResult",
+            "ActivityResultContracts.StartActivityForResult",
+            "R.string.drive_sign_in",
+            "R.string.drive_signed_in_as",
+            "R.string.drive_forget_account",
+            "R.string.drive_forgot",
         )
         for (needle in needs) {
             assertTrue("must reference $needle", source.contains(needle))
         }
     }
 
-    @Test fun `section wires the sign-in flow via ActivityResultLauncher and signInIntent`() {
-        // The OAuth entry point is the
-        // GoogleSignInClient.signInIntent,
-        // dispatched via rememberLauncherForActivityResult.
-        // A rename or signature change here would
-        // break the integration with the
-        // GoogleDriveAuth surface.
-        assertTrue(
-            "must import rememberLauncherForActivityResult",
-            source.contains("rememberLauncherForActivityResult"),
+    @Test fun `recovery key generate-and-verify flow requires full re-entry, never a checkbox`() {
+        val needs = listOf(
+            "RecoveryKeyStore",
+            "RecoveryKeyCodec.generate",
+            "RecoveryKeyCodec.format",
+            "RecoveryKeyCodec.decode",
+            "recoveryKeyStore.save(",
+            "recoveryKeyStore.markVerified()",
+            "recoveryKeyStore.isVerified()",
+            "NOT_CREATED",
+            "NEEDS_VERIFICATION",
+            "VERIFIED",
         )
-        assertTrue(
-            "must use StartActivityForResult contract",
-            source.contains("ActivityResultContracts.StartActivityForResult"),
-        )
-        assertTrue("must call auth.signInIntent()", source.contains("auth.signInIntent()"))
-        assertTrue("must call auth.handleSignInResult", source.contains("auth.handleSignInResult"))
+        for (needle in needs) {
+            assertTrue("must reference $needle", source.contains(needle))
+        }
+        // The verify path must compare a *decoded, retyped* key, never a
+        // bare acknowledgement flag/checkbox.
+        assertFalse("must not accept a bare acknowledgement flag as verification", source.contains("iSavedItChecked"))
     }
 
-    @Test fun `section shows the sync toggle plus back-up-now plus restore plus forget-account only when signed in`() {
-        // The opt-in shape: default state is
-        // "Sign in with Google"; the toggle +
-        // the "Back up now" / "Restore" / "Forget"
-        // buttons are gated on signedInEmail being
-        // non-null. The test pins both the
-        // default-state branch and the
-        // signed-in branch.
-        assertTrue("must gate on signedInEmail", source.contains("signedInEmail"))
-        assertTrue("must show drive_sign_in button on the default branch", source.contains("R.string.drive_sign_in"))
-        assertTrue(
-            "must show drive_signed_in_as with the email on the signed-in branch",
-            source.contains("R.string.drive_signed_in_as"),
+    @Test fun `backup switch is gated on sign-in and a verified key, disabling never deletes data`() {
+        val needs = listOf(
+            "canEnableBackup",
+            "continuityPrefs.setBackupEnabled",
+            "requestCheckpoint(context)",
+            "ensureNightlyScheduled(context)",
+            "cancelAllWork(context)",
+            "ContinuityWorkScheduler::requestCheckpoint",
+            "ContinuityWorkScheduler::ensureNightlyScheduled",
+            "ContinuityWorkScheduler::cancelAll",
         )
-        assertTrue("must show drive_nightly_sync toggle", source.contains("R.string.drive_nightly_sync"))
-        assertTrue("must show drive_backup_now button", source.contains("R.string.drive_backup_now"))
-        assertTrue("must show drive_restore_now button", source.contains("R.string.drive_restore_now"))
-        assertTrue("must show drive_forget_account button", source.contains("R.string.drive_forget_account"))
-    }
-
-    @Test fun `section calls signOut on forget-account click`() {
-        // The forget-account button is the
-        // user's escape hatch from the bridge:
-        // the local credentials are wiped, the
-        // GoogleSignInClient.signOut is invoked,
-        // and the surface flips back to
-        // "Sign in with Google". The wire-up is
-        // what makes the bridge revocable.
-        assertTrue("must call auth.signOut", source.contains("auth.signOut()"))
-        assertTrue(
-            "must surface a drive_forgot message on success",
-            source.contains("R.string.drive_forgot"),
-        )
-    }
-
-    @Test fun `Back up now button dispatches BackupScheduler across all four content types`() {
-        // The "Back up now" button builds one Drive target per
-        // content type via buildScheduler and calls backupAll.
-        // The surface is what wires the user's manual click to
-        // the scheduler's delta sync.
-        assertTrue("must instantiate BackupScheduler", source.contains("BackupScheduler("))
-        assertTrue("must call backupAll", source.contains(".backupAll()"))
-        assertTrue("must show drive_backup_uploaded on success", source.contains("R.string.drive_backup_uploaded"))
-        assertTrue("must show drive_upload_failed on failure", source.contains("R.string.drive_upload_failed"))
-        val targetTypes = listOf(
-            "ContentType.Notes",
-            "ContentType.Letters",
-            "ContentType.CheckIns",
-            "ContentType.WellnessReadings",
-        )
-        for (type in targetTypes) {
-            assertTrue("must build a GoogleDriveBackupTarget for $type", source.contains(type))
+        for (needle in needs) {
+            assertTrue("must reference $needle", source.contains(needle))
+        }
+        // No delete-style call anywhere in the file.
+        val deleteNeedles = listOf(".delete(", "DELETE FROM", "clear()")
+        for (needle in deleteNeedles) {
+            assertFalse("must never call a delete-style operation ($needle)", source.contains(needle))
         }
     }
 
-    @Test fun `Restore from Google Drive button dispatches BackupScheduler restoreAll`() {
-        // The reverse of "Back up now" — the path a new phone,
-        // signed into the same account, uses to pick up whatever
-        // this phone already backed up. Losing this silently
-        // breaks the "when I change my mobile phone" half of the
-        // feature while backupAll keeps passing every test.
-        assertTrue("must call restoreAll", source.contains(".restoreAll()"))
-        assertTrue("must show drive_restore_done", source.contains("R.string.drive_restore_done"))
-        assertTrue("must show drive_restore_nothing", source.contains("R.string.drive_restore_nothing"))
-        assertTrue("must show drive_restore_failed", source.contains("R.string.drive_restore_failed"))
+    @Test fun `context extraction kill switch is wired to ContinuityPrefs only`() {
+        assertTrue(
+            "must call continuityPrefs.setContextExtractionEnabled",
+            source.contains("continuityPrefs.setContextExtractionEnabled"),
+        )
+        // Task 12 deliberately does not wire the gate into Journal
+        // writing — see this file's setContextExtractionEnabled KDoc and
+        // the task report.
+        assertFalse("must not reference JournalRepository", source.contains("JournalRepository"))
+        assertFalse("must not reference StructuralContextExtractor", source.contains("StructuralContextExtractor"))
+    }
+
+    @Test fun `back-up-now schedules a checkpoint and never performs direct network IO`() {
+        assertTrue("must call requestCheckpoint on click", source.contains("fun backUpNow()"))
+        assertTrue(
+            "must reference ContinuityMessage.CheckpointRequested",
+            source.contains("ContinuityMessage.CheckpointRequested"),
+        )
+        assertFalse("must not construct an OkHttpClient directly", source.contains("OkHttpClient"))
+    }
+
+    @Test fun `restore button targets RestoreActivity`() {
+        assertTrue(
+            "must launch an Intent targeting RestoreActivity",
+            source.contains("Intent(context, RestoreActivity::class.java)"),
+        )
+    }
+
+    @Test fun `save-encrypted-copy uses the continuity envelope codec, not the legacy plaintext export`() {
+        val needs = listOf(
+            "BackupEnvelopeCodec.encrypt",
+            "BackupEnvelopeCodec.encode",
+            "ContinuitySnapshotCodec.encode",
+            "BackupRepository.write",
+            "ActivityResultContracts.CreateDocument(\"application/octet-stream\")",
+        )
+        for (needle in needs) {
+            assertTrue("must reference $needle", source.contains(needle))
+        }
+    }
+
+    @Test fun `research export uses the shared ResearchExportBuilder and warns before writing`() {
+        val needs = listOf(
+            "ResearchExportBuilder.export",
+            "ResearchExportBuilder.fileName()",
+            "ActivityResultContracts.CreateDocument(\"application/json\")",
+            "showResearchPrivacyDialog",
+            "R.string.continuity_export_research_privacy_body",
+        )
+        for (needle in needs) {
+            assertTrue("must reference $needle", source.contains(needle))
+        }
+    }
+
+    @Test fun `health section maps every BackupHealth variant to its own exact string resource`() {
+        val needs = mapOf(
+            "BackupHealth.Verified" to "R.string.continuity_health_verified",
+            "BackupHealth.Pending" to "R.string.continuity_health_pending",
+            "BackupHealth.NeedsSignIn" to "R.string.continuity_health_needs_sign_in",
+            "BackupHealth.RecoveryKeyRequired" to "R.string.continuity_health_recovery_key_required",
+            "BackupHealth.VerificationFailed" to "R.string.continuity_health_verification_failed",
+        )
+        for ((variant, stringRes) in needs) {
+            assertTrue("must reference $variant", source.contains(variant))
+            assertTrue("must reference $stringRes", source.contains(stringRes))
+        }
+        assertTrue("must call BackupHealth.compute", source.contains("BackupHealth.compute("))
+        assertTrue(
+            "must surface the last verified nightly time",
+            source.contains("R.string.continuity_health_last_nightly"),
+        )
+        assertTrue("must surface the last restore time", source.contains("R.string.continuity_health_last_restore"))
+    }
+
+    /**
+     * The hard product-honesty rule: no string ever says an upload alone
+     * was "backed up" — only BackupHealth.Verified's own copy may claim a
+     * verified backup. Widened (see the Task 12 post-review fix) from
+     * scanning only this file's Kotlin source to the real set of places
+     * user-facing continuity copy lives: this file, [otherHonestyScanFiles],
+     * and the continuity_/drive_ string resources in strings.xml (via
+     * [continuityStringResourceLines]) — so an edit to
+     * ResearchExportBuilder.kt, BackupHealth.kt, RestoreScreen.kt, or a
+     * continuity/drive string resource introducing this phrasing is caught
+     * too, not just an edit to GoogleDriveBackupSettingsSection.kt.
+     */
+    @Test fun `no string anywhere conflates an upload with a verified backup`() {
+        val needlePattern = Regex("backed up")
+        val filesToScan = listOf(sourcePath) + otherHonestyScanFiles
+        for (path in filesToScan) {
+            val occurrences = needlePattern.findAll(File(path).readText().lowercase()).toList()
+            assertTrue(
+                "the phrase 'backed up' must never appear in $path " +
+                    "(found ${occurrences.size} occurrence(s)) — see continuity_checkpoint_requested / " +
+                    "continuity_health_verified for the only sanctioned phrasing",
+                occurrences.isEmpty(),
+            )
+        }
+
+        assertTrue("expected continuity_/drive_ string resources in strings.xml", continuityStringResourceLines.isNotEmpty())
+        for (line in continuityStringResourceLines) {
+            val occurrences = needlePattern.findAll(line.lowercase()).toList()
+            assertTrue(
+                "the phrase 'backed up' must never appear in a continuity_/drive_ string resource " +
+                    "(found ${occurrences.size} occurrence(s) in: $line)",
+                occurrences.isEmpty(),
+            )
+        }
+    }
+
+    @Test fun `forget account still calls signOut`() {
+        assertTrue("must call auth.signOut", source.contains("auth.signOut()"))
+        assertTrue(
+            "must surface a drive_forgot message on success",
+            source.contains("ContinuityMessage.Forgotten"),
+        )
     }
 }

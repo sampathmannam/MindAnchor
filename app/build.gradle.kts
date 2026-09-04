@@ -7,6 +7,19 @@ plugins {
     alias(libs.plugins.kover)
 }
 
+// Program 3 advisory delivery is compiled out unless a build deliberately
+// asks for it. Only the exact lower-case literal `true` counts, so a typo
+// or an empty value leaves the ordinary, zero-protocol build. Operational
+// evidence cannot authorize an ordinary build on its own, and a release
+// build forces both fields false regardless of what was passed.
+val program3PersonalResearch =
+    providers.gradleProperty("mindanchor.program3.personalResearch").orNull == "true"
+val program3OperationalEvidence =
+    providers.gradleProperty("mindanchor.program3.operationalEvidenceApproved").orNull == "true"
+require(!program3OperationalEvidence || program3PersonalResearch) {
+    "Program 3 operational evidence cannot authorize an ordinary build"
+}
+
 android {
     namespace = "org.mindanchor"
     // Health Connect 1.1.0 stable requires compileSdk 36+. Bumped
@@ -346,8 +359,26 @@ android {
         // constant-naming style, since main is the branch this merges
         // into.
         // versionCode 112→113.
-        versionCode = 113
-        versionName = "0.70.19"
+        // v0.71.0: Task 13 release-hardening bump (Program 0's
+        //   complete, reviewed feature slice — Tasks 1-12).
+        //   versionCode 94→95.
+        // v0.72.0: Program 1 scientific foundation — evidence protocol
+        //   registry, append-only hash-chained research ledger, study
+        //   phases carrying the provenance version vector, frozen data
+        //   dictionary, and a self-describing research export. Room v6→v7
+        //   (additive; two new append-only tables). Snapshot format 1→2
+        //   and research export v1→v2, both with the older version kept
+        //   readable and verifiable. Zero new permissions, no network.
+        //   versionCode 95→96.
+        // v0.72.1: merged this branch's v0.70.x line (per-provider LLM
+        //   keys, sun-arc UI, Health Connect additional-permissions
+        //   fix, on-device model removal, Drive-backup live-bug fixes,
+        //   privacy-copy fixes) into main's Program 0/1/3 line. No
+        //   app behavior changes beyond what each line already shipped
+        //   independently.
+        //   versionCode 96→97.
+        versionCode = 97
+        versionName = "0.72.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Fixtures write months of history into the app under test, which
         // would leak into whatever ran next. They are excluded from every
@@ -434,7 +465,17 @@ android {
     }
 
     buildTypes {
+        debug {
+            buildConfigField("boolean", "PROGRAM3_PERSONAL_RESEARCH", program3PersonalResearch.toString())
+            buildConfigField(
+                "boolean",
+                "PROGRAM3_OPERATIONAL_EVIDENCE_APPROVED",
+                program3OperationalEvidence.toString(),
+            )
+        }
         release {
+            buildConfigField("boolean", "PROGRAM3_PERSONAL_RESEARCH", "false")
+            buildConfigField("boolean", "PROGRAM3_OPERATIONAL_EVIDENCE_APPROVED", "false")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -485,6 +526,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     // Reproducible, F-Droid-friendly builds: no proprietary dependencies anywhere.
@@ -588,6 +630,7 @@ dependencies {
     implementation(libs.compose.ui.tooling.preview)
 
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
     // OkHttp's MockWebServer: a localhost-bound HTTP server that
     // records requests and returns scripted responses. v0.20.7's
     // CorosApiTest exercises the four Training Hub endpoints
@@ -613,6 +656,12 @@ dependencies {
     // inside the Robolectric sandbox. Same version as the catalog
     // entry; the Robolectric test would fail to compile without it.
     testImplementation(libs.androidx.test.core)
+    // work-testing's WorkManagerTestInitHelper needs a real Android
+    // Context (Robolectric, same as the rest of this test classpath) —
+    // Task 10's ContinuityWorkSchedulerTest runs as a plain
+    // testDebugUnitTest JVM test, not a connectedDebugAndroidTest, so
+    // this goes on testImplementation, not androidTestImplementation.
+    testImplementation(libs.androidx.work.testing)
 
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.androidx.test.junit)
@@ -631,3 +680,9 @@ dependencies {
 //   app/build/reports/kover/reportDebug.xml
 // which CI dashboards ingest. The plugin is applied directly to this
 // single application module, so no cross-project Kover dependency is needed.
+
+// Commits AnchorDatabase's Room schema exports (app/schemas) so migrations
+// are validated against the exact prior schema rather than trusted blind.
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}

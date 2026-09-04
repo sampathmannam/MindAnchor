@@ -60,6 +60,41 @@ Delete `mindanchor.jks.base64` afterwards. The `.jks` stays in your
 backups, never in the repository — `.gitignore` covers the pattern, but
 the real protection is not putting it there.
 
+Then record the certificate's public fingerprint as a repository
+**variable** (not a secret — a certificate fingerprint is meant to be
+publicly verifiable, that's the point of it) under **Settings → Secrets
+and variables → Actions → Variables**:
+
+```sh
+keytool -exportcert -alias mindanchor -keystore mindanchor.jks | \
+  openssl x509 -inform der -noout -fingerprint -sha256
+```
+
+If `openssl` isn't on your `PATH` (plain Windows PowerShell often doesn't have
+it), `keytool` alone prints the same fingerprint — no extra tool needed:
+
+```sh
+keytool -list -v -keystore mindanchor.jks -alias mindanchor
+```
+
+Look for the `SHA256:` line under "Certificate fingerprints:".
+
+| Variable | Value |
+|---|---|
+| `MINDANCHOR_RELEASE_CERT_SHA256` | the `SHA256` fingerprint from the command above, hex digits only, colons removed (case-insensitive — the workflow uppercases both sides before comparing; `apksigner`'s own output has no colons, which is what it's actually compared against) |
+
+The release keystore now exists (generated 2026-08-29). Its certificate's
+SHA-256 fingerprint:
+
+```
+DFD147DCCF0E99AE156F79811D3885076129A3B0F57108E724D4FBE6450E87FD
+```
+
+This value must also be added as the `MINDANCHOR_RELEASE_CERT_SHA256`
+repository **variable** on GitHub (Settings → Secrets and variables →
+Actions → Variables) — recording it here alone does not configure the
+workflow.
+
 ---
 
 ## 3. Cut a release
@@ -67,11 +102,41 @@ the real protection is not putting it there.
 Either push a `v*` tag, or run the **Release** workflow manually with a
 tag like `v0.10.0`.
 
-The workflow builds a signed release APK when the secrets are present and
-falls back to a debug APK when they are not, so forks and contributors
-still get a working build. Every release publishes the artifact's SHA-256
-in the release notes — the only way for someone downloading outside a
-store to confirm they have the file CI actually built.
+**The workflow fails closed.** If any of the four signing secrets is
+missing, the job exits before building anything and no GitHub Release is
+created — there is no debug-signed fallback for an official release.
+Forks and contributors still get ordinary debug builds from `ci.yml` on
+every push; they just never come out of this workflow as something
+tagged "official."
+
+When the secrets are present, the workflow:
+
+1. builds the release APK twice, cleanly, with the same
+   `SOURCE_DATE_EPOCH` (see `tools/verify-reproducible-release.sh`) and
+   fails if the two builds don't produce byte-identical output;
+2. runs `apksigner verify --print-certs` on the result and compares the
+   certificate's SHA-256 digest against the `MINDANCHOR_RELEASE_CERT_SHA256`
+   repository variable recorded above — a mismatch fails the release,
+   which is what catches a wrong or compromised keystore being used;
+3. publishes the APK's own SHA-256 in the release notes — the only way
+   for someone downloading outside a store to confirm they have the file
+   CI actually built.
+
+### Reproducibility boundary
+
+`tools/verify-reproducible-release.sh` proves the *unsigned build
+content* (resources, DEX, native libraries, manifest) is reproducible
+given a fixed `SOURCE_DATE_EPOCH` — that part is fully mechanical and
+runnable by anyone, with or without the release keystore. The *signed*
+APK reproducibility this task actually cares about additionally depends
+on Android's APK Signature Scheme producing a deterministic signature
+block for a fixed keystore and fixed input, which this repository cannot
+independently verify without the real release keystore in CI. If a
+future signing scheme or plugin version ever makes signed output vary
+between otherwise-identical builds, the fix is to compare the *unsigned*
+APK as the primary reproducibility proof and keep certificate
+verification (step 2 above) as a separate, explicit check — not to
+loosen the hash comparison to "close enough."
 
 ---
 
@@ -99,15 +164,51 @@ it is not automated here, deliberately.
 
 ## 6. Before the first public release
 
-- [ ] Signing key created and backed up in two offline places
+The signing key setup is an owner-only manual step — no automated task
+in this repository can perform it, since it requires holding a private
+key and a GitHub Secrets admin login that only the owner has:
+
+- [x] Create one release keystore, once (§1 above) — done 2026-08-29
+- [ ] Store two offline copies outside the phone and outside the repository
+- [ ] Configure `MINDANCHOR_KEYSTORE_BASE64`, `MINDANCHOR_KEYSTORE_PASSWORD`,
+      `MINDANCHOR_KEY_ALIAS`, and `MINDANCHOR_KEY_PASSWORD` in GitHub Secrets
+- [ ] Record only the public certificate SHA-256 fingerprint as the
+      `MINDANCHOR_RELEASE_CERT_SHA256` repository variable (§2 above) —
+      do not consider this step complete until the fingerprint the
+      release workflow actually built matches the one recorded here
+- [ ] Install two consecutive signed builds over each other on a real
+      device and confirm Android accepts the upgrade (see
+      `docs/qa/program-0-upgrade-runbook.md` for the full procedure)
+
+And separately:
+
 - [ ] `docs/CLINICAL_REVIEW.md` reviewed by a clinician, and the crisis
       numbers confirmed against the operators themselves
 - [ ] The app installed and used on a real phone for more than a day
 - [ ] Screenshots reviewed at large font scales
 
-The second item is not a formality. This app holds a suicide safety plan,
-and no amount of test coverage substitutes for someone qualified having
-read what it tells a person in crisis.
+The clinical-review item is not a formality. This app holds a suicide
+safety plan, and no amount of test coverage substitutes for someone
+qualified having read what it tells a person in crisis.
+
+### 6.1 Program 0 (v0.71.0) readiness
+
+Program 0's own plan (`docs/superpowers/plans/2026-08-28-program-0-continuity-proof.md`)
+adds one more gate on top of the checklist above, specific to this
+release: **"Program 0 exits only after repeated physical
+replacement-phone restores produce matching content hashes."** All
+automatable work — the full continuity round trip, offline-startup
+pinning, the release-safety/reproducibility tooling, and the whole
+JVM/instrumentation test suite — is implemented and passing (see
+`docs/qa/program-0-continuity-runbook.md` for the exact automated
+coverage already in place). `docs/qa/program-0-continuity-log.md` is
+still a template: **zero physical Device A → Device B restores have
+been run**, because this was implemented in an environment with no
+physical hardware, no second device, and no real Google account. v0.71.0
+must not be tagged until the runbook has actually been executed and
+`program-0-continuity-log.md` records three successful, hash-matching
+runs — this is a hard gate, not a formality, exactly like the
+clinical-review item above.
 
 ---
 
@@ -199,4 +300,65 @@ plan file in `docs/superpowers/specs/`). The release tags are:
 Each release bumps `versionCode` monotonically and the `versionName` in
 `app/build.gradle.kts`. The 2-week live test (G-36) is parallel to the
 release engineering; its log lives at `docs/qa/real-2-week-log.md`.
+
+---
+
+## 9. Program 3 (adaptive protocol delivery) release rules
+
+Program 3 is the disabled-by-default historical advisory feature
+(`app/src/main/java/org/mindanchor/advisory/`). It ships in every build,
+including public ones, but an ordinary build's protocol allowlist is
+empty at compile time, so it can deliver nothing regardless of any
+runtime setting. The rules below govern the two ways that could change.
+Current state is recorded, honestly, in
+`docs/qa/program-3-adaptive-delivery-evidence.md` — read that file for
+what is and is not true today, not this section.
+
+**Public release.** A public (ordinary) build may name a protocol in its
+allowlist only when all of the following hold, together, not
+individually:
+
+- the exact protocol definition named is `REVIEWED_AND_ACCEPTED`
+  (`ClinicalReviewStatus`), not `NOT_REVIEWED`, `REVIEW_REQUESTED`, or
+  `REVIEWED_WITH_CHANGES`;
+- every new user-facing copy surface the feature added (the advisory
+  card, the evidence screen, the player screen, the two settings rows,
+  and their strings) is separately `REVIEWED_AND_ACCEPTED`;
+- the ordinary allowlist itself becomes non-empty only in its own,
+  separately reviewed change — never bundled into an unrelated commit;
+- the change carries the clinical-review CI label.
+
+**Current public protocol count is zero**, because `cyclic-sighing@1` is
+`NOT_REVIEWED` and the ordinary allowlist
+(`AdvisoryBuildAuthorization.ordinaryAllowlist`) is empty. This is a hard
+gate, not a formality, exactly like the clinical-review item in §6 above.
+
+**Personal-research delivery** (the owner's own device only, never a
+public artifact) requires all of the following, together:
+
+- Program 0, Program 2, and Program 3's own physical-device evidence are
+  each complete (see `docs/qa/program-3-adaptive-delivery-evidence.md`
+  and `docs/qa/program-3-adaptive-delivery-runbook.md`);
+- explicit owner activation — a deliberate decision recorded outside
+  source control, not inferred from a build succeeding;
+- both `PROGRAM3_PERSONAL_RESEARCH=true` and
+  `PROGRAM3_OPERATIONAL_EVIDENCE_APPROVED=true` set explicitly at build
+  time;
+- the master advisory switch and the delivery switch both deliberately
+  turned on in Settings — neither defaults to true;
+- the protocol started is exactly the one named in
+  `AdvisoryBuildAuthorization.personalAllowlist`, by id, version, and
+  definition hash — no other protocol may be named there.
+
+**No evidence document and no build property may bypass** source
+finality (`AVAILABLE_FINAL` + `SUSTAINED_DEVIATION`), source provenance
+completeness, the active-episode-exists check, the cooldown timer, or the
+runtime delivery kill switch. Those gates are evaluated from live state
+at the moment of the action, every time, regardless of what any document
+says has been approved.
+
+Changing `cyclic-sighing@1`'s review status away from `NOT_REVIEWED`, or
+adding an entry to either allowlist, is a separate clinical and release
+decision — it is not something Program 3's implementation itself
+authorizes, and it must not be bundled into an implementation commit.
 

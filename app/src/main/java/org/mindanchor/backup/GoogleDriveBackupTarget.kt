@@ -115,6 +115,34 @@ import java.util.concurrent.TimeUnit
  * [AllowInsecureForTest] marker to bypass the
  * check, the same pattern as the v0.23.0
  * [WebDavBackupTarget].
+ *
+ * ## Task 9: this class's wire format is not restorable, and it is quarantined
+ *
+ * The [append] wire format documented above — payload bytes followed
+ * by a single `\n` (0x0A), repeated forever — is **not** a restorable
+ * framing format. Each `payload` here is an AES-256-GCM ciphertext
+ * blob, and ciphertext bytes are, by construction, uniformly random:
+ * `0x0A` is a perfectly ordinary byte value that will legitimately
+ * turn up *inside* a blob, not just between blobs. A restore parser
+ * that naively splits the downloaded file on `\n` will, sooner or
+ * later, split a single encrypted entry into two garbage halves.
+ * There was never a restore path built against this format (see the
+ * "Restoring is out of scope for v0.25.4" note above) — this is that
+ * gap being closed for good, not a regression.
+ *
+ * [org.mindanchor.backup.GoogleDriveObjectStore] (Task 9) is the
+ * replacement: plain named-object storage with full-overwrite
+ * `put`/`get`/`list` semantics instead of unbounded newline-delimited
+ * append, and [kotlinx.serialization.json.Json]-based response
+ * parsing instead of [parseFirstFileId]'s substring search. It is the
+ * only writer any new continuity code (settings, workers) should use
+ * going forward.
+ *
+ * This class is not deleted, and its behavior here is unchanged: it
+ * remains the reader/writer for the existing legacy Notes/Letters
+ * backup path (see [ContentType]) until that path is separately
+ * retired in a later task. No existing user file this class already
+ * wrote is deleted or rewritten by Task 9.
  */
 class GoogleDriveBackupTarget(
     private val client: OkHttpClient = defaultClient(),
